@@ -1,130 +1,147 @@
 """
-Canvas-based document model
-Frontend pages > elements (position, style) に対応
+Block-based document model (Word-like structured editing)
+Frontend blocks → structured LaTeX → XeLaTeX → PDF
 """
 from __future__ import annotations
 
-from enum import Enum
 from typing import Annotated, Literal, Optional, Union
-from pydantic import BaseModel, Discriminator, Field, Tag
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
+from pydantic.alias_generators import to_camel
 
 
-# --------------- Enums ---------------
+# --------------- Base schema (camelCase JSON ↔ snake_case Python) ---------------
 
-class TemplateType(str, Enum):
-    BLANK = "blank"
-    REPORT = "report"
-    ANNOUNCEMENT = "announcement"
-    WORKSHEET = "worksheet"
+class CamelModel(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
 
-class ListStyle(str, Enum):
-    BULLET = "bullet"
-    NUMBERED = "numbered"
+# --------------- Block Content (discriminated union) ---------------
 
-
-# --------------- Position & Style ---------------
-
-class ElementPosition(BaseModel):
-    x: float = Field(default=20, description="X座標 (mm)")
-    y: float = Field(default=20, description="Y座標 (mm)")
-    width: float = Field(default=170, description="幅 (mm)")
-    height: float = Field(default=40, description="高さ (mm)")
-
-
-class ElementStyle(BaseModel):
-    textColor: Optional[str] = None
-    backgroundColor: Optional[str] = None
-    textAlign: Optional[str] = Field(default=None, pattern="^(left|center|right)$")
-    fontSize: Optional[float] = None        # pt
-    fontFamily: Optional[str] = Field(default=None, pattern="^(serif|sans)$")
-    bold: Optional[bool] = None
-    italic: Optional[bool] = None
-    borderColor: Optional[str] = None
-    borderWidth: Optional[float] = None     # pt
-    borderRadius: Optional[float] = None    # mm
-    padding: Optional[float] = None         # mm
-    opacity: Optional[float] = Field(default=None, ge=0, le=1)
-
-
-# --------------- Content Models (discriminated union) ---------------
-
-class HeadingContent(BaseModel):
+class HeadingContent(CamelModel):
     type: Literal["heading"] = "heading"
-    text: str = Field(default="", description="見出しテキスト")
+    text: str = ""
     level: int = Field(default=1, ge=1, le=3)
 
 
-class ParagraphContent(BaseModel):
+class ParagraphContent(CamelModel):
     type: Literal["paragraph"] = "paragraph"
-    text: str = Field(default="", description="本文テキスト")
+    text: str = ""
 
 
-class ListContent(BaseModel):
+class MathContent(CamelModel):
+    type: Literal["math"] = "math"
+    latex: str = ""
+    display_mode: bool = True
+
+
+class ListContent(CamelModel):
     type: Literal["list"] = "list"
-    style: ListStyle = Field(default=ListStyle.BULLET)
+    style: Literal["bullet", "numbered"] = "bullet"
     items: list[str] = Field(default_factory=lambda: [""])
 
 
-class TableContent(BaseModel):
+class TableContent(CamelModel):
     type: Literal["table"] = "table"
     headers: list[str] = Field(default_factory=lambda: ["列1", "列2"])
     rows: list[list[str]] = Field(default_factory=lambda: [["", ""]])
+    caption: Optional[str] = None
 
 
-class ImageContent(BaseModel):
+class ImageContent(CamelModel):
     type: Literal["image"] = "image"
-    url: str = Field(default="", description="画像URL")
-    caption: str = Field(default="")
+    url: str = ""
+    caption: str = ""
+    width: Optional[int] = None
 
 
-ElementContent = Annotated[
+class DividerContent(CamelModel):
+    type: Literal["divider"] = "divider"
+
+
+class CodeContent(CamelModel):
+    type: Literal["code"] = "code"
+    language: str = ""
+    code: str = ""
+
+
+class QuoteContent(CamelModel):
+    type: Literal["quote"] = "quote"
+    text: str = ""
+    attribution: Optional[str] = None
+
+
+BlockContent = Annotated[
     Union[
         Annotated[HeadingContent, Tag("heading")],
         Annotated[ParagraphContent, Tag("paragraph")],
+        Annotated[MathContent, Tag("math")],
         Annotated[ListContent, Tag("list")],
         Annotated[TableContent, Tag("table")],
         Annotated[ImageContent, Tag("image")],
+        Annotated[DividerContent, Tag("divider")],
+        Annotated[CodeContent, Tag("code")],
+        Annotated[QuoteContent, Tag("quote")],
     ],
     Discriminator("type"),
 ]
 
 
-# --------------- Canvas Element ---------------
+# --------------- Block Style ---------------
 
-class CanvasElement(BaseModel):
+class BlockStyle(CamelModel):
+    text_align: Optional[str] = None
+    font_size: Optional[int] = None
+    font_family: Optional[str] = None
+    bold: Optional[bool] = None
+    italic: Optional[bool] = None
+    underline: Optional[bool] = None
+    text_color: Optional[str] = None
+    background_color: Optional[str] = None
+
+
+# --------------- Block ---------------
+
+class Block(CamelModel):
     id: str
-    content: ElementContent
-    position: ElementPosition = Field(default_factory=ElementPosition)
-    style: ElementStyle = Field(default_factory=ElementStyle)
-    zIndex: int = Field(default=1)
+    content: BlockContent = Field(discriminator="type")
+    style: BlockStyle = Field(default_factory=BlockStyle)
 
 
-# --------------- Page ---------------
+# --------------- Document Settings ---------------
 
-class Page(BaseModel):
-    id: str
-    elements: list[CanvasElement] = Field(default_factory=list)
+class Margins(CamelModel):
+    top: int = 25
+    bottom: int = 25
+    left: int = 20
+    right: int = 20
+
+
+class DocumentSettings(CamelModel):
+    paper_size: str = "a4"
+    margins: Margins = Field(default_factory=Margins)
+    line_spacing: float = 1.15
+    page_numbers: bool = True
+    two_column: bool = False
 
 
 # --------------- Metadata ---------------
 
-class Metadata(BaseModel):
-    title: str = Field(default="無題のドキュメント")
-    subtitle: str = Field(default="")
-    author: str = Field(default="")
-    date: str = Field(default="")
+class Metadata(CamelModel):
+    title: str = ""
+    author: str = ""
+    date: Optional[str] = None
 
 
 # --------------- Document ---------------
 
-class DocumentModel(BaseModel):
-    template: TemplateType = Field(default=TemplateType.BLANK)
+class DocumentModel(CamelModel):
+    template: str = "blank"
     metadata: Metadata = Field(default_factory=Metadata)
-    pages: list[Page] = Field(default_factory=list)
+    settings: DocumentSettings = Field(default_factory=DocumentSettings)
+    blocks: list[Block] = Field(default_factory=list)
 
 
-# --------------- API Response Models ---------------
+# --------------- API Response ---------------
 
 class ErrorResponse(BaseModel):
     success: bool = False

@@ -3,29 +3,25 @@
 import { create } from "zustand";
 
 interface UIState {
-  selectedElementId: string | null;
-  currentPageIndex: number;
-  zoom: number;
+  selectedBlockId: string | null;
+  editingBlockId: string | null;
   isGenerating: boolean;
-  editingElementId: string | null;   // ダブルクリックで編集中の要素
+  zoom: number;
 
-  selectElement: (id: string | null) => void;
-  setCurrentPageIndex: (index: number) => void;
-  setZoom: (zoom: number) => void;
-  setGenerating: (val: boolean) => void;
-  setEditingElement: (id: string | null) => void;
+  selectBlock: (id: string | null) => void;
+  setEditingBlock: (id: string | null) => void;
+  setGenerating: (v: boolean) => void;
+  setZoom: (v: number) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  selectedElementId: null,
-  currentPageIndex: 0,
-  zoom: 1,
+  selectedBlockId: null,
+  editingBlockId: null,
   isGenerating: false,
-  editingElementId: null,
+  zoom: 1,
 
-  selectElement: (id) => set({ selectedElementId: id, editingElementId: null }),
-  setCurrentPageIndex: (index) => set({ currentPageIndex: index }),
-  setZoom: (zoom) => set({ zoom: Math.max(0.25, Math.min(2, zoom)) }),
-  setGenerating: (val) => set({ isGenerating: val }),
-  setEditingElement: (id) => set({ editingElementId: id, selectedElementId: id }),
+  selectBlock: (id) => set({ selectedBlockId: id, editingBlockId: id ? undefined : null }),
+  setEditingBlock: (id) => set({ editingBlockId: id, selectedBlockId: id }),
+  setGenerating: (v) => set({ isGenerating: v }),
+  setZoom: (v) => set({ zoom: Math.max(0.5, Math.min(2, v)) }),
 }));

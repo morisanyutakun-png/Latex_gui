@@ -55,17 +55,10 @@ async def preview_latex(doc: DocumentModel):
 async def generate_pdf(doc: DocumentModel):
     """PDF生成エンドポイント"""
     # バリデーション
-    if not doc.pages:
+    if not doc.blocks:
         raise HTTPException(status_code=400, detail={
             "success": False,
-            "message": "ページが1つもありません。ページを追加してください。",
-        })
-
-    has_elements = any(len(p.elements) > 0 for p in doc.pages)
-    if not has_elements:
-        raise HTTPException(status_code=400, detail={
-            "success": False,
-            "message": "要素が1つもありません。「見出し」や「テキスト」を追加してください。",
+            "message": "ブロックが1つもありません。コンテンツを追加してください。",
         })
 
     try:

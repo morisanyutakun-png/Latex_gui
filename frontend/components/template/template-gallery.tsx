@@ -1,171 +1,141 @@
 "use client";
 
+import React from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
+import { TEMPLATES, createFromTemplate } from "@/lib/templates";
 import { loadFromLocalStorage } from "@/lib/storage";
-import { TEMPLATES, TemplateType } from "@/lib/types";
+import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import {
-  FileText,
-  Megaphone,
-  BookOpen,
-  File,
-  RotateCcw,
-  Sparkles,
-  ArrowRight,
-} from "lucide-react";
-
-const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
-  blank: <File className="h-7 w-7" />,
-  report: <FileText className="h-7 w-7" />,
-  announcement: <Megaphone className="h-7 w-7" />,
-  worksheet: <BookOpen className="h-7 w-7" />,
-};
-
-const TEMPLATE_GRADIENTS: Record<string, string> = {
-  blank: "from-slate-50 via-gray-50 to-zinc-100 dark:from-zinc-900 dark:via-zinc-800 dark:to-zinc-900",
-  report: "from-indigo-50 via-blue-50 to-violet-50 dark:from-indigo-950 dark:via-blue-950 dark:to-violet-950",
-  announcement: "from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-950 dark:via-orange-950 dark:to-yellow-950",
-  worksheet: "from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950 dark:via-teal-950 dark:to-cyan-950",
-};
-
-const TEMPLATE_ICON_COLORS: Record<string, string> = {
-  blank: "text-zinc-400 dark:text-zinc-500",
-  report: "text-indigo-500 dark:text-indigo-400",
-  announcement: "text-amber-500 dark:text-amber-400",
-  worksheet: "text-emerald-500 dark:text-emerald-400",
-};
-
-const TEMPLATE_ACCENTS: Record<string, string> = {
-  blank: "group-hover:border-zinc-300 dark:group-hover:border-zinc-600",
-  report: "group-hover:border-indigo-300 dark:group-hover:border-indigo-700",
-  announcement: "group-hover:border-amber-300 dark:group-hover:border-amber-700",
-  worksheet: "group-hover:border-emerald-300 dark:group-hover:border-emerald-700",
-};
+import { FileText, ArrowRight, Sparkles } from "lucide-react";
 
 export function TemplateGallery() {
   const router = useRouter();
-  const { newDocument, setDocument } = useDocumentStore();
+  const setDocument = useDocumentStore((s) => s.setDocument);
 
-  const savedDoc = typeof window !== "undefined" ? loadFromLocalStorage() : null;
-
-  const handleSelect = (template: TemplateType) => {
-    newDocument(template);
+  const handleSelect = (templateId: string) => {
+    const doc = createFromTemplate(templateId);
+    setDocument(doc);
     router.push("/editor");
   };
 
   const handleResume = () => {
-    if (savedDoc) {
-      setDocument(savedDoc);
+    const doc = loadFromLocalStorage();
+    if (doc) {
+      setDocument(doc);
       router.push("/editor");
     }
   };
 
+  const saved = typeof window !== "undefined" ? loadFromLocalStorage() : null;
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-mesh px-4 relative overflow-hidden">
-      {/* Background orbs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary/3 blur-3xl" />
-      </div>
-
-      <div className="absolute top-5 right-5 z-10">
-        <ThemeToggle />
-      </div>
-
-      <div className="w-full max-w-2xl relative z-10 animate-fade-in">
-        {/* Logo & Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 mb-5">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-semibold text-primary tracking-wide">CANVAS EDITOR</span>
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 via-background to-indigo-50 dark:from-violet-950/20 dark:via-background dark:to-indigo-950/20">
+      {/* Header */}
+      <header className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-violet-500/20">
+            Lx
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight">
-            PDF<span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent"> Studio</span>
-          </h1>
-          <p className="text-muted-foreground mt-3 text-[15px] leading-relaxed">
-            テンプレートを選んで、自由にデザインしましょう
-          </p>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
+              LaTeX PDF Maker
+            </h1>
+            <p className="text-[10px] text-muted-foreground -mt-0.5">美しい文書を、誰でも簡単に</p>
+          </div>
         </div>
+        <ThemeToggle />
+      </header>
 
-        {/* Resume button */}
-        {savedDoc && (
-          <div className="mb-8 animate-scale-in">
+      <main className="max-w-5xl mx-auto px-6 pb-12">
+        {/* Hero */}
+        <section className="text-center pt-8 pb-10">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs font-medium mb-4">
+            <Sparkles className="h-3 w-3" />
+            LaTeX品質のPDFをGUIで作成
+          </div>
+          <h2 className="text-3xl font-bold tracking-tight mb-2">
+            テンプレートを選んで
+            <span className="bg-gradient-to-r from-violet-600 to-pink-500 bg-clip-text text-transparent">
+              始めよう
+            </span>
+          </h2>
+          <p className="text-muted-foreground text-sm max-w-md mx-auto">
+            数式・表・見出しなど、LaTeXの強みを活かした美しいPDFをブラウザ上で作成
+          </p>
+        </section>
+
+        {/* Resume saved */}
+        {saved && (
+          <div className="mb-8 flex justify-center">
             <button
               onClick={handleResume}
-              className="w-full flex items-center justify-between rounded-xl border border-primary/20
-                         bg-primary/5 px-5 py-3.5 text-sm font-medium text-primary
-                         transition-all duration-300 hover:bg-primary/10 hover:border-primary/30
-                         hover:shadow-lg hover:shadow-primary/5
-                         focus:outline-none focus:ring-2 focus:ring-primary/50
-                         group"
+              className="group flex items-center gap-3 px-5 py-3 rounded-xl bg-white dark:bg-card border border-border/50 shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
             >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                  <RotateCcw className="h-4 w-4" />
-                </div>
-                <div className="text-left">
-                  <div className="text-sm font-semibold">前回の続きから再開</div>
-                  <div className="text-xs text-primary/60 mt-0.5">
-                    {savedDoc.metadata.title || "無題のドキュメント"}
-                  </div>
-                </div>
+              <FileText className="h-4 w-4 text-primary" />
+              <div className="text-left">
+                <p className="text-sm font-medium">
+                  「{saved.metadata.title || "無題"}」を続ける
+                </p>
+                <p className="text-[10px] text-muted-foreground">前回の作業を再開</p>
               </div>
-              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
             </button>
           </div>
         )}
 
-        {/* Section label */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            新規作成
-          </span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        {/* Template cards */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {TEMPLATES.map((tmpl, i) => (
+        {/* Template Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {TEMPLATES.map((tmpl) => (
             <button
               key={tmpl.id}
               onClick={() => handleSelect(tmpl.id)}
-              className={`group relative flex flex-col items-center gap-3.5 rounded-2xl border
-                         bg-card/80 p-5 transition-all duration-300
-                         hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1.5
-                         dark:hover:shadow-black/20
-                         focus:outline-none focus:ring-2 focus:ring-primary/50
-                         ${TEMPLATE_ACCENTS[tmpl.id]}`}
-              style={{ animationDelay: `${i * 60}ms` }}
+              className="group relative flex flex-col rounded-2xl border border-border/40 bg-white dark:bg-card overflow-hidden shadow-sm hover:shadow-xl hover:border-primary/30 hover:-translate-y-1 transition-all duration-300"
             >
-              {/* Preview card */}
+              {/* Gradient preview */}
               <div
-                className={`flex h-28 w-full items-center justify-center rounded-xl
-                            bg-gradient-to-br ${TEMPLATE_GRADIENTS[tmpl.id]}
-                            transition-all duration-300 group-hover:scale-[1.03]
-                            ring-1 ring-black/[0.04] dark:ring-white/[0.04]`}
+                className={`h-32 ${tmpl.gradient} flex items-center justify-center relative overflow-hidden`}
               >
-                <div className={`${TEMPLATE_ICON_COLORS[tmpl.id]} transition-transform duration-300 group-hover:scale-110`}>
-                  {TEMPLATE_ICONS[tmpl.id]}
-                </div>
+                <span className="text-4xl drop-shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  {tmpl.icon}
+                </span>
+                {/* Decorative shapes */}
+                <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/10 blur-sm" />
+                <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/10 blur-sm" />
               </div>
 
-              <div className="text-center">
-                <p className="text-sm font-semibold tracking-tight">{tmpl.name}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+              {/* Info */}
+              <div className="p-4 text-left">
+                <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                  {tmpl.name}
+                  <ArrowRight className="h-3 w-3 text-muted-foreground/0 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                </h3>
+                <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
                   {tmpl.description}
                 </p>
               </div>
+
+              {/* Accent line */}
+              <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${tmpl.gradient} opacity-0 group-hover:opacity-100 transition-opacity`} />
             </button>
           ))}
         </div>
 
-        {/* Footer hint */}
-        <p className="text-center text-[11px] text-muted-foreground/60 mt-10">
-          ⌘+S で保存 ・ ⌘+P で PDF 生成 ・ ⌘+Z で元に戻す
-        </p>
-      </div>
+        {/* Features */}
+        <section className="mt-16 grid grid-cols-3 gap-6">
+          {[
+            { emoji: "📐", title: "美しい数式", desc: "LaTeXの数式をそのままPDFに" },
+            { emoji: "🎨", title: "統一されたレイアウト", desc: "プロフェッショナルな文書品質" },
+            { emoji: "⚡", title: "即座にPDF", desc: "ブラウザ上で編集→即ダウンロード" },
+          ].map((f) => (
+            <div key={f.title} className="text-center">
+              <div className="text-2xl mb-2">{f.emoji}</div>
+              <h4 className="text-sm font-semibold mb-0.5">{f.title}</h4>
+              <p className="text-[10px] text-muted-foreground">{f.desc}</p>
+            </div>
+          ))}
+        </section>
+      </main>
     </div>
   );
 }

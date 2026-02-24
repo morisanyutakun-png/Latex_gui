@@ -1,267 +1,157 @@
 "use client";
 
 import { create } from "zustand";
-import {
-  DocumentModel,
-  CanvasElement,
-  ElementType,
-  ElementStyle,
-  ElementPosition,
-  TemplateType,
-  Metadata,
-  Page,
-  createDefaultDocument,
-  createDefaultElement,
-} from "@/lib/types";
+import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, createBlock } from "@/lib/types";
 
 interface DocumentState {
   document: DocumentModel | null;
 
-  // Undo / redo
-  past: DocumentModel[];
-  future: DocumentModel[];
-
-  // Actions
-  newDocument: (template: TemplateType) => void;
+  // Document management
   setDocument: (doc: DocumentModel) => void;
-  updateMetadata: (updates: Partial<Metadata>) => void;
+  clearDocument: () => void;
+  updateMetadata: (updates: Partial<DocumentMetadata>) => void;
+  updateSettings: (updates: Partial<DocumentSettings>) => void;
 
-  // Page actions
-  addPage: () => void;
-  deletePage: (pageId: string) => void;
-  setCurrentPageIndex: (index: number) => void;
+  // Block CRUD
+  addBlock: (type: BlockType, index?: number) => string;
+  addBlockWithContent: (block: Block, index?: number) => void;
+  deleteBlock: (blockId: string) => void;
+  duplicateBlock: (blockId: string) => void;
+  moveBlock: (blockId: string, direction: "up" | "down") => void;
+  updateBlockContent: (blockId: string, updates: Partial<BlockContent>) => void;
+  updateBlockStyle: (blockId: string, updates: Partial<BlockStyle>) => void;
 
-  // Element actions
-  addElement: (type: ElementType, pageIndex: number) => void;
-  updateElementContent: (pageIndex: number, elementId: string, content: Partial<CanvasElement["content"]>) => void;
-  updateElementPosition: (pageIndex: number, elementId: string, position: Partial<ElementPosition>) => void;
-  updateElementStyle: (pageIndex: number, elementId: string, style: Partial<ElementStyle>) => void;
-  deleteElement: (pageIndex: number, elementId: string) => void;
-  duplicateElement: (pageIndex: number, elementId: string) => void;
-  bringForward: (pageIndex: number, elementId: string) => void;
-  sendBackward: (pageIndex: number, elementId: string) => void;
-
-  // Undo / redo
+  // Undo/Redo
+  _pushHistory: () => void;
   undo: () => void;
   redo: () => void;
-  _pushHistory: () => void;
+  past: DocumentModel[];
+  future: DocumentModel[];
 }
+
+const MAX_HISTORY = 50;
 
 export const useDocumentStore = create<DocumentState>((set, get) => ({
   document: null,
   past: [],
   future: [],
 
+  setDocument: (doc) => set({ document: doc, past: [], future: [] }),
+  clearDocument: () => set({ document: null, past: [], future: [] }),
+
+  updateMetadata: (updates) => {
+    const { document } = get();
+    if (!document) return;
+    set({ document: { ...document, metadata: { ...document.metadata, ...updates } } });
+  },
+
+  updateSettings: (updates) => {
+    const { document } = get();
+    if (!document) return;
+    set({ document: { ...document, settings: { ...document.settings, ...updates } } });
+  },
+
   _pushHistory: () => {
     const { document, past } = get();
     if (!document) return;
-    const snapshot = JSON.parse(JSON.stringify(document));
-    set({
-      past: [...past.slice(-49), snapshot],
-      future: [],
-    });
+    const snap = JSON.parse(JSON.stringify(document));
+    set({ past: [...past.slice(-(MAX_HISTORY - 1)), snap], future: [] });
   },
 
-  newDocument: (template) => {
-    set({ document: createDefaultDocument(template), past: [], future: [] });
+  addBlock: (type, index) => {
+    const { document, _pushHistory } = get();
+    if (!document) return "";
+    _pushHistory();
+    const block = createBlock(type);
+    const blocks = [...document.blocks];
+    const insertAt = index !== undefined ? index : blocks.length;
+    blocks.splice(insertAt, 0, block);
+    set({ document: { ...document, blocks } });
+    return block.id;
   },
 
-  setDocument: (doc) => {
-    set({ document: doc, past: [], future: [] });
-  },
-
-  updateMetadata: (updates) => {
+  addBlockWithContent: (block, index) => {
     const { document, _pushHistory } = get();
     if (!document) return;
     _pushHistory();
-    set({
-      document: {
-        ...document,
-        metadata: { ...document.metadata, ...updates },
-      },
-    });
+    const blocks = [...document.blocks];
+    const insertAt = index !== undefined ? index : blocks.length;
+    blocks.splice(insertAt, 0, block);
+    set({ document: { ...document, blocks } });
   },
 
-  addPage: () => {
+  deleteBlock: (blockId) => {
     const { document, _pushHistory } = get();
     if (!document) return;
     _pushHistory();
-    const newPage: Page = { id: crypto.randomUUID(), elements: [] };
-    set({
-      document: {
-        ...document,
-        pages: [...document.pages, newPage],
-      },
-    });
+    const blocks = document.blocks.filter((b) => b.id !== blockId);
+    set({ document: { ...document, blocks } });
   },
 
-  deletePage: (pageId) => {
-    const { document, _pushHistory } = get();
-    if (!document || document.pages.length <= 1) return;
-    _pushHistory();
-    set({
-      document: {
-        ...document,
-        pages: document.pages.filter((p) => p.id !== pageId),
-      },
-    });
-  },
-
-  setCurrentPageIndex: () => {
-    // Handled by UI store
-  },
-
-  addElement: (type, pageIndex) => {
+  duplicateBlock: (blockId) => {
     const { document, _pushHistory } = get();
     if (!document) return;
     _pushHistory();
-    const page = document.pages[pageIndex];
-    if (!page) return;
-    const el = createDefaultElement(type, page.elements.length);
-    const newPages = [...document.pages];
-    newPages[pageIndex] = {
-      ...page,
-      elements: [...page.elements, el],
-    };
-    set({ document: { ...document, pages: newPages } });
+    const idx = document.blocks.findIndex((b) => b.id === blockId);
+    if (idx === -1) return;
+    const original = document.blocks[idx];
+    const copy: Block = JSON.parse(JSON.stringify(original));
+    copy.id = crypto.randomUUID();
+    const blocks = [...document.blocks];
+    blocks.splice(idx + 1, 0, copy);
+    set({ document: { ...document, blocks } });
   },
 
-  updateElementContent: (pageIndex, elementId, content) => {
+  moveBlock: (blockId, direction) => {
+    const { document, _pushHistory } = get();
+    if (!document) return;
+    const blocks = [...document.blocks];
+    const idx = blocks.findIndex((b) => b.id === blockId);
+    if (idx === -1) return;
+    const newIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= blocks.length) return;
+    _pushHistory();
+    [blocks[idx], blocks[newIdx]] = [blocks[newIdx], blocks[idx]];
+    set({ document: { ...document, blocks } });
+  },
+
+  updateBlockContent: (blockId, updates) => {
     const { document } = get();
     if (!document) return;
-    const newPages = [...document.pages];
-    const page = newPages[pageIndex];
-    if (!page) return;
-    newPages[pageIndex] = {
-      ...page,
-      elements: page.elements.map((el) =>
-        el.id === elementId
-          ? { ...el, content: { ...el.content, ...content } as CanvasElement["content"] }
-          : el,
-      ),
-    };
-    set({ document: { ...document, pages: newPages } });
+    const blocks = document.blocks.map((b) =>
+      b.id === blockId ? { ...b, content: { ...b.content, ...updates } as BlockContent } : b,
+    );
+    set({ document: { ...document, blocks } });
   },
 
-  updateElementPosition: (pageIndex, elementId, position) => {
+  updateBlockStyle: (blockId, updates) => {
     const { document } = get();
     if (!document) return;
-    const newPages = [...document.pages];
-    const page = newPages[pageIndex];
-    if (!page) return;
-    newPages[pageIndex] = {
-      ...page,
-      elements: page.elements.map((el) =>
-        el.id === elementId
-          ? { ...el, position: { ...el.position, ...position } }
-          : el,
-      ),
-    };
-    set({ document: { ...document, pages: newPages } });
-  },
-
-  updateElementStyle: (pageIndex, elementId, style) => {
-    const { document, _pushHistory } = get();
-    if (!document) return;
-    _pushHistory();
-    const newPages = [...document.pages];
-    const page = newPages[pageIndex];
-    if (!page) return;
-    newPages[pageIndex] = {
-      ...page,
-      elements: page.elements.map((el) =>
-        el.id === elementId
-          ? { ...el, style: { ...el.style, ...style } }
-          : el,
-      ),
-    };
-    set({ document: { ...document, pages: newPages } });
-  },
-
-  deleteElement: (pageIndex, elementId) => {
-    const { document, _pushHistory } = get();
-    if (!document) return;
-    _pushHistory();
-    const newPages = [...document.pages];
-    const page = newPages[pageIndex];
-    if (!page) return;
-    newPages[pageIndex] = {
-      ...page,
-      elements: page.elements.filter((el) => el.id !== elementId),
-    };
-    set({ document: { ...document, pages: newPages } });
-  },
-
-  duplicateElement: (pageIndex, elementId) => {
-    const { document, _pushHistory } = get();
-    if (!document) return;
-    _pushHistory();
-    const page = document.pages[pageIndex];
-    if (!page) return;
-    const el = page.elements.find((e) => e.id === elementId);
-    if (!el) return;
-    const dup: CanvasElement = {
-      ...JSON.parse(JSON.stringify(el)),
-      id: crypto.randomUUID(),
-      position: { ...el.position, x: el.position.x + 5, y: el.position.y + 5 },
-      zIndex: page.elements.length + 1,
-    };
-    const newPages = [...document.pages];
-    newPages[pageIndex] = { ...page, elements: [...page.elements, dup] };
-    set({ document: { ...document, pages: newPages } });
-  },
-
-  bringForward: (pageIndex, elementId) => {
-    const { document } = get();
-    if (!document) return;
-    const page = document.pages[pageIndex];
-    if (!page) return;
-    const maxZ = Math.max(...page.elements.map((e) => e.zIndex));
-    const newPages = [...document.pages];
-    newPages[pageIndex] = {
-      ...page,
-      elements: page.elements.map((el) =>
-        el.id === elementId ? { ...el, zIndex: maxZ + 1 } : el,
-      ),
-    };
-    set({ document: { ...document, pages: newPages } });
-  },
-
-  sendBackward: (pageIndex, elementId) => {
-    const { document } = get();
-    if (!document) return;
-    const page = document.pages[pageIndex];
-    if (!page) return;
-    const minZ = Math.min(...page.elements.map((e) => e.zIndex));
-    const newPages = [...document.pages];
-    newPages[pageIndex] = {
-      ...page,
-      elements: page.elements.map((el) =>
-        el.id === elementId ? { ...el, zIndex: Math.max(0, minZ - 1) } : el,
-      ),
-    };
-    set({ document: { ...document, pages: newPages } });
+    const blocks = document.blocks.map((b) =>
+      b.id === blockId ? { ...b, style: { ...b.style, ...updates } } : b,
+    );
+    set({ document: { ...document, blocks } });
   },
 
   undo: () => {
-    const { past, document } = get();
-    if (past.length === 0 || !document) return;
-    const previous = past[past.length - 1];
+    const { past, document, future } = get();
+    if (past.length === 0) return;
+    const prev = past[past.length - 1];
     set({
-      document: previous,
+      document: prev,
       past: past.slice(0, -1),
-      future: [JSON.parse(JSON.stringify(document)), ...get().future],
+      future: document ? [JSON.parse(JSON.stringify(document)), ...future.slice(0, MAX_HISTORY - 1)] : future,
     });
   },
 
   redo: () => {
-    const { future, document } = get();
-    if (future.length === 0 || !document) return;
+    const { future, document, past } = get();
+    if (future.length === 0) return;
     const next = future[0];
     set({
       document: next,
-      past: [...get().past, JSON.parse(JSON.stringify(document!))],
       future: future.slice(1),
+      past: document ? [...past.slice(-(MAX_HISTORY - 1)), JSON.parse(JSON.stringify(document))] : past,
     });
   },
 }));

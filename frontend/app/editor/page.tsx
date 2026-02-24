@@ -1,38 +1,35 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useDocumentStore } from "@/store/document-store";
+import { AppHeader } from "@/components/layout/app-header";
+import { Toolbar } from "@/components/layout/toolbar";
+import { DocumentEditor } from "@/components/editor/document-editor";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
-import { AppHeader } from "@/components/layout/app-header";
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { CanvasArea } from "@/components/canvas/canvas-area";
-import { PropertyPanel } from "@/components/panels/property-panel";
+import { useDocumentStore } from "@/store/document-store";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function EditorPage() {
-  const router = useRouter();
-  const document = useDocumentStore((s) => s.document);
-
   useKeyboardShortcuts();
   useAutosave();
 
+  const document = useDocumentStore((s) => s.document);
+  const router = useRouter();
+
+  // Redirect to home if no document loaded
   useEffect(() => {
     if (!document) {
-      router.replace("/");
+      router.push("/");
     }
   }, [document, router]);
 
   if (!document) return null;
 
   return (
-    <div className="flex h-screen flex-col bg-background animate-fade-in">
+    <div className="flex h-screen flex-col bg-background">
       <AppHeader />
-      <div className="flex flex-1 overflow-hidden">
-        <AppSidebar />
-        <CanvasArea />
-        <PropertyPanel />
-      </div>
+      <Toolbar />
+      <DocumentEditor />
     </div>
   );
 }

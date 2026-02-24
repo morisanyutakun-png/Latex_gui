@@ -5,8 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PDF Studio",
-  description: "Canva風キャンバスエディタで自由にPDFをデザイン",
+  title: "LaTeX PDF Maker",
+  description: "Word感覚でLaTeX品質のPDFを作成",
 };
 
 export default function RootLayout({

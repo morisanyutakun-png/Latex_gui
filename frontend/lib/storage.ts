@@ -1,55 +1,31 @@
-/**
- * localStorage へのJSON保存・読込
- */
 import { DocumentModel } from "./types";
 
-const AUTOSAVE_KEY = "latex_gui_autosave";
+const STORAGE_KEY = "latex-gui-document";
 
 export function saveToLocalStorage(doc: DocumentModel): void {
   try {
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(doc));
-  } catch {
-    // storage full or unavailable
-  }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+  } catch { /* storage full */ }
 }
 
 export function loadFromLocalStorage(): DocumentModel | null {
   try {
-    const data = localStorage.getItem(AUTOSAVE_KEY);
-    if (!data) return null;
-    return JSON.parse(data) as DocumentModel;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-export function downloadAsJSON(doc: DocumentModel, filename?: string): void {
-  const json = JSON.stringify(doc, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
+export function downloadAsJSON(doc: DocumentModel, filename: string): void {
+  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename || `${doc.metadata.title || "document"}.json`;
+  const a = Object.assign(window.document.createElement("a"), { href: url, download: filename });
   a.click();
   URL.revokeObjectURL(url);
 }
 
-export function loadFromJSONFile(file: File): Promise<DocumentModel> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const doc = JSON.parse(reader.result as string) as DocumentModel;
-        if (!doc.template || !doc.metadata || !doc.pages) {
-          reject(new Error("ファイルの形式が正しくありません。"));
-          return;
-        }
-        resolve(doc);
-      } catch {
-        reject(new Error("ファイルの読み込みに失敗しました。正しいJSONファイルか確認してください。"));
-      }
-    };
-    reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました。"));
-    reader.readAsText(file);
-  });
+export async function loadFromJSONFile(file: File): Promise<DocumentModel> {
+  const text = await file.text();
+  return JSON.parse(text) as DocumentModel;
 }

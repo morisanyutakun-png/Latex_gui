@@ -3,79 +3,34 @@
 import { useEffect } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { generatePDF } from "@/lib/api";
 import { downloadAsJSON } from "@/lib/storage";
+import { generatePDF } from "@/lib/api";
 import { toast } from "sonner";
 
-/**
- * エディタ用キーボードショートカット
- * Delete / Backspace: 選択要素を削除
- * Ctrl/Cmd + Z: 元に戻す
- * Ctrl/Cmd + Shift + Z / Ctrl/Cmd + Y: やり直す
- * Ctrl/Cmd + D: 選択要素を複製
- * Ctrl/Cmd + S: JSONを保存
- * Escape: 選択解除
- */
 export function useKeyboardShortcuts() {
-  const deleteElement = useDocumentStore((s) => s.deleteElement);
-  const duplicateElement = useDocumentStore((s) => s.duplicateElement);
-  const undo = useDocumentStore((s) => s.undo);
-  const redo = useDocumentStore((s) => s.redo);
-  const document = useDocumentStore((s) => s.document);
-
-  const selectedElementId = useUIStore((s) => s.selectedElementId);
-  const editingElementId = useUIStore((s) => s.editingElementId);
-  const currentPageIndex = useUIStore((s) => s.currentPageIndex);
-  const selectElement = useUIStore((s) => s.selectElement);
-  const setGenerating = useUIStore((s) => s.setGenerating);
+  const store = useDocumentStore;
+  const uiStore = useUIStore;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInput =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable;
-      const mod = e.metaKey || e.ctrlKey;
+      const meta = e.metaKey || e.ctrlKey;
+      const { document, undo, redo, deleteBlock, duplicateBlock } = store.getState();
+      const { selectedBlockId, setGenerating } = uiStore.getState();
 
-      // テキスト入力中は Delete / Backspace を無視
-      if ((e.key === "Delete" || e.key === "Backspace") && !isInput) {
-        if (selectedElementId && !editingElementId) {
-          e.preventDefault();
-          deleteElement(currentPageIndex, selectedElementId);
-          selectElement(null);
-        }
-        return;
-      }
-
-      // Ctrl/Cmd + Z → undo, +Shift → redo
-      if (mod && e.key === "z" && !e.shiftKey) {
+      // Undo: Ctrl/Cmd + Z
+      if (meta && !e.shiftKey && e.key === "z") {
         e.preventDefault();
         undo();
         return;
       }
-      if (mod && (e.key === "Z" || (e.key === "z" && e.shiftKey))) {
+      // Redo: Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y
+      if ((meta && e.shiftKey && e.key === "z") || (meta && e.key === "y")) {
         e.preventDefault();
         redo();
         return;
       }
-      if (mod && e.key === "y") {
-        e.preventDefault();
-        redo();
-        return;
-      }
-
-      // Ctrl/Cmd + D → 複製
-      if (mod && e.key === "d") {
-        if (selectedElementId && !isInput) {
-          e.preventDefault();
-          duplicateElement(currentPageIndex, selectedElementId);
-        }
-        return;
-      }
-
-      // Ctrl/Cmd + S → JSON保存
-      if (mod && e.key === "s") {
+      // Save: Ctrl/Cmd + S
+      if (meta && e.key === "s") {
         e.preventDefault();
         if (document) {
           downloadAsJSON(document, `${document.metadata.title || "document"}.json`);
@@ -83,51 +38,49 @@ export function useKeyboardShortcuts() {
         }
         return;
       }
-
-      // Ctrl/Cmd + P → PDF生成
-      if (mod && e.key === "p") {
+      // Generate PDF: Ctrl/Cmd + P
+      if (meta && e.key === "p") {
         e.preventDefault();
-        if (document) {
+        if (document && !uiStore.getState().isGenerating) {
           setGenerating(true);
           generatePDF(document)
             .then((blob) => {
               const url = URL.createObjectURL(blob);
-              Object.assign(window.document.createElement("a"), {
+              const a = Object.assign(window.document.createElement("a"), {
                 href: url,
                 download: `${document.metadata.title || "document"}.pdf`,
-              }).click();
+              });
+              a.click();
               URL.revokeObjectURL(url);
-              toast.success("PDF を生成しました");
+              toast.success("PDFを生成しました");
             })
-            .catch((err: unknown) => {
-              toast.error(
-                err instanceof Error ? err.message : "PDF生成に失敗しました",
-              );
-            })
+            .catch((err: Error) => toast.error(err.message))
             .finally(() => setGenerating(false));
         }
         return;
       }
-
-      // Escape → 選択解除
+      // Delete selected block: Delete / Backspace (when not editing)
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedBlockId && !uiStore.getState().editingBlockId) {
+        e.preventDefault();
+        deleteBlock(selectedBlockId);
+        uiStore.getState().selectBlock(null);
+        return;
+      }
+      // Duplicate: Ctrl/Cmd + D
+      if (meta && e.key === "d" && selectedBlockId) {
+        e.preventDefault();
+        duplicateBlock(selectedBlockId);
+        return;
+      }
+      // Escape: deselect
       if (e.key === "Escape") {
-        selectElement(null);
+        uiStore.getState().selectBlock(null);
+        uiStore.getState().setEditingBlock(null);
         return;
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [
-    selectedElementId,
-    editingElementId,
-    currentPageIndex,
-    document,
-    deleteElement,
-    duplicateElement,
-    undo,
-    redo,
-    selectElement,
-    setGenerating,
-  ]);
+  }, [store, uiStore]);
 }

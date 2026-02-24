@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 from .models import DocumentModel
-from .generators.canvas_generator import generate_canvas_pdf
+from .generators.document_generator import generate_document_latex
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,8 @@ class PDFGenerationError(Exception):
 
 
 def generate_latex(doc: DocumentModel) -> str:
-    """DocumentModelからLaTeXソースを生成（全テンプレート共通）"""
-    return generate_canvas_pdf(doc)
+    """DocumentModelからLaTeXソースを生成"""
+    return generate_document_latex(doc)
 
 
 def compile_pdf(doc: DocumentModel) -> bytes:

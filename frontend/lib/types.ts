@@ -1,41 +1,22 @@
 /**
- * Canvas-based document editor types
- * Canva/PowerPoint風の自由配置エディタ用型定義
+ * Block-based Document Model
+ * Word-like structured editing → LaTeX structured output
  */
 
-// --- Template ---
+// ──── Block Types ────
 
-export type TemplateType = "blank" | "report" | "announcement" | "worksheet";
+export type BlockType =
+  | "heading"
+  | "paragraph"
+  | "math"
+  | "list"
+  | "table"
+  | "image"
+  | "divider"
+  | "code"
+  | "quote";
 
-export type ElementType = "heading" | "paragraph" | "list" | "table" | "image";
-
-export type ListStyle = "bullet" | "numbered";
-
-// --- Position & Style ---
-
-export interface ElementPosition {
-  x: number;      // mm (A4: 0-210)
-  y: number;      // mm (A4: 0-297)
-  width: number;  // mm
-  height: number; // mm
-}
-
-export interface ElementStyle {
-  textColor?: string;
-  backgroundColor?: string;
-  textAlign?: "left" | "center" | "right";
-  fontSize?: number;        // pt (8-72)
-  fontFamily?: "serif" | "sans";
-  bold?: boolean;
-  italic?: boolean;
-  borderColor?: string;
-  borderWidth?: number;     // pt
-  borderRadius?: number;    // mm
-  padding?: number;         // mm
-  opacity?: number;         // 0-1
-}
-
-// --- Element content types ---
+// ──── Content Models (Discriminated Union) ────
 
 export interface HeadingContent {
   type: "heading";
@@ -48,6 +29,14 @@ export interface ParagraphContent {
   text: string;
 }
 
+export interface MathContent {
+  type: "math";
+  latex: string;
+  displayMode: boolean;
+}
+
+export type ListStyle = "bullet" | "numbered";
+
 export interface ListContent {
   type: "list";
   style: ListStyle;
@@ -58,172 +47,158 @@ export interface TableContent {
   type: "table";
   headers: string[];
   rows: string[][];
+  caption?: string;
 }
 
 export interface ImageContent {
   type: "image";
   url: string;
   caption: string;
+  width?: number;
 }
 
-export type ElementContent =
+export interface DividerContent {
+  type: "divider";
+  style: "solid" | "dashed" | "dotted";
+}
+
+export interface CodeContent {
+  type: "code";
+  language: string;
+  code: string;
+}
+
+export interface QuoteContent {
+  type: "quote";
+  text: string;
+  attribution?: string;
+}
+
+export type BlockContent =
   | HeadingContent
   | ParagraphContent
+  | MathContent
   | ListContent
   | TableContent
-  | ImageContent;
+  | ImageContent
+  | DividerContent
+  | CodeContent
+  | QuoteContent;
 
-// --- Canvas Element (block with position) ---
+// ──── Block Style ────
 
-export interface CanvasElement {
-  id: string;
-  content: ElementContent;
-  position: ElementPosition;
-  style: ElementStyle;
-  zIndex: number;
+export interface BlockStyle {
+  textAlign?: "left" | "center" | "right";
+  fontSize?: number;
+  fontFamily?: "serif" | "sans";
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  textColor?: string;
+  backgroundColor?: string;
 }
 
-// --- Page ---
+// ──── Block ────
 
-export interface Page {
+export interface Block {
   id: string;
-  elements: CanvasElement[];
+  content: BlockContent;
+  style: BlockStyle;
 }
 
-// --- Metadata ---
+// ──── Document Settings ────
 
-export interface Metadata {
+export interface DocumentSettings {
+  paperSize: "a4" | "letter" | "b5";
+  margins: { top: number; bottom: number; left: number; right: number };
+  lineSpacing: number;
+  pageNumbers: boolean;
+  twoColumn: boolean;
+}
+
+// ──── Document ────
+
+export interface DocumentMetadata {
   title: string;
-  subtitle: string;
   author: string;
-  date: string;
+  date?: string;
 }
-
-// --- Document ---
 
 export interface DocumentModel {
-  template: TemplateType;
-  metadata: Metadata;
-  pages: Page[];
+  template: string;
+  metadata: DocumentMetadata;
+  settings: DocumentSettings;
+  blocks: Block[];
 }
 
-// --- A4 constants ---
+// ──── Defaults ────
 
-export const A4_WIDTH_MM = 210;
-export const A4_HEIGHT_MM = 297;
-
-// --- Defaults ---
-
-const DEFAULT_POSITIONS: Record<ElementType, Partial<ElementPosition>> = {
-  heading:   { width: 170, height: 15 },
-  paragraph: { width: 170, height: 40 },
-  list:      { width: 170, height: 50 },
-  table:     { width: 170, height: 50 },
-  image:     { width: 80,  height: 60 },
+export const DEFAULT_SETTINGS: DocumentSettings = {
+  paperSize: "a4",
+  margins: { top: 25, bottom: 25, left: 20, right: 20 },
+  lineSpacing: 1.15,
+  pageNumbers: true,
+  twoColumn: false,
 };
 
-const DEFAULT_STYLES: Record<ElementType, ElementStyle> = {
-  heading:   { fontSize: 24, fontFamily: "sans", bold: true, textAlign: "left" },
-  paragraph: { fontSize: 11, fontFamily: "serif", textAlign: "left" },
-  list:      { fontSize: 11, fontFamily: "serif", textAlign: "left" },
-  table:     { fontSize: 10, fontFamily: "sans", textAlign: "left" },
-  image:     { textAlign: "center" },
+export const DEFAULT_BLOCK_STYLE: BlockStyle = {
+  textAlign: "left",
+  fontSize: 11,
+  fontFamily: "sans",
 };
 
-export function createDefaultContent(type: ElementType): ElementContent {
-  switch (type) {
-    case "heading":
-      return { type: "heading", text: "", level: 1 };
-    case "paragraph":
-      return { type: "paragraph", text: "" };
-    case "list":
-      return { type: "list", style: "bullet", items: [""] };
-    case "table":
-      return { type: "table", headers: ["列1", "列2"], rows: [["", ""]] };
-    case "image":
-      return { type: "image", url: "", caption: "" };
-  }
+// ──── Block Palette Info ────
+
+export interface BlockTypeInfo {
+  type: BlockType;
+  name: string;
+  description: string;
+  color: string;
 }
 
-export function createDefaultElement(
-  type: ElementType,
-  pageElementCount: number,
-): CanvasElement {
-  const pos = DEFAULT_POSITIONS[type];
+export const BLOCK_TYPES: BlockTypeInfo[] = [
+  { type: "heading",   name: "見出し",     description: "セクション見出し",     color: "text-blue-500" },
+  { type: "paragraph", name: "テキスト",   description: "本文テキスト",         color: "text-slate-500" },
+  { type: "math",      name: "数式",       description: "LaTeX数式",            color: "text-violet-500" },
+  { type: "list",      name: "リスト",     description: "箇条書き・番号リスト", color: "text-emerald-500" },
+  { type: "table",     name: "表",         description: "表組みデータ",         color: "text-orange-500" },
+  { type: "image",     name: "画像",       description: "画像を挿入",           color: "text-pink-500" },
+  { type: "divider",   name: "区切り線",   description: "水平区切り線",         color: "text-gray-400" },
+  { type: "code",      name: "コード",     description: "プログラムコード",     color: "text-teal-500" },
+  { type: "quote",     name: "引用",       description: "引用・コールアウト",   color: "text-amber-500" },
+];
+
+// ──── Helper: Create Block ────
+
+import { v4 as uuidv4 } from "uuid";
+
+export function createBlock(type: BlockType, overrides?: Partial<BlockStyle>): Block {
+  const style: BlockStyle = { ...DEFAULT_BLOCK_STYLE, ...overrides };
+
+  const contentMap: Record<BlockType, () => BlockContent> = {
+    heading:   () => ({ type: "heading", text: "", level: 2 }),
+    paragraph: () => ({ type: "paragraph", text: "" }),
+    math:      () => ({ type: "math", latex: "", displayMode: true }),
+    list:      () => ({ type: "list", style: "bullet", items: [""] }),
+    table:     () => ({ type: "table", headers: ["列 1", "列 2", "列 3"], rows: [["", "", ""]] }),
+    image:     () => ({ type: "image", url: "", caption: "" }),
+    divider:   () => ({ type: "divider", style: "solid" }),
+    code:      () => ({ type: "code", language: "", code: "" }),
+    quote:     () => ({ type: "quote", text: "" }),
+  };
+
   return {
-    id: crypto.randomUUID(),
-    content: createDefaultContent(type),
-    position: {
-      x: 20,
-      y: 20 + pageElementCount * 10,
-      width: pos.width ?? 170,
-      height: pos.height ?? 40,
-    },
-    style: { ...DEFAULT_STYLES[type] },
-    zIndex: pageElementCount + 1,
+    id: uuidv4(),
+    content: contentMap[type](),
+    style,
   };
 }
 
-export function createDefaultDocument(template: TemplateType): DocumentModel {
+export function createDefaultDocument(template: string, blocks: Block[]): DocumentModel {
   return {
     template,
-    metadata: {
-      title: "",
-      subtitle: "",
-      author: "",
-      date: new Date().toLocaleDateString("ja-JP"),
-    },
-    pages: [{ id: crypto.randomUUID(), elements: [] }],
+    metadata: { title: "無題のドキュメント", author: "" },
+    settings: { ...DEFAULT_SETTINGS },
+    blocks,
   };
 }
-
-// --- Template info ---
-
-export interface TemplateInfo {
-  id: TemplateType;
-  name: string;
-  description: string;
-  icon: string;
-}
-
-export const TEMPLATES: TemplateInfo[] = [
-  {
-    id: "blank",
-    name: "白紙",
-    description: "自由にレイアウトを組み立てる",
-    icon: "blank",
-  },
-  {
-    id: "report",
-    name: "レポート",
-    description: "章立てで整理されたレポートや報告書",
-    icon: "report",
-  },
-  {
-    id: "announcement",
-    name: "案内文",
-    description: "お知らせや通知などのフォーマルな文書",
-    icon: "announcement",
-  },
-  {
-    id: "worksheet",
-    name: "教材",
-    description: "問題と解答欄のある教材やプリント",
-    icon: "worksheet",
-  },
-];
-
-// Block type display info
-export interface ElementTypeInfo {
-  type: ElementType;
-  name: string;
-  description: string;
-}
-
-export const ELEMENT_TYPES: ElementTypeInfo[] = [
-  { type: "heading",   name: "見出し",   description: "タイトルやセクション見出し" },
-  { type: "paragraph", name: "テキスト", description: "本文テキストブロック" },
-  { type: "list",      name: "リスト",   description: "箇条書き・番号付きリスト" },
-  { type: "table",     name: "表",       description: "データ表" },
-  { type: "image",     name: "画像",     description: "画像を挿入" },
-];
