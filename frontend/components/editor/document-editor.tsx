@@ -5,8 +5,8 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
-import { MathPalette } from "./math-palette";
-import { JapaneseMathInput, SpacingControl, LatexJapaneseReference } from "./math-japanese-input";
+import { MathDictionary } from "./math-dictionary";
+import { JapaneseMathInput, SpacingControl } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { parseInlineText, getInlineMathContext, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
@@ -384,8 +384,31 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         value={content.text}
         onChange={handleChange}
         onSelect={handleSelect}
-        onKeyDown={handleKeyDown}
-        placeholder="テキストを入力... ($で数式を挿入: 例 $アルファ たす ベータ$)"
+        onKeyDown={(e) => {
+          // ⌘+M / Ctrl+M で数式モード切替
+          if (e.key === "m" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            const el = textareaRef.current;
+            if (!el) return;
+            const pos = el.selectionStart || 0;
+            const text = content.text;
+            const before = text.slice(0, pos);
+            const after = text.slice(pos);
+            const newText = before + "$$" + after;
+            updateContent(block.id, { text: newText });
+            setTimeout(() => {
+              if (textareaRef.current) {
+                textareaRef.current.selectionStart = pos + 1;
+                textareaRef.current.selectionEnd = pos + 1;
+                textareaRef.current.focus();
+                setCursorPos(pos + 1);
+              }
+            }, 0);
+            return;
+          }
+          handleKeyDown(e);
+        }}
+        placeholder="テキストを入力... (⌘M で数式挿入 / $...$ で日本語数式)"
         className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 p-0 text-sm leading-relaxed"
         style={baseStyle}
         rows={1}
@@ -446,22 +469,19 @@ function MathBlockEditor({ block }: { block: Block }) {
   const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
-  // Input mode: "japanese" (default for beginners), "gui" (palette), "advanced" (raw + autocomplete)
-  const [inputMode, setInputMode] = useState<"japanese" | "gui" | "spacing" | "reference">("japanese");
+  const [inputMode, setInputMode] = useState<"japanese" | "dictionary" | "spacing">("japanese");
 
   const handleInsert = (latex: string) => {
-    // Append or replace depending on context
     updateContent(block.id, { latex: (content.latex + " " + latex).trim() });
   };
 
   const handleJapaneseSubmit = (latex: string) => {
-    // For Japanese mode, replace entire content with parsed result
     updateContent(block.id, { latex });
   };
 
   return (
     <div className="space-y-2">
-      {/* Always show preview */}
+      {/* プレビュー */}
       <div
         className={`flex justify-center py-3 px-4 rounded-lg transition-all cursor-pointer ${
           content.latex
@@ -479,16 +499,15 @@ function MathBlockEditor({ block }: { block: Block }) {
         )}
       </div>
 
-      {/* Editor panel (appears on editing) */}
+      {/* 編集パネル */}
       {isEditing && (
         <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
-          {/* Mode tabs */}
+          {/* モードタブ */}
           <div className="flex items-center gap-1 border-b pb-2">
             {[
               { id: "japanese" as const, label: "🇯🇵 日本語入力", desc: "読み方で書く" },
-              { id: "gui" as const, label: "🎨 パレット", desc: "ボタンで選ぶ" },
+              { id: "dictionary" as const, label: "📚 辞書・公式", desc: "検索して選ぶ" },
               { id: "spacing" as const, label: "📏 スペース", desc: "間隔を調整" },
-              { id: "reference" as const, label: "📖 辞書", desc: "LaTeX日本語訳" },
             ].map((mode) => (
               <button
                 key={mode.id}
@@ -504,7 +523,7 @@ function MathBlockEditor({ block }: { block: Block }) {
             ))}
           </div>
 
-          {/* Mode content */}
+          {/* モードコンテンツ */}
           {inputMode === "japanese" && (
             <JapaneseMathInput
               onSubmit={handleJapaneseSubmit}
@@ -512,21 +531,15 @@ function MathBlockEditor({ block }: { block: Block }) {
             />
           )}
 
-          {inputMode === "gui" && (
-            <MathPalette
-              onInsert={handleInsert}
-            />
+          {inputMode === "dictionary" && (
+            <MathDictionary onInsert={handleInsert} />
           )}
 
           {inputMode === "spacing" && (
             <SpacingControl onInsert={handleInsert} />
           )}
 
-          {inputMode === "reference" && (
-            <LatexJapaneseReference />
-          )}
-
-          {/* Current LaTeX (read-only display, subtle) */}
+          {/* LaTeX コード (上級者向け) */}
           {content.latex && (
             <details className="group">
               <summary className="text-[9px] text-muted-foreground/40 cursor-pointer hover:text-muted-foreground/60 transition-colors select-none">

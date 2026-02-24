@@ -15,14 +15,15 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { FileText, ArrowRight, Sparkles, Beaker, Cpu, GraduationCap, LayoutGrid, FileCheck, FilePlus2 } from "lucide-react";
+import { FileText, ArrowRight, Sparkles, LayoutGrid, FileCheck, FilePlus2, BookOpen, Presentation, Mail } from "lucide-react";
 
 const CATEGORIES = [
   { id: "all", name: "すべて", icon: LayoutGrid },
-  { id: "general", name: "一般", icon: FileText },
-  { id: "engineering", name: "工学", icon: Cpu },
-  { id: "science", name: "理学", icon: Beaker },
-  { id: "education", name: "教育", icon: GraduationCap },
+  { id: "article", name: "article", icon: FileText },
+  { id: "report", name: "report", icon: FileText },
+  { id: "book", name: "book", icon: BookOpen },
+  { id: "beamer", name: "beamer", icon: Presentation },
+  { id: "letter", name: "letter", icon: Mail },
 ] as const;
 
 // ──── CSS Document Preview Thumbnail ────
@@ -136,7 +137,7 @@ export function TemplateGallery() {
 
   const filteredTemplates = activeCategory === "all"
     ? TEMPLATES
-    : TEMPLATES.filter((t) => t.category === activeCategory);
+    : TEMPLATES.filter((t) => t.documentClass === activeCategory);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-background to-indigo-50 dark:from-violet-950/20 dark:via-background dark:to-indigo-950/20">
