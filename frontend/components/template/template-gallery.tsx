@@ -30,7 +30,7 @@ const CATEGORIES = [
 function TemplatePreview({ tmpl }: { tmpl: TemplateDefinition }) {
   // Analyze block types to generate a visual preview
   const blocks = tmpl.blocks();
-  const maxLines = 12;
+  const maxLines = 16;
   const previewLines: { type: string; width: string; height: string; indent?: boolean; color?: string }[] = [];
 
   for (const block of blocks) {
@@ -41,24 +41,24 @@ function TemplatePreview({ tmpl }: { tmpl: TemplateDefinition }) {
         previewLines.push({
           type: "heading",
           width: c.level === 1 ? "70%" : c.level === 2 ? "55%" : "45%",
-          height: c.level === 1 ? "6px" : "4px",
+          height: c.level === 1 ? "8px" : "6px",
           color: c.level === 1 ? "bg-slate-600" : "bg-slate-500",
         });
         break;
       case "paragraph":
-        previewLines.push({ type: "text", width: "95%", height: "3px", color: "bg-slate-300" });
-        if (previewLines.length < maxLines) previewLines.push({ type: "text", width: "80%", height: "3px", color: "bg-slate-300" });
+        previewLines.push({ type: "text", width: "95%", height: "4px", color: "bg-slate-300" });
+        if (previewLines.length < maxLines) previewLines.push({ type: "text", width: "80%", height: "4px", color: "bg-slate-300" });
         break;
       case "math":
-        previewLines.push({ type: "math", width: "60%", height: "8px", color: "bg-violet-300" });
+        previewLines.push({ type: "math", width: "60%", height: "10px", color: "bg-violet-300" });
         break;
       case "table":
-        previewLines.push({ type: "table", width: "90%", height: "14px", color: "bg-orange-200" });
+        previewLines.push({ type: "table", width: "90%", height: "18px", color: "bg-orange-200" });
         break;
       case "list":
         for (let j = 0; j < Math.min(c.items.length, 3); j++) {
           if (previewLines.length >= maxLines) break;
-          previewLines.push({ type: "list", width: "75%", height: "3px", indent: true, color: "bg-emerald-300" });
+          previewLines.push({ type: "list", width: "75%", height: "4px", indent: true, color: "bg-emerald-300" });
         }
         break;
       case "divider":
@@ -67,16 +67,16 @@ function TemplatePreview({ tmpl }: { tmpl: TemplateDefinition }) {
       case "circuit":
       case "diagram":
       case "chart":
-        previewLines.push({ type: "figure", width: "70%", height: "16px", color: "bg-cyan-200" });
+        previewLines.push({ type: "figure", width: "70%", height: "20px", color: "bg-cyan-200" });
         break;
       case "chemistry":
-        previewLines.push({ type: "chem", width: "50%", height: "8px", color: "bg-lime-300" });
+        previewLines.push({ type: "chem", width: "50%", height: "10px", color: "bg-lime-300" });
         break;
       case "code":
-        previewLines.push({ type: "code", width: "85%", height: "14px", color: "bg-slate-200" });
+        previewLines.push({ type: "code", width: "85%", height: "18px", color: "bg-slate-200" });
         break;
       case "image":
-        previewLines.push({ type: "image", width: "60%", height: "16px", color: "bg-pink-200" });
+        previewLines.push({ type: "image", width: "60%", height: "20px", color: "bg-pink-200" });
         break;
       default:
         break;
@@ -84,16 +84,16 @@ function TemplatePreview({ tmpl }: { tmpl: TemplateDefinition }) {
   }
 
   return (
-    <div className="w-full h-full bg-white rounded-sm shadow-inner p-2 flex flex-col gap-[3px] overflow-hidden">
+    <div className="w-full h-full bg-white rounded shadow-inner p-3 flex flex-col gap-1 overflow-hidden">
       {previewLines.map((line, i) => (
         <div
           key={i}
-          className={`rounded-[1px] ${line.color} shrink-0 ${line.type === "math" || line.type === "chem" || line.type === "figure" || line.type === "image" ? "mx-auto" : ""}`}
+          className={`rounded-[2px] ${line.color} shrink-0 ${line.type === "math" || line.type === "chem" || line.type === "figure" || line.type === "image" ? "mx-auto" : ""}`}
           style={{
             width: line.width,
             height: line.height,
-            marginLeft: line.indent ? "8px" : undefined,
-            opacity: 0.8 - (i * 0.02),
+            marginLeft: line.indent ? "10px" : undefined,
+            opacity: 0.9 - (i * 0.01),
           }}
         />
       ))}
@@ -225,14 +225,11 @@ export function TemplateGallery() {
             >
               {/* Document Preview Thumbnail */}
               <div
-                className={`h-28 p-2 bg-gradient-to-br ${tmpl.gradient} relative overflow-hidden flex items-center justify-center`}
+                className={`h-40 p-3 bg-gradient-to-br ${tmpl.gradient} relative overflow-hidden flex items-center justify-center`}
               >
-                <div className="w-[80px] h-[100px] transform group-hover:scale-105 transition-transform duration-300 relative">
+                <div className="w-full h-full transform group-hover:scale-[1.03] transition-transform duration-300 relative">
                   <TemplatePreview tmpl={tmpl} />
                 </div>
-                {/* Decorative shapes */}
-                <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/10 blur-sm" />
-                <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/10 blur-sm" />
               </div>
 
               {/* Info */}

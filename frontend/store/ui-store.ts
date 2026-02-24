@@ -20,7 +20,10 @@ export const useUIStore = create<UIState>((set) => ({
   isGenerating: false,
   zoom: 1,
 
-  selectBlock: (id) => set({ selectedBlockId: id, editingBlockId: id ? undefined : null }),
+  selectBlock: (id) => set((state) => ({
+    selectedBlockId: id,
+    editingBlockId: id && state.editingBlockId === id ? id : (id ? state.editingBlockId : null),
+  })),
   setEditingBlock: (id) => set({ editingBlockId: id, selectedBlockId: id }),
   setGenerating: (v) => set({ isGenerating: v }),
   setZoom: (v) => set({ zoom: Math.max(0.5, Math.min(2, v)) }),

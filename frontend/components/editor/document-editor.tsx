@@ -145,11 +145,7 @@ function BlockWrapper({
 
   return (
     <div
-      className={`group/block relative rounded-lg transition-all duration-150 ${
-        isSelected
-          ? "ring-2 ring-primary/25 bg-primary/[0.02]"
-          : "hover:bg-muted/30"
-      }`}
+      className={`group/block relative transition-all duration-150`}
       onClick={(e) => {
         e.stopPropagation();
         selectBlock(block.id);
@@ -159,51 +155,49 @@ function BlockWrapper({
         setEditingBlock(block.id);
       }}
     >
-      {/* Left drag handle + actions */}
-      <div className="absolute -left-10 top-0 bottom-0 flex flex-col items-center gap-0.5 pt-1 opacity-0 group-hover/block:opacity-100 transition-opacity">
-        <button className="p-0.5 rounded text-muted-foreground/40 hover:text-muted-foreground cursor-grab">
-          <GripVertical className="h-3.5 w-3.5" />
-        </button>
-        {isSelected && (
-          <>
-            <button
-              className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
-              title="上へ"
-            >
-              <ChevronUp className="h-3 w-3" />
-            </button>
-            <button
-              className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
-              title="下へ"
-            >
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            <button
-              className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
-              title="複製"
-            >
-              <Copy className="h-3 w-3" />
-            </button>
-            <button
-              className="p-0.5 rounded text-destructive/40 hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteBlock(block.id);
-                selectBlock(null);
-              }}
-              title="削除"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </>
-        )}
-      </div>
+      {/* Left actions — only on hover */}
+      {isSelected && (
+        <div className="absolute -left-10 top-0 bottom-0 flex flex-col items-center gap-0.5 pt-1 opacity-0 group-hover/block:opacity-100 transition-opacity">
+          <button className="p-0.5 rounded text-muted-foreground/40 hover:text-muted-foreground cursor-grab">
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <button
+            className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
+            onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
+            title="上へ"
+          >
+            <ChevronUp className="h-3 w-3" />
+          </button>
+          <button
+            className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
+            onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
+            title="下へ"
+          >
+            <ChevronDown className="h-3 w-3" />
+          </button>
+          <button
+            className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
+            onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
+            title="複製"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+          <button
+            className="p-0.5 rounded text-destructive/40 hover:text-destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              deleteBlock(block.id);
+              selectBlock(null);
+            }}
+            title="削除"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      )}
 
       {/* Block content */}
-      <div className="py-1 px-2">{children}</div>
+      <div className="py-1 px-1">{children}</div>
     </div>
   );
 }
@@ -330,7 +324,7 @@ function MathBlockEditor({ block }: { block: Block }) {
 
       {/* Editor panel (appears on editing) */}
       {isEditing && (
-        <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm">
+        <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
           {/* Mode tabs */}
           <div className="flex items-center gap-1 border-b pb-2">
             {[
@@ -436,9 +430,9 @@ function ListBlockEditor({ block }: { block: Block }) {
       ))}
       <button
         onClick={() => updateContent(block.id, { items: [...content.items, ""] })}
-        className="text-[10px] text-muted-foreground/50 hover:text-primary transition-colors ml-7 mt-1"
+        className="text-[10px] text-transparent hover:text-muted-foreground/50 transition-colors ml-7 mt-1"
       >
-        + 項目を追加
+        + 追加
       </button>
     </div>
   );
@@ -501,7 +495,7 @@ function TableBlockEditor({ block }: { block: Block }) {
           className="text-xs text-muted-foreground bg-transparent border-none outline-none w-full text-center"
         />
       )}
-      <div className="flex gap-1 justify-center">
+      <div className="flex gap-1 justify-center opacity-0 hover:opacity-100 transition-opacity">
         <button
           onClick={() => {
             pushHistory();
@@ -542,9 +536,9 @@ function ImageBlockEditor({ block }: { block: Block }) {
           <img src={content.url} alt={content.caption} className="max-h-60 rounded-lg object-contain" />
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed border-muted-foreground/15 bg-muted/20 text-muted-foreground/30 gap-1.5">
+        <div className="flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed border-muted-foreground/10 bg-muted/10 text-muted-foreground/20 gap-1.5">
           <ImageIcon className="h-6 w-6" />
-          <span className="text-xs">画像URLを下に入力</span>
+          <span className="text-[10px]">画像URL</span>
         </div>
       )}
       <Input
@@ -665,28 +659,29 @@ export function DocumentEditor() {
           <div className="relative" style={{ maxWidth: `${contentWidthMm * zoom * 3.78}px` }}>
             {document.blocks.map((block, index) => (
               <React.Fragment key={block.id}>
-                <InsertMenu index={index} variant="line" />
                 <BlockWrapper block={block}>
                   <BlockEditor block={block} />
                 </BlockWrapper>
               </React.Fragment>
             ))}
 
-            {/* Final insert */}
-            {document.blocks.length > 0 && (
-              <InsertMenu index={document.blocks.length} variant="line" />
-            )}
-
             {/* Empty state */}
             {document.blocks.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
                 <div className="text-4xl">📝</div>
-                <p className="text-muted-foreground/40 text-sm">ブロックを追加して文書を作成</p>
+                <p className="text-muted-foreground/40 text-sm">ブロックを追加して始めましょう</p>
                 <InsertMenu index={0} variant="button" />
               </div>
             )}
           </div>
         </div>
+
+        {/* Floating add button — below the page */}
+        {document.blocks.length > 0 && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+            <InsertMenu index={document.blocks.length} variant="button" />
+          </div>
+        )}
       </div>
     </div>
   );

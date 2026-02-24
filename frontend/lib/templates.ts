@@ -534,14 +534,15 @@ export const TEMPLATES: TemplateDefinition[] = [
 ];
 
 /**
- * Strip block content to keep only structure (headings, types) but empty data.
- * Heading text is kept if it looks like a section label (e.g. "1. はじめに").
+ * Strip block content to keep only structure (block types) but empty data.
+ * When blank=true, everything including heading text is cleared.
+ * Only divider blocks are kept as-is.
  */
 function stripBlockContent(block: Block): Block {
   const c = block.content;
   switch (c.type) {
     case "heading":
-      return { ...block, content: { ...c, text: c.text } }; // keep heading text for structure
+      return { ...block, content: { ...c, text: "" } };
     case "paragraph":
       return { ...block, content: { ...c, text: "" } };
     case "math":
@@ -549,9 +550,9 @@ function stripBlockContent(block: Block): Block {
     case "list":
       return { ...block, content: { ...c, items: [""] } };
     case "table":
-      return { ...block, content: { ...c, rows: [c.headers.map(() => "")], caption: c.caption ? "" : undefined } };
+      return { ...block, content: { ...c, headers: c.headers.map(() => ""), rows: [c.headers.map(() => "")], caption: c.caption !== undefined ? "" : undefined } };
     case "code":
-      return { ...block, content: { ...c, code: "" } };
+      return { ...block, content: { ...c, code: "", language: "" } };
     case "quote":
       return { ...block, content: { ...c, text: "", attribution: "" } };
     case "circuit":
