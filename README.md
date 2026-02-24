@@ -246,7 +246,7 @@ docker compose up --build
 3. 「Create App」→「Docker」を選択
 4. リポジトリを接続し、以下を設定:
    - **Dockerfile path:** `backend/Dockerfile`
-   - **Build context:** `backend`
+   - **Build context:** `.`（リポジトリルート）
    - **Port:** `8000`
 5. 環境変数を設定:
    - `ALLOWED_ORIGINS` = `https://your-app.vercel.app`（Vercelの本番URL）
