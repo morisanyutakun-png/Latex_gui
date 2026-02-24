@@ -14,7 +14,11 @@ export type BlockType =
   | "image"
   | "divider"
   | "code"
-  | "quote";
+  | "quote"
+  | "circuit"
+  | "diagram"
+  | "chemistry"
+  | "chart";
 
 // ──── Content Models (Discriminated Union) ────
 
@@ -74,6 +78,36 @@ export interface QuoteContent {
   attribution?: string;
 }
 
+export interface CircuitContent {
+  type: "circuit";
+  code: string;
+  caption?: string;
+  preset?: string;
+}
+
+export interface DiagramContent {
+  type: "diagram";
+  code: string;
+  caption?: string;
+  diagramType: "flowchart" | "sequence" | "block" | "state" | "tree" | "custom";
+  preset?: string;
+}
+
+export interface ChemistryContent {
+  type: "chemistry";
+  formula: string;
+  displayMode: boolean;
+  caption?: string;
+}
+
+export interface ChartContent {
+  type: "chart";
+  chartType: "line" | "bar" | "scatter" | "histogram";
+  code: string;
+  caption?: string;
+  preset?: string;
+}
+
 export type BlockContent =
   | HeadingContent
   | ParagraphContent
@@ -83,7 +117,11 @@ export type BlockContent =
   | ImageContent
   | DividerContent
   | CodeContent
-  | QuoteContent;
+  | QuoteContent
+  | CircuitContent
+  | DiagramContent
+  | ChemistryContent
+  | ChartContent;
 
 // ──── Block Style ────
 
@@ -166,6 +204,10 @@ export const BLOCK_TYPES: BlockTypeInfo[] = [
   { type: "divider",   name: "区切り線",   description: "水平区切り線",         color: "text-gray-400" },
   { type: "code",      name: "コード",     description: "プログラムコード",     color: "text-teal-500" },
   { type: "quote",     name: "引用",       description: "引用・コールアウト",   color: "text-amber-500" },
+  { type: "circuit",   name: "回路図",     description: "電子回路図 (circuitikz)", color: "text-cyan-500" },
+  { type: "diagram",   name: "ダイアグラム", description: "フローチャート・状態図 (TikZ)", color: "text-indigo-500" },
+  { type: "chemistry", name: "化学式",     description: "化学反応式・分子式",   color: "text-lime-500" },
+  { type: "chart",     name: "グラフ",     description: "データ可視化 (pgfplots)", color: "text-rose-500" },
 ];
 
 // ──── Helper: Create Block ────
@@ -185,6 +227,10 @@ export function createBlock(type: BlockType, overrides?: Partial<BlockStyle>): B
     divider:   () => ({ type: "divider", style: "solid" }),
     code:      () => ({ type: "code", language: "", code: "" }),
     quote:     () => ({ type: "quote", text: "" }),
+    circuit:   () => ({ type: "circuit", code: "", caption: "" }),
+    diagram:   () => ({ type: "diagram", code: "", diagramType: "flowchart", caption: "" }),
+    chemistry: () => ({ type: "chemistry", formula: "", displayMode: true }),
+    chart:     () => ({ type: "chart", chartType: "line", code: "", caption: "" }),
   };
 
   return {

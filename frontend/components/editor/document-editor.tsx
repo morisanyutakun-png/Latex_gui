@@ -1,18 +1,21 @@
 "use client";
 
-import React, { useCallback, useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
+import { MathPalette } from "./math-palette";
+import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
@@ -30,6 +33,10 @@ import {
   Minus,
   Code,
   Quote,
+  Zap,
+  GitBranch,
+  FlaskConical,
+  BarChart3,
 } from "lucide-react";
 
 // Icon mapper
@@ -43,7 +50,18 @@ const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
   divider: Minus,
   code: Code,
   quote: Quote,
+  circuit: Zap,
+  diagram: GitBranch,
+  chemistry: FlaskConical,
+  chart: BarChart3,
 };
+
+// Category grouping for insert menu
+const BLOCK_CATEGORIES = [
+  { label: "基本", types: ["heading", "paragraph", "list", "table", "divider"] as BlockType[] },
+  { label: "理工系", types: ["math", "circuit", "diagram", "chemistry", "chart"] as BlockType[] },
+  { label: "メディア", types: ["image", "code", "quote"] as BlockType[] },
+];
 
 // ──── Insert Menu ────
 function InsertMenu({ index, variant = "line" }: { index: number; variant?: "line" | "button" }) {
@@ -81,22 +99,32 @@ function InsertMenu({ index, variant = "line" }: { index: number; variant?: "lin
   return (
     <DropdownMenu>
       {trigger}
-      <DropdownMenuContent align="center" className="w-52 p-1.5 rounded-xl shadow-xl border-border/50">
-        <div className="grid grid-cols-3 gap-1">
-          {BLOCK_TYPES.map((info) => {
-            const Icon = BLOCK_ICONS[info.type];
-            return (
-              <DropdownMenuItem
-                key={info.type}
-                onClick={() => handleInsert(info.type)}
-                className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg cursor-pointer text-center focus:bg-primary/5"
-              >
-                <Icon className={`h-4 w-4 ${info.color}`} />
-                <span className="text-[10px] font-medium leading-none">{info.name}</span>
-              </DropdownMenuItem>
-            );
-          })}
-        </div>
+      <DropdownMenuContent align="center" className="w-56 p-1.5 rounded-xl shadow-xl border-border/50">
+        {BLOCK_CATEGORIES.map((cat, ci) => (
+          <React.Fragment key={cat.label}>
+            {ci > 0 && <DropdownMenuSeparator className="my-1" />}
+            <DropdownMenuLabel className="text-[9px] text-muted-foreground/60 font-medium px-2 py-0.5">
+              {cat.label}
+            </DropdownMenuLabel>
+            <div className="grid grid-cols-3 gap-1">
+              {cat.types.map((type) => {
+                const info = BLOCK_TYPES.find((t) => t.type === type);
+                if (!info) return null;
+                const Icon = BLOCK_ICONS[info.type];
+                return (
+                  <DropdownMenuItem
+                    key={info.type}
+                    onClick={() => handleInsert(info.type)}
+                    className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg cursor-pointer text-center focus:bg-primary/5"
+                  >
+                    <Icon className={`h-4 w-4 ${info.color}`} />
+                    <span className="text-[10px] font-medium leading-none">{info.name}</span>
+                  </DropdownMenuItem>
+                );
+              })}
+            </div>
+          </React.Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -266,6 +294,27 @@ function MathBlockEditor({ block }: { block: Block }) {
   const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
+  const [showPalette, setShowPalette] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handlePaletteInsert = (latex: string) => {
+    const current = content.latex;
+    const input = inputRef.current;
+    if (input) {
+      const start = input.selectionStart ?? current.length;
+      const end = input.selectionEnd ?? current.length;
+      const newLatex = current.slice(0, start) + latex + current.slice(end);
+      updateContent(block.id, { latex: newLatex });
+      // Set cursor after inserted text
+      requestAnimationFrame(() => {
+        input.focus();
+        const newPos = start + latex.length;
+        input.setSelectionRange(newPos, newPos);
+      });
+    } else {
+      updateContent(block.id, { latex: current + latex });
+    }
+  };
 
   return (
     <div className="space-y-2">
@@ -282,16 +331,36 @@ function MathBlockEditor({ block }: { block: Block }) {
       </div>
       {/* Editor input */}
       {isEditing && (
-        <div className="relative">
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-violet-400 select-none pointer-events-none">
-            TeX
+        <div className="space-y-2">
+          <div className="flex items-center gap-1">
+            <div className="relative flex-1">
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-violet-400 select-none pointer-events-none">
+                TeX
+              </div>
+              <input
+                ref={inputRef}
+                value={content.latex}
+                onChange={(e) => updateContent(block.id, { latex: e.target.value })}
+                placeholder="e^{i\pi} + 1 = 0"
+                className="w-full font-mono text-sm pl-9 h-9 rounded-lg border border-violet-200 dark:border-violet-800 focus:ring-violet-400 focus:ring-2 focus:outline-none bg-background px-3 py-1"
+              />
+            </div>
+            <Button
+              variant={showPalette ? "default" : "outline"}
+              size="sm"
+              className="h-9 w-9 p-0"
+              onClick={() => setShowPalette(!showPalette)}
+              title="数式パレット"
+            >
+              <Sigma className="h-4 w-4" />
+            </Button>
           </div>
-          <Input
-            value={content.latex}
-            onChange={(e) => updateContent(block.id, { latex: e.target.value })}
-            placeholder="e^{i\pi} + 1 = 0"
-            className="font-mono text-sm pl-9 h-9 rounded-lg border-violet-200 dark:border-violet-800 focus-visible:ring-violet-400"
-          />
+          {showPalette && (
+            <MathPalette
+              onInsert={handlePaletteInsert}
+              className="animate-in fade-in slide-in-from-top-2 duration-200"
+            />
+          )}
         </div>
       )}
     </div>
@@ -530,6 +599,10 @@ function BlockEditor({ block }: { block: Block }) {
     case "divider":   return <DividerBlock />;
     case "code":      return <CodeBlockEditor block={block} />;
     case "quote":     return <QuoteBlockEditor block={block} />;
+    case "circuit":   return <CircuitBlockEditor block={block} />;
+    case "diagram":   return <DiagramBlockEditor block={block} />;
+    case "chemistry": return <ChemistryBlockEditor block={block} />;
+    case "chart":     return <ChartBlockEditor block={block} />;
     default:          return null;
   }
 }

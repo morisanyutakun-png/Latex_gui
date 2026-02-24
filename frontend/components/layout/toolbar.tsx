@@ -30,6 +30,10 @@ import {
   Quote,
   ListOrdered,
   ChevronDown,
+  Zap,
+  GitBranch,
+  FlaskConical,
+  BarChart3,
 } from "lucide-react";
 
 const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
@@ -42,6 +46,10 @@ const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
   divider: Minus,
   code: Code,
   quote: Quote,
+  circuit: Zap,
+  diagram: GitBranch,
+  chemistry: FlaskConical,
+  chart: BarChart3,
 };
 
 // Helper: get the currently selected block

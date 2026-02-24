@@ -38,6 +38,29 @@ async def health_check():
     return {"status": "ok", "message": "PDF生成サーバーは正常に動作しています"}
 
 
+@app.get("/api/capabilities")
+async def get_capabilities():
+    """利用可能な機能一覧を返す"""
+    return {
+        "blockTypes": [
+            "heading", "paragraph", "math", "list", "table", "image",
+            "divider", "code", "quote", "circuit", "diagram", "chemistry", "chart",
+        ],
+        "engineeringFeatures": {
+            "circuit": {"package": "circuitikz", "description": "電子回路図の描画"},
+            "diagram": {"package": "tikz", "description": "フローチャート・ブロック図・状態遷移図"},
+            "chemistry": {"package": "mhchem", "description": "化学反応式・分子式"},
+            "chart": {"package": "pgfplots", "description": "データグラフ・プロット"},
+            "math": {"package": "amsmath", "description": "高品質な数式組版"},
+        },
+        "templates": [
+            "report", "announcement", "worksheet", "academic", "resume",
+            "circuit", "control", "chemistry", "physics", "algorithm",
+            "math-proof", "tech-spec", "blank",
+        ],
+    }
+
+
 @app.post("/api/preview-latex")
 async def preview_latex(doc: DocumentModel):
     """LaTeXソースのプレビュー（デバッグ用）"""

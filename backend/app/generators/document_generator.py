@@ -14,6 +14,10 @@ from ..models import (
     DividerContent,
     CodeContent,
     QuoteContent,
+    CircuitContent,
+    DiagramContent,
+    ChemistryContent,
+    ChartContent,
 )
 from ..utils.latex_utils import escape_latex, text_to_latex_paragraphs
 
@@ -51,6 +55,7 @@ def generate_document_latex(doc: DocumentModel) -> str:
     lines.append("\\usepackage{fontspec}")
     lines.append("\\usepackage{xeCJK}")
     lines.append("\\usepackage{amsmath,amssymb,amsthm}")
+    lines.append("\\usepackage{mathtools}")
     lines.append("\\usepackage{graphicx}")
     lines.append("\\usepackage{hyperref}")
     lines.append("\\usepackage{xcolor}")
@@ -60,6 +65,14 @@ def generate_document_latex(doc: DocumentModel) -> str:
     lines.append("\\usepackage{listings}")
     lines.append("\\usepackage{tcolorbox}")
     lines.append("\\usepackage{booktabs}")
+    lines.append("")
+    lines.append("% ── Engineering / Science packages ──")
+    lines.append("\\usepackage{tikz}")
+    lines.append("\\usepackage[siunitx]{circuitikz}")
+    lines.append("\\usepackage{pgfplots}")
+    lines.append("\\pgfplotsset{compat=1.18}")
+    lines.append("\\usepackage[version=4]{mhchem}")
+    lines.append("\\usetikzlibrary{shapes,arrows.meta,positioning,calc,decorations.markings,automata,fit}")
     lines.append("")
 
     # ──── Fonts ────
@@ -190,6 +203,14 @@ def _render_content(content, style) -> str:
         return _render_code(content)
     elif t == "quote":
         return _render_quote(content)
+    elif t == "circuit":
+        return _render_circuit(content)
+    elif t == "diagram":
+        return _render_diagram(content)
+    elif t == "chemistry":
+        return _render_chemistry(content)
+    elif t == "chart":
+        return _render_chart(content)
     return ""
 
 
@@ -308,4 +329,77 @@ def _render_quote(c: QuoteContent) -> str:
     if c.attribution:
         lines.append(f"\\par\\raggedleft\\small--- {escape_latex(c.attribution)}")
     lines.append("\\end{tcolorbox}")
+    return "\n".join(lines)
+
+
+# ──── Engineering / Science Renderers ────
+
+def _render_circuit(c: CircuitContent) -> str:
+    """回路図を circuitikz で描画"""
+    if not c.code.strip():
+        return ""
+    lines = [
+        "\\begin{figure}[h]",
+        "\\centering",
+        "\\begin{circuitikz}[american]",
+        c.code,
+        "\\end{circuitikz}",
+    ]
+    if c.caption:
+        lines.append(f"\\caption{{{escape_latex(c.caption)}}}")
+    lines.append("\\end{figure}")
+    return "\n".join(lines)
+
+
+def _render_diagram(c: DiagramContent) -> str:
+    """TikZダイアグラムを描画"""
+    if not c.code.strip():
+        return ""
+    lines = [
+        "\\begin{figure}[h]",
+        "\\centering",
+        "\\begin{tikzpicture}",
+        c.code,
+        "\\end{tikzpicture}",
+    ]
+    if c.caption:
+        lines.append(f"\\caption{{{escape_latex(c.caption)}}}")
+    lines.append("\\end{figure}")
+    return "\n".join(lines)
+
+
+def _render_chemistry(c: ChemistryContent) -> str:
+    """化学式を mhchem で描画"""
+    if not c.formula.strip():
+        return ""
+    formula = c.formula.strip()
+    if c.display_mode:
+        content = f"\\[\n\\ce{{{formula}}}\n\\]"
+    else:
+        content = f"$\\ce{{{formula}}}$"
+    if c.caption:
+        return f"\\begin{{figure}}[h]\n\\centering\n{content}\n\\caption{{{escape_latex(c.caption)}}}\n\\end{{figure}}"
+    return content
+
+
+def _render_chart(c: ChartContent) -> str:
+    """pgfplots でグラフ描画"""
+    if not c.code.strip():
+        return ""
+    lines = [
+        "\\begin{figure}[h]",
+        "\\centering",
+        "\\begin{tikzpicture}",
+        "\\begin{axis}[",
+        "  grid=major,",
+        "  xlabel={},",
+        "  ylabel={},",
+        "]",
+        c.code,
+        "\\end{axis}",
+        "\\end{tikzpicture}",
+    ]
+    if c.caption:
+        lines.append(f"\\caption{{{escape_latex(c.caption)}}}")
+    lines.append("\\end{figure}")
     return "\n".join(lines)

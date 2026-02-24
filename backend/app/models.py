@@ -70,6 +70,42 @@ class QuoteContent(CamelModel):
     attribution: Optional[str] = None
 
 
+# --------------- Engineering / Science Block Types ---------------
+
+class CircuitContent(CamelModel):
+    """回路図ブロック (circuitikz)"""
+    type: Literal["circuit"] = "circuit"
+    code: str = ""                              # circuitikz code
+    caption: Optional[str] = None
+    preset: Optional[str] = None                # preset template id
+
+
+class DiagramContent(CamelModel):
+    """ダイアグラムブロック (TikZ)"""
+    type: Literal["diagram"] = "diagram"
+    code: str = ""                              # TikZ code
+    caption: Optional[str] = None
+    diagram_type: str = "flowchart"             # flowchart, sequence, block, state, tree, custom
+    preset: Optional[str] = None                # preset template id
+
+
+class ChemistryContent(CamelModel):
+    """化学式ブロック (mhchem)"""
+    type: Literal["chemistry"] = "chemistry"
+    formula: str = ""                           # mhchem notation, e.g., "H2O", "CO2 + H2O -> H2CO3"
+    display_mode: bool = True
+    caption: Optional[str] = None
+
+
+class ChartContent(CamelModel):
+    """グラフ・チャートブロック (pgfplots)"""
+    type: Literal["chart"] = "chart"
+    chart_type: str = "line"                    # line, bar, scatter, histogram
+    code: str = ""                              # pgfplots code
+    caption: Optional[str] = None
+    preset: Optional[str] = None
+
+
 BlockContent = Annotated[
     Union[
         Annotated[HeadingContent, Tag("heading")],
@@ -81,6 +117,10 @@ BlockContent = Annotated[
         Annotated[DividerContent, Tag("divider")],
         Annotated[CodeContent, Tag("code")],
         Annotated[QuoteContent, Tag("quote")],
+        Annotated[CircuitContent, Tag("circuit")],
+        Annotated[DiagramContent, Tag("diagram")],
+        Annotated[ChemistryContent, Tag("chemistry")],
+        Annotated[ChartContent, Tag("chart")],
     ],
     Discriminator("type"),
 ]
