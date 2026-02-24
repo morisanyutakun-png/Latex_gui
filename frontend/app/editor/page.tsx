@@ -26,7 +26,7 @@ export default function EditorPage() {
   if (!document) return null;
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col bg-background animate-fade-in">
       <AppHeader />
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar />

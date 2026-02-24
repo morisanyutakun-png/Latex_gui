@@ -16,11 +16,18 @@ export function CanvasArea() {
 
   return (
     <div
-      className="flex-1 overflow-auto canvas-grid"
+      className="relative flex-1 overflow-auto canvas-grid"
       onWheel={handleWheel}
     >
-      <div className="flex min-h-full items-start justify-center p-8">
+      <div className="flex min-h-full items-start justify-center p-10">
         <CanvasPage />
+      </div>
+
+      {/* Zoom indicator */}
+      <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-lg bg-card/80 backdrop-blur-sm border border-border/50 px-2.5 py-1.5 shadow-sm pointer-events-none select-none z-30">
+        <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+          {Math.round(zoom * 100)}%
+        </span>
       </div>
     </div>
   );

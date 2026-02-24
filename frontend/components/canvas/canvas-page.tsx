@@ -4,6 +4,7 @@ import { A4_WIDTH_MM, A4_HEIGHT_MM } from "@/lib/types";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { CanvasElementView } from "./canvas-element";
+import { MousePointerClick } from "lucide-react";
 
 // A4 aspect ratio rendering
 const BASE_WIDTH_PX = 794; // A4 at 96dpi
@@ -23,7 +24,7 @@ export function CanvasPage() {
 
   return (
     <div
-      className="relative bg-white shadow-xl rounded-sm dark:bg-zinc-50"
+      className="relative bg-white rounded-sm page-shadow transition-gpu dark:bg-zinc-50"
       style={{
         width: pageWidthPx,
         height: pageHeightPx,
@@ -47,10 +48,15 @@ export function CanvasPage() {
 
       {/* Empty state */}
       {page.elements.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center text-muted-foreground/30">
-            <p className="text-lg font-medium">要素を追加してください</p>
-            <p className="text-sm mt-1">左パネルからドラッグまたはクリック</p>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-fade-in">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50 text-muted-foreground/30">
+              <MousePointerClick className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground/40">要素を追加してください</p>
+              <p className="text-xs text-muted-foreground/25 mt-1">左パネルからクリックして配置</p>
+            </div>
           </div>
         </div>
       )}

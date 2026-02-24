@@ -4,8 +4,8 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "./theme-toggle";
-import { Separator } from "@/components/ui/separator";
 import {
   Download,
   Upload,
@@ -15,12 +15,16 @@ import {
   ZoomIn,
   ZoomOut,
   Loader2,
+  Home,
+  Minus,
 } from "lucide-react";
 import { generatePDF } from "@/lib/api";
 import { downloadAsJSON, loadFromJSONFile } from "@/lib/storage";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export function AppHeader() {
+  const router = useRouter();
   const { document, updateMetadata, undo, redo, past, future, setDocument } =
     useDocumentStore();
   const { isGenerating, setGenerating, zoom, setZoom } = useUIStore();
@@ -72,68 +76,151 @@ export function AppHeader() {
     input.click();
   };
 
+  const zoomPercent = Math.round(zoom * 100);
+
   return (
-    <header className="flex h-12 items-center gap-2 border-b bg-card px-3 shrink-0">
+    <header className="flex h-12 items-center border-b bg-card/80 backdrop-blur-sm px-2 shrink-0 gap-1 z-40">
+      {/* Home */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => router.push("/")}
+          >
+            <Home className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">ホーム</TooltipContent>
+      </Tooltip>
+
+      {/* Divider */}
+      <div className="h-5 w-px bg-border mx-1" />
+
       {/* Title */}
       <Input
         value={document.metadata.title}
         onChange={(e) => updateMetadata({ title: e.target.value })}
         placeholder="無題のドキュメント"
-        className="h-8 w-48 border-transparent bg-transparent text-sm font-medium
-                   hover:border-input focus:border-input"
+        className="h-8 w-52 border-transparent bg-transparent text-sm font-semibold
+                   hover:bg-accent/60 focus:bg-accent/80 focus:border-primary/30
+                   rounded-lg transition-colors duration-150 px-2.5"
       />
 
-      <Separator orientation="vertical" className="h-5" />
+      {/* Divider */}
+      <div className="h-5 w-px bg-border mx-1" />
 
       {/* Undo / Redo */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        onClick={undo}
-        disabled={past.length === 0}
-      >
-        <Undo2 className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        onClick={redo}
-        disabled={future.length === 0}
-      >
-        <Redo2 className="h-4 w-4" />
-      </Button>
+      <div className="flex items-center">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={undo}
+              disabled={past.length === 0}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">元に戻す (⌘Z)</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={redo}
+              disabled={future.length === 0}
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">やり直す (⌘⇧Z)</TooltipContent>
+        </Tooltip>
+      </div>
 
-      <Separator orientation="vertical" className="h-5" />
+      {/* Divider */}
+      <div className="h-5 w-px bg-border mx-1" />
 
       {/* Zoom */}
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom(zoom - 0.1)}>
-        <ZoomOut className="h-4 w-4" />
-      </Button>
-      <span className="text-xs text-muted-foreground w-10 text-center tabular-nums">
-        {Math.round(zoom * 100)}%
-      </span>
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom(zoom + 0.1)}>
-        <ZoomIn className="h-4 w-4" />
-      </Button>
+      <div className="flex items-center gap-0.5 rounded-lg bg-muted/50 px-1 py-0.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setZoom(zoom - 0.1)}
+            >
+              <Minus className="h-3 w-3" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">縮小</TooltipContent>
+        </Tooltip>
+        <span className="text-[11px] font-medium text-muted-foreground w-10 text-center tabular-nums select-none">
+          {zoomPercent}%
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setZoom(zoom + 0.1)}
+            >
+              <ZoomIn className="h-3 w-3" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">拡大</TooltipContent>
+        </Tooltip>
+      </div>
 
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Actions */}
-      <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={handleLoad}>
-        <Upload className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">開く</span>
-      </Button>
-      <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={handleSave}>
-        <Download className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">保存</span>
-      </Button>
+      {/* File actions */}
+      <div className="flex items-center gap-0.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={handleLoad}
+            >
+              <Upload className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">ファイルを開く</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={handleSave}
+            >
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">JSON保存 (⌘S)</TooltipContent>
+        </Tooltip>
+      </div>
 
+      {/* Divider */}
+      <div className="h-5 w-px bg-border mx-1" />
+
+      {/* PDF Generate */}
       <Button
         size="sm"
-        className="h-8 gap-1.5"
+        className="h-8 gap-2 px-4 rounded-lg font-semibold text-[13px]
+                   bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary
+                   shadow-sm hover:shadow-md transition-all duration-200"
         onClick={handleGeneratePDF}
         disabled={isGenerating}
       >
@@ -142,7 +229,7 @@ export function AppHeader() {
         ) : (
           <FileDown className="h-3.5 w-3.5" />
         )}
-        PDF生成
+        {isGenerating ? "生成中..." : "PDF 書き出し"}
       </Button>
 
       <ThemeToggle />

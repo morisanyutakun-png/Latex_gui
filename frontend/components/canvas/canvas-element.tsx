@@ -5,6 +5,7 @@ import { CanvasElement, A4_WIDTH_MM, A4_HEIGHT_MM } from "@/lib/types";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { ElementRenderer } from "./element-renderer";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Trash2, Copy, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 
 interface Props {
@@ -150,7 +151,7 @@ export function CanvasElementView({ element, pageIndex, scale }: Props) {
   return (
     <div
       ref={ref}
-      className={`absolute group ${isDragging ? "cursor-grabbing" : ""}`}
+      className={`absolute group transition-gpu ${isDragging ? "cursor-grabbing opacity-90" : ""}`}
       style={{
         left: px(element.position.x),
         top: px(element.position.y),
@@ -169,8 +170,8 @@ export function CanvasElementView({ element, pageIndex, scale }: Props) {
     >
       {/* Content */}
       <div
-        className={`h-full w-full overflow-hidden rounded-sm transition-shadow
-          ${isSelected ? "ring-2 ring-primary shadow-lg" : "hover:ring-1 hover:ring-primary/30"}
+        className={`h-full w-full overflow-hidden rounded-sm transition-all duration-150
+          ${isSelected ? "element-selected" : "element-hover"}
           ${isEditing ? "ring-2 ring-primary" : ""}`}
         onPointerDown={handleDragStart}
         onPointerMove={handleDragMove}
@@ -182,48 +183,69 @@ export function CanvasElementView({ element, pageIndex, scale }: Props) {
         </div>
       </div>
 
-      {/* Toolbar */}
+      {/* Floating toolbar */}
       {isSelected && !isDragging && !isResizing && (
-        <div className="absolute -top-9 left-0 flex items-center gap-0.5 rounded-md border bg-card px-1 py-0.5 shadow-md z-50">
-          <button
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={(e) => { e.stopPropagation(); bringForward(pageIndex, element.id); }}
-            title="前面へ"
-          >
-            <ArrowUp className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={(e) => { e.stopPropagation(); sendBackward(pageIndex, element.id); }}
-            title="背面へ"
-          >
-            <ArrowDown className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={(e) => { e.stopPropagation(); duplicateElement(pageIndex, element.id); }}
-            title="複製"
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-          <div className="mx-0.5 h-4 w-px bg-border" />
-          <button
-            className="rounded p-1 text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              deleteElement(pageIndex, element.id);
-              selectElement(null);
-            }}
-            title="削除"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+        <div className="floating-toolbar absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-xl border bg-card/95 backdrop-blur-md px-1.5 py-1 shadow-lg z-50 animate-scale-in">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                onClick={(e) => { e.stopPropagation(); bringForward(pageIndex, element.id); }}
+              >
+                <ArrowUp className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px]">前面へ</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                onClick={(e) => { e.stopPropagation(); sendBackward(pageIndex, element.id); }}
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px]">背面へ</TooltipContent>
+          </Tooltip>
+
+          <div className="mx-0.5 h-4 w-px bg-border/50" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                onClick={(e) => { e.stopPropagation(); duplicateElement(pageIndex, element.id); }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px]">複製 (⌘D)</TooltipContent>
+          </Tooltip>
+
+          <div className="mx-0.5 h-4 w-px bg-border/50" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="rounded-lg p-1.5 text-destructive/60 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteElement(pageIndex, element.id);
+                  selectElement(null);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px]">削除 (Del)</TooltipContent>
+          </Tooltip>
         </div>
       )}
 
       {/* Drag handle */}
       {isSelected && !isDragging && !isResizing && (
-        <div className="absolute -left-6 top-0 flex h-6 w-5 items-center justify-center rounded-l border bg-card text-muted-foreground cursor-grab">
+        <div className="absolute -left-7 top-0 flex h-7 w-5 items-center justify-center rounded-l-lg border border-r-0 bg-card/90 backdrop-blur-sm text-muted-foreground cursor-grab shadow-sm transition-colors hover:bg-primary/10 hover:text-primary animate-fade-in">
           <GripVertical className="h-3.5 w-3.5" />
         </div>
       )}
@@ -233,7 +255,7 @@ export function CanvasElementView({ element, pageIndex, scale }: Props) {
         resizeHandles.map((dir) => (
           <div
             key={dir}
-            className={`absolute h-2.5 w-2.5 rounded-full border-2 border-primary bg-card ${handleCursors[dir]} ${handlePositions[dir]} z-50`}
+            className={`resize-handle absolute h-2.5 w-2.5 rounded-full border-2 border-primary bg-white dark:bg-zinc-900 shadow-sm ${handleCursors[dir]} ${handlePositions[dir]} z-50`}
             onPointerDown={(e) => handleResizeStart(e, dir)}
             onPointerMove={handleResizeMove}
             onPointerUp={handleResizeEnd}
