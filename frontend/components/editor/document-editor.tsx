@@ -6,6 +6,7 @@ import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
 import { MathPalette } from "./math-palette";
+import { MathAutocompleteInput, SnippetReference } from "./math-autocomplete";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -295,66 +296,56 @@ function MathBlockEditor({ block }: { block: Block }) {
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
   const [showPalette, setShowPalette] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const handlePaletteInsert = (latex: string) => {
     const current = content.latex;
-    const input = inputRef.current;
-    if (input) {
-      const start = input.selectionStart ?? current.length;
-      const end = input.selectionEnd ?? current.length;
-      const newLatex = current.slice(0, start) + latex + current.slice(end);
-      updateContent(block.id, { latex: newLatex });
-      // Set cursor after inserted text
-      requestAnimationFrame(() => {
-        input.focus();
-        const newPos = start + latex.length;
-        input.setSelectionRange(newPos, newPos);
-      });
-    } else {
-      updateContent(block.id, { latex: current + latex });
-    }
+    // Just append for palette inserts since we can't easily get textarea cursor from MathAutocompleteInput
+    updateContent(block.id, { latex: current + latex });
   };
 
   return (
     <div className="space-y-2">
-      {/* Preview */}
-      <div className={`flex justify-center py-3 px-4 rounded-lg ${!content.latex ? "bg-violet-50/50 dark:bg-violet-950/20" : ""}`}>
+      {/* Always show preview (even when editing) */}
+      <div className={`flex justify-center py-3 px-4 rounded-lg transition-all ${
+        content.latex
+          ? "bg-violet-50/30 dark:bg-violet-950/10"
+          : "bg-violet-50/50 dark:bg-violet-950/20"
+      }`}>
         {content.latex ? (
           <MathRenderer latex={content.latex} displayMode={content.displayMode} />
         ) : (
           <span className="text-muted-foreground/40 text-sm italic flex items-center gap-2">
             <Sigma className="h-4 w-4" />
-            数式を入力 (LaTeX)
+            数式を入力 — <code className="text-[10px] bg-muted/50 px-1 rounded">\\</code> でコマンド補完、<code className="text-[10px] bg-muted/50 px-1 rounded">//</code> で分数
           </span>
         )}
       </div>
       {/* Editor input */}
       {isEditing && (
         <div className="space-y-2">
-          <div className="flex items-center gap-1">
+          <div className="flex items-start gap-1">
             <div className="relative flex-1">
-              <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-violet-400 select-none pointer-events-none">
+              <div className="absolute left-2 top-2.5 text-[10px] font-mono text-violet-400 select-none pointer-events-none z-10">
                 TeX
               </div>
-              <input
-                ref={inputRef}
+              <MathAutocompleteInput
                 value={content.latex}
-                onChange={(e) => updateContent(block.id, { latex: e.target.value })}
-                placeholder="e^{i\pi} + 1 = 0"
-                className="w-full font-mono text-sm pl-9 h-9 rounded-lg border border-violet-200 dark:border-violet-800 focus:ring-violet-400 focus:ring-2 focus:outline-none bg-background px-3 py-1"
+                onChange={(latex) => updateContent(block.id, { latex })}
+                placeholder="e^{i\pi} + 1 = 0  |  // で分数、\\ でコマンド補完"
+                className="pl-9"
               />
             </div>
             <Button
               variant={showPalette ? "default" : "outline"}
               size="sm"
-              className="h-9 w-9 p-0"
+              className="h-9 w-9 p-0 shrink-0"
               onClick={() => setShowPalette(!showPalette)}
               title="数式パレット"
             >
               <Sigma className="h-4 w-4" />
             </Button>
           </div>
+          <SnippetReference />
           {showPalette && (
             <MathPalette
               onInsert={handlePaletteInsert}

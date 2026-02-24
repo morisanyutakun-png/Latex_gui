@@ -533,13 +533,47 @@ export const TEMPLATES: TemplateDefinition[] = [
   },
 ];
 
-export function createFromTemplate(templateId: string): DocumentModel {
+/**
+ * Strip block content to keep only structure (headings, types) but empty data.
+ * Heading text is kept if it looks like a section label (e.g. "1. はじめに").
+ */
+function stripBlockContent(block: Block): Block {
+  const c = block.content;
+  switch (c.type) {
+    case "heading":
+      return { ...block, content: { ...c, text: c.text } }; // keep heading text for structure
+    case "paragraph":
+      return { ...block, content: { ...c, text: "" } };
+    case "math":
+      return { ...block, content: { ...c, latex: "" } };
+    case "list":
+      return { ...block, content: { ...c, items: [""] } };
+    case "table":
+      return { ...block, content: { ...c, rows: [c.headers.map(() => "")], caption: c.caption ? "" : undefined } };
+    case "code":
+      return { ...block, content: { ...c, code: "" } };
+    case "quote":
+      return { ...block, content: { ...c, text: "", attribution: "" } };
+    case "circuit":
+      return { ...block, content: { ...c, code: "", caption: "" } };
+    case "diagram":
+      return { ...block, content: { ...c, code: "", caption: "" } };
+    case "chemistry":
+      return { ...block, content: { ...c, formula: "", caption: undefined } };
+    case "chart":
+      return { ...block, content: { ...c, code: "", caption: "" } };
+    default:
+      return block; // image, divider — keep as-is
+  }
+}
+
+export function createFromTemplate(templateId: string, blank = false): DocumentModel {
   const tmpl = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[TEMPLATES.length - 1];
   const blocks = tmpl.blocks();
   return {
     template: tmpl.id,
     metadata: { title: tmpl.name === "白紙" ? "無題のドキュメント" : tmpl.name, author: "" },
     settings: { ...DEFAULT_SETTINGS },
-    blocks,
+    blocks: blank ? blocks.map(stripBlockContent) : blocks,
   };
 }

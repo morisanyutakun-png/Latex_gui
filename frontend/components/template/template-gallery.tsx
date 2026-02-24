@@ -3,11 +3,18 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
-import { TEMPLATES, createFromTemplate } from "@/lib/templates";
+import { TEMPLATES, TemplateDefinition, createFromTemplate } from "@/lib/templates";
 import { loadFromLocalStorage } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { FileText, ArrowRight, Sparkles, Beaker, Cpu, GraduationCap, LayoutGrid } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { FileText, ArrowRight, Sparkles, Beaker, Cpu, GraduationCap, LayoutGrid, FileCheck, FilePlus2 } from "lucide-react";
 
 const CATEGORIES = [
   { id: "all", name: "すべて", icon: LayoutGrid },
@@ -17,15 +24,103 @@ const CATEGORIES = [
   { id: "education", name: "教育", icon: GraduationCap },
 ] as const;
 
+// ──── CSS Document Preview Thumbnail ────
+// Shows a miniature visual of what the document structure looks like
+
+function TemplatePreview({ tmpl }: { tmpl: TemplateDefinition }) {
+  // Analyze block types to generate a visual preview
+  const blocks = tmpl.blocks();
+  const maxLines = 12;
+  const previewLines: { type: string; width: string; height: string; indent?: boolean; color?: string }[] = [];
+
+  for (const block of blocks) {
+    if (previewLines.length >= maxLines) break;
+    const c = block.content;
+    switch (c.type) {
+      case "heading":
+        previewLines.push({
+          type: "heading",
+          width: c.level === 1 ? "70%" : c.level === 2 ? "55%" : "45%",
+          height: c.level === 1 ? "6px" : "4px",
+          color: c.level === 1 ? "bg-slate-600" : "bg-slate-500",
+        });
+        break;
+      case "paragraph":
+        previewLines.push({ type: "text", width: "95%", height: "3px", color: "bg-slate-300" });
+        if (previewLines.length < maxLines) previewLines.push({ type: "text", width: "80%", height: "3px", color: "bg-slate-300" });
+        break;
+      case "math":
+        previewLines.push({ type: "math", width: "60%", height: "8px", color: "bg-violet-300" });
+        break;
+      case "table":
+        previewLines.push({ type: "table", width: "90%", height: "14px", color: "bg-orange-200" });
+        break;
+      case "list":
+        for (let j = 0; j < Math.min(c.items.length, 3); j++) {
+          if (previewLines.length >= maxLines) break;
+          previewLines.push({ type: "list", width: "75%", height: "3px", indent: true, color: "bg-emerald-300" });
+        }
+        break;
+      case "divider":
+        previewLines.push({ type: "divider", width: "100%", height: "1px", color: "bg-slate-400" });
+        break;
+      case "circuit":
+      case "diagram":
+      case "chart":
+        previewLines.push({ type: "figure", width: "70%", height: "16px", color: "bg-cyan-200" });
+        break;
+      case "chemistry":
+        previewLines.push({ type: "chem", width: "50%", height: "8px", color: "bg-lime-300" });
+        break;
+      case "code":
+        previewLines.push({ type: "code", width: "85%", height: "14px", color: "bg-slate-200" });
+        break;
+      case "image":
+        previewLines.push({ type: "image", width: "60%", height: "16px", color: "bg-pink-200" });
+        break;
+      default:
+        break;
+    }
+  }
+
+  return (
+    <div className="w-full h-full bg-white rounded-sm shadow-inner p-2 flex flex-col gap-[3px] overflow-hidden">
+      {previewLines.map((line, i) => (
+        <div
+          key={i}
+          className={`rounded-[1px] ${line.color} shrink-0 ${line.type === "math" || line.type === "chem" || line.type === "figure" || line.type === "image" ? "mx-auto" : ""}`}
+          style={{
+            width: line.width,
+            height: line.height,
+            marginLeft: line.indent ? "8px" : undefined,
+            opacity: 0.8 - (i * 0.02),
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function TemplateGallery() {
   const router = useRouter();
   const setDocument = useDocumentStore((s) => s.setDocument);
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateDefinition | null>(null);
 
-  const handleSelect = (templateId: string) => {
-    const doc = createFromTemplate(templateId);
+  const handleStart = (templateId: string, blank: boolean) => {
+    const doc = createFromTemplate(templateId, blank);
     setDocument(doc);
+    setSelectedTemplate(null);
     router.push("/editor");
+  };
+
+  const handleTemplateClick = (tmpl: TemplateDefinition) => {
+    if (tmpl.id === "blank") {
+      // Blank template — just go straight to editor
+      handleStart("blank", false);
+    } else {
+      setSelectedTemplate(tmpl);
+    }
   };
 
   const handleResume = () => {
@@ -125,16 +220,16 @@ export function TemplateGallery() {
           {filteredTemplates.map((tmpl) => (
             <button
               key={tmpl.id}
-              onClick={() => handleSelect(tmpl.id)}
+              onClick={() => handleTemplateClick(tmpl)}
               className="group relative flex flex-col rounded-2xl border border-border/40 bg-white dark:bg-card overflow-hidden shadow-sm hover:shadow-xl hover:border-primary/30 hover:-translate-y-1 transition-all duration-300"
             >
-              {/* Gradient preview */}
+              {/* Document Preview Thumbnail */}
               <div
-                className={`h-28 bg-gradient-to-br ${tmpl.gradient} flex items-center justify-center relative overflow-hidden`}
+                className={`h-28 p-2 bg-gradient-to-br ${tmpl.gradient} relative overflow-hidden flex items-center justify-center`}
               >
-                <span className="text-3xl drop-shadow-lg group-hover:scale-110 transition-transform duration-300">
-                  {tmpl.icon}
-                </span>
+                <div className="w-[80px] h-[100px] transform group-hover:scale-105 transition-transform duration-300 relative">
+                  <TemplatePreview tmpl={tmpl} />
+                </div>
                 {/* Decorative shapes */}
                 <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/10 blur-sm" />
                 <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/10 blur-sm" />
@@ -143,7 +238,7 @@ export function TemplateGallery() {
               {/* Info */}
               <div className="p-3 text-left">
                 <h3 className="text-xs font-semibold mb-0.5 flex items-center gap-1.5">
-                  {tmpl.name}
+                  {tmpl.icon} {tmpl.name}
                   <ArrowRight className="h-3 w-3 text-muted-foreground/0 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </h3>
                 <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
@@ -157,10 +252,60 @@ export function TemplateGallery() {
           ))}
         </div>
 
+        {/* Template Selection Dialog */}
+        <Dialog open={!!selectedTemplate} onOpenChange={(open) => !open && setSelectedTemplate(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {selectedTemplate?.icon} {selectedTemplate?.name}
+              </DialogTitle>
+              <DialogDescription>
+                テンプレートの使い方を選んでください
+              </DialogDescription>
+            </DialogHeader>
+            {selectedTemplate && (
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <button
+                  onClick={() => handleStart(selectedTemplate.id, false)}
+                  className="group flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all"
+                >
+                  <div className="h-10 w-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                    <FileCheck className="h-5 w-5 text-violet-600" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold mb-0.5">見本付きで始める</p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      サンプルデータ入り。
+                      <br />
+                      お手本を見ながら編集
+                    </p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleStart(selectedTemplate.id, true)}
+                  className="group flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all"
+                >
+                  <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <FilePlus2 className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold mb-0.5">空で始める</p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      構造だけ。
+                      <br />
+                      自分の内容をすぐに書ける
+                    </p>
+                  </div>
+                </button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Features */}
         <section className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
-            { emoji: "📐", title: "美しい数式", desc: "LaTeXの数式をクリックだけで挿入" },
+            { emoji: "📐", title: "数式オートコンプリート", desc: "// で分数、\\ でコマンド補完。LaTeX級の速度で誰でも書ける" },
             { emoji: "⚡", title: "回路図・図表", desc: "テンプレートから回路図やグラフを生成" },
             { emoji: "🎨", title: "崩れないレイアウト", desc: "Wordの微調整地獄から解放" },
             { emoji: "🚀", title: "即座にPDF", desc: "ブラウザで編集→高品質PDFダウンロード" },
