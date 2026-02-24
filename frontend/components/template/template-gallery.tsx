@@ -233,13 +233,27 @@ export function TemplateGallery() {
               </div>
 
               {/* Info */}
-              <div className="p-3 text-left">
-                <h3 className="text-xs font-semibold mb-0.5 flex items-center gap-1.5">
+              <div className="p-3 text-left flex flex-col gap-1.5">
+                <h3 className="text-xs font-semibold flex items-center gap-1.5">
                   {tmpl.icon} {tmpl.name}
                   <ArrowRight className="h-3 w-3 text-muted-foreground/0 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </h3>
+                {/* Feature badges */}
+                {tmpl.features.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {tmpl.features.map((f) => (
+                      <span
+                        key={f}
+                        className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* Edge differentiator */}
                 <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
-                  {tmpl.description}
+                  {tmpl.edge}
                 </p>
               </div>
 

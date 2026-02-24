@@ -398,6 +398,10 @@ export interface TemplateDefinition {
   icon: string;
   category: "general" | "education" | "engineering" | "science";
   blocks: () => Block[];
+  /** What block types are in this template — shown as badges */
+  features: string[];
+  /** One-line differentiator: why this over Word/PowerPoint */
+  edge: string;
 }
 
 export const TEMPLATES: TemplateDefinition[] = [
@@ -410,6 +414,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "📊",
     category: "general",
     blocks: reportBlocks,
+    features: ["数式", "表", "リスト"],
+    edge: "数式がズレない。表番号が自動化",
   },
   {
     id: "announcement",
@@ -420,6 +426,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "📢",
     category: "general",
     blocks: announcementBlocks,
+    features: ["表", "罫線"],
+    edge: "体裁統一。印刷してもレイアウト崩れゼロ",
   },
   {
     id: "worksheet",
@@ -430,6 +438,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "📝",
     category: "education",
     blocks: worksheetBlocks,
+    features: ["数式×4", "行列", "連立方程式"],
+    edge: "行列・連立方程式を崩さず印刷",
   },
   {
     id: "academic",
@@ -440,6 +450,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "🎓",
     category: "education",
     blocks: academicBlocks,
+    features: ["数式", "積分", "偏微分"],
+    edge: "論文レベルの数式が一瞬で組める",
   },
   {
     id: "resume",
@@ -450,6 +462,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "👤",
     category: "general",
     blocks: resumeBlocks,
+    features: ["表", "リスト"],
+    edge: "余白・フォントが完璧に揃う",
   },
   {
     id: "circuit",
@@ -460,6 +474,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "⚡",
     category: "engineering",
     blocks: circuitBlocks,
+    features: ["回路図", "数式", "伝達関数"],
+    edge: "Wordでは不可能な回路図を自動描画",
   },
   {
     id: "control",
@@ -470,6 +486,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "🔄",
     category: "engineering",
     blocks: controlBlocks,
+    features: ["ブロック線図", "伝達関数", "状態方程式"],
+    edge: "フィードバック系の図をコードから生成",
   },
   {
     id: "chemistry",
@@ -480,6 +498,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "🧪",
     category: "science",
     blocks: chemistryBlocks,
+    features: ["化学式", "反応式", "電離平衡"],
+    edge: "化学式の上下矢印・平衡記号を正確描画",
   },
   {
     id: "physics",
@@ -490,6 +510,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "🔬",
     category: "science",
     blocks: physicsBlocks,
+    features: ["散布図", "数式", "測定データ"],
+    edge: "グラフと理論曲線を1つのPDFに統合",
   },
   {
     id: "algorithm",
@@ -500,6 +522,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "💻",
     category: "engineering",
     blocks: algorithmBlocks,
+    features: ["コード", "フローチャート", "計算量"],
+    edge: "コードブロック＋アルゴリズム図を同居",
   },
   {
     id: "math-proof",
@@ -510,6 +534,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "📐",
     category: "education",
     blocks: mathProofBlocks,
+    features: ["テイラー展開", "行列", "重積分"],
+    edge: "Wordでは1時間。ここなら30秒",
   },
   {
     id: "tech-spec",
@@ -520,6 +546,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "📋",
     category: "engineering",
     blocks: techSpecBlocks,
+    features: ["構成図", "API表", "コード"],
+    edge: "構成図がベクター。拡大しても劣化なし",
   },
   {
     id: "blank",
@@ -530,6 +558,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     icon: "📄",
     category: "general",
     blocks: blankBlocks,
+    features: [],
+    edge: "白紙から自由に組み立て",
   },
 ];
 

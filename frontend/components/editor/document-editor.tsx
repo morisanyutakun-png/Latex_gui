@@ -5,8 +5,7 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
-import { MathPalette } from "./math-palette";
-import { JapaneseMathInput, SpacingControl, LatexJapaneseReference } from "./math-japanese-input";
+import { SmartMathInput } from "./smart-math-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -289,16 +288,8 @@ function MathBlockEditor({ block }: { block: Block }) {
   const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
-  // Input mode: "japanese" (default for beginners), "gui" (palette), "advanced" (raw + autocomplete)
-  const [inputMode, setInputMode] = useState<"japanese" | "gui" | "spacing" | "reference">("japanese");
 
-  const handleInsert = (latex: string) => {
-    // Append or replace depending on context
-    updateContent(block.id, { latex: (content.latex + " " + latex).trim() });
-  };
-
-  const handleJapaneseSubmit = (latex: string) => {
-    // For Japanese mode, replace entire content with parsed result
+  const handleSubmit = (latex: string) => {
     updateContent(block.id, { latex });
   };
 
@@ -308,80 +299,27 @@ function MathBlockEditor({ block }: { block: Block }) {
       <div
         className={`flex justify-center py-3 px-4 rounded-lg transition-all cursor-pointer ${
           content.latex
-            ? "bg-violet-50/30 dark:bg-violet-950/10 hover:bg-violet-50/50"
-            : "bg-violet-50/50 dark:bg-violet-950/20"
+            ? "hover:bg-violet-50/30 dark:hover:bg-violet-950/10"
+            : "bg-muted/20"
         }`}
       >
         {content.latex ? (
           <MathRenderer latex={content.latex} displayMode={content.displayMode} />
         ) : (
-          <span className="text-muted-foreground/40 text-sm italic flex items-center gap-2">
+          <span className="text-muted-foreground/30 text-sm italic flex items-center gap-2">
             <Sigma className="h-4 w-4" />
-            ダブルクリックして数式を入力
+            ダブルクリックで数式入力
           </span>
         )}
       </div>
 
-      {/* Editor panel (appears on editing) */}
+      {/* Editor panel */}
       {isEditing && (
-        <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
-          {/* Mode tabs */}
-          <div className="flex items-center gap-1 border-b pb-2">
-            {[
-              { id: "japanese" as const, label: "🇯🇵 日本語入力", desc: "読み方で書く" },
-              { id: "gui" as const, label: "🎨 パレット", desc: "ボタンで選ぶ" },
-              { id: "spacing" as const, label: "📏 スペース", desc: "間隔を調整" },
-              { id: "reference" as const, label: "📖 辞書", desc: "LaTeX日本語訳" },
-            ].map((mode) => (
-              <button
-                key={mode.id}
-                onClick={() => setInputMode(mode.id)}
-                className={`flex-1 px-2 py-1.5 rounded-lg text-center transition-all ${
-                  inputMode === mode.id
-                    ? "bg-primary/10 text-primary border border-primary/20"
-                    : "text-muted-foreground hover:bg-muted/50"
-                }`}
-              >
-                <span className="text-[10px] font-medium block">{mode.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Mode content */}
-          {inputMode === "japanese" && (
-            <JapaneseMathInput
-              onSubmit={handleJapaneseSubmit}
-              initialLatex={content.latex}
-            />
-          )}
-
-          {inputMode === "gui" && (
-            <MathPalette
-              onInsert={handleInsert}
-            />
-          )}
-
-          {inputMode === "spacing" && (
-            <SpacingControl onInsert={handleInsert} />
-          )}
-
-          {inputMode === "reference" && (
-            <LatexJapaneseReference />
-          )}
-
-          {/* Current LaTeX (read-only display, subtle) */}
-          {content.latex && (
-            <details className="group">
-              <summary className="text-[9px] text-muted-foreground/40 cursor-pointer hover:text-muted-foreground/60 transition-colors select-none">
-                生成されたコード（上級者向け）
-              </summary>
-              <div className="mt-1 px-2 py-1.5 rounded-lg bg-muted/30 border border-border/30">
-                <code className="text-[10px] font-mono text-muted-foreground break-all select-all">
-                  {content.latex}
-                </code>
-              </div>
-            </details>
-          )}
+        <div className="border rounded-xl p-3 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
+          <SmartMathInput
+            onSubmit={handleSubmit}
+            initialLatex={content.latex}
+          />
         </div>
       )}
     </div>
