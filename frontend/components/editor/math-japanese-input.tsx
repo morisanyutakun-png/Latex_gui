@@ -29,13 +29,20 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Derive preview latex from japanese text
-  const previewLatex = useMemo(() => {
+  // Derive preview latex from japanese text (shows existing + new combined)
+  const newLatex = useMemo(() => {
     if (japaneseText.trim()) {
       return parseJapanesemath(japaneseText);
     }
+    return "";
+  }, [japaneseText]);
+
+  const previewLatex = useMemo(() => {
+    if (newLatex) {
+      return initialLatex ? initialLatex + " " + newLatex : newLatex;
+    }
     return initialLatex;
-  }, [japaneseText, initialLatex]);
+  }, [newLatex, initialLatex]);
 
   // Derive suggestions from japanese text
   const suggestions = useMemo(() => {
@@ -74,8 +81,8 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (previewLatex.trim()) {
-        onSubmit(previewLatex);
+      if (newLatex.trim()) {
+        onSubmit(newLatex);
         setJapaneseText("");
       }
     }
@@ -146,10 +153,20 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
       {/* Live preview */}
       {previewLatex && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200/50 dark:border-violet-800/50">
-          <span className="text-[9px] text-violet-400 font-medium shrink-0">プレビュー</span>
+          <span className="text-[9px] text-violet-400 font-medium shrink-0">
+            {newLatex ? "プレビュー" : "現在の数式"}
+          </span>
           <div className="flex-1 flex justify-center overflow-auto">
             <MathRenderer latex={previewLatex} displayMode={false} />
           </div>
+        </div>
+      )}
+
+      {/* Enter hint when there's new input */}
+      {newLatex && (
+        <div className="text-[9px] text-emerald-600/70 flex items-center gap-1">
+          <kbd className="px-1 rounded bg-emerald-100 dark:bg-emerald-900/30 font-mono text-[8px]">Enter</kbd>
+          <span>で追加（多項式: 項ごとにEnterで確定）</span>
         </div>
       )}
 

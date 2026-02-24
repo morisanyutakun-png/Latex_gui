@@ -404,18 +404,14 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           {isInMathMode ? (
             <>
               <Sigma className="h-2.5 w-2.5" />
-              <span>数式モード</span>
-              {mathCtx?.mathContent && (
-                <span className="ml-auto font-mono text-violet-700 dark:text-violet-300">
-                  → {parseJapanesemath(mathCtx.mathContent)}
-                </span>
-              )}
+              <span>数式モード — 日本語で入力できます</span>
+              <span className="ml-auto text-violet-400/60 text-[8px]">⇧⌘M で閉じる</span>
             </>
           ) : (
             <>
               <Type className="h-2.5 w-2.5" />
               <span>テキストモード</span>
-              <span className="ml-auto text-muted-foreground/40">⇧⌘M で数式挿入</span>
+              <span className="ml-auto text-muted-foreground/40">⇧⌘M で数式モード</span>
             </>
           )}
         </div>
@@ -437,6 +433,28 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 if (!el) return;
                 const pos = el.selectionStart || 0;
                 const text = content.text;
+
+                // すでに数式モード内なら閉じる
+                const ctx = getInlineMathContext(text, pos);
+                if (ctx && ctx.inMath) {
+                  // 閉じ$がない場合は追加
+                  if (!text.slice(ctx.mathStart + 1).includes("$")) {
+                    const newText = text.slice(0, text.length) + "$";
+                    updateContent(block.id, { text: newText });
+                    setTimeout(() => {
+                      if (textareaRef.current) {
+                        const newPos = newText.length;
+                        textareaRef.current.selectionStart = newPos;
+                        textareaRef.current.selectionEnd = newPos;
+                        textareaRef.current.focus();
+                        setCursorPos(newPos);
+                      }
+                    }, 0);
+                  }
+                  return;
+                }
+
+                // 数式モード開始 - $...$を挿入してカーソルを間に
                 const before = text.slice(0, pos);
                 const after = text.slice(pos);
                 const newText = before + "$$" + after;
@@ -453,7 +471,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               }
               handleKeyDown(e);
             }}
-            placeholder="テキストを入力... (⇧⌘M で数式挿入 / $...$ で日本語数式)"
+            placeholder="テキストを入力... (⇧⌘M で数式モード切替)"
             className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 p-2 text-sm leading-relaxed"
             style={baseStyle}
             rows={1}
@@ -478,11 +496,22 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             </div>
           )}
 
-          {/* インライン数式ヒント（数式モード中） */}
-          {isInMathMode && (
-            <div className="mx-2 mb-1 px-2 py-1 rounded bg-violet-100/60 dark:bg-violet-900/30 text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-2">
-              <Sigma className="h-3 w-3" />
-              <span>日本語で数式を書けます（例: アルファ, 2分の1, xの2乗）— もう一度 $ を入力して閉じる</span>
+          {/* インライン数式ヒント + ライブプレビュー（数式モード中） */}
+          {isInMathMode && mathCtx && (
+            <div className="mx-2 mb-1 space-y-1">
+              {mathCtx.mathContent && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200/50 dark:border-violet-800/50">
+                  <span className="text-[9px] text-violet-400 font-medium shrink-0">プレビュー</span>
+                  <div className="flex-1 flex justify-center overflow-auto">
+                    <MathRenderer latex={parseJapanesemath(mathCtx.mathContent)} displayMode={false} />
+                  </div>
+                </div>
+              )}
+              <div className="px-2 py-1 rounded bg-violet-100/60 dark:bg-violet-900/30 text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-2">
+                <Sigma className="h-3 w-3" />
+                <span>日本語で数式入力（例: アルファ, 2分の1, xの2乗）</span>
+                <span className="ml-auto text-[9px] text-violet-400/60">⇧⌘M で閉じる</span>
+              </div>
             </div>
           )}
         </>
@@ -528,7 +557,12 @@ function MathBlockEditor({ block }: { block: Block }) {
   };
 
   const handleJapaneseSubmit = (latex: string) => {
-    updateContent(block.id, { latex });
+    // 既存のlatexに追記（多項式対応）
+    if (content.latex.trim()) {
+      updateContent(block.id, { latex: content.latex + " " + latex });
+    } else {
+      updateContent(block.id, { latex });
+    }
   };
 
   return (
