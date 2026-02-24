@@ -3,23 +3,13 @@ PDF生成サービス: LaTeX生成 → XeLaTeXコンパイル → PDF返却
 """
 import subprocess
 import tempfile
-import os
 import logging
 from pathlib import Path
 
-from .models import DocumentModel, TemplateType
-from .generators.report import generate_report
-from .generators.announcement import generate_announcement
-from .generators.worksheet import generate_worksheet
+from .models import DocumentModel
+from .generators.canvas_generator import generate_canvas_pdf
 
 logger = logging.getLogger(__name__)
-
-# テンプレート → ジェネレータ関数のマッピング
-_GENERATORS = {
-    TemplateType.REPORT: generate_report,
-    TemplateType.ANNOUNCEMENT: generate_announcement,
-    TemplateType.WORKSHEET: generate_worksheet,
-}
 
 
 class PDFGenerationError(Exception):
@@ -31,14 +21,8 @@ class PDFGenerationError(Exception):
 
 
 def generate_latex(doc: DocumentModel) -> str:
-    """DocumentModelからLaTeXソースを生成"""
-    generator = _GENERATORS.get(doc.template)
-    if not generator:
-        raise PDFGenerationError(
-            f"テンプレート「{doc.template}」は現在対応していません。",
-            detail=f"Unknown template: {doc.template}"
-        )
-    return generator(doc)
+    """DocumentModelからLaTeXソースを生成（全テンプレート共通）"""
+    return generate_canvas_pdf(doc)
 
 
 def compile_pdf(doc: DocumentModel) -> bytes:

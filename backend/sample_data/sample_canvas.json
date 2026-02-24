@@ -1,0 +1,85 @@
+{
+  "template": "report",
+  "metadata": {
+    "title": "2025年度 技術レポート",
+    "subtitle": "Canvas配置テスト",
+    "author": "テストユーザー",
+    "date": "2025/01/15"
+  },
+  "pages": [
+    {
+      "id": "page-1",
+      "elements": [
+        {
+          "id": "el-title",
+          "content": { "type": "heading", "text": "2025年度 技術レポート", "level": 1 },
+          "position": { "x": 20, "y": 25, "width": 170, "height": 18 },
+          "style": { "fontSize": 28, "fontFamily": "sans", "bold": true, "textAlign": "center" },
+          "zIndex": 1
+        },
+        {
+          "id": "el-subtitle",
+          "content": { "type": "paragraph", "text": "Canvas配置テスト — 自由配置で美しいPDFを生成" },
+          "position": { "x": 30, "y": 48, "width": 150, "height": 10 },
+          "style": { "fontSize": 14, "fontFamily": "sans", "textAlign": "center", "textColor": "#666666" },
+          "zIndex": 2
+        },
+        {
+          "id": "el-intro",
+          "content": { "type": "heading", "text": "はじめに", "level": 2 },
+          "position": { "x": 20, "y": 70, "width": 170, "height": 12 },
+          "style": { "fontSize": 18, "fontFamily": "sans", "bold": true },
+          "zIndex": 3
+        },
+        {
+          "id": "el-body",
+          "content": { "type": "paragraph", "text": "本レポートでは、Canvas方式の絶対配置によるPDF生成機能の実証を行います。\n\n各要素はmm単位で自由に配置でき、フォントサイズ・色・背景・ボーダーなどのスタイルが適用されます。これにより、Canva/PowerPointのような直感的なデザインが可能になります。" },
+          "position": { "x": 20, "y": 85, "width": 170, "height": 50 },
+          "style": { "fontSize": 11, "fontFamily": "serif" },
+          "zIndex": 4
+        },
+        {
+          "id": "el-list-header",
+          "content": { "type": "heading", "text": "主な機能", "level": 2 },
+          "position": { "x": 20, "y": 140, "width": 170, "height": 12 },
+          "style": { "fontSize": 18, "fontFamily": "sans", "bold": true },
+          "zIndex": 5
+        },
+        {
+          "id": "el-list",
+          "content": {
+            "type": "list",
+            "style": "bullet",
+            "items": [
+              "要素の自由配置（ドラッグ＆ドロップ）",
+              "リアルタイムサイズ変更",
+              "フォント・色・背景のカスタマイズ",
+              "複数ページ対応",
+              "Z軸での重ね順制御"
+            ]
+          },
+          "position": { "x": 25, "y": 155, "width": 160, "height": 55 },
+          "style": { "fontSize": 11, "fontFamily": "serif" },
+          "zIndex": 6
+        },
+        {
+          "id": "el-box",
+          "content": { "type": "paragraph", "text": "重要：すべてのレイアウトはLaTeXのtextposパッケージで再現されます。" },
+          "position": { "x": 25, "y": 220, "width": 160, "height": 20 },
+          "style": {
+            "fontSize": 12,
+            "fontFamily": "sans",
+            "bold": true,
+            "textAlign": "center",
+            "backgroundColor": "#EEF2FF",
+            "borderColor": "#6366F1",
+            "borderWidth": 1,
+            "borderRadius": 3,
+            "padding": 4
+          },
+          "zIndex": 7
+        }
+      ]
+    }
+  ]
+}

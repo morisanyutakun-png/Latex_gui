@@ -3,7 +3,6 @@
  */
 import { DocumentModel } from "./types";
 
-const STORAGE_KEY = "latex_gui_document";
 const AUTOSAVE_KEY = "latex_gui_autosave";
 
 export function saveToLocalStorage(doc: DocumentModel): void {
@@ -41,7 +40,7 @@ export function loadFromJSONFile(file: File): Promise<DocumentModel> {
     reader.onload = () => {
       try {
         const doc = JSON.parse(reader.result as string) as DocumentModel;
-        if (!doc.template || !doc.metadata || !doc.blocks) {
+        if (!doc.template || !doc.metadata || !doc.pages) {
           reject(new Error("ファイルの形式が正しくありません。"));
           return;
         }

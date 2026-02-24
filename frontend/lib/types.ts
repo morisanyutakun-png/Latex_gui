@@ -1,52 +1,94 @@
 /**
- * 中間表現（JSON）の型定義
- * Backend Pydanticモデルと1:1対応
+ * Canvas-based document editor types
+ * Canva/PowerPoint風の自由配置エディタ用型定義
  */
 
-export type TemplateType = "report" | "announcement" | "worksheet";
+// --- Template ---
 
-export type BlockType = "heading" | "paragraph" | "list" | "table" | "image";
+export type TemplateType = "blank" | "report" | "announcement" | "worksheet";
+
+export type ElementType = "heading" | "paragraph" | "list" | "table" | "image";
 
 export type ListStyle = "bullet" | "numbered";
 
-// --- Block Types ---
+// --- Position & Style ---
 
-export interface HeadingBlock {
+export interface ElementPosition {
+  x: number;      // mm (A4: 0-210)
+  y: number;      // mm (A4: 0-297)
+  width: number;  // mm
+  height: number; // mm
+}
+
+export interface ElementStyle {
+  textColor?: string;
+  backgroundColor?: string;
+  textAlign?: "left" | "center" | "right";
+  fontSize?: number;        // pt (8-72)
+  fontFamily?: "serif" | "sans";
+  bold?: boolean;
+  italic?: boolean;
+  borderColor?: string;
+  borderWidth?: number;     // pt
+  borderRadius?: number;    // mm
+  padding?: number;         // mm
+  opacity?: number;         // 0-1
+}
+
+// --- Element content types ---
+
+export interface HeadingContent {
   type: "heading";
   text: string;
   level: 1 | 2 | 3;
 }
 
-export interface ParagraphBlock {
+export interface ParagraphContent {
   type: "paragraph";
   text: string;
 }
 
-export interface ListBlock {
+export interface ListContent {
   type: "list";
   style: ListStyle;
   items: string[];
 }
 
-export interface TableBlock {
+export interface TableContent {
   type: "table";
   headers: string[];
   rows: string[][];
 }
 
-export interface ImageBlock {
+export interface ImageContent {
   type: "image";
   url: string;
   caption: string;
-  width: number;
 }
 
-export type Block =
-  | HeadingBlock
-  | ParagraphBlock
-  | ListBlock
-  | TableBlock
-  | ImageBlock;
+export type ElementContent =
+  | HeadingContent
+  | ParagraphContent
+  | ListContent
+  | TableContent
+  | ImageContent;
+
+// --- Canvas Element (block with position) ---
+
+export interface CanvasElement {
+  id: string;
+  content: ElementContent;
+  position: ElementPosition;
+  style: ElementStyle;
+  zIndex: number;
+}
+
+// --- Page ---
+
+export interface Page {
+  id: string;
+  elements: CanvasElement[];
+}
 
 // --- Metadata ---
 
@@ -62,12 +104,33 @@ export interface Metadata {
 export interface DocumentModel {
   template: TemplateType;
   metadata: Metadata;
-  blocks: Block[];
+  pages: Page[];
 }
 
-// --- Block defaults ---
+// --- A4 constants ---
 
-export function createDefaultBlock(type: BlockType): Block {
+export const A4_WIDTH_MM = 210;
+export const A4_HEIGHT_MM = 297;
+
+// --- Defaults ---
+
+const DEFAULT_POSITIONS: Record<ElementType, Partial<ElementPosition>> = {
+  heading:   { width: 170, height: 15 },
+  paragraph: { width: 170, height: 40 },
+  list:      { width: 170, height: 50 },
+  table:     { width: 170, height: 50 },
+  image:     { width: 80,  height: 60 },
+};
+
+const DEFAULT_STYLES: Record<ElementType, ElementStyle> = {
+  heading:   { fontSize: 24, fontFamily: "sans", bold: true, textAlign: "left" },
+  paragraph: { fontSize: 11, fontFamily: "serif", textAlign: "left" },
+  list:      { fontSize: 11, fontFamily: "serif", textAlign: "left" },
+  table:     { fontSize: 10, fontFamily: "sans", textAlign: "left" },
+  image:     { textAlign: "center" },
+};
+
+export function createDefaultContent(type: ElementType): ElementContent {
   switch (type) {
     case "heading":
       return { type: "heading", text: "", level: 1 };
@@ -78,8 +141,27 @@ export function createDefaultBlock(type: BlockType): Block {
     case "table":
       return { type: "table", headers: ["列1", "列2"], rows: [["", ""]] };
     case "image":
-      return { type: "image", url: "", caption: "", width: 0.8 };
+      return { type: "image", url: "", caption: "" };
   }
+}
+
+export function createDefaultElement(
+  type: ElementType,
+  pageElementCount: number,
+): CanvasElement {
+  const pos = DEFAULT_POSITIONS[type];
+  return {
+    id: crypto.randomUUID(),
+    content: createDefaultContent(type),
+    position: {
+      x: 20,
+      y: 20 + pageElementCount * 10,
+      width: pos.width ?? 170,
+      height: pos.height ?? 40,
+    },
+    style: { ...DEFAULT_STYLES[type] },
+    zIndex: pageElementCount + 1,
+  };
 }
 
 export function createDefaultDocument(template: TemplateType): DocumentModel {
@@ -91,7 +173,7 @@ export function createDefaultDocument(template: TemplateType): DocumentModel {
       author: "",
       date: new Date().toLocaleDateString("ja-JP"),
     },
-    blocks: [],
+    pages: [{ id: crypto.randomUUID(), elements: [] }],
   };
 }
 
@@ -106,37 +188,42 @@ export interface TemplateInfo {
 
 export const TEMPLATES: TemplateInfo[] = [
   {
+    id: "blank",
+    name: "白紙",
+    description: "自由にレイアウトを組み立てる",
+    icon: "blank",
+  },
+  {
     id: "report",
     name: "レポート",
-    description: "章立てで整理されたレポートや報告書を作成",
-    icon: "📄",
+    description: "章立てで整理されたレポートや報告書",
+    icon: "report",
   },
   {
     id: "announcement",
     name: "案内文",
-    description: "お知らせや通知などのフォーマルな案内文を作成",
-    icon: "📢",
+    description: "お知らせや通知などのフォーマルな文書",
+    icon: "announcement",
   },
   {
     id: "worksheet",
-    name: "教材・ワークシート",
-    description: "問題と解答欄のある教材やプリントを作成",
-    icon: "📝",
+    name: "教材",
+    description: "問題と解答欄のある教材やプリント",
+    icon: "worksheet",
   },
 ];
 
 // Block type display info
-export interface BlockTypeInfo {
-  type: BlockType;
+export interface ElementTypeInfo {
+  type: ElementType;
   name: string;
   description: string;
-  icon: string;
 }
 
-export const BLOCK_TYPES: BlockTypeInfo[] = [
-  { type: "heading", name: "見出し", description: "セクションの見出し", icon: "H" },
-  { type: "paragraph", name: "本文", description: "テキスト段落", icon: "¶" },
-  { type: "list", name: "箇条書き", description: "リスト形式の一覧", icon: "•" },
-  { type: "table", name: "表", description: "データを表形式で表示", icon: "▦" },
-  { type: "image", name: "画像", description: "URLから画像を挿入", icon: "🖼" },
+export const ELEMENT_TYPES: ElementTypeInfo[] = [
+  { type: "heading",   name: "見出し",   description: "タイトルやセクション見出し" },
+  { type: "paragraph", name: "テキスト", description: "本文テキストブロック" },
+  { type: "list",      name: "リスト",   description: "箇条書き・番号付きリスト" },
+  { type: "table",     name: "表",       description: "データ表" },
+  { type: "image",     name: "画像",     description: "画像を挿入" },
 ];

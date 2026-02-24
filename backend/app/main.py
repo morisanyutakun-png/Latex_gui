@@ -7,11 +7,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from .models import DocumentModel, ErrorResponse, BlockType
+from .models import DocumentModel, ErrorResponse
 from .pdf_service import compile_pdf, generate_latex, PDFGenerationError
-from .generators.report import generate_report
-from .generators.announcement import generate_announcement
-from .generators.worksheet import generate_worksheet
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -58,10 +55,17 @@ async def preview_latex(doc: DocumentModel):
 async def generate_pdf(doc: DocumentModel):
     """PDF生成エンドポイント"""
     # バリデーション
-    if not doc.blocks:
+    if not doc.pages:
         raise HTTPException(status_code=400, detail={
             "success": False,
-            "message": "ブロックが1つもありません。「見出し」や「本文」を追加してください。",
+            "message": "ページが1つもありません。ページを追加してください。",
+        })
+
+    has_elements = any(len(p.elements) > 0 for p in doc.pages)
+    if not has_elements:
+        raise HTTPException(status_code=400, detail={
+            "success": False,
+            "message": "要素が1つもありません。「見出し」や「テキスト」を追加してください。",
         })
 
     try:
@@ -82,10 +86,14 @@ async def generate_pdf(doc: DocumentModel):
 
     filename = (doc.metadata.title or "document").replace(" ", "_") + ".pdf"
 
+    # RFC 5987: non-ASCII filenames use filename*=UTF-8'' encoding
+    from urllib.parse import quote
+    safe_filename = quote(filename, safe="")
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}",
         },
     )
