@@ -162,6 +162,7 @@ class DocumentSettings(CamelModel):
     line_spacing: float = 1.15
     page_numbers: bool = True
     two_column: bool = False
+    document_class: str = "article"
 
 
 # --------------- Metadata ---------------

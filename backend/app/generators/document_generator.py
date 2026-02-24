@@ -46,10 +46,23 @@ def generate_document_latex(doc: DocumentModel) -> str:
         doc_opts.append("twocolumn")
     opts_str = ",".join(doc_opts)
 
+    # Document class — use from settings, default to article
+    doc_class = getattr(settings, "document_class", "article") or "article"
+    # Allowed classes (safety check)
+    allowed_classes = {"article", "report", "book", "letter", "beamer", "jlreq", "ltjsarticle"}
+    if doc_class not in allowed_classes:
+        doc_class = "article"
+
     lines: list[str] = []
 
     # ──── Preamble ────
-    lines.append(f"\\documentclass[{opts_str}]{{article}}")
+    if doc_class == "beamer":
+        lines.append(f"\\documentclass{{{doc_class}}}")
+        lines.append("\\usetheme{Madrid}")
+    elif doc_class in ("jlreq", "ltjsarticle"):
+        lines.append(f"\\documentclass[{opts_str},lualatex,ja=standard]{{{doc_class}}}")
+    else:
+        lines.append(f"\\documentclass[{opts_str}]{{{doc_class}}}")
     lines.append("")
     lines.append("% ── Packages ──")
     lines.append("\\usepackage{fontspec}")
@@ -229,7 +242,9 @@ def _render_heading(c: HeadingContent) -> str:
 def _render_paragraph(c: ParagraphContent, style) -> str:
     if not c.text.strip():
         return ""
-    text = text_to_latex_paragraphs(c.text)
+    # Handle inline math: $...$ segments are kept as math, text parts are escaped
+    raw = c.text
+    text = _render_paragraph_inline_math(raw)
     # Apply inline styles
     if style.bold:
         text = f"\\textbf{{{text}}}"
@@ -241,6 +256,23 @@ def _render_paragraph(c: ParagraphContent, style) -> str:
         hex_color = style.text_color.lstrip("#")
         text = f"\\textcolor[HTML]{{{hex_color}}}{{{text}}}"
     return text
+
+
+import re
+
+def _render_paragraph_inline_math(raw: str) -> str:
+    """Convert paragraph text with $...$ inline math to LaTeX.
+    Text parts are escaped normally, math parts are kept as-is (already LaTeX)."""
+    parts = re.split(r'(\$[^$]+\$)', raw)
+    result = []
+    for part in parts:
+        if part.startswith('$') and part.endswith('$') and len(part) > 2:
+            # Math segment — keep the $...$ as-is (frontend already converts to LaTeX)
+            result.append(part)
+        else:
+            # Text segment — apply normal LaTeX escaping and paragraph handling
+            result.append(text_to_latex_paragraphs(part))
+    return ''.join(result)
 
 
 def _render_math(c: MathContent) -> str:

@@ -144,6 +144,77 @@ export interface Block {
   style: BlockStyle;
 }
 
+// ──── LaTeX Document Classes ────
+
+export type LaTeXDocumentClass =
+  | "article"    // 短い論文・レポート
+  | "report"     // 章のある長い報告書
+  | "book"       // 書籍
+  | "letter"     // 手紙
+  | "beamer"     // プレゼンテーション
+  | "jlreq"      // 日本語組版
+  | "ltjsarticle"; // LuaLaTeX 日本語article
+
+export interface DocumentClassInfo {
+  id: LaTeXDocumentClass;
+  name: string;
+  japanese: string;
+  description: string;
+  features: string[];
+  icon: string;
+}
+
+export const DOCUMENT_CLASSES: DocumentClassInfo[] = [
+  {
+    id: "article",
+    name: "article",
+    japanese: "論文・レポート",
+    description: "短い文書向け。章(\\chapter)なし。\\section から始まる。",
+    features: ["\\section", "\\subsection", "\\abstract", "二段組対応"],
+    icon: "📝",
+  },
+  {
+    id: "report",
+    name: "report",
+    japanese: "報告書",
+    description: "章(\\chapter)を持つ長い報告書。表紙ページあり。",
+    features: ["\\chapter", "\\section", "\\appendix", "表紙ページ"],
+    icon: "📊",
+  },
+  {
+    id: "book",
+    name: "book",
+    japanese: "書籍",
+    description: "書籍向け。左右ページの区別、部・章構成。",
+    features: ["\\part", "\\chapter", "\\frontmatter", "見開き対応"],
+    icon: "📚",
+  },
+  {
+    id: "letter",
+    name: "letter",
+    japanese: "手紙",
+    description: "ビジネスレター形式。宛先・署名付き。",
+    features: ["\\opening", "\\closing", "\\signature", "封筒対応"],
+    icon: "✉️",
+  },
+  {
+    id: "beamer",
+    name: "beamer",
+    japanese: "スライド",
+    description: "プレゼンテーション用スライド。",
+    features: ["\\frame", "\\pause", "テーマ切替", "アニメーション"],
+    icon: "🖥️",
+  },
+  {
+    id: "jlreq",
+    name: "jlreq",
+    japanese: "日本語文書",
+    description: "日本語組版ルールに準拠した文書。",
+    features: ["JIS組版", "縦書き対応", "ルビ", "圏点"],
+    icon: "🇯🇵",
+  },
+];
+
 // ──── Document Settings ────
 
 export interface DocumentSettings {
@@ -152,6 +223,7 @@ export interface DocumentSettings {
   lineSpacing: number;
   pageNumbers: boolean;
   twoColumn: boolean;
+  documentClass: LaTeXDocumentClass;
 }
 
 // ──── Document ────
@@ -177,6 +249,7 @@ export const DEFAULT_SETTINGS: DocumentSettings = {
   lineSpacing: 1.15,
   pageNumbers: true,
   twoColumn: false,
+  documentClass: "article",
 };
 
 export const DEFAULT_BLOCK_STYLE: BlockStyle = {

@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
-import { SmartMathInput } from "./smart-math-input";
+import { MathPalette } from "./math-palette";
+import { JapaneseMathInput, SpacingControl, LatexJapaneseReference } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
+import { parseInlineText, getInlineMathContext, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -263,23 +265,179 @@ function HeadingBlockEditor({ block }: { block: Block }) {
 
 function ParagraphBlockEditor({ block }: { block: Block }) {
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "paragraph" }>;
+  const isEditing = editingBlockId === block.id;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [cursorPos, setCursorPos] = useState(0);
+  const [suggestions, setSuggestions] = useState<JapaneseSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggIdx, setSelectedSuggIdx] = useState(0);
+
+  // インライン数式コンテキスト検出
+  const mathCtx = getInlineMathContext(content.text, cursorPos);
+
+  // Auto-resize
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+  }, [content.text]);
+
+  // 入力中に候補を更新
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    const pos = e.target.selectionStart || 0;
+    updateContent(block.id, { text });
+    setCursorPos(pos);
+
+    // $の中にいるなら候補を表示
+    const ctx = getInlineMathContext(text, pos);
+    if (ctx && ctx.inMath && ctx.mathContent.length > 0) {
+      const suggs = getJapaneseSuggestions(ctx.mathContent);
+      setSuggestions(suggs);
+      setShowSuggestions(suggs.length > 0);
+      setSelectedSuggIdx(0);
+    } else {
+      setShowSuggestions(false);
+      setSuggestions([]);
+    }
+  }, [block.id, updateContent]);
+
+  // カーソル移動追跡
+  const handleSelect = useCallback(() => {
+    if (textareaRef.current) {
+      setCursorPos(textareaRef.current.selectionStart || 0);
+    }
+  }, []);
+
+  // 候補のキーボード操作
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedSuggIdx((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedSuggIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Tab" || e.key === "Enter") {
+      if (showSuggestions && suggestions[selectedSuggIdx]) {
+        e.preventDefault();
+        insertSuggestion(suggestions[selectedSuggIdx]);
+      }
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  }, [showSuggestions, suggestions, selectedSuggIdx]);
+
+  const insertSuggestion = useCallback((sugg: JapaneseSuggestion) => {
+    const ctx = getInlineMathContext(content.text, cursorPos);
+    if (!ctx) return;
+
+    // 最後の単語を候補で置換
+    const mathContent = ctx.mathContent;
+    const lastWordMatch = mathContent.match(/[\s　]?([^\s　]*)$/);
+    const lastWord = lastWordMatch ? lastWordMatch[1] : "";
+    const before = mathContent.slice(0, mathContent.length - lastWord.length);
+
+    // LaTeXのシンプルな表記を使用
+    const simplifiedLatex = sugg.latex.replace(/\{[AB]\}/g, "").replace(/\{/g, "").replace(/\}/g, "");
+    const newMathContent = before + simplifiedLatex;
+
+    // テキスト全体を再構成
+    const textBefore = content.text.slice(0, ctx.mathStart + 1); // $ を含む
+    const textAfter = content.text.slice(ctx.mathEnd);
+    const hasClosingDollar = content.text[ctx.mathEnd - 1] === "$";
+    const newText = textBefore + newMathContent + (hasClosingDollar ? "" : "") + textAfter;
+
+    updateContent(block.id, { text: newText });
+    setShowSuggestions(false);
+
+    // カーソル位置更新
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newPos = ctx.mathStart + 1 + newMathContent.length;
+        textareaRef.current.selectionStart = newPos;
+        textareaRef.current.selectionEnd = newPos;
+        textareaRef.current.focus();
+      }
+    }, 0);
+  }, [content.text, cursorPos, block.id, updateContent]);
+
+  // インラインプレビュー（テキスト+数式が混在）
+  const segments = parseInlineText(content.text);
+  const hasMath = segments.some((s) => s.type === "math");
+
+  const baseStyle: React.CSSProperties = {
+    fontSize: block.style.fontSize ? `${block.style.fontSize}pt` : undefined,
+    fontFamily: block.style.fontFamily === "serif" ? '"Hiragino Mincho ProN", serif' : '"Hiragino Sans", sans-serif',
+    textAlign: block.style.textAlign || "left",
+    fontWeight: block.style.bold ? "bold" : undefined,
+    fontStyle: block.style.italic ? "italic" : undefined,
+    color: block.style.textColor || undefined,
+  };
 
   return (
-    <AutoTextarea
-      value={content.text}
-      onChange={(text) => updateContent(block.id, { text })}
-      placeholder="テキストを入力..."
-      className="text-sm leading-relaxed"
-      style={{
-        fontSize: block.style.fontSize ? `${block.style.fontSize}pt` : undefined,
-        fontFamily: block.style.fontFamily === "serif" ? '"Hiragino Mincho ProN", serif' : '"Hiragino Sans", sans-serif',
-        textAlign: block.style.textAlign || "left",
-        fontWeight: block.style.bold ? "bold" : undefined,
-        fontStyle: block.style.italic ? "italic" : undefined,
-        color: block.style.textColor || undefined,
-      }}
-    />
+    <div className="relative">
+      {/* テキスト入力エリア */}
+      <textarea
+        ref={textareaRef}
+        value={content.text}
+        onChange={handleChange}
+        onSelect={handleSelect}
+        onKeyDown={handleKeyDown}
+        placeholder="テキストを入力... ($で数式を挿入: 例 $アルファ たす ベータ$)"
+        className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 p-0 text-sm leading-relaxed"
+        style={baseStyle}
+        rows={1}
+      />
+
+      {/* 候補ドロップダウン（$の中で入力中に表示） */}
+      {showSuggestions && suggestions.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {suggestions.map((sugg, i) => (
+            <button
+              key={i}
+              className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-3 transition-colors ${
+                i === selectedSuggIdx ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
+              }`}
+              onMouseDown={(e) => { e.preventDefault(); insertSuggestion(sugg); }}
+            >
+              <span className="text-muted-foreground w-16 shrink-0 text-[10px]">{sugg.category}</span>
+              <span className="font-medium">{sugg.reading}</span>
+              <span className="text-muted-foreground ml-auto font-mono text-[10px]">{sugg.latex}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* インライン数式ヒント */}
+      {mathCtx?.inMath && isEditing && (
+        <div className="mt-1 px-2 py-1 rounded bg-violet-50/50 dark:bg-violet-950/20 text-[10px] text-muted-foreground flex items-center gap-2">
+          <Sigma className="h-3 w-3 text-violet-500" />
+          <span>数式モード中 — 日本語で数式を書けます（例: アルファ, 2分の1, xの2乗）</span>
+          {mathCtx.mathContent && (
+            <span className="ml-auto font-mono text-violet-600 dark:text-violet-400">
+              → {parseJapanesemath(mathCtx.mathContent)}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* インラインプレビュー（数式を含む場合にレンダリング結果を表示） */}
+      {hasMath && !isEditing && (
+        <div className="mt-0.5 text-sm leading-relaxed" style={baseStyle}>
+          {segments.map((seg, i) =>
+            seg.type === "math" && seg.latex ? (
+              <span key={i} className="inline-block mx-0.5 align-middle">
+                <MathRenderer latex={seg.latex} displayMode={false} />
+              </span>
+            ) : (
+              <span key={i}>{seg.content}</span>
+            )
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -288,8 +446,16 @@ function MathBlockEditor({ block }: { block: Block }) {
   const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
+  // Input mode: "japanese" (default for beginners), "gui" (palette), "advanced" (raw + autocomplete)
+  const [inputMode, setInputMode] = useState<"japanese" | "gui" | "spacing" | "reference">("japanese");
 
-  const handleSubmit = (latex: string) => {
+  const handleInsert = (latex: string) => {
+    // Append or replace depending on context
+    updateContent(block.id, { latex: (content.latex + " " + latex).trim() });
+  };
+
+  const handleJapaneseSubmit = (latex: string) => {
+    // For Japanese mode, replace entire content with parsed result
     updateContent(block.id, { latex });
   };
 
@@ -299,27 +465,80 @@ function MathBlockEditor({ block }: { block: Block }) {
       <div
         className={`flex justify-center py-3 px-4 rounded-lg transition-all cursor-pointer ${
           content.latex
-            ? "hover:bg-violet-50/30 dark:hover:bg-violet-950/10"
-            : "bg-muted/20"
+            ? "bg-violet-50/30 dark:bg-violet-950/10 hover:bg-violet-50/50"
+            : "bg-violet-50/50 dark:bg-violet-950/20"
         }`}
       >
         {content.latex ? (
           <MathRenderer latex={content.latex} displayMode={content.displayMode} />
         ) : (
-          <span className="text-muted-foreground/30 text-sm italic flex items-center gap-2">
+          <span className="text-muted-foreground/40 text-sm italic flex items-center gap-2">
             <Sigma className="h-4 w-4" />
-            ダブルクリックで数式入力
+            ダブルクリックして数式を入力
           </span>
         )}
       </div>
 
-      {/* Editor panel */}
+      {/* Editor panel (appears on editing) */}
       {isEditing && (
-        <div className="border rounded-xl p-3 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
-          <SmartMathInput
-            onSubmit={handleSubmit}
-            initialLatex={content.latex}
-          />
+        <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
+          {/* Mode tabs */}
+          <div className="flex items-center gap-1 border-b pb-2">
+            {[
+              { id: "japanese" as const, label: "🇯🇵 日本語入力", desc: "読み方で書く" },
+              { id: "gui" as const, label: "🎨 パレット", desc: "ボタンで選ぶ" },
+              { id: "spacing" as const, label: "📏 スペース", desc: "間隔を調整" },
+              { id: "reference" as const, label: "📖 辞書", desc: "LaTeX日本語訳" },
+            ].map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setInputMode(mode.id)}
+                className={`flex-1 px-2 py-1.5 rounded-lg text-center transition-all ${
+                  inputMode === mode.id
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "text-muted-foreground hover:bg-muted/50"
+                }`}
+              >
+                <span className="text-[10px] font-medium block">{mode.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Mode content */}
+          {inputMode === "japanese" && (
+            <JapaneseMathInput
+              onSubmit={handleJapaneseSubmit}
+              initialLatex={content.latex}
+            />
+          )}
+
+          {inputMode === "gui" && (
+            <MathPalette
+              onInsert={handleInsert}
+            />
+          )}
+
+          {inputMode === "spacing" && (
+            <SpacingControl onInsert={handleInsert} />
+          )}
+
+          {inputMode === "reference" && (
+            <LatexJapaneseReference />
+          )}
+
+          {/* Current LaTeX (read-only display, subtle) */}
+          {content.latex && (
+            <details className="group">
+              <summary className="text-[9px] text-muted-foreground/40 cursor-pointer hover:text-muted-foreground/60 transition-colors select-none">
+                生成されたコード（上級者向け）
+              </summary>
+              <div className="mt-1 px-2 py-1.5 rounded-lg bg-muted/30 border border-border/30">
+                <code className="text-[10px] font-mono text-muted-foreground break-all select-all">
+                  {content.latex}
+                </code>
+              </div>
+            </details>
+          )}
         </div>
       )}
     </div>

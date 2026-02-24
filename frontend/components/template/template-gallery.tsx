@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { TEMPLATES, TemplateDefinition, createFromTemplate } from "@/lib/templates";
+import { DOCUMENT_CLASSES } from "@/lib/types";
 import { loadFromLocalStorage } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -233,28 +234,20 @@ export function TemplateGallery() {
               </div>
 
               {/* Info */}
-              <div className="p-3 text-left flex flex-col gap-1.5">
-                <h3 className="text-xs font-semibold flex items-center gap-1.5">
+              <div className="p-3 text-left">
+                <h3 className="text-xs font-semibold mb-0.5 flex items-center gap-1.5">
                   {tmpl.icon} {tmpl.name}
                   <ArrowRight className="h-3 w-3 text-muted-foreground/0 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </h3>
-                {/* Feature badges */}
-                {tmpl.features.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {tmpl.features.map((f) => (
-                      <span
-                        key={f}
-                        className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
-                      >
-                        {f}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {/* Edge differentiator */}
                 <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
-                  {tmpl.edge}
+                  {tmpl.description}
                 </p>
+                {/* Document class badge */}
+                <div className="mt-1.5 flex items-center gap-1">
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-mono text-slate-500 dark:text-slate-400">
+                    \\documentclass{"{" + tmpl.documentClass + "}"}
+                  </span>
+                </div>
               </div>
 
               {/* Accent line */}
@@ -275,7 +268,34 @@ export function TemplateGallery() {
               </DialogDescription>
             </DialogHeader>
             {selectedTemplate && (
-              <div className="grid grid-cols-2 gap-3 mt-2">
+              <div className="space-y-3 mt-2">
+                {/* Document class info */}
+                {(() => {
+                  const cls = DOCUMENT_CLASSES.find((c) => c.id === selectedTemplate.documentClass);
+                  return cls ? (
+                    <div className="px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-border/30">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm">{cls.icon}</span>
+                        <span className="text-[10px] font-mono text-slate-500">
+                          \\documentclass{"{" + cls.id + "}"}
+                        </span>
+                        <span className="text-[10px] font-medium text-foreground/70">
+                          {cls.japanese}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{cls.description}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {cls.features.map((f) => (
+                          <span key={f} className="inline-block px-1.5 py-0.5 rounded text-[9px] bg-primary/10 text-primary/70">
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => handleStart(selectedTemplate.id, false)}
                   className="group flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all"
@@ -308,6 +328,7 @@ export function TemplateGallery() {
                     </p>
                   </div>
                 </button>
+                </div>
               </div>
             )}
           </DialogContent>

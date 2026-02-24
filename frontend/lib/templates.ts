@@ -2,7 +2,7 @@
  * Pre-filled template definitions
  * Each template has meaningful sample content demonstrating LaTeX capabilities
  */
-import { Block, DocumentModel, DEFAULT_SETTINGS } from "./types";
+import { Block, DocumentModel, DEFAULT_SETTINGS, LaTeXDocumentClass } from "./types";
 import { v4 as uuidv4 } from "uuid";
 
 function b(content: Block["content"], style?: Partial<Block["style"]>): Block {
@@ -397,11 +397,8 @@ export interface TemplateDefinition {
   accentColor: string;
   icon: string;
   category: "general" | "education" | "engineering" | "science";
+  documentClass: LaTeXDocumentClass;
   blocks: () => Block[];
-  /** What block types are in this template — shown as badges */
-  features: string[];
-  /** One-line differentiator: why this over Word/PowerPoint */
-  edge: string;
 }
 
 export const TEMPLATES: TemplateDefinition[] = [
@@ -413,9 +410,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-blue-500",
     icon: "📊",
     category: "general",
+    documentClass: "article",
     blocks: reportBlocks,
-    features: ["数式", "表", "リスト"],
-    edge: "数式がズレない。表番号が自動化",
   },
   {
     id: "announcement",
@@ -425,9 +421,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-emerald-500",
     icon: "📢",
     category: "general",
+    documentClass: "article",
     blocks: announcementBlocks,
-    features: ["表", "罫線"],
-    edge: "体裁統一。印刷してもレイアウト崩れゼロ",
   },
   {
     id: "worksheet",
@@ -437,9 +432,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-violet-500",
     icon: "📝",
     category: "education",
+    documentClass: "article",
     blocks: worksheetBlocks,
-    features: ["数式×4", "行列", "連立方程式"],
-    edge: "行列・連立方程式を崩さず印刷",
   },
   {
     id: "academic",
@@ -449,9 +443,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-amber-500",
     icon: "🎓",
     category: "education",
+    documentClass: "article",
     blocks: academicBlocks,
-    features: ["数式", "積分", "偏微分"],
-    edge: "論文レベルの数式が一瞬で組める",
   },
   {
     id: "resume",
@@ -461,9 +454,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-pink-500",
     icon: "👤",
     category: "general",
+    documentClass: "article",
     blocks: resumeBlocks,
-    features: ["表", "リスト"],
-    edge: "余白・フォントが完璧に揃う",
   },
   {
     id: "circuit",
@@ -473,9 +465,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-cyan-500",
     icon: "⚡",
     category: "engineering",
+    documentClass: "article",
     blocks: circuitBlocks,
-    features: ["回路図", "数式", "伝達関数"],
-    edge: "Wordでは不可能な回路図を自動描画",
   },
   {
     id: "control",
@@ -485,9 +476,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-indigo-500",
     icon: "🔄",
     category: "engineering",
+    documentClass: "article",
     blocks: controlBlocks,
-    features: ["ブロック線図", "伝達関数", "状態方程式"],
-    edge: "フィードバック系の図をコードから生成",
   },
   {
     id: "chemistry",
@@ -497,9 +487,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-lime-500",
     icon: "🧪",
     category: "science",
+    documentClass: "article",
     blocks: chemistryBlocks,
-    features: ["化学式", "反応式", "電離平衡"],
-    edge: "化学式の上下矢印・平衡記号を正確描画",
   },
   {
     id: "physics",
@@ -509,9 +498,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-orange-500",
     icon: "🔬",
     category: "science",
+    documentClass: "article",
     blocks: physicsBlocks,
-    features: ["散布図", "数式", "測定データ"],
-    edge: "グラフと理論曲線を1つのPDFに統合",
   },
   {
     id: "algorithm",
@@ -521,9 +509,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-teal-500",
     icon: "💻",
     category: "engineering",
+    documentClass: "article",
     blocks: algorithmBlocks,
-    features: ["コード", "フローチャート", "計算量"],
-    edge: "コードブロック＋アルゴリズム図を同居",
   },
   {
     id: "math-proof",
@@ -533,9 +520,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-purple-500",
     icon: "📐",
     category: "education",
+    documentClass: "article",
     blocks: mathProofBlocks,
-    features: ["テイラー展開", "行列", "重積分"],
-    edge: "Wordでは1時間。ここなら30秒",
   },
   {
     id: "tech-spec",
@@ -545,9 +531,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-slate-500",
     icon: "📋",
     category: "engineering",
+    documentClass: "report",
     blocks: techSpecBlocks,
-    features: ["構成図", "API表", "コード"],
-    edge: "構成図がベクター。拡大しても劣化なし",
   },
   {
     id: "blank",
@@ -557,9 +542,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-slate-400",
     icon: "📄",
     category: "general",
+    documentClass: "article",
     blocks: blankBlocks,
-    features: [],
-    edge: "白紙から自由に組み立て",
   },
 ];
 
@@ -604,7 +588,7 @@ export function createFromTemplate(templateId: string, blank = false): DocumentM
   return {
     template: tmpl.id,
     metadata: { title: tmpl.name === "白紙" ? "無題のドキュメント" : tmpl.name, author: "" },
-    settings: { ...DEFAULT_SETTINGS },
+    settings: { ...DEFAULT_SETTINGS, documentClass: tmpl.documentClass },
     blocks: blank ? blocks.map(stripBlockContent) : blocks,
   };
 }
