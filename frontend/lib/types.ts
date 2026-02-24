@@ -265,22 +265,23 @@ export interface BlockTypeInfo {
   name: string;
   description: string;
   color: string;
+  packages?: string[];  // auto-declared packages when this block is inserted
 }
 
 export const BLOCK_TYPES: BlockTypeInfo[] = [
   { type: "heading",   name: "見出し",     description: "セクション見出し",     color: "text-blue-500" },
   { type: "paragraph", name: "テキスト",   description: "本文テキスト",         color: "text-slate-500" },
-  { type: "math",      name: "数式",       description: "LaTeX数式",            color: "text-violet-500" },
-  { type: "list",      name: "リスト",     description: "箇条書き・番号リスト", color: "text-emerald-500" },
-  { type: "table",     name: "表",         description: "表組みデータ",         color: "text-orange-500" },
-  { type: "image",     name: "画像",       description: "画像を挿入",           color: "text-pink-500" },
+  { type: "math",      name: "数式",       description: "LaTeX数式",            color: "text-violet-500", packages: ["amsmath", "amssymb", "mathtools"] },
+  { type: "list",      name: "リスト",     description: "箇条書き・番号リスト", color: "text-emerald-500", packages: ["enumitem"] },
+  { type: "table",     name: "表",         description: "表組みデータ",         color: "text-orange-500", packages: ["booktabs"] },
+  { type: "image",     name: "画像",       description: "画像を挿入",           color: "text-pink-500", packages: ["graphicx"] },
   { type: "divider",   name: "区切り線",   description: "水平区切り線",         color: "text-gray-400" },
-  { type: "code",      name: "コード",     description: "プログラムコード",     color: "text-teal-500" },
-  { type: "quote",     name: "引用",       description: "引用・コールアウト",   color: "text-amber-500" },
-  { type: "circuit",   name: "回路図",     description: "電子回路図 (circuitikz)", color: "text-cyan-500" },
-  { type: "diagram",   name: "ダイアグラム", description: "フローチャート・状態図 (TikZ)", color: "text-indigo-500" },
-  { type: "chemistry", name: "化学式",     description: "化学反応式・分子式",   color: "text-lime-500" },
-  { type: "chart",     name: "グラフ",     description: "データ可視化 (pgfplots)", color: "text-rose-500" },
+  { type: "code",      name: "コード",     description: "プログラムコード",     color: "text-teal-500", packages: ["listings"] },
+  { type: "quote",     name: "引用",       description: "引用・コールアウト",   color: "text-amber-500", packages: ["tcolorbox"] },
+  { type: "circuit",   name: "回路図",     description: "電子回路図",           color: "text-cyan-500", packages: ["tikz", "circuitikz"] },
+  { type: "diagram",   name: "ダイアグラム", description: "フローチャート・状態図", color: "text-indigo-500", packages: ["tikz"] },
+  { type: "chemistry", name: "化学式",     description: "化学反応式・分子式",   color: "text-lime-500", packages: ["mhchem"] },
+  { type: "chart",     name: "グラフ",     description: "データ可視化",         color: "text-rose-500", packages: ["tikz", "pgfplots"] },
 ];
 
 // ──── Helper: Create Block ────

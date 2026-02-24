@@ -1,6 +1,7 @@
 """
 Structured document → LaTeX generator
 Produces clean, natural LaTeX leveraging proper sectioning, math environments, etc.
+Auto-detects required packages from blocks used in the document.
 """
 from ..models import (
     DocumentModel,
@@ -20,11 +21,102 @@ from ..models import (
     ChartContent,
 )
 from ..utils.latex_utils import escape_latex, text_to_latex_paragraphs
+import re
 
 
 # ──── Font config (macOS) ────
 CJK_MAIN_FONT = "Hiragino Mincho ProN"
 CJK_SANS_FONT = "Hiragino Sans"
+
+
+# ──── Package requirements per block type ────
+# Maps block types to the packages they need
+BLOCK_PACKAGE_MAP: dict[str, list[str]] = {
+    "math": [
+        "\\usepackage{amsmath,amssymb,amsthm}",
+        "\\usepackage{mathtools}",
+    ],
+    "table": [
+        "\\usepackage{booktabs}",
+    ],
+    "image": [
+        "\\usepackage{graphicx}",
+    ],
+    "code": [
+        "\\usepackage{listings}",
+    ],
+    "quote": [
+        "\\usepackage{tcolorbox}",
+    ],
+    "list": [
+        "\\usepackage{enumitem}",
+    ],
+    "circuit": [
+        "\\usepackage{tikz}",
+        "\\usepackage[siunitx]{circuitikz}",
+        "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,decorations.markings,automata,fit}",
+    ],
+    "diagram": [
+        "\\usepackage{tikz}",
+        "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,decorations.markings,automata,fit}",
+    ],
+    "chemistry": [
+        "\\usepackage[version=4]{mhchem}",
+        "\\usepackage{amsmath,amssymb,amsthm}",
+    ],
+    "chart": [
+        "\\usepackage{tikz}",
+        "\\usepackage{pgfplots}",
+        "\\pgfplotsset{compat=1.18}",
+    ],
+}
+
+# Packages that also need math (inline math in paragraphs)
+INLINE_MATH_PACKAGES = [
+    "\\usepackage{amsmath,amssymb,amsthm}",
+    "\\usepackage{mathtools}",
+]
+
+
+def _detect_required_packages(doc: DocumentModel) -> list[str]:
+    """Scan all blocks and determine which packages are needed."""
+    block_types_used: set[str] = set()
+    has_inline_math = False
+
+    for block in doc.blocks:
+        block_types_used.add(block.content.type)
+        # Check for inline math in paragraphs ($...$)
+        if block.content.type == "paragraph":
+            if "$" in block.content.text:
+                has_inline_math = True
+
+    # Collect unique package lines, preserving order
+    seen: set[str] = set()
+    packages: list[str] = []
+
+    def add(line: str):
+        if line not in seen:
+            seen.add(line)
+            packages.append(line)
+
+    # Always-required base packages
+    add("\\usepackage{fontspec}")
+    add("\\usepackage{xeCJK}")
+    add("\\usepackage{xcolor}")
+    add("\\usepackage{hyperref}")
+
+    # If inline math is present, add math packages
+    if has_inline_math:
+        for pkg in INLINE_MATH_PACKAGES:
+            add(pkg)
+
+    # Add packages for each block type used
+    for btype in block_types_used:
+        if btype in BLOCK_PACKAGE_MAP:
+            for pkg in BLOCK_PACKAGE_MAP[btype]:
+                add(pkg)
+
+    return packages
 
 
 def generate_document_latex(doc: DocumentModel) -> str:
@@ -64,28 +156,17 @@ def generate_document_latex(doc: DocumentModel) -> str:
     else:
         lines.append(f"\\documentclass[{opts_str}]{{{doc_class}}}")
     lines.append("")
-    lines.append("% ── Packages ──")
-    lines.append("\\usepackage{fontspec}")
-    lines.append("\\usepackage{xeCJK}")
-    lines.append("\\usepackage{amsmath,amssymb,amsthm}")
-    lines.append("\\usepackage{mathtools}")
-    lines.append("\\usepackage{graphicx}")
-    lines.append("\\usepackage{hyperref}")
-    lines.append("\\usepackage{xcolor}")
+
+    # ──── Auto-detected packages ────
+    packages = _detect_required_packages(doc)
+    if packages:
+        lines.append("% ── Packages (auto-detected from document content) ──")
+        for pkg in packages:
+            lines.append(pkg)
+        lines.append("")
+
+    # Geometry (always needed)
     lines.append(f"\\usepackage[{geom}]{{geometry}}")
-    lines.append("\\usepackage{fancyhdr}")
-    lines.append("\\usepackage{enumitem}")
-    lines.append("\\usepackage{listings}")
-    lines.append("\\usepackage{tcolorbox}")
-    lines.append("\\usepackage{booktabs}")
-    lines.append("")
-    lines.append("% ── Engineering / Science packages ──")
-    lines.append("\\usepackage{tikz}")
-    lines.append("\\usepackage[siunitx]{circuitikz}")
-    lines.append("\\usepackage{pgfplots}")
-    lines.append("\\pgfplotsset{compat=1.18}")
-    lines.append("\\usepackage[version=4]{mhchem}")
-    lines.append("\\usetikzlibrary{shapes,arrows.meta,positioning,calc,decorations.markings,automata,fit}")
     lines.append("")
 
     # ──── Fonts ────
@@ -103,6 +184,7 @@ def generate_document_latex(doc: DocumentModel) -> str:
 
     # ──── Header / Footer ────
     if settings.page_numbers:
+        lines.append("\\usepackage{fancyhdr}")
         lines.append("\\pagestyle{fancy}")
         lines.append("\\fancyhf{}")
         lines.append("\\fancyfoot[C]{\\thepage}")
@@ -112,10 +194,12 @@ def generate_document_latex(doc: DocumentModel) -> str:
         lines.append("\\pagestyle{empty}")
         lines.append("")
 
-    # ──── Listings style ────
-    lines.append("\\lstset{basicstyle=\\ttfamily\\small,breaklines=true,frame=single,"
-                  "backgroundcolor=\\color{gray!5},rulecolor=\\color{gray!30}}")
-    lines.append("")
+    # ──── Listings style (only if code blocks used) ────
+    block_types_used = {b.content.type for b in doc.blocks}
+    if "code" in block_types_used:
+        lines.append("\\lstset{basicstyle=\\ttfamily\\small,breaklines=true,frame=single,"
+                      "backgroundcolor=\\color{gray!5},rulecolor=\\color{gray!30}}")
+        lines.append("")
 
     # ──── Hyperref setup ────
     lines.append("\\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}")
@@ -257,8 +341,6 @@ def _render_paragraph(c: ParagraphContent, style) -> str:
         text = f"\\textcolor[HTML]{{{hex_color}}}{{{text}}}"
     return text
 
-
-import re
 
 def _render_paragraph_inline_math(raw: str) -> str:
     """Convert paragraph text with $...$ inline math to LaTeX.

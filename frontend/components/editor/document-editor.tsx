@@ -101,7 +101,7 @@ function InsertMenu({ index, variant = "line" }: { index: number; variant?: "lin
   return (
     <DropdownMenu>
       {trigger}
-      <DropdownMenuContent align="center" className="w-56 p-1.5 rounded-xl shadow-xl border-border/50">
+      <DropdownMenuContent align="center" className="w-64 p-1.5 rounded-xl shadow-xl border-border/50">
         {BLOCK_CATEGORIES.map((cat, ci) => (
           <React.Fragment key={cat.label}>
             {ci > 0 && <DropdownMenuSeparator className="my-1" />}
@@ -121,12 +121,20 @@ function InsertMenu({ index, variant = "line" }: { index: number; variant?: "lin
                   >
                     <Icon className={`h-4 w-4 ${info.color}`} />
                     <span className="text-[10px] font-medium leading-none">{info.name}</span>
+                    {info.packages && info.packages.length > 0 && (
+                      <span className="text-[8px] text-muted-foreground/50 font-mono leading-none truncate max-w-full">
+                        {info.packages[0]}{info.packages.length > 1 ? "+" : ""}
+                      </span>
+                    )}
                   </DropdownMenuItem>
                 );
               })}
             </div>
           </React.Fragment>
         ))}
+        <div className="mt-1 px-2 py-1 text-[8px] text-muted-foreground/40 text-center border-t border-border/30">
+          パッケージはバックエンドで自動宣言されます
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -276,6 +284,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 
   // インライン数式コンテキスト検出
   const mathCtx = getInlineMathContext(content.text, cursorPos);
+  const isInMathMode = !!(mathCtx?.inMath);
 
   // Auto-resize
   useEffect(() => {
@@ -310,25 +319,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     }
   }, []);
 
-  // 候補のキーボード操作
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!showSuggestions || suggestions.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setSelectedSuggIdx((i) => Math.min(i + 1, suggestions.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSelectedSuggIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Tab" || e.key === "Enter") {
-      if (showSuggestions && suggestions[selectedSuggIdx]) {
-        e.preventDefault();
-        insertSuggestion(suggestions[selectedSuggIdx]);
-      }
-    } else if (e.key === "Escape") {
-      setShowSuggestions(false);
-    }
-  }, [showSuggestions, suggestions, selectedSuggIdx]);
-
+  // 候補挿入
   const insertSuggestion = useCallback((sugg: JapaneseSuggestion) => {
     const ctx = getInlineMathContext(content.text, cursorPos);
     if (!ctx) return;
@@ -363,7 +354,26 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     }, 0);
   }, [content.text, cursorPos, block.id, updateContent]);
 
-  // インラインプレビュー（テキスト+数式が混在）
+  // 候補のキーボード操作
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedSuggIdx((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedSuggIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Tab" || e.key === "Enter") {
+      if (showSuggestions && suggestions[selectedSuggIdx]) {
+        e.preventDefault();
+        insertSuggestion(suggestions[selectedSuggIdx]);
+      }
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  }, [showSuggestions, suggestions, selectedSuggIdx, insertSuggestion]);
+
+  // インラインプレビュー（テキスト+数式が混在）— $$を非表示にしてレンダリング
   const segments = parseInlineText(content.text);
   const hasMath = segments.some((s) => s.type === "math");
 
@@ -377,86 +387,128 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   };
 
   return (
-    <div className="relative">
-      {/* テキスト入力エリア */}
-      <textarea
-        ref={textareaRef}
-        value={content.text}
-        onChange={handleChange}
-        onSelect={handleSelect}
-        onKeyDown={(e) => {
-          // ⌘+M / Ctrl+M で数式モード切替
-          if (e.key === "m" && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            const el = textareaRef.current;
-            if (!el) return;
-            const pos = el.selectionStart || 0;
-            const text = content.text;
-            const before = text.slice(0, pos);
-            const after = text.slice(pos);
-            const newText = before + "$$" + after;
-            updateContent(block.id, { text: newText });
-            setTimeout(() => {
-              if (textareaRef.current) {
-                textareaRef.current.selectionStart = pos + 1;
-                textareaRef.current.selectionEnd = pos + 1;
-                textareaRef.current.focus();
-                setCursorPos(pos + 1);
-              }
-            }, 0);
-            return;
-          }
-          handleKeyDown(e);
-        }}
-        placeholder="テキストを入力... (⌘M で数式挿入 / $...$ で日本語数式)"
-        className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 p-0 text-sm leading-relaxed"
-        style={baseStyle}
-        rows={1}
-      />
-
-      {/* 候補ドロップダウン（$の中で入力中に表示） */}
-      {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-          {suggestions.map((sugg, i) => (
-            <button
-              key={i}
-              className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-3 transition-colors ${
-                i === selectedSuggIdx ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
-              }`}
-              onMouseDown={(e) => { e.preventDefault(); insertSuggestion(sugg); }}
-            >
-              <span className="text-muted-foreground w-16 shrink-0 text-[10px]">{sugg.category}</span>
-              <span className="font-medium">{sugg.reading}</span>
-              <span className="text-muted-foreground ml-auto font-mono text-[10px]">{sugg.latex}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* インライン数式ヒント */}
-      {mathCtx?.inMath && isEditing && (
-        <div className="mt-1 px-2 py-1 rounded bg-violet-50/50 dark:bg-violet-950/20 text-[10px] text-muted-foreground flex items-center gap-2">
-          <Sigma className="h-3 w-3 text-violet-500" />
-          <span>数式モード中 — 日本語で数式を書けます（例: アルファ, 2分の1, xの2乗）</span>
-          {mathCtx.mathContent && (
-            <span className="ml-auto font-mono text-violet-600 dark:text-violet-400">
-              → {parseJapanesemath(mathCtx.mathContent)}
-            </span>
+    <div className={`relative rounded-lg transition-all duration-200 ${
+      isEditing && isInMathMode
+        ? "bg-violet-50/80 dark:bg-violet-950/30 ring-1 ring-violet-300/50 dark:ring-violet-700/50"
+        : isEditing
+        ? "bg-blue-50/30 dark:bg-blue-950/10"
+        : ""
+    }`}>
+      {/* モードインジケーター */}
+      {isEditing && (
+        <div className={`flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-medium rounded-t-lg transition-all ${
+          isInMathMode
+            ? "bg-violet-100/80 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400"
+            : "bg-blue-50/50 dark:bg-blue-950/20 text-blue-500/60 dark:text-blue-400/40"
+        }`}>
+          {isInMathMode ? (
+            <>
+              <Sigma className="h-2.5 w-2.5" />
+              <span>数式モード</span>
+              {mathCtx?.mathContent && (
+                <span className="ml-auto font-mono text-violet-700 dark:text-violet-300">
+                  → {parseJapanesemath(mathCtx.mathContent)}
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <Type className="h-2.5 w-2.5" />
+              <span>テキストモード</span>
+              <span className="ml-auto text-muted-foreground/40">⇧⌘M で数式挿入</span>
+            </>
           )}
         </div>
       )}
 
-      {/* インラインプレビュー（数式を含む場合にレンダリング結果を表示） */}
-      {hasMath && !isEditing && (
-        <div className="mt-0.5 text-sm leading-relaxed" style={baseStyle}>
-          {segments.map((seg, i) =>
-            seg.type === "math" && seg.latex ? (
-              <span key={i} className="inline-block mx-0.5 align-middle">
-                <MathRenderer latex={seg.latex} displayMode={false} />
-              </span>
+      {/* テキスト入力エリア（編集時のみ表示） */}
+      {isEditing && (
+        <>
+          <textarea
+            ref={textareaRef}
+            value={content.text}
+            onChange={handleChange}
+            onSelect={handleSelect}
+            onKeyDown={(e) => {
+              // ⌘+Shift+M / Ctrl+Shift+M で数式モード切替
+              if (e.key === "m" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+                e.preventDefault();
+                const el = textareaRef.current;
+                if (!el) return;
+                const pos = el.selectionStart || 0;
+                const text = content.text;
+                const before = text.slice(0, pos);
+                const after = text.slice(pos);
+                const newText = before + "$$" + after;
+                updateContent(block.id, { text: newText });
+                setTimeout(() => {
+                  if (textareaRef.current) {
+                    textareaRef.current.selectionStart = pos + 1;
+                    textareaRef.current.selectionEnd = pos + 1;
+                    textareaRef.current.focus();
+                    setCursorPos(pos + 1);
+                  }
+                }, 0);
+                return;
+              }
+              handleKeyDown(e);
+            }}
+            placeholder="テキストを入力... (⇧⌘M で数式挿入 / $...$ で日本語数式)"
+            className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 p-2 text-sm leading-relaxed"
+            style={baseStyle}
+            rows={1}
+          />
+
+          {/* 候補ドロップダウン（$の中で入力中に表示） */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-50 left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {suggestions.map((sugg, i) => (
+                <button
+                  key={i}
+                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-3 transition-colors ${
+                    i === selectedSuggIdx ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
+                  }`}
+                  onMouseDown={(e) => { e.preventDefault(); insertSuggestion(sugg); }}
+                >
+                  <span className="text-muted-foreground w-16 shrink-0 text-[10px]">{sugg.category}</span>
+                  <span className="font-medium">{sugg.reading}</span>
+                  <span className="text-muted-foreground ml-auto font-mono text-[10px]">{sugg.latex}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* インライン数式ヒント（数式モード中） */}
+          {isInMathMode && (
+            <div className="mx-2 mb-1 px-2 py-1 rounded bg-violet-100/60 dark:bg-violet-900/30 text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-2">
+              <Sigma className="h-3 w-3" />
+              <span>日本語で数式を書けます（例: アルファ, 2分の1, xの2乗）— もう一度 $ を入力して閉じる</span>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* 非編集時のレンダリング表示（$$は非表示、数式はKaTeXレンダリング） */}
+      {!isEditing && (
+        <div className="px-2 py-1 text-sm leading-relaxed min-h-[1.5em]" style={baseStyle}>
+          {content.text ? (
+            hasMath ? (
+              // 数式を含む場合：テキスト+数式をレンダリング（$$は非表示）
+              segments.map((seg, i) =>
+                seg.type === "math" && seg.latex ? (
+                  <span key={i} className="inline-block mx-0.5 align-middle">
+                    <MathRenderer latex={seg.latex} displayMode={false} />
+                  </span>
+                ) : (
+                  <span key={i}>{seg.content}</span>
+                )
+              )
             ) : (
-              <span key={i}>{seg.content}</span>
+              // テキストのみ
+              <span>{content.text}</span>
             )
+          ) : (
+            <span className="text-muted-foreground/30 italic">ダブルクリックで編集</span>
           )}
         </div>
       )}
@@ -827,7 +879,7 @@ export function DocumentEditor() {
           }}
         >
           <div className="relative" style={{ maxWidth: `${contentWidthMm * zoom * 3.78}px` }}>
-            {document.blocks.map((block, index) => (
+            {document.blocks.map((block) => (
               <React.Fragment key={block.id}>
                 <BlockWrapper block={block}>
                   <BlockEditor block={block} />

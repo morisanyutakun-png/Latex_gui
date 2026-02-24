@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { MathRenderer } from "./math-editor";
 import {
   parseJapanesemath,
   getJapaneseSuggestions,
   SPACING_PRESETS,
   LATEX_TRANSLATIONS,
-  type JapaneseSuggestion,
   type SpacingPreset,
+  type LatexTranslation,
 } from "@/lib/math-japanese";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -26,27 +26,33 @@ interface JapaneseMathInputProps {
 
 export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" }: JapaneseMathInputProps) {
   const [japaneseText, setJapaneseText] = useState("");
-  const [previewLatex, setPreviewLatex] = useState(initialLatex);
-  const [suggestions, setSuggestions] = useState<JapaneseSuggestion[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Update preview as user types
-  useEffect(() => {
+  // Derive preview latex from japanese text
+  const previewLatex = useMemo(() => {
     if (japaneseText.trim()) {
-      const latex = parseJapanesemath(japaneseText);
-      setPreviewLatex(latex);
-    } else {
-      setPreviewLatex(initialLatex);
+      return parseJapanesemath(japaneseText);
     }
+    return initialLatex;
   }, [japaneseText, initialLatex]);
 
-  // Update suggestions
-  useEffect(() => {
-    const sug = getJapaneseSuggestions(japaneseText);
-    setSuggestions(sug);
-    setSelectedIdx(0);
+  // Derive suggestions from japanese text
+  const suggestions = useMemo(() => {
+    return getJapaneseSuggestions(japaneseText);
   }, [japaneseText]);
+
+  const acceptSuggestion = useCallback(
+    (idx: number) => {
+      const s = suggestions[idx];
+      if (!s) return;
+      const words = japaneseText.split(/[\s　]+/);
+      words[words.length - 1] = s.reading;
+      setJapaneseText(words.join(" ") + " ");
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+    [suggestions, japaneseText]
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (suggestions.length > 0) {
@@ -75,19 +81,6 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
     }
   };
 
-  const acceptSuggestion = useCallback(
-    (idx: number) => {
-      const s = suggestions[idx];
-      if (!s) return;
-      const words = japaneseText.split(/[\s　]+/);
-      words[words.length - 1] = s.reading;
-      setJapaneseText(words.join(" ") + " ");
-      setSuggestions([]);
-      requestAnimationFrame(() => inputRef.current?.focus());
-    },
-    [suggestions, japaneseText]
-  );
-
   // Auto-resize
   useEffect(() => {
     if (inputRef.current) {
@@ -106,7 +99,7 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
         <textarea
           ref={inputRef}
           value={japaneseText}
-          onChange={(e) => setJapaneseText(e.target.value)}
+          onChange={(e) => { setJapaneseText(e.target.value); setSelectedIdx(0); }}
           onKeyDown={handleKeyDown}
           placeholder="例: 2分の1 たす ルート3  |  xの2乗 たす yの2乗 イコール rの2乗"
           className="w-full pl-12 pr-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-emerald-800 focus:ring-emerald-400 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans"
@@ -116,7 +109,7 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
         {/* Suggestions */}
         {suggestions.length > 0 && (
           <div className="absolute z-50 mt-1 w-full bg-background border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-            {suggestions.map((s, i) => (
+            {suggestions.map((s: { preview: string; display: string; category: string; reading: string; latex: string }, i: number) => (
               <button
                 key={i}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
@@ -143,7 +136,7 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
               </button>
             ))}
             <div className="px-3 py-1.5 bg-muted/30 border-t text-[9px] text-muted-foreground">
-              <kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> で選択　
+              <kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> で選択
               <kbd className="px-1 rounded bg-muted font-mono">Enter</kbd> で確定
             </div>
           </div>
@@ -162,9 +155,9 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
 
       {/* Usage hints */}
       <div className="text-[9px] text-muted-foreground/60 leading-relaxed">
-        💡 「<span className="text-emerald-600 font-medium">2分の1</span>」→ ½　
-        「<span className="text-emerald-600 font-medium">xの2乗</span>」→ x²　
-        「<span className="text-emerald-600 font-medium">ルート2</span>」→ √2　
+        💡 「<span className="text-emerald-600 font-medium">2分の1</span>」→ ½
+        「<span className="text-emerald-600 font-medium">xの2乗</span>」→ x²
+        「<span className="text-emerald-600 font-medium">ルート2</span>」→ √2
         「<span className="text-emerald-600 font-medium">アルファ たす ベータ</span>」→ α+β
       </div>
     </div>
@@ -190,7 +183,7 @@ export function SpacingControl({ onInsert, className = "" }: SpacingControlProps
       {/* Preset buttons */}
       <div className="flex flex-wrap gap-1.5">
         <TooltipProvider delayDuration={200}>
-          {SPACING_PRESETS.map((preset) => (
+          {SPACING_PRESETS.map((preset: SpacingPreset) => (
             <Tooltip key={preset.name}>
               <TooltipTrigger asChild>
                 <button
@@ -253,14 +246,14 @@ export function SpacingControl({ onInsert, className = "" }: SpacingControlProps
 
 export function LatexJapaneseReference({ className = "" }: { className?: string }) {
   const [activeTab, setActiveTab] = useState("構造");
-  const categories = [...new Set(LATEX_TRANSLATIONS.map((t) => t.category))];
+  const categories = Array.from(new Set(LATEX_TRANSLATIONS.map((t: LatexTranslation) => t.category))) as string[];
 
   return (
     <div className={`bg-background border rounded-xl shadow-sm ${className}`}>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="px-2 pt-2 border-b">
           <TabsList className="w-full h-7 bg-muted/50">
-            {categories.map((cat) => (
+            {categories.map((cat: string) => (
               <TabsTrigger key={cat} value={cat} className="text-[10px] h-5 px-2">
                 {cat}
               </TabsTrigger>
@@ -268,9 +261,9 @@ export function LatexJapaneseReference({ className = "" }: { className?: string 
           </TabsList>
         </div>
         <ScrollArea className="h-44 p-2">
-          {categories.map((cat) => (
+          {categories.map((cat: string) => (
             <TabsContent key={cat} value={cat} className="mt-0 space-y-1">
-              {LATEX_TRANSLATIONS.filter((t) => t.category === cat).map((t, i) => (
+              {LATEX_TRANSLATIONS.filter((t: LatexTranslation) => t.category === cat).map((t: LatexTranslation, i: number) => (
                 <div
                   key={i}
                   className="flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors"

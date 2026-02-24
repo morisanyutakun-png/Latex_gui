@@ -5,9 +5,6 @@ import { MathRenderer } from "./math-editor";
 import {
   MATH_DICTIONARY,
   SPACING_PRESETS,
-  searchDictionary,
-  getDictionaryCategories,
-  type MathDictEntry,
 } from "@/lib/math-japanese";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search } from "lucide-react";
