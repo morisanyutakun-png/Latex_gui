@@ -98,7 +98,7 @@ BLOCK_PACKAGE_MAP: dict[str, list[str]] = {
     ],
     "circuit": [
         "\\usepackage{tikz}",
-        "\\usepackage[siunitx]{circuitikz}",
+        "\\usepackage{circuitikz}",
         "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,decorations.markings,automata,fit}",
     ],
     "diagram": [

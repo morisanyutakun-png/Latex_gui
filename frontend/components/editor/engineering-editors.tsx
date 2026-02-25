@@ -293,27 +293,12 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
         }`}
       >
         {content.code ? (
-          <div className="w-full space-y-2">
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-xs font-medium">
-                <Zap className="h-3 w-3" />
-                {activePreset?.name || "カスタム回路図"}
-              </div>
-              {activePreset?.category && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-muted-foreground">
-                  {activePreset.category}
-                </span>
-              )}
-            </div>
-            {content.caption && (
-              <p className="text-[10px] text-muted-foreground text-center">{content.caption}</p>
-            )}
+          <div className="w-full">
             {/* SVG Preview — rendered by backend */}
             <BlockSVGPreview code={content.code} blockType="circuit" />
-            {/* Component summary badges */}
-            <div className="flex justify-center pb-1">
-              <CircuitCodeSummary code={content.code} presetName={activePreset?.name} />
-            </div>
+            {content.caption && (
+              <p className="text-[10px] text-muted-foreground text-center py-1">{content.caption}</p>
+            )}
           </div>
         ) : (
           <span className="text-muted-foreground/40 text-sm italic flex items-center gap-2">

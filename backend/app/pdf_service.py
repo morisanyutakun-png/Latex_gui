@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .models import DocumentModel
 from .generators.document_generator import generate_document_latex
+from .tex_env import TEX_ENV, XELATEX_CMD
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def compile_pdf(doc: DocumentModel) -> bytes:
         try:
             result = subprocess.run(
                 [
-                    "xelatex",
+                    XELATEX_CMD,
                     "-interaction=nonstopmode",
                     "-halt-on-error",
                     "-no-shell-escape",
@@ -50,6 +51,7 @@ def compile_pdf(doc: DocumentModel) -> bytes:
                 text=True,
                 timeout=30,
                 cwd=tmpdir,
+                env=TEX_ENV,
             )
         except FileNotFoundError:
             raise PDFGenerationError(

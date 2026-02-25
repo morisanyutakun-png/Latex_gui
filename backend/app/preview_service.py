@@ -10,6 +10,8 @@ import shutil
 from pathlib import Path
 from functools import lru_cache
 
+from .tex_env import TEX_ENV, XELATEX_CMD, DVISVGM_CMD
+
 logger = logging.getLogger(__name__)
 
 # LRU cache for compiled SVGs (up to 128 entries)
@@ -56,7 +58,7 @@ def _wrap_block_latex(code: str, block_type: str) -> str:
     ]
 
     if block_type == "circuit":
-        preamble_lines.append("\\usepackage[siunitx]{circuitikz}")
+        preamble_lines.append("\\usepackage{circuitikz}")
         preamble_lines.append(
             "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,"
             "decorations.markings,automata,fit}"
@@ -103,11 +105,10 @@ def _compile_to_svg(latex_source: str) -> str:
         tex_path.write_text(latex_source, encoding="utf-8")
 
         # Step 1: Compile LaTeX → PDF
-        xelatex_cmd = shutil.which("xelatex") or "/Library/TeX/texbin/xelatex"
         try:
             result = subprocess.run(
                 [
-                    xelatex_cmd,
+                    XELATEX_CMD,
                     "-interaction=nonstopmode",
                     "-halt-on-error",
                     "-no-shell-escape",
@@ -118,6 +119,7 @@ def _compile_to_svg(latex_source: str) -> str:
                 text=True,
                 timeout=15,
                 cwd=tmpdir,
+                env=TEX_ENV,
             )
         except FileNotFoundError:
             raise RuntimeError("xelatex not found")
@@ -132,54 +134,45 @@ def _compile_to_svg(latex_source: str) -> str:
             logger.error(f"Preview compilation failed: {error_msg}")
             raise RuntimeError(f"LaTeX compilation error: {error_msg}")
 
-        # Step 2: PDF → SVG
-        # Try dvisvgm first (better quality), fall back to pdftocairo
-        dvisvgm_cmd = shutil.which("dvisvgm") or "/Library/TeX/texbin/dvisvgm"
+        # Step 2: PDF → SVG using dvisvgm (best quality)
+        try:
+            result = subprocess.run(
+                [
+                    DVISVGM_CMD,
+                    "--pdf",
+                    "--no-fonts",
+                    "--exact-bbox",
+                    "-o", str(svg_path),
+                    str(pdf_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=tmpdir,
+                env=TEX_ENV,
+            )
+            if result.returncode == 0 and svg_path.exists():
+                return svg_path.read_text(encoding="utf-8")
+            else:
+                logger.warning(f"dvisvgm failed: {result.stderr}")
+        except Exception as e:
+            logger.warning(f"dvisvgm error: {e}")
+
+        # Fallback: pdftocairo
         pdftocairo_cmd = shutil.which("pdftocairo")
-
-        if shutil.which("dvisvgm") or Path("/Library/TeX/texbin/dvisvgm").exists():
-            try:
-                result = subprocess.run(
-                    [
-                        dvisvgm_cmd,
-                        "--pdf",
-                        "--no-fonts",
-                        "--exact-bbox",
-                        "-o", str(svg_path),
-                        str(pdf_path),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    cwd=tmpdir,
-                )
-                if result.returncode == 0 and svg_path.exists():
-                    svg_content = svg_path.read_text(encoding="utf-8")
-                    return svg_content
-            except Exception as e:
-                logger.warning(f"dvisvgm failed, trying pdftocairo: {e}")
-
         if pdftocairo_cmd:
             try:
                 result = subprocess.run(
-                    [
-                        pdftocairo_cmd,
-                        "-svg",
-                        str(pdf_path),
-                        str(svg_path),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    cwd=tmpdir,
+                    [pdftocairo_cmd, "-svg", str(pdf_path), str(svg_path)],
+                    capture_output=True, text=True, timeout=10,
+                    cwd=tmpdir, env=TEX_ENV,
                 )
                 if result.returncode == 0 and svg_path.exists():
-                    svg_content = svg_path.read_text(encoding="utf-8")
-                    return svg_content
+                    return svg_path.read_text(encoding="utf-8")
             except Exception as e:
-                logger.warning(f"pdftocairo failed: {e}")
+                logger.warning(f"pdftocairo error: {e}")
 
-        raise RuntimeError("No SVG converter available (dvisvgm or pdftocairo)")
+        raise RuntimeError("SVG変換に失敗しました")
 
 
 def clear_preview_cache():
