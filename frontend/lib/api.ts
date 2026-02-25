@@ -59,3 +59,22 @@ export async function healthCheck(): Promise<boolean> {
     return false;
   }
 }
+
+export async function previewBlockSVG(
+  code: string,
+  blockType: string,
+  caption: string = ""
+): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/preview-block`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, block_type: blockType, caption }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail?.message || "プレビュー生成に失敗しました");
+  }
+  const data = await res.json();
+  return data.svg;
+}

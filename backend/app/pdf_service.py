@@ -82,17 +82,30 @@ def _parse_latex_error(log: str) -> str:
     """LaTeXログからユーザー向けエラーメッセージを推定"""
     log_lower = log.lower()
 
+    # Extract actual error lines (lines starting with !)
+    error_lines = [l.strip() for l in log.split("\n") if l.strip().startswith("!")]
+    error_detail = error_lines[0] if error_lines else ""
+
     if "undefined control sequence" in log_lower:
-        return "文書の変換中にエラーが発生しました。特殊な記号が含まれていないか確認してください。"
+        return f"未定義のコマンドがあります。入力内容を確認してください。({error_detail})"
     if "missing $ inserted" in log_lower:
         return "数式記号の処理でエラーが発生しました。$や%などの記号が入力に含まれていないか確認してください。"
     if "extra alignment tab" in log_lower or "misplaced" in log_lower:
         return "表の列数が一致していない可能性があります。表の内容を確認してください。"
-    if "file not found" in log_lower or "cannot find image" in log_lower:
+    if "file not found" in log_lower and "image" in log_lower:
         return "画像の読み込みに失敗しました。画像URLが正しいか確認してください。"
-    if "font" in log_lower and ("not found" in log_lower or "cannot" in log_lower):
-        return "フォントの読み込みに問題があります。サーバー管理者にお問い合わせください。"
+    # CJK font errors — very specific pattern
+    if ("cjkmainfont" in log_lower or "cjksansfont" in log_lower) and ("not found" in log_lower or "cannot" in log_lower):
+        return "CJKフォントが見つかりません。システムにフォントがインストールされているか確認してください。"
+    # Generic font error (e.g. setmainfont used with non-existent font)
+    if "fontspec error" in log_lower:
+        return f"フォントの読み込みに問題があります。({error_detail})"
     if "emergency stop" in log_lower:
-        return "文書の処理中に重大なエラーが発生しました。入力内容を見直してください。"
+        return f"文書の処理中に重大なエラーが発生しました。({error_detail})"
+    if "file not found" in log_lower:
+        return f"必要なファイルが見つかりません。({error_detail})"
 
+    # Default: include the first error line for diagnosis
+    if error_detail:
+        return f"PDF生成エラー: {error_detail}"
     return "PDFの作成中にエラーが発生しました。入力内容を確認してもう一度お試しください。"

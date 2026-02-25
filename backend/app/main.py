@@ -9,6 +9,7 @@ from fastapi.responses import Response
 
 from .models import DocumentModel, ErrorResponse
 from .pdf_service import compile_pdf, generate_latex, PDFGenerationError
+from .preview_service import preview_block_svg
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,6 +75,39 @@ async def preview_latex(doc: DocumentModel):
         })
 
 
+from pydantic import BaseModel as _BM
+
+class PreviewBlockRequest(_BM):
+    code: str
+    block_type: str  # circuit, diagram, chart
+    caption: str = ""
+
+
+@app.post("/api/preview-block")
+async def preview_block(req: PreviewBlockRequest):
+    """ブロック単位のSVGプレビューを生成"""
+    if not req.code.strip():
+        raise HTTPException(status_code=400, detail={
+            "success": False,
+            "message": "コードが空です",
+        })
+    try:
+        svg = preview_block_svg(req.code, req.block_type, req.caption)
+        return {"success": True, "svg": svg}
+    except RuntimeError as e:
+        logger.error(f"Preview generation failed: {e}")
+        raise HTTPException(status_code=422, detail={
+            "success": False,
+            "message": f"プレビュー生成に失敗: {str(e)}",
+        })
+    except Exception as e:
+        logger.exception("Unexpected error during preview")
+        raise HTTPException(status_code=500, detail={
+            "success": False,
+            "message": "プレビューの生成中にエラーが発生しました",
+        })
+
+
 @app.post("/api/generate-pdf")
 async def generate_pdf(doc: DocumentModel):
     """PDF生成エンドポイント"""
@@ -91,7 +125,7 @@ async def generate_pdf(doc: DocumentModel):
         raise HTTPException(status_code=422, detail={
             "success": False,
             "message": e.user_message,
-            "detail": e.detail[:500] if e.detail else None,
+            "detail": e.detail[:2000] if e.detail else None,
         })
     except Exception as e:
         logger.exception("Unexpected error during PDF generation")

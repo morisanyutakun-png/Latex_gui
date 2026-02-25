@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Block } from "@/lib/types";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
+import { previewBlockSVG } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,6 +28,7 @@ import { MathRenderer } from "./math-editor";
 import {
   Zap, GitBranch, FlaskConical, BarChart3, Sparkles,
   Code2, ChevronRight, Search, X, Puzzle, Copy, Check,
+  Loader2, RefreshCw, AlertCircle,
 } from "lucide-react";
 
 // ──── Shared Preset Card ────
@@ -101,6 +103,85 @@ function CircuitCodeSummary({ code, presetName }: { code: string; presetName?: s
           {c.type}{c.count > 1 ? ` ×${c.count}` : ""}
         </span>
       ))}
+    </div>
+  );
+}
+
+// ──── Block SVG Preview ────
+// Fetches and displays an SVG preview from the backend
+function BlockSVGPreview({ code, blockType, className = "" }: {
+  code: string; blockType: string; className?: string;
+}) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const lastCodeRef = useRef<string>("");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchPreview = useCallback(async (currentCode: string) => {
+    if (!currentCode.trim()) {
+      setSvg(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await previewBlockSVG(currentCode, blockType);
+      setSvg(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "プレビュー取得に失敗");
+      setSvg(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [blockType]);
+
+  // Debounced fetch: wait 800ms after code changes
+  useEffect(() => {
+    if (code === lastCodeRef.current) return;
+    lastCodeRef.current = code;
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      fetchPreview(code);
+    }, 800);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [code, fetchPreview]);
+
+  if (!code.trim()) return null;
+
+  return (
+    <div className={`relative rounded-lg overflow-hidden bg-white dark:bg-zinc-950 border border-border/30 ${className}`}>
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 z-10">
+          <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
+        </div>
+      )}
+      {svg ? (
+        <div
+          className="flex items-center justify-center p-3 [&>svg]:max-w-full [&>svg]:max-h-48 [&>svg]:h-auto"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-4 px-3 gap-1.5 text-center">
+          <AlertCircle className="h-4 w-4 text-amber-500" />
+          <span className="text-[9px] text-muted-foreground/60">{error}</span>
+          <button
+            onClick={() => fetchPreview(code)}
+            className="text-[9px] text-cyan-600 hover:underline flex items-center gap-0.5"
+          >
+            <RefreshCw className="h-2.5 w-2.5" />
+            再試行
+          </button>
+        </div>
+      ) : !loading ? (
+        <div className="flex items-center justify-center py-6 text-muted-foreground/30">
+          <Loader2 className="h-4 w-4 animate-spin" />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -205,15 +286,15 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
 
   return (
     <div className="space-y-2">
-      {/* Preview/Placeholder */}
+      {/* Preview/Placeholder — SVG rendering of the circuit */}
       <div
-        className={`flex flex-col items-center py-4 px-4 rounded-lg ${
-          !content.code ? "bg-cyan-50/50 dark:bg-cyan-950/20" : "bg-white dark:bg-card"
+        className={`flex flex-col items-center rounded-lg ${
+          !content.code ? "py-4 px-4 bg-cyan-50/50 dark:bg-cyan-950/20" : "bg-white dark:bg-card"
         }`}
       >
         {content.code ? (
           <div className="w-full space-y-2">
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 pt-2">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-xs font-medium">
                 <Zap className="h-3 w-3" />
                 {activePreset?.name || "カスタム回路図"}
@@ -227,16 +308,11 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
             {content.caption && (
               <p className="text-[10px] text-muted-foreground text-center">{content.caption}</p>
             )}
-            {/* Show component summary */}
-            <div className="flex justify-center">
+            {/* SVG Preview — rendered by backend */}
+            <BlockSVGPreview code={content.code} blockType="circuit" />
+            {/* Component summary badges */}
+            <div className="flex justify-center pb-1">
               <CircuitCodeSummary code={content.code} presetName={activePreset?.name} />
-            </div>
-            {/* Simplified code preview */}
-            <div className="mx-auto max-w-md">
-              <pre className="text-[8px] font-mono text-muted-foreground/60 bg-slate-50 dark:bg-slate-900 rounded-md p-2 overflow-hidden max-h-16 leading-relaxed">
-                {content.code.split("\n").slice(0, 4).join("\n")}
-                {content.code.split("\n").length > 4 ? "\n..." : ""}
-              </pre>
             </div>
           </div>
         ) : (
@@ -428,16 +504,19 @@ export function DiagramBlockEditor({ block }: { block: Block }) {
   return (
     <div className="space-y-2">
       {/* Preview */}
-      <div className={`flex flex-col items-center py-4 px-4 rounded-lg ${!content.code ? "bg-indigo-50/50 dark:bg-indigo-950/20" : "bg-white dark:bg-card"}`}>
+      <div className={`flex flex-col items-center rounded-lg ${!content.code ? "py-4 px-4 bg-indigo-50/50 dark:bg-indigo-950/20" : "bg-white dark:bg-card"}`}>
         {content.code ? (
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs">
-              <GitBranch className="h-3 w-3" />
-              {content.preset ? DIAGRAM_PRESETS.find(p => p.id === content.preset)?.name || "ダイアグラム" : "ダイアグラム"}
+          <div className="w-full space-y-2">
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs">
+                <GitBranch className="h-3 w-3" />
+                {content.preset ? DIAGRAM_PRESETS.find(p => p.id === content.preset)?.name || "ダイアグラム" : "ダイアグラム"}
+              </div>
             </div>
             {content.caption && (
-              <p className="text-[10px] text-muted-foreground">{content.caption}</p>
+              <p className="text-[10px] text-muted-foreground text-center">{content.caption}</p>
             )}
+            <BlockSVGPreview code={content.code} blockType="diagram" />
           </div>
         ) : (
           <span className="text-muted-foreground/40 text-sm italic flex items-center gap-2">
@@ -617,16 +696,19 @@ export function ChartBlockEditor({ block }: { block: Block }) {
 
   return (
     <div className="space-y-2">
-      <div className={`flex flex-col items-center py-4 px-4 rounded-lg ${!content.code ? "bg-rose-50/50 dark:bg-rose-950/20" : "bg-white dark:bg-card"}`}>
+      <div className={`flex flex-col items-center rounded-lg ${!content.code ? "py-4 px-4 bg-rose-50/50 dark:bg-rose-950/20" : "bg-white dark:bg-card"}`}>
         {content.code ? (
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 text-xs">
-              <BarChart3 className="h-3 w-3" />
-              {content.preset ? CHART_PRESETS.find(p => p.id === content.preset)?.name || "グラフ" : "グラフ"}
+          <div className="w-full space-y-2">
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 text-xs">
+                <BarChart3 className="h-3 w-3" />
+                {content.preset ? CHART_PRESETS.find(p => p.id === content.preset)?.name || "グラフ" : "グラフ"}
+              </div>
             </div>
             {content.caption && (
-              <p className="text-[10px] text-muted-foreground">{content.caption}</p>
+              <p className="text-[10px] text-muted-foreground text-center">{content.caption}</p>
             )}
+            <BlockSVGPreview code={content.code} blockType="chart" />
           </div>
         ) : (
           <span className="text-muted-foreground/40 text-sm italic flex items-center gap-2">
