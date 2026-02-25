@@ -77,6 +77,23 @@ def find_command(name: str) -> str:
 # モジュール読み込み時に環境を構築してキャッシュ
 TEX_ENV = _build_texlive_env()
 XELATEX_CMD = find_xelatex()
+PDFLATEX_CMD = find_command("pdflatex")
 DVISVGM_CMD = find_command("dvisvgm")
+PDFTOCAIRO_CMD = find_command("pdftocairo") if shutil.which("pdftocairo") else ""
+
+# Ghostscript 共有ライブラリ (dvisvgm --pdf に必要)
+_LIBGS_CANDIDATES = [
+    "/opt/homebrew/lib/libgs.dylib",      # macOS Homebrew ARM
+    "/usr/local/lib/libgs.dylib",          # macOS Intel
+    "/usr/lib/x86_64-linux-gnu/libgs.so",  # Debian/Ubuntu
+    "/usr/lib64/libgs.so",                 # RHEL/Fedora
+]
+for _p in _LIBGS_CANDIDATES:
+    if Path(_p).is_file():
+        TEX_ENV["LIBGS"] = _p
+        logger.info(f"LIBGS set to {_p}")
+        break
+
+logger.info(f"TeX commands: xelatex={XELATEX_CMD}, pdflatex={PDFLATEX_CMD}, dvisvgm={DVISVGM_CMD}, pdftocairo={PDFTOCAIRO_CMD}")
 
 logger.info(f"TeX environment: xelatex={XELATEX_CMD}, dvisvgm={DVISVGM_CMD}")
