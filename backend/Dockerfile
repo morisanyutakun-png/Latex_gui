@@ -1,6 +1,10 @@
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 # ──── TeX Live インストール ────
+#
+# 重要: python:3.12-slim-bookworm (Debian 12) を使用すること。
+#   Debian 13 (Trixie) の texlive-lang-cjk では CJK.sty が
+#   kpsewhich から見えない問題があるため、Bookworm にピンしている。
 #
 # 戦略: pdflatex + bxcjkjatype で日本語対応 (主エンジン)
 #        xelatex + fontspec をフォールバックとして追加
@@ -14,6 +18,8 @@ FROM python:3.12-slim
 # - texlive-lang-cjk:         CJK.sty (bxcjkjatype の依存パッケージ)
 # - texlive-xetex:            xelatex (CJK.sty 未検出時のフォールバック)
 # - poppler-utils:            pdftocairo (PDF→SVG, プレビュー用)
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -29,19 +35,40 @@ RUN apt-get update \
         fonts-noto-cjk \
         poppler-utils \
         fontconfig \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && fc-cache -fv \
-    && texhash
+    && rm -rf /var/lib/apt/lists/*
 
-# ── ビルド時検証: 必須パッケージの存在確認 ──
+# ── TeX パッケージDB再構築 + フォントキャッシュ ──
+# apt-get の post-install triggers が走っているが、
+# 念のため明示的に mktexlsr → texhash → fc-cache を実行
+RUN mktexlsr \
+    && texhash \
+    && fc-cache -fv
+
+# ── ビルド時検証: パッケージの存在確認 (診断ログ付き) ──
 RUN echo "=== TeX Live build-time verification ===" \
-    && kpsewhich CJK.sty       && echo "  [OK] CJK.sty" \
-    || (echo "  [FAIL] CJK.sty not found!" && exit 1) \
-    && kpsewhich bxcjkjatype.sty && echo "  [OK] bxcjkjatype.sty" \
-    || (echo "  [FAIL] bxcjkjatype.sty not found!" && exit 1) \
-    && which pdflatex           && echo "  [OK] pdflatex" \
-    && which xelatex            && echo "  [OK] xelatex" \
-    && echo "=== All TeX packages verified ==="
+    && echo "--- kpsewhich paths ---" \
+    && kpsewhich --var-value=TEXMFDIST || true \
+    && kpsewhich --var-value=TEXMFLOCAL || true \
+    && echo "--- CJK.sty ---" \
+    && (kpsewhich CJK.sty && echo "  [OK] CJK.sty") \
+       || (echo "  [WARN] CJK.sty not found by kpsewhich" \
+           && echo "  Searching filesystem..." \
+           && find /usr -name "CJK.sty" 2>/dev/null || true) \
+    && echo "--- bxcjkjatype.sty ---" \
+    && (kpsewhich bxcjkjatype.sty && echo "  [OK] bxcjkjatype.sty") \
+       || (echo "  [WARN] bxcjkjatype.sty not found by kpsewhich" \
+           && find /usr -name "bxcjkjatype.sty" 2>/dev/null || true) \
+    && echo "--- Engines ---" \
+    && which pdflatex && echo "  [OK] pdflatex" \
+    && which xelatex  && echo "  [OK] xelatex" \
+    && echo "--- Quick compile test (pdflatex + bxcjkjatype) ---" \
+    && ( cd /tmp \
+         && echo '\\documentclass{article}\\usepackage[whole]{bxcjkjatype}\\begin{document}Hello テスト\\end{document}' > /tmp/test.tex \
+         && pdflatex -interaction=nonstopmode -halt-on-error /tmp/test.tex \
+         && echo "  [OK] pdflatex+CJK compile test passed" \
+         && rm -f /tmp/test.* ) \
+    || echo "  [WARN] pdflatex+CJK compile test failed (xelatex fallback will be used)" \
+    && echo "=== Verification complete ==="
 
 ENV MAX_CONCURRENT_COMPILES=2
 ENV COMPILE_MEM_LIMIT_MB=256
