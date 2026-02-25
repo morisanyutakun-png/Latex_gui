@@ -86,12 +86,12 @@ export function AppHeader() {
   };
 
   return (
-    <header className="flex items-center gap-2 px-4 h-12 border-b border-border/40 glass sticky top-0 z-40">
+    <header className="flex items-center gap-2 px-4 h-12 border-b border-border/30 glass sticky top-0 z-40">
       {/* Back */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 rounded-lg hover:bg-secondary"
+        className="h-8 w-8 rounded-xl hover:bg-secondary/60 transition-colors"
         onClick={() => router.push("/")}
         title="ホームに戻る"
       >
@@ -99,8 +99,8 @@ export function AppHeader() {
       </Button>
 
       {/* Logo */}
-      <div className="h-6 w-6 rounded-md bg-foreground flex items-center justify-center text-background text-[9px] font-bold tracking-tighter mr-1">
-        Lx
+      <div className="h-6 w-6 rounded-[7px] bg-foreground flex items-center justify-center mr-0.5">
+        <span className="text-background text-[9px] font-bold tracking-tighter leading-none">Lx</span>
       </div>
 
       {/* Title */}
@@ -111,7 +111,7 @@ export function AppHeader() {
         placeholder="無題のドキュメント"
       />
 
-      <Separator orientation="vertical" className="mx-1.5 h-4" />
+      <Separator orientation="vertical" className="mx-1.5 h-4 opacity-30" />
 
       {/* Undo / Redo */}
       <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={undo} title="元に戻す (Ctrl+Z)">
@@ -121,7 +121,7 @@ export function AppHeader() {
         <Redo2 className="h-3.5 w-3.5" />
       </Button>
 
-      <Separator orientation="vertical" className="mx-1.5 h-4" />
+      <Separator orientation="vertical" className="mx-1.5 h-4 opacity-30" />
 
       {/* Zoom */}
       <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setZoom(Math.max(0.5, zoom - 0.1))} title="縮小">
@@ -150,20 +150,20 @@ export function AppHeader() {
         </Button>
       </div>
 
-      <Separator orientation="vertical" className="mx-1.5 h-4" />
+      <Separator orientation="vertical" className="mx-1.5 h-4 opacity-30" />
 
       <ThemeToggle />
 
-      {/* PDF Export button — Apple blue */}
+      {/* PDF Export button — Apple premium dark */}
       <Button
         onClick={handleGeneratePDF}
         disabled={isGenerating}
-        className="h-8 px-4 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold gap-1.5 shadow-sm hover:shadow-md active:scale-[0.97] transition-all duration-150 ml-1"
+        className="h-8 px-5 rounded-full bg-foreground hover:opacity-90 text-background text-xs font-semibold gap-1.5 shadow-sm hover:shadow-lg active:scale-[0.97] transition-all duration-150 ml-1.5"
       >
         {isGenerating ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            生成中...
+            生成中…
           </>
         ) : (
           <>

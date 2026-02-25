@@ -79,7 +79,36 @@ async def tex_debug_info():
     else:
         info["fc_list_ja"] = "fc-list not available"
 
-    # Quick XeLaTeX compile test
+    # Quick pdflatex compile test (primary engine — low memory)
+    try:
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tex = (
+                "\\documentclass{article}\n"
+                "\\usepackage[whole]{bxcjkjatype}\n"
+                "\\begin{document}\nHello World テスト\n\\end{document}\n"
+            )
+            tex_path = Path(tmpdir) / "test.tex"
+            tex_path.write_text(tex, encoding="utf-8")
+            result = subprocess.run(
+                [PDFLATEX_CMD, "-interaction=nonstopmode", "-halt-on-error",
+                 "-output-directory", str(tmpdir), str(tex_path)],
+                capture_output=True, text=True, timeout=15,
+                cwd=tmpdir, env=TEX_ENV,
+            )
+            pdf_exists = (Path(tmpdir) / "test.pdf").exists()
+            info["pdflatex_test"] = {
+                "success": result.returncode == 0 and pdf_exists,
+                "returncode": result.returncode,
+                "pdf_generated": pdf_exists,
+                "log_tail": result.stdout[-500:] if result.stdout else "",
+                "stderr": result.stderr[-200:] if result.stderr else "",
+            }
+    except Exception as e:
+        info["pdflatex_test"] = {"success": False, "error": str(e)}
+
+    # Quick XeLaTeX compile test (fallback engine — high memory)
     try:
         import tempfile
         from pathlib import Path
@@ -99,7 +128,7 @@ async def tex_debug_info():
                 cwd=tmpdir, env=TEX_ENV,
             )
             pdf_exists = (Path(tmpdir) / "test.pdf").exists()
-            info["compile_test"] = {
+            info["xelatex_test"] = {
                 "success": result.returncode == 0 and pdf_exists,
                 "returncode": result.returncode,
                 "pdf_generated": pdf_exists,
@@ -107,7 +136,7 @@ async def tex_debug_info():
                 "stderr": result.stderr[-200:] if result.stderr else "",
             }
     except Exception as e:
-        info["compile_test"] = {"success": False, "error": str(e)}
+        info["xelatex_test"] = {"success": False, "error": str(e)}
 
     return info
 

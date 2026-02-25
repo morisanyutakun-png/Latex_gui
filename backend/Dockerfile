@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-science \
     texlive-fonts-recommended \
     texlive-lang-japanese \
+    texlive-lang-cjk \
     fonts-noto-cjk \
     fonts-noto-cjk-extra \
     poppler-utils \

@@ -136,7 +136,7 @@ INLINE_MATH_PACKAGES = [
 ]
 
 
-def _detect_required_packages(doc: DocumentModel) -> list[str]:
+def _detect_required_packages(doc: DocumentModel, engine: str = "pdflatex") -> list[str]:
     """Scan all blocks and determine which packages are needed."""
     block_types_used: set[str] = set()
     has_inline_math = False
@@ -157,8 +157,12 @@ def _detect_required_packages(doc: DocumentModel) -> list[str]:
             seen.add(line)
             packages.append(line)
 
-    # Always-required base packages
-    add("\\usepackage{fontspec}")
+    # Always-required base packages (engine-dependent)
+    if engine == "xelatex":
+        add("\\usepackage{fontspec}")
+    else:
+        # pdflatex: Japanese support via bxcjkjatype (low memory, no fontspec)
+        add("\\usepackage[whole]{bxcjkjatype}")
     add("\\usepackage{xcolor}")
     add("\\usepackage{hyperref}")
 
@@ -176,8 +180,12 @@ def _detect_required_packages(doc: DocumentModel) -> list[str]:
     return packages
 
 
-def generate_document_latex(doc: DocumentModel) -> str:
-    """Generate a complete LaTeX document from the block-based model."""
+def generate_document_latex(doc: DocumentModel, engine: str = "pdflatex") -> str:
+    """Generate a complete LaTeX document from the block-based model.
+    
+    engine: 'pdflatex' (default, low memory ~50MB) or 'xelatex' (heavy ~200MB+).
+    pdflatex uses bxcjkjatype for Japanese, xelatex uses fontspec.
+    """
     settings = doc.settings
     meta = doc.metadata
 
@@ -215,7 +223,7 @@ def generate_document_latex(doc: DocumentModel) -> str:
     lines.append("")
 
     # ──── Auto-detected packages ────
-    packages = _detect_required_packages(doc)
+    packages = _detect_required_packages(doc, engine=engine)
     if packages:
         lines.append("% ── Packages (auto-detected from document content) ──")
         for pkg in packages:
@@ -226,15 +234,17 @@ def generate_document_latex(doc: DocumentModel) -> str:
     lines.append(f"\\usepackage[{geom}]{{geometry}}")
     lines.append("")
 
-    # ──── Fonts (fontspec: conditional loading for cloud portability) ────
-    lines.append("% ── Fonts (fontspec: IfFontExistsTF for robustness) ──")
-    lines.append(f"\\IfFontExistsTF{{{CJK_MAIN_FONT}}}{{%")
-    lines.append(f"  \\setmainfont{{{CJK_MAIN_FONT}}}%")
-    lines.append(f"}}{{\\typeout{{WARNING: Font {CJK_MAIN_FONT} not found, using default}}}}")
-    lines.append(f"\\IfFontExistsTF{{{CJK_SANS_FONT}}}{{%")
-    lines.append(f"  \\setsansfont{{{CJK_SANS_FONT}}}%")
-    lines.append(f"}}{{\\typeout{{WARNING: Font {CJK_SANS_FONT} not found, using default}}}}")
-    lines.append("")
+    # ──── Fonts ────
+    if engine == "xelatex":
+        lines.append("% ── Fonts (fontspec: IfFontExistsTF for robustness) ──")
+        lines.append(f"\\IfFontExistsTF{{{CJK_MAIN_FONT}}}{{%")
+        lines.append(f"  \\setmainfont{{{CJK_MAIN_FONT}}}%")
+        lines.append(f"}}{{\\typeout{{WARNING: Font {CJK_MAIN_FONT} not found, using default}}}}")
+        lines.append(f"\\IfFontExistsTF{{{CJK_SANS_FONT}}}{{%")
+        lines.append(f"  \\setsansfont{{{CJK_SANS_FONT}}}%")
+        lines.append(f"}}{{\\typeout{{WARNING: Font {CJK_SANS_FONT} not found, using default}}}}")
+        lines.append("")
+    # pdflatex: bxcjkjatype handles fonts automatically
 
     # ──── Line spacing ────
     spacing = settings.line_spacing

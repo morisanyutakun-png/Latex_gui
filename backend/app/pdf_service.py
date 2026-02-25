@@ -1,5 +1,8 @@
 """
-PDF生成サービス: LaTeX生成 → XeLaTeXコンパイル → PDF返却
+PDF生成サービス: LaTeX生成 → コンパイル → PDF返却
+
+メモリ効率のため pdflatex を優先使用し、失敗時のみ xelatex にフォールバック。
+pdflatex: ~50MB / xelatex: ~200-500MB (クラウド環境で OOM 回避)
 """
 import subprocess
 import tempfile
@@ -8,7 +11,7 @@ from pathlib import Path
 
 from .models import DocumentModel
 from .generators.document_generator import generate_document_latex
-from .tex_env import TEX_ENV, XELATEX_CMD
+from .tex_env import TEX_ENV, XELATEX_CMD, PDFLATEX_CMD
 
 logger = logging.getLogger(__name__)
 
@@ -22,25 +25,47 @@ class PDFGenerationError(Exception):
 
 
 def generate_latex(doc: DocumentModel) -> str:
-    """DocumentModelからLaTeXソースを生成"""
-    return generate_document_latex(doc)
+    """DocumentModelからLaTeXソースを生成 (pdflatex互換)"""
+    return generate_document_latex(doc, engine="pdflatex")
 
 
 def compile_pdf(doc: DocumentModel) -> bytes:
-    """LaTeX生成 → XeLaTeXコンパイル → PDFバイト列を返す"""
-    latex_source = generate_latex(doc)
+    """LaTeX生成 → コンパイル → PDFバイト列 (pdflatex優先、xelatexフォールバック)
 
+    pdflatex は ~50MB、xelatex は ~200-500MB のメモリを使用。
+    クラウド環境（Koyeb等）での OOM SIGKILL を回避するため pdflatex を優先。
+    """
+    # ── Strategy 1: pdflatex (low memory, fast) ──
+    try:
+        latex_source = generate_document_latex(doc, engine="pdflatex")
+        pdf = _compile_latex(latex_source, PDFLATEX_CMD, timeout=30)
+        logger.info("PDF generated successfully with pdflatex")
+        return pdf
+    except PDFGenerationError as e:
+        logger.warning(f"pdflatex failed: {e.user_message}")
+
+    # ── Strategy 2: xelatex fallback (better font/unicode, more memory) ──
+    logger.info("Falling back to xelatex...")
+    latex_source = generate_document_latex(doc, engine="xelatex")
+    pdf = _compile_latex(latex_source, XELATEX_CMD, timeout=45)
+    logger.info("PDF generated successfully with xelatex (fallback)")
+    return pdf
+
+
+def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> bytes:
+    """指定エンジンでLaTeXソースをコンパイルしPDFバイト列を返す"""
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = Path(tmpdir) / "document.tex"
         pdf_path = Path(tmpdir) / "document.pdf"
 
         tex_path.write_text(latex_source, encoding="utf-8")
-        logger.info(f"LaTeX source written to {tex_path}")
+        engine_name = Path(engine_cmd).name
+        logger.info(f"Compiling with {engine_name}...")
 
         try:
             result = subprocess.run(
                 [
-                    XELATEX_CMD,
+                    engine_cmd,
                     "-interaction=nonstopmode",
                     "-halt-on-error",
                     "-no-shell-escape",
@@ -49,35 +74,35 @@ def compile_pdf(doc: DocumentModel) -> bytes:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=timeout,
                 cwd=tmpdir,
                 env=TEX_ENV,
             )
         except FileNotFoundError:
             raise PDFGenerationError(
-                "PDF生成エンジンが見つかりません。サーバーの設定を確認してください。",
-                detail="xelatex command not found"
+                f"PDF生成エンジン({engine_name})が見つかりません。",
+                detail=f"{engine_name} command not found"
             )
         except subprocess.TimeoutExpired:
             raise PDFGenerationError(
                 "PDF生成に時間がかかりすぎました。内容を短くして再度お試しください。",
-                detail="XeLaTeX compilation timeout (30s)"
+                detail=f"{engine_name} compilation timeout ({timeout}s)"
             )
 
         if result.returncode != 0:
             log_output = result.stdout + "\n" + result.stderr
-            logger.error(f"XeLaTeX compilation failed (exit={result.returncode}):\n{log_output[-3000:]}")
+            logger.error(f"{engine_name} failed (exit={result.returncode}):\n{log_output[-3000:]}")
 
-            # Detect OOM kill / signal kill (negative return codes on Linux)
+            # Detect OOM kill / signal kill (negative return codes)
             if result.returncode < 0:
-                import signal
+                import signal as _signal
                 try:
-                    sig_name = signal.Signals(-result.returncode).name
+                    sig_name = _signal.Signals(-result.returncode).name
                 except (ValueError, AttributeError):
                     sig_name = str(-result.returncode)
                 raise PDFGenerationError(
                     f"PDF生成プロセスが強制終了されました (signal: {sig_name})。メモリ不足の可能性があります。",
-                    detail=f"Process killed by signal {sig_name}. Last output: {log_output[-1000:]}"
+                    detail=f"Process killed by {sig_name}. Log: {log_output[-1000:]}"
                 )
 
             user_msg = _parse_latex_error(log_output)
@@ -85,8 +110,8 @@ def compile_pdf(doc: DocumentModel) -> bytes:
 
         if not pdf_path.exists():
             raise PDFGenerationError(
-                "PDFファイルの生成に失敗しました。内容を確認してもう一度お試しください。",
-                detail="PDF file not found after compilation"
+                "PDFファイルの生成に失敗しました。",
+                detail=f"PDF not found after {engine_name} compilation"
             )
 
         return pdf_path.read_bytes()
