@@ -46,15 +46,19 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
   const [dictCategory, setDictCategory] = useState("すべて");
   const [dictSearch, setDictSearch] = useState("");
   const [spacings, setSpacings] = useState<string[]>([]);
+  // 辞書/公式選択時にLaTeXを直接保持（入力欄には日本語名を表示）
+  const [overrideLatex, setOverrideLatex] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // parseの結果（日本語→LaTeX変換 or LaTeX直書きパススルー）+ スペーシング付加
+  // overrideLatexが設定されていれば、パーサーを使わずそちらを使用
   const baseLatex = useMemo(() => {
+    if (overrideLatex) return overrideLatex;
     if (inputText.trim()) {
       return parseJapanesemath(inputText);
     }
     return "";
-  }, [inputText]);
+  }, [inputText, overrideLatex]);
 
   // スペーシングを末尾に付加した最終LaTeX
   const currentLatex = useMemo(() => {
@@ -68,6 +72,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
     if (currentLatex.trim()) {
       onApply(currentLatex, inputText);
       setSpacings([]);
+      setOverrideLatex(null);
     }
   }, [currentLatex, inputText, onApply]);
 
@@ -156,9 +161,14 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
         const words = inputText.split(/[\s　]+/);
         words[words.length - 1] = s.reading;
         setInputText(words.join(" ") + " ");
+        setOverrideLatex(null);
       } else {
-        // Dictionary/formula match: replace entire input text
-        setInputText(s.latex);
+        // Dictionary/formula match: 日本語の表示名を入力欄に、LaTeXはオーバーライドで保持
+        const displayName = s.type === "formula"
+          ? s.display.split(" — ")[0]  // "解の公式 — カテゴリ" → "解の公式"
+          : s.display.split(" — ")[0]; // "reading — description" → reading
+        setInputText(displayName);
+        setOverrideLatex(s.latex);
       }
       requestAnimationFrame(() => inputRef.current?.focus());
     },
@@ -252,16 +262,20 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
 
   const handleDictInsert = useCallback((item: DictBrowserItem) => {
     let latex: string;
+    let displayName: string;
     if (item.kind === "dict") {
       const entry = item.entry;
       latex = (entry.kind === "binary" || entry.kind === "unary")
         ? entry.latex.replace(/\{[A-Z]\}/g, "").replace(/_\s*\^/g, "").trim()
         : entry.latex;
+      displayName = entry.reading;
     } else {
       latex = item.entry.latex;
+      displayName = item.entry.label;
     }
-    // 入力欄のテキストを置換（日本語変換を壊さないよう入力テキスト自体を差し替える）
-    setInputText(latex);
+    // 入力欄には日本語名を表示し、LaTeXはオーバーライドで保持
+    setInputText(displayName);
+    setOverrideLatex(latex);
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
@@ -278,10 +292,14 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
         <textarea
           ref={inputRef}
           value={inputText}
-          onChange={(e) => { setInputText(e.target.value); setSelectedIdx(0); }}
+          onChange={(e) => { setInputText(e.target.value); setSelectedIdx(0); setOverrideLatex(null); }}
           onKeyDown={handleKeyDown}
-          placeholder="日本語: 2分のx たす ルート3  |  LaTeX: \frac{x}{2} + \sqrt{3}  |  算術: 2^2 + 4"
-          className="w-full pl-16 pr-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-emerald-800 focus:ring-emerald-400 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans"
+          placeholder="日本語: 2分のx  |  LaTeX: \frac{x}{2}  |  算術: x^2 + 1  |  スペースでグループ化"
+          className={`w-full pl-16 pr-3 py-2 text-sm rounded-lg border focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans ${
+            overrideLatex
+              ? "border-amber-300 dark:border-amber-700 focus:ring-amber-400"
+              : "border-emerald-200 dark:border-emerald-800 focus:ring-emerald-400"
+          }`}
           rows={1}
         />
 
@@ -337,7 +355,14 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       {/* Live preview */}
       {currentLatex && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200/50 dark:border-violet-800/50">
-          <span className="text-[9px] text-violet-400 font-medium shrink-0">プレビュー</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[9px] text-violet-400 font-medium">プレビュー</span>
+            {overrideLatex && (
+              <span className="px-1 py-0 rounded text-[7px] bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                辞書選択
+              </span>
+            )}
+          </div>
           <div className="flex-1 flex justify-center overflow-auto">
             <MathRenderer latex={currentLatex} displayMode={false} />
           </div>
@@ -356,7 +381,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       <div className="flex items-center gap-2">
         {inputText && (
           <button
-            onClick={() => { setInputText(""); setSpacings([]); }}
+            onClick={() => { setInputText(""); setSpacings([]); setOverrideLatex(null); }}
             className="px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             クリア
@@ -367,6 +392,45 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
           <span>で数式を反映</span>
         </span>
       </div>
+
+      {/* スペース区切りネスト構文ガイド（折りたたみ） */}
+      <details className="group">
+        <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
+          <span className="transition-transform group-open:rotate-90">&#9654;</span>
+          スペース区切り構文ガイド
+        </summary>
+        <div className="mt-1.5 p-3 rounded-lg bg-muted/30 border border-border/50 space-y-2">
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            <span className="font-medium text-foreground/80">スペースは項のグループ化に使います。</span>
+            スペースなしで繋げた文字列はひとまとまりの項として扱われます。
+          </p>
+          <div className="space-y-1.5">
+            {[
+              { input: "1+2分の3", result: "\\frac{3}{1+2}", desc: "1+2 が分母、3 が分子" },
+              { input: "1+ 2分の3", result: "1+\\frac{3}{2}", desc: "2 が分母、3 が分子、1+ は別の項" },
+              { input: "a+bのc乗", result: "(a+b)^{c}", desc: "a+b 全体が底" },
+              { input: "a +bのc乗", result: "a+b^{c}", desc: "b だけが底、a は別の項" },
+              { input: "ルートa+b", result: "\\sqrt{a+b}", desc: "a+b 全体が根号の中" },
+              { input: "ルートa +b", result: "\\sqrt{a}+b", desc: "a だけが根号の中" },
+            ].map((ex, i) => (
+              <div key={i} className="flex items-center gap-2 text-[10px]">
+                <code className="px-1.5 py-0.5 rounded bg-background border border-border/50 font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                  {ex.input}
+                </code>
+                <span className="text-muted-foreground/50">→</span>
+                <div className="w-24 shrink-0 flex justify-center overflow-hidden">
+                  <MathRenderer latex={ex.result} displayMode={false} className="scale-[0.65] origin-center" />
+                </div>
+                <span className="text-muted-foreground/70 text-[9px]">{ex.desc}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[9px] text-muted-foreground/50 pt-1 border-t border-border/30">
+            💡 <span className="font-medium">コツ:</span> 複数の項を分数や根号でまとめたいときは<span className="text-emerald-600 font-medium">スペースなし</span>で繋げ、
+            分けたいところに<span className="text-amber-600 font-medium">半角スペース</span>を入れてください。
+          </p>
+        </div>
+      </details>
 
       {/* スペース調整（折りたたみ） */}
       <details className="group">
@@ -485,11 +549,19 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       </div>
 
       {/* Usage hints */}
-      <div className="text-[9px] text-muted-foreground/60 leading-relaxed">
-        💡 日本語:「<span className="text-emerald-600 font-medium">2分の1</span>」→ ½ 
-        「<span className="text-emerald-600 font-medium">いんてぐらる</span>」→ ∫ 
-        | LaTeX: <span className="text-blue-600 font-medium">\frac&#123;1&#125;&#123;2&#125;</span> 
-        | 算術: <span className="text-orange-600 font-medium">x^2 + 1</span>
+      <div className="text-[9px] text-muted-foreground/60 leading-relaxed space-y-1">
+        <div>
+          💡 日本語:<span className="text-emerald-600 font-medium">「2分の1」</span>→ ½ 
+          <span className="text-emerald-600 font-medium">「いんてぐらる」</span>→ ∫ 
+          | LaTeX: <span className="text-blue-600 font-medium">\frac&#123;1&#125;&#123;2&#125;</span> 
+          | 算術: <span className="text-orange-600 font-medium">x^2 + 1</span>
+        </div>
+        <div>
+          📠 <span className="font-medium text-foreground/60">スペース区切りでグループ化:</span>{" "}
+          <span className="text-emerald-600 font-medium">1+2分の3</span> → (1+2)分の3{" "}
+          | <span className="text-amber-600 font-medium">1+ 2分の3</span> → 1+(¾){" "}
+          | <span className="text-purple-600 font-medium">a ルートb</span> → a√b
+        </div>
       </div>
     </div>
   );
