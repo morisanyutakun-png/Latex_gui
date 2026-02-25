@@ -2,10 +2,10 @@
 PDF生成サービス: LaTeX生成 → コンパイル → PDF返却
 
 軽量クラウド対応:
-  - pdflatex のみ使用 (~50MB)。xelatex (~200-500MB) は ENV で明示的に有効化した場合のみ。
+  - 起動時にエンジンを自動テスト (pdflatex+CJK → xelatex の優先度)
+  - CJK.sty が無い環境では自動的に xelatex にフォールバック
   - asyncio Semaphore で最大同時コンパイル数を制限 (OOM 防止)
-  - subprocess にメモリ上限を設定 (Linux cgroup / ulimit)
-  - 単一パスコンパイル (-draftmode なし) でメモリ・時間を節約
+  - subprocess にメモリ上限を設定 (Linux ulimit)
 """
 import asyncio
 import gc
@@ -18,21 +18,26 @@ from pathlib import Path
 
 from .models import DocumentModel
 from .generators.document_generator import generate_document_latex
-from .tex_env import TEX_ENV, XELATEX_CMD, PDFLATEX_CMD
+from .tex_env import (
+    TEX_ENV, XELATEX_CMD, PDFLATEX_CMD,
+    DEFAULT_ENGINE, PDFLATEX_CJK_OK, XELATEX_OK,
+)
 
 logger = logging.getLogger(__name__)
 
 # ── 同時コンパイル制限 ──
-# 環境変数 MAX_CONCURRENT_COMPILES で調整可能 (デフォルト: 2)
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "2"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-
-# xelatex フォールバックを有効にするか (デフォルト: 無効 = 軽量モード)
-ENABLE_XELATEX_FALLBACK = os.environ.get("ENABLE_XELATEX_FALLBACK", "").lower() in ("1", "true", "yes")
 
 # メモリ上限 (bytes)。Linux で resource.setrlimit に使用。デフォルト 256MB
 MEM_LIMIT_MB = int(os.environ.get("COMPILE_MEM_LIMIT_MB", "256"))
 MEM_LIMIT_BYTES = MEM_LIMIT_MB * 1024 * 1024
+
+# エンジンコマンドマップ
+ENGINE_CMD = {
+    "pdflatex": PDFLATEX_CMD,
+    "xelatex": XELATEX_CMD,
+}
 
 
 class PDFGenerationError(Exception):
@@ -58,15 +63,15 @@ def _make_preexec_fn():
 
 
 def generate_latex(doc: DocumentModel) -> str:
-    """DocumentModelからLaTeXソースを生成 (pdflatex互換)"""
-    return generate_document_latex(doc, engine="pdflatex")
+    """DocumentModelからLaTeXソースを生成 (自動検出エンジン用)"""
+    return generate_document_latex(doc, engine=DEFAULT_ENGINE)
 
 
 async def compile_pdf(doc: DocumentModel) -> bytes:
     """LaTeX生成 → コンパイル → PDFバイト列
 
     非同期セマフォで同時コンパイル数を制限し、クラウド環境の OOM を防止。
-    pdflatex (~50MB) をデフォルトエンジンとして使用。
+    起動時テスト済みのエンジンを優先使用。
     """
     async with _compile_semaphore:
         return await asyncio.get_event_loop().run_in_executor(
@@ -75,31 +80,38 @@ async def compile_pdf(doc: DocumentModel) -> bytes:
 
 
 def _compile_pdf_sync(doc: DocumentModel) -> bytes:
-    """同期版 PDF 生成 (スレッドプールで実行される)"""
-    # ── Strategy 1: pdflatex (low memory, fast) ──
+    """同期版 PDF 生成 (スレッドプールで実行される)
+
+    エンジン選択順:
+      1. DEFAULT_ENGINE (起動時テスト済み)
+      2. 失敗時はもう一方のエンジンにフォールバック
+    """
+    primary = DEFAULT_ENGINE
+    fallback = "xelatex" if primary == "pdflatex" else "pdflatex"
+
+    # ── Primary engine ──
     try:
-        latex_source = generate_document_latex(doc, engine="pdflatex")
-        pdf = _compile_latex(latex_source, PDFLATEX_CMD, timeout=30)
-        logger.info("PDF generated successfully with pdflatex")
+        latex_source = generate_document_latex(doc, engine=primary)
+        pdf = _compile_latex(latex_source, ENGINE_CMD[primary], timeout=30)
+        logger.info(f"PDF generated successfully with {primary}")
         return pdf
     except PDFGenerationError as e:
-        logger.warning(f"pdflatex failed: {e.user_message}")
-        pdflatex_error = e
+        logger.warning(f"{primary} failed: {e.user_message}")
+        primary_error = e
 
-    # ── Strategy 2: xelatex fallback (opt-in only) ──
-    if ENABLE_XELATEX_FALLBACK:
-        logger.info("Falling back to xelatex (ENABLE_XELATEX_FALLBACK=true)...")
+    # ── Fallback engine ──
+    fallback_ok = XELATEX_OK if fallback == "xelatex" else PDFLATEX_CJK_OK
+    if fallback_ok:
+        logger.info(f"Falling back to {fallback}...")
         try:
-            latex_source = generate_document_latex(doc, engine="xelatex")
-            pdf = _compile_latex(latex_source, XELATEX_CMD, timeout=45)
-            logger.info("PDF generated successfully with xelatex (fallback)")
+            latex_source = generate_document_latex(doc, engine=fallback)
+            pdf = _compile_latex(latex_source, ENGINE_CMD[fallback], timeout=45)
+            logger.info(f"PDF generated successfully with {fallback} (fallback)")
             return pdf
         except PDFGenerationError as e:
-            logger.error(f"xelatex also failed: {e.user_message}")
-            # 両方失敗した場合は pdflatex のエラーを返す
-            raise pdflatex_error
-    else:
-        raise pdflatex_error
+            logger.error(f"{fallback} also failed: {e.user_message}")
+
+    raise primary_error
 
 
 def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> bytes:

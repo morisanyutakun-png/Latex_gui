@@ -87,10 +87,18 @@ async def tex_debug_info():
     """TeX環境の診断情報を返す（デプロイ問題のデバッグ用）"""
     import shutil
     import subprocess
-    from .tex_env import XELATEX_CMD, PDFLATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD, TEX_ENV
+    from .tex_env import (
+        XELATEX_CMD, PDFLATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD, TEX_ENV,
+        DEFAULT_ENGINE, PDFLATEX_CJK_OK, XELATEX_OK,
+    )
     from .generators.document_generator import CJK_MAIN_FONT, CJK_SANS_FONT
 
     info: dict = {
+        "engine": {
+            "default": DEFAULT_ENGINE,
+            "pdflatex_cjk_ok": PDFLATEX_CJK_OK,
+            "xelatex_ok": XELATEX_OK,
+        },
         "commands": {
             "xelatex": {"path": XELATEX_CMD, "exists": shutil.which(XELATEX_CMD) is not None},
             "pdflatex": {"path": PDFLATEX_CMD, "exists": shutil.which(PDFLATEX_CMD) is not None},
