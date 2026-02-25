@@ -5,7 +5,7 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
-import { JapaneseMathInput, SpacingControl } from "./math-japanese-input";
+import { JapaneseMathInput } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { parseInlineText, getInlineMathContext, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
@@ -543,21 +543,13 @@ function MathBlockEditor({ block }: { block: Block }) {
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
 
-  const handleInsert = (latex: string) => {
-    updateContent(block.id, { latex: (content.latex + " " + latex).trim() });
-  };
-
-  const handleJapaneseSubmit = (latex: string) => {
-    if (content.latex.trim()) {
-      updateContent(block.id, { latex: content.latex + " " + latex });
-    } else {
-      updateContent(block.id, { latex });
-    }
-  };
+  const handleApply = useCallback((latex: string, sourceText: string) => {
+    updateContent(block.id, { latex, sourceText });
+  }, [block.id, updateContent]);
 
   return (
     <div className="space-y-2">
-      {/* プレビュー */}
+      {/* プレビュー（確定済み数式） */}
       <div
         className={`flex justify-center py-3 px-4 rounded-lg transition-all cursor-pointer ${
           content.latex
@@ -575,26 +567,14 @@ function MathBlockEditor({ block }: { block: Block }) {
         )}
       </div>
 
-      {/* 編集パネル（統合レイアウト） */}
+      {/* 編集パネル */}
       {isEditing && (
         <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
-          {/* 統合入力（日本語 + LaTeX + 辞書検索） */}
+          {/* 統合入力（日本語 + LaTeX + 辞書検索 + スペース調整） */}
           <JapaneseMathInput
-            onSubmit={handleJapaneseSubmit}
-            onInsert={handleInsert}
-            initialLatex={content.latex}
+            onApply={handleApply}
+            initialSourceText={content.sourceText || content.latex || ""}
           />
-
-          {/* スペース調整（折りたたみ） */}
-          <details className="group">
-            <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
-              <span className="transition-transform group-open:rotate-90">&#9654;</span>
-              スペース調整
-            </summary>
-            <div className="mt-1.5">
-              <SpacingControl onInsert={handleInsert} />
-            </div>
-          </details>
 
           {/* LaTeX コード (上級者向け) */}
           {content.latex && (

@@ -37,6 +37,7 @@ export interface MathContent {
   type: "math";
   latex: string;
   displayMode: boolean;
+  sourceText?: string;
 }
 
 export type ListStyle = "bullet" | "numbered";

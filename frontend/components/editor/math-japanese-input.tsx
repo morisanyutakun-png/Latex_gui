@@ -16,7 +16,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, BookOpen, FlaskConical } from "lucide-react";
+import { Search, BookOpen, FlaskConical, Check } from "lucide-react";
 import { FORMULA_TEMPLATES, type FormulaTemplate } from "./math-dictionary";
 
 // ══════════════════════════════════════════
@@ -24,9 +24,8 @@ import { FORMULA_TEMPLATES, type FormulaTemplate } from "./math-dictionary";
 // ══════════════════════════════════════════
 
 interface JapaneseMathInputProps {
-  onSubmit: (latex: string) => void;
-  onInsert?: (latex: string) => void;
-  initialLatex?: string;
+  onApply: (latex: string, sourceText: string) => void;
+  initialSourceText?: string;
   className?: string;
 }
 
@@ -40,28 +39,40 @@ interface UnifiedSuggestion {
   reading?: string;
 }
 
-export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", className = "" }: JapaneseMathInputProps) {
-  const [inputText, setInputText] = useState("");
+export function JapaneseMathInput({ onApply, initialSourceText = "", className = "" }: JapaneseMathInputProps) {
+  const [inputText, setInputText] = useState(initialSourceText);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [showDictBrowser, setShowDictBrowser] = useState(false);
   const [dictCategory, setDictCategory] = useState("すべて");
   const [dictSearch, setDictSearch] = useState("");
+  const [applied, setApplied] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // parseの結果（日本語→LaTeX変換 or LaTeX直書きパススルー）
-  const newLatex = useMemo(() => {
+  const currentLatex = useMemo(() => {
     if (inputText.trim()) {
       return parseJapanesemath(inputText);
     }
     return "";
   }, [inputText]);
 
-  const previewLatex = useMemo(() => {
-    if (newLatex) {
-      return initialLatex ? initialLatex + " " + newLatex : newLatex;
+  // 反映ハンドラ（入力テキストはクリアしない）
+  const handleApply = useCallback(() => {
+    if (currentLatex.trim()) {
+      onApply(currentLatex, inputText);
+      setApplied(true);
+      setTimeout(() => setApplied(false), 1500);
     }
-    return initialLatex;
-  }, [newLatex, initialLatex]);
+  }, [currentLatex, inputText, onApply]);
+
+  // 入力テキストにLaTeX/テキストを挿入（辞書・公式・スペース用）
+  const insertToInput = useCallback((text: string) => {
+    setInputText(prev => {
+      const needsSpace = prev.trim() && !prev.endsWith(" ");
+      return prev + (needsSpace ? " " : "") + text;
+    });
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
 
   // 統合候補生成: Japanese suggestion + 辞書検索を統合
   const suggestions = useMemo((): UnifiedSuggestion[] => {
@@ -144,17 +155,12 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
         words[words.length - 1] = s.reading;
         setInputText(words.join(" ") + " ");
       } else {
-        // Dictionary match: insert latex directly
-        if (onInsert) {
-          onInsert(s.latex);
-        } else {
-          onSubmit(s.latex);
-        }
-        setInputText("");
+        // Dictionary/formula match: insert LaTeX into input text
+        insertToInput(s.latex);
       }
       requestAnimationFrame(() => inputRef.current?.focus());
     },
-    [suggestions, inputText, onInsert, onSubmit]
+    [suggestions, inputText, insertToInput]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -177,10 +183,7 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (newLatex.trim()) {
-        onSubmit(newLatex);
-        setInputText("");
-      }
+      handleApply();
     }
   };
 
@@ -255,13 +258,8 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
     } else {
       latex = item.entry.latex;
     }
-    if (onInsert) {
-      onInsert(latex);
-    } else {
-      onSubmit(latex);
-    }
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, [onInsert, onSubmit]);
+    insertToInput(latex);
+  }, [insertToInput]);
 
   return (
     <div className={`space-y-2 ${className}`}>
@@ -326,31 +324,58 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
             ))}
             <div className="px-3 py-1.5 bg-muted/30 border-t text-[9px] text-muted-foreground">
               <kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> で選択
-              <kbd className="px-1 rounded bg-muted font-mono ml-2">Enter</kbd> で確定
+              <kbd className="px-1 rounded bg-muted font-mono ml-2">Enter</kbd> で反映
             </div>
           </div>
         )}
       </div>
 
       {/* Live preview */}
-      {previewLatex && (
+      {currentLatex && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200/50 dark:border-violet-800/50">
-          <span className="text-[9px] text-violet-400 font-medium shrink-0">
-            {newLatex ? "プレビュー" : "現在の数式"}
-          </span>
+          <span className="text-[9px] text-violet-400 font-medium shrink-0">プレビュー</span>
           <div className="flex-1 flex justify-center overflow-auto">
-            <MathRenderer latex={previewLatex} displayMode={false} />
+            <MathRenderer latex={currentLatex} displayMode={false} />
           </div>
         </div>
       )}
 
-      {/* Enter hint when there's new input */}
-      {newLatex && (
-        <div className="text-[9px] text-emerald-600/70 flex items-center gap-1">
-          <kbd className="px-1 rounded bg-emerald-100 dark:bg-emerald-900/30 font-mono text-[8px]">Enter</kbd>
-          <span>で追加（多項式: 項ごとにEnterで確定）</span>
+      {/* 反映ボタン + クリア */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleApply}
+          disabled={!currentLatex.trim()}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+        >
+          <Check className="h-3 w-3" />
+          数式を反映
+        </button>
+        {inputText && (
+          <button
+            onClick={() => setInputText("")}
+            className="px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            クリア
+          </button>
+        )}
+        {applied && (
+          <span className="text-xs text-emerald-600 font-medium animate-in fade-in duration-200">✓ 反映しました</span>
+        )}
+        <span className="text-[9px] text-muted-foreground/50 ml-auto">
+          <kbd className="px-1 rounded bg-muted font-mono text-[8px]">Enter</kbd> でも反映
+        </span>
+      </div>
+
+      {/* スペース調整（折りたたみ） */}
+      <details className="group">
+        <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
+          <span className="transition-transform group-open:rotate-90">&#9654;</span>
+          スペース調整
+        </summary>
+        <div className="mt-1.5">
+          <SpacingControl onInsert={insertToInput} />
         </div>
-      )}
+      </details>
 
       {/* 辞書ブラウザ（トグル） */}
       <div>
@@ -399,7 +424,7 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
             <div className="px-3 py-0.5 text-[9px] text-muted-foreground/60 border-b border-border/30">
               {dictBrowserItems.length}件
               {(dictSearch.trim() || inputText.trim()) && " (絞り込み中)"}
-              {" — クリックで挿入"}
+              {" — クリックで入力欄に追加"}
             </div>
             <ScrollArea className="h-44">
               <div className="p-1.5 space-y-0.5">

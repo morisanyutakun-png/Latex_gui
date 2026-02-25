@@ -32,6 +32,7 @@ class MathContent(CamelModel):
     type: Literal["math"] = "math"
     latex: str = ""
     display_mode: bool = True
+    source_text: Optional[str] = None
 
 
 class ListContent(CamelModel):
