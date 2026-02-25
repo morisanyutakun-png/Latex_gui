@@ -83,7 +83,7 @@ function katakanaToHiragana(s: string): string {
  * Ａ-Ｚ, ａ-ｚ, ０-９ → A-Z, a-z, 0-9
  * ＋, －, ＝, ×, （, ）, etc.
  */
-function zenkakuToHankaku(s: string): string {
+export function zenkakuToHankaku(s: string): string {
   return s
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) =>
       String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
@@ -387,7 +387,7 @@ export const MATH_DICTIONARY: MathDictEntry[] = [
   // ══════════════════════════════════════
   // 微積分
   // ══════════════════════════════════════
-  { reading: "積分", aliases: ["せきぶん", "インテグラル"],
+  { reading: "積分", aliases: ["せきぶん", "インテグラル", "いんてぐらる"],
     latex: "\\int_{A}^{B}", kind: "binary",
     description: "定積分: 「0から1まで積分」",
     category: "微積分",
@@ -1316,9 +1316,43 @@ const VAR       = `[a-zA-Zα-ωΑ-Ω\\d\\\\{}()]+`; // 変数・LaTeXコマン�
  *   "ベクトルa" / "ハットa"     → \vec{a} / \hat{a}
  *   etc.
  */
+/**
+ * 入力がすでにLaTeX記法を含むかを判定
+ * バックスラッシュコマンド、^、_、{} のペアなどがあればLaTeX的
+ */
+function containsLatexNotation(s: string): boolean {
+  // バックスラッシュコマンド (\frac, \int, \alpha, etc.)
+  if (/\\[a-zA-Z]+/.test(s)) return true;
+  // 上付き/下付き (x^2, a_1, etc.)
+  if (/[\^_]/.test(s)) return true;
+  // 中括弧ペア ({...})
+  if (/\{[^}]*\}/.test(s)) return true;
+  return false;
+}
+
+/**
+ * 純粋な算術式かどうかを判定 (2+4, 3*5, x=2 など)
+ * 日本語文字が含まれていなければ算術式とみなす
+ */
+function isPureArithmetic(s: string): boolean {
+  // 日本語文字（ひらがな、カタカナ、漢字）が含まれていない
+  return !/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(s);
+}
+
 export function parseJapanesemath(input: string): string {
   let result = input.trim();
   if (!result) return "";
+
+  // ── Phase -1: LaTeX / 算術式のパススルー ──
+  // 入力がすでにLaTeX記法や純粋な算術式の場合、そのまま返す
+  if (containsLatexNotation(result)) {
+    // 全角→半角のみ適用してそのまま返す
+    return zenkakuToHankaku(result);
+  }
+  if (isPureArithmetic(result)) {
+    // 全角→半角のみ適用してそのまま返す
+    return zenkakuToHankaku(result);
+  }
 
   // ── Phase 0: 正規化 (全角→半角, カタカナ→ひらがな) ──
   result = normalizeForParse(result);
@@ -1431,23 +1465,27 @@ export function parseJapanesemath(input: string): string {
 
   // ── Phase 4: 辞書引き (残りの記号・関数) ──
   // 正規化済み入力に対して、辞書のreading/aliasesを正規化比較
+  // binary/unary もプレースホルダーを除去して記号部分のみ挿入
   for (const entry of MATH_DICTIONARY) {
-    if (entry.kind === "symbol" || entry.kind === "operator" || entry.kind === "relation") {
-      const normReading = normalizeForMatch(entry.reading);
-      // Reading でマッチ (正規化済みの入力にはひらがな形がある)
-      if (normReading.length > 1 && result.includes(normReading)) {
-        result = result.split(normReading).join(entry.latex + " ");
+    // すべてのkindを処理対象にする
+    const normReading = normalizeForMatch(entry.reading);
+    // binary/unary の場合、プレースホルダー {A}, {B}, {N} を除去して記号のみにする
+    const entryLatex = (entry.kind === "binary" || entry.kind === "unary")
+      ? entry.latex.replace(/\{[A-Z]\}/g, "").replace(/_\s*\^/g, "").trim()
+      : entry.latex;
+    // Reading でマッチ (正規化済みの入力にはひらがな形がある)
+    if (normReading.length > 1 && result.includes(normReading)) {
+      result = result.split(normReading).join(entryLatex + " ");
+    }
+    // Aliases でマッチ
+    for (const alias of entry.aliases) {
+      const normAlias = normalizeForMatch(alias);
+      if (normAlias.length > 1 && result.includes(normAlias)) {
+        result = result.split(normAlias).join(entryLatex + " ");
       }
-      // Aliases でマッチ
-      for (const alias of entry.aliases) {
-        const normAlias = normalizeForMatch(alias);
-        if (normAlias.length > 1 && result.includes(normAlias)) {
-          result = result.split(normAlias).join(entry.latex + " ");
-        }
-        // 漢字形そのままでもマッチ (正規化で変わらない文字列)
-        if (alias.length > 1 && alias !== normAlias && result.includes(alias)) {
-          result = result.split(alias).join(entry.latex + " ");
-        }
+      // 漢字形そのままでもマッチ (正規化で変わらない文字列)
+      if (alias.length > 1 && alias !== normAlias && result.includes(alias)) {
+        result = result.split(alias).join(entryLatex + " ");
       }
     }
   }

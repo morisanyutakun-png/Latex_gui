@@ -5,37 +5,54 @@ import { MathRenderer } from "./math-editor";
 import {
   parseJapanesemath,
   getJapaneseSuggestions,
+  MATH_DICTIONARY,
   SPACING_PRESETS,
   LATEX_TRANSLATIONS,
+  normalizeForMatch,
   type SpacingPreset,
   type LatexTranslation,
+  type MathDictEntry,
 } from "@/lib/math-japanese";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Search, BookOpen } from "lucide-react";
 
 // ══════════════════════════════════════════
-// 日本語数式入力コンポーネント
+// 統合数式入力コンポーネント（日本語 + LaTeX + 辞書検索）
 // ══════════════════════════════════════════
 
 interface JapaneseMathInputProps {
   onSubmit: (latex: string) => void;
+  onInsert?: (latex: string) => void;
   initialLatex?: string;
   className?: string;
 }
 
-export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" }: JapaneseMathInputProps) {
-  const [japaneseText, setJapaneseText] = useState("");
+/** 統合候補の型 */
+interface UnifiedSuggestion {
+  type: "parse" | "dict" | "formula";
+  display: string;
+  latex: string;
+  preview: string;
+  category: string;
+  reading?: string;
+}
+
+export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", className = "" }: JapaneseMathInputProps) {
+  const [inputText, setInputText] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [showDictBrowser, setShowDictBrowser] = useState(false);
+  const [dictCategory, setDictCategory] = useState("すべて");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Derive preview latex from japanese text (shows existing + new combined)
+  // parseの結果（日本語→LaTeX変換 or LaTeX直書きパススルー）
   const newLatex = useMemo(() => {
-    if (japaneseText.trim()) {
-      return parseJapanesemath(japaneseText);
+    if (inputText.trim()) {
+      return parseJapanesemath(inputText);
     }
     return "";
-  }, [japaneseText]);
+  }, [inputText]);
 
   const previewLatex = useMemo(() => {
     if (newLatex) {
@@ -44,21 +61,79 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
     return initialLatex;
   }, [newLatex, initialLatex]);
 
-  // Derive suggestions from japanese text
-  const suggestions = useMemo(() => {
-    return getJapaneseSuggestions(japaneseText);
-  }, [japaneseText]);
+  // 統合候補生成: Japanese suggestion + 辞書検索を統合
+  const suggestions = useMemo((): UnifiedSuggestion[] => {
+    if (!inputText.trim()) return [];
+    const results: UnifiedSuggestion[] = [];
+    const seen = new Set<string>();
+
+    // 1. Japanese math suggestions (reading-based)
+    const jpSuggestions = getJapaneseSuggestions(inputText);
+    for (const s of jpSuggestions) {
+      const key = s.latex;
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({
+          type: "parse",
+          display: `${s.reading} → ${s.category}`,
+          latex: s.latex,
+          preview: s.preview,
+          category: s.category,
+          reading: s.reading,
+        });
+      }
+    }
+
+    // 2. Full dictionary search (broader: includes description, LaTeX code match)
+    const q = inputText.trim().toLowerCase();
+    const normQ = normalizeForMatch(inputText.trim());
+    for (const entry of MATH_DICTIONARY) {
+      const key = entry.latex;
+      if (seen.has(key)) continue;
+      // LaTeXコード自体にマッチ (e.g., "\\int" or "frac")
+      const latexLower = entry.latex.toLowerCase();
+      const descMatch = entry.description.toLowerCase().includes(q);
+      const latexMatch = latexLower.includes(q) || latexLower.includes(normQ);
+      const categoryMatch = entry.category.toLowerCase().includes(q);
+      if (descMatch || latexMatch || categoryMatch) {
+        seen.add(key);
+        const preview = entry.latex.replace(/\{[AB]\}/g, "").replace(/\{N\}/g, "");
+        results.push({
+          type: "dict",
+          display: `${entry.reading} — ${entry.description}`,
+          latex: entry.kind === "binary" || entry.kind === "unary"
+            ? entry.latex.replace(/\{[A-Z]\}/g, "").replace(/_\s*\^/g, "").trim()
+            : entry.latex,
+          preview,
+          category: entry.category,
+        });
+      }
+    }
+
+    return results.slice(0, 12);
+  }, [inputText]);
 
   const acceptSuggestion = useCallback(
     (idx: number) => {
       const s = suggestions[idx];
       if (!s) return;
-      const words = japaneseText.split(/[\s　]+/);
-      words[words.length - 1] = s.reading;
-      setJapaneseText(words.join(" ") + " ");
+      if (s.reading) {
+        // Japanese suggestion: replace last word with the reading
+        const words = inputText.split(/[\s　]+/);
+        words[words.length - 1] = s.reading;
+        setInputText(words.join(" ") + " ");
+      } else {
+        // Dictionary match: insert latex directly
+        if (onInsert) {
+          onInsert(s.latex);
+        } else {
+          onSubmit(s.latex);
+        }
+        setInputText("");
+      }
       requestAnimationFrame(() => inputRef.current?.focus());
     },
-    [suggestions, japaneseText]
+    [suggestions, inputText, onInsert, onSubmit]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -83,7 +158,7 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
       e.preventDefault();
       if (newLatex.trim()) {
         onSubmit(newLatex);
-        setJapaneseText("");
+        setInputText("");
       }
     }
   };
@@ -94,29 +169,60 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
       inputRef.current.style.height = "auto";
       inputRef.current.style.height = Math.max(36, inputRef.current.scrollHeight) + "px";
     }
-  }, [japaneseText]);
+  }, [inputText]);
+
+  // 辞書ブラウザ用カテゴリリスト
+  const dictCategories = useMemo(() => {
+    const cats = new Set<string>();
+    for (const e of MATH_DICTIONARY) cats.add(e.category);
+    return ["すべて", ...Array.from(cats)];
+  }, []);
+
+  // 辞書ブラウザ用フィルタ
+  const dictBrowserItems = useMemo(() => {
+    let items = [...MATH_DICTIONARY];
+    if (dictCategory !== "すべて") {
+      items = items.filter((e) => e.category === dictCategory);
+    }
+    return items;
+  }, [dictCategory]);
+
+  const handleDictInsert = useCallback((entry: MathDictEntry) => {
+    const latex = (entry.kind === "binary" || entry.kind === "unary")
+      ? entry.latex.replace(/\{[A-Z]\}/g, "").replace(/_\s*\^/g, "").trim()
+      : entry.latex;
+    if (onInsert) {
+      onInsert(latex);
+    } else {
+      onSubmit(latex);
+    }
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [onInsert, onSubmit]);
 
   return (
     <div className={`space-y-2 ${className}`}>
-      {/* Japanese input */}
+      {/* 統合入力エリア */}
       <div className="relative">
-        <div className="absolute left-2.5 top-2 text-[10px] font-medium text-emerald-500 select-none pointer-events-none z-10">
-          日本語
+        <div className="absolute left-2.5 top-2 flex items-center gap-1">
+          <Search className="h-3 w-3 text-emerald-500/70" />
+          <span className="text-[9px] font-medium text-emerald-500 select-none pointer-events-none">
+            数式入力
+          </span>
         </div>
         <textarea
           ref={inputRef}
-          value={japaneseText}
-          onChange={(e) => { setJapaneseText(e.target.value); setSelectedIdx(0); }}
+          value={inputText}
+          onChange={(e) => { setInputText(e.target.value); setSelectedIdx(0); }}
           onKeyDown={handleKeyDown}
-          placeholder="例: 2分の1 たす ルート3  |  xの2乗 たす yの2乗 イコール rの2乗"
-          className="w-full pl-12 pr-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-emerald-800 focus:ring-emerald-400 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans"
+          placeholder="日本語: 2分のx たす ルート3  |  LaTeX: \frac{x}{2} + \sqrt{3}  |  算術: 2^2 + 4"
+          className="w-full pl-16 pr-3 py-2 text-sm rounded-lg border border-emerald-200 dark:border-emerald-800 focus:ring-emerald-400 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans"
           rows={1}
         />
 
-        {/* Suggestions */}
+        {/* 統合候補ドロップダウン */}
         {suggestions.length > 0 && (
           <div className="absolute z-50 mt-1 w-full bg-background border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-            {suggestions.map((s: { preview: string; display: string; category: string; reading: string; latex: string }, i: number) => (
+            {suggestions.map((s, i) => (
               <button
                 key={i}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
@@ -132,19 +238,26 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
                   <MathRenderer latex={s.preview} displayMode={false} className="scale-[0.6] origin-center" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs font-medium truncate block">{s.display}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-medium truncate">{s.display}</span>
+                    {s.type === "dict" && (
+                      <span className="px-1 py-0 rounded text-[7px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shrink-0">
+                        辞書
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[9px] text-muted-foreground">{s.category}</span>
                 </div>
                 {i === selectedIdx && (
                   <kbd className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono shrink-0">
-                    Tab
+                    {s.reading ? "Tab" : "Tab/Enter"}
                   </kbd>
                 )}
               </button>
             ))}
             <div className="px-3 py-1.5 bg-muted/30 border-t text-[9px] text-muted-foreground">
               <kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> で選択
-              <kbd className="px-1 rounded bg-muted font-mono">Enter</kbd> で確定
+              <kbd className="px-1 rounded bg-muted font-mono ml-2">Enter</kbd> で確定
             </div>
           </div>
         )}
@@ -170,12 +283,76 @@ export function JapaneseMathInput({ onSubmit, initialLatex = "", className = "" 
         </div>
       )}
 
+      {/* 辞書ブラウザ（トグル） */}
+      <div>
+        <button
+          onClick={() => setShowDictBrowser(!showDictBrowser)}
+          className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50"
+        >
+          <BookOpen className="h-3 w-3" />
+          <span>辞書・公式ブラウザ</span>
+          <span className={`text-[9px] transition-transform ${showDictBrowser ? "rotate-180" : ""}`}>▼</span>
+        </button>
+
+        {showDictBrowser && (
+          <div className="mt-1.5 border rounded-xl overflow-hidden bg-background shadow-sm">
+            {/* カテゴリタブ */}
+            <div className="px-2 pt-2 pb-1.5 overflow-x-auto border-b border-border/30">
+              <div className="flex gap-1 min-w-max">
+                {dictCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setDictCategory(cat)}
+                    className={`px-2 py-1 rounded-md text-[10px] font-medium whitespace-nowrap transition-all ${
+                      dictCategory === cat
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="px-3 py-0.5 text-[9px] text-muted-foreground/60 border-b border-border/30">
+              {dictBrowserItems.length}件 — クリックで挿入
+            </div>
+            <ScrollArea className="h-44">
+              <div className="p-1.5 space-y-0.5">
+                {dictBrowserItems.map((entry, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleDictInsert(entry)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-primary/8 active:bg-primary/15 transition-colors group text-left"
+                  >
+                    <div className="w-16 shrink-0 flex justify-center overflow-hidden">
+                      <MathRenderer
+                        latex={entry.latex.replace(/\{[AB]\}/g, "").replace(/\{N\}/g, "")}
+                        displayMode={false}
+                        className="scale-[0.7] origin-center"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] font-medium truncate block">{entry.reading}</span>
+                      <span className="text-[9px] text-muted-foreground/70 truncate block">{entry.description}</span>
+                    </div>
+                    <span className="text-[8px] font-mono text-muted-foreground/40 group-hover:text-muted-foreground/80 truncate max-w-[80px] shrink-0 transition-colors">
+                      {entry.latex.length > 25 ? entry.latex.slice(0, 25) + "…" : entry.latex}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+      </div>
+
       {/* Usage hints */}
       <div className="text-[9px] text-muted-foreground/60 leading-relaxed">
-        💡 「<span className="text-emerald-600 font-medium">2分の1</span>」→ ½
-        「<span className="text-emerald-600 font-medium">xの2乗</span>」→ x²
-        「<span className="text-emerald-600 font-medium">ルート2</span>」→ √2
-        「<span className="text-emerald-600 font-medium">アルファ たす ベータ</span>」→ α+β
+        💡 日本語:「<span className="text-emerald-600 font-medium">2分の1</span>」→ ½ 
+        「<span className="text-emerald-600 font-medium">いんてぐらる</span>」→ ∫ 
+        | LaTeX: <span className="text-blue-600 font-medium">\frac&#123;1&#125;&#123;2&#125;</span> 
+        | 算術: <span className="text-orange-600 font-medium">x^2 + 1</span>
       </div>
     </div>
   );

@@ -5,7 +5,6 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
-import { MathDictionary } from "./math-dictionary";
 import { JapaneseMathInput, SpacingControl } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { parseInlineText, getInlineMathContext, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
@@ -586,22 +585,12 @@ function MathBlockEditor({ block }: { block: Block }) {
       {/* 編集パネル（統合レイアウト） */}
       {isEditing && (
         <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
-          {/* 日本語入力（メイン・常時表示） */}
+          {/* 統合入力（日本語 + LaTeX + 辞書検索） */}
           <JapaneseMathInput
             onSubmit={handleJapaneseSubmit}
+            onInsert={handleInsert}
             initialLatex={content.latex}
           />
-
-          {/* 辞書・公式（折りたたみ） */}
-          <details className="group">
-            <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
-              <span className="transition-transform group-open:rotate-90">&#9654;</span>
-              辞書・公式を参照
-            </summary>
-            <div className="mt-1.5">
-              <MathDictionary onInsert={handleInsert} />
-            </div>
-          </details>
 
           {/* スペース調整（折りたたみ） */}
           <details className="group">
