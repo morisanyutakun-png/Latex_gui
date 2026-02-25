@@ -7,6 +7,19 @@ services:
       - "8000:8000"
     environment:
       - ALLOWED_ORIGINS=http://localhost:3000
+      - MAX_CONCURRENT_COMPILES=2
+      - COMPILE_MEM_LIMIT_MB=256
+      - REQUEST_TIMEOUT_SECONDS=60
+    # クラウド環境でのメモリ制限 (OOM 防止)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    # Docker Engine の mem_limit (deploy 未使用の場合)
+    mem_limit: 512m
+    memswap_limit: 512m
 
   frontend:
     build: ./frontend

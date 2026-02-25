@@ -1,9 +1,16 @@
 """
 PDF生成サービス: LaTeX生成 → コンパイル → PDF返却
 
-メモリ効率のため pdflatex を優先使用し、失敗時のみ xelatex にフォールバック。
-pdflatex: ~50MB / xelatex: ~200-500MB (クラウド環境で OOM 回避)
+軽量クラウド対応:
+  - pdflatex のみ使用 (~50MB)。xelatex (~200-500MB) は ENV で明示的に有効化した場合のみ。
+  - asyncio Semaphore で最大同時コンパイル数を制限 (OOM 防止)
+  - subprocess にメモリ上限を設定 (Linux cgroup / ulimit)
+  - 単一パスコンパイル (-draftmode なし) でメモリ・時間を節約
 """
+import asyncio
+import gc
+import os
+import platform
 import subprocess
 import tempfile
 import logging
@@ -15,6 +22,18 @@ from .tex_env import TEX_ENV, XELATEX_CMD, PDFLATEX_CMD
 
 logger = logging.getLogger(__name__)
 
+# ── 同時コンパイル制限 ──
+# 環境変数 MAX_CONCURRENT_COMPILES で調整可能 (デフォルト: 2)
+MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "2"))
+_compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+
+# xelatex フォールバックを有効にするか (デフォルト: 無効 = 軽量モード)
+ENABLE_XELATEX_FALLBACK = os.environ.get("ENABLE_XELATEX_FALLBACK", "").lower() in ("1", "true", "yes")
+
+# メモリ上限 (bytes)。Linux で resource.setrlimit に使用。デフォルト 256MB
+MEM_LIMIT_MB = int(os.environ.get("COMPILE_MEM_LIMIT_MB", "256"))
+MEM_LIMIT_BYTES = MEM_LIMIT_MB * 1024 * 1024
+
 
 class PDFGenerationError(Exception):
     """PDF生成時のエラー（ユーザー向けメッセージ付き）"""
@@ -24,17 +43,39 @@ class PDFGenerationError(Exception):
         super().__init__(user_message)
 
 
+def _make_preexec_fn():
+    """subprocess 実行前にメモリ上限を設定する関数を返す (Linux のみ)"""
+    if platform.system() != "Linux":
+        return None
+    def _set_limits():
+        try:
+            import resource
+            # RLIMIT_AS: 仮想メモリ上限
+            resource.setrlimit(resource.RLIMIT_AS, (MEM_LIMIT_BYTES, MEM_LIMIT_BYTES))
+        except Exception:
+            pass  # 設定失敗しても続行
+    return _set_limits
+
+
 def generate_latex(doc: DocumentModel) -> str:
     """DocumentModelからLaTeXソースを生成 (pdflatex互換)"""
     return generate_document_latex(doc, engine="pdflatex")
 
 
-def compile_pdf(doc: DocumentModel) -> bytes:
-    """LaTeX生成 → コンパイル → PDFバイト列 (pdflatex優先、xelatexフォールバック)
+async def compile_pdf(doc: DocumentModel) -> bytes:
+    """LaTeX生成 → コンパイル → PDFバイト列
 
-    pdflatex は ~50MB、xelatex は ~200-500MB のメモリを使用。
-    クラウド環境（Koyeb等）での OOM SIGKILL を回避するため pdflatex を優先。
+    非同期セマフォで同時コンパイル数を制限し、クラウド環境の OOM を防止。
+    pdflatex (~50MB) をデフォルトエンジンとして使用。
     """
+    async with _compile_semaphore:
+        return await asyncio.get_event_loop().run_in_executor(
+            None, _compile_pdf_sync, doc
+        )
+
+
+def _compile_pdf_sync(doc: DocumentModel) -> bytes:
+    """同期版 PDF 生成 (スレッドプールで実行される)"""
     # ── Strategy 1: pdflatex (low memory, fast) ──
     try:
         latex_source = generate_document_latex(doc, engine="pdflatex")
@@ -43,13 +84,22 @@ def compile_pdf(doc: DocumentModel) -> bytes:
         return pdf
     except PDFGenerationError as e:
         logger.warning(f"pdflatex failed: {e.user_message}")
+        pdflatex_error = e
 
-    # ── Strategy 2: xelatex fallback (better font/unicode, more memory) ──
-    logger.info("Falling back to xelatex...")
-    latex_source = generate_document_latex(doc, engine="xelatex")
-    pdf = _compile_latex(latex_source, XELATEX_CMD, timeout=45)
-    logger.info("PDF generated successfully with xelatex (fallback)")
-    return pdf
+    # ── Strategy 2: xelatex fallback (opt-in only) ──
+    if ENABLE_XELATEX_FALLBACK:
+        logger.info("Falling back to xelatex (ENABLE_XELATEX_FALLBACK=true)...")
+        try:
+            latex_source = generate_document_latex(doc, engine="xelatex")
+            pdf = _compile_latex(latex_source, XELATEX_CMD, timeout=45)
+            logger.info("PDF generated successfully with xelatex (fallback)")
+            return pdf
+        except PDFGenerationError as e:
+            logger.error(f"xelatex also failed: {e.user_message}")
+            # 両方失敗した場合は pdflatex のエラーを返す
+            raise pdflatex_error
+    else:
+        raise pdflatex_error
 
 
 def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> bytes:
@@ -77,6 +127,7 @@ def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> byt
                 timeout=timeout,
                 cwd=tmpdir,
                 env=TEX_ENV,
+                preexec_fn=_make_preexec_fn(),
             )
         except FileNotFoundError:
             raise PDFGenerationError(
@@ -114,7 +165,11 @@ def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> byt
                 detail=f"PDF not found after {engine_name} compilation"
             )
 
-        return pdf_path.read_bytes()
+        pdf_bytes = pdf_path.read_bytes()
+
+    # コンパイル後に GC を促進 (メモリ逼迫時の回収)
+    gc.collect()
+    return pdf_bytes
 
 
 def _parse_latex_error(log: str) -> str:

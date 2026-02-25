@@ -1,11 +1,11 @@
-"""
-FastAPI メインアプリケーション
-"""
+"""FastAPI メインアプリケーション (クラウド軽量版)"""
 import os
 import logging
-from fastapi import FastAPI, HTTPException
+import asyncio
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .models import DocumentModel, ErrorResponse
 from .pdf_service import compile_pdf, generate_latex, PDFGenerationError
@@ -14,11 +14,31 @@ from .preview_service import preview_block_svg
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# リクエストタイムアウト (PDF生成が長すぎる場合に打ち切り)
+REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT_SECONDS", "60"))
+
+
+class TimeoutMiddleware(BaseHTTPMiddleware):
+    """リクエスト全体のタイムアウトを設定するミドルウェア"""
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await asyncio.wait_for(
+                call_next(request), timeout=REQUEST_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                status_code=504,
+                content={"success": False, "message": "リクエストがタイムアウトしました。内容を短くして再度お試しください。"},
+            )
+
 app = FastAPI(
     title="LaTeX GUI - PDF生成API",
-    description="GUIで作成した文書をPDF化するAPI",
-    version="0.1.0",
+    description="GUIで作成した文書をPDF化するAPI (クラウド軽量版)",
+    version="0.2.0",
 )
+
+# タイムアウトミドルウェアを追加
+app.add_middleware(TimeoutMiddleware)
 
 # CORS設定（環境変数 ALLOWED_ORIGINS でカンマ区切り指定可能）
 _default_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
@@ -36,7 +56,30 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "message": "PDF生成サーバーは正常に動作しています"}
+    """ヘルスチェック + メモリ使用量レポート"""
+    mem_info = _get_memory_info()
+    return {
+        "status": "ok",
+        "message": "PDF生成サーバーは正常に動作しています",
+        "memory": mem_info,
+    }
+
+
+def _get_memory_info() -> dict:
+    """現在のプロセスメモリ使用量を取得"""
+    try:
+        import resource
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        # maxrss は macOS では bytes、Linux では KB
+        import platform
+        maxrss = usage.ru_maxrss
+        if platform.system() == "Linux":
+            maxrss *= 1024  # KB → bytes
+        return {
+            "rss_mb": round(maxrss / (1024 * 1024), 1),
+        }
+    except Exception:
+        return {"rss_mb": -1}
 
 
 @app.get("/api/debug/tex-info")
@@ -221,7 +264,7 @@ async def generate_pdf(doc: DocumentModel):
         })
 
     try:
-        pdf_bytes = compile_pdf(doc)
+        pdf_bytes = await compile_pdf(doc)
     except PDFGenerationError as e:
         logger.error(f"PDF generation failed: {e.detail}")
         raise HTTPException(status_code=422, detail={
