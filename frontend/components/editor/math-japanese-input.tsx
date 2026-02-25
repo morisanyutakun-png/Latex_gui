@@ -399,35 +399,91 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
           <span className="transition-transform group-open:rotate-90">&#9654;</span>
           スペース区切り構文ガイド
         </summary>
-        <div className="mt-1.5 p-3 rounded-lg bg-muted/30 border border-border/50 space-y-2">
+        <div className="mt-1.5 p-3 rounded-lg bg-muted/30 border border-border/50 space-y-3">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             <span className="font-medium text-foreground/80">スペースは項のグループ化に使います。</span>
             スペースなしで繋げた文字列はひとまとまりの項として扱われます。
+            <span className="font-medium text-foreground/80">添え字（_）や上付き（^）も日本語と混在できます。</span>
           </p>
-          <div className="space-y-1.5">
-            {[
-              { input: "1+2分の3", result: "\\frac{3}{1+2}", desc: "1+2 が分母、3 が分子" },
-              { input: "1+ 2分の3", result: "1+\\frac{3}{2}", desc: "2 が分母、3 が分子、1+ は別の項" },
-              { input: "a+bのc乗", result: "(a+b)^{c}", desc: "a+b 全体が底" },
-              { input: "a +bのc乗", result: "a+b^{c}", desc: "b だけが底、a は別の項" },
-              { input: "ルートa+b", result: "\\sqrt{a+b}", desc: "a+b 全体が根号の中" },
-              { input: "ルートa +b", result: "\\sqrt{a}+b", desc: "a だけが根号の中" },
-            ].map((ex, i) => (
-              <div key={i} className="flex items-center gap-2 text-[10px]">
-                <code className="px-1.5 py-0.5 rounded bg-background border border-border/50 font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                  {ex.input}
-                </code>
-                <span className="text-muted-foreground/50">→</span>
-                <div className="w-24 shrink-0 flex justify-center overflow-hidden">
-                  <MathRenderer latex={ex.result} displayMode={false} className="scale-[0.65] origin-center" />
+
+          {/* 分数 */}
+          <div className="space-y-1">
+            <p className="text-[9px] font-medium text-foreground/60 border-b border-border/20 pb-0.5">分数（〇分の△）</p>
+            <div className="space-y-1.5">
+              {[
+                { input: "R+R_2分のV", result: "\\frac{V}{R+R_{2}}", desc: "R+R₂ が分母、V が分子" },
+                { input: "1+2分の3", result: "\\frac{3}{1+2}", desc: "1+2 が分母、3 が分子" },
+                { input: "1+ 2分の3", result: "1+\\frac{3}{2}", desc: "スペースで分断 → 2が分母" },
+                { input: "a_1+b分のc^2", result: "\\frac{c^{2}}{a_{1}+b}", desc: "添え字・上付きも項に含む" },
+              ].map((ex, i) => (
+                <div key={i} className="flex items-center gap-2 text-[10px]">
+                  <code className="px-1.5 py-0.5 rounded bg-background border border-border/50 font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {ex.input}
+                  </code>
+                  <span className="text-muted-foreground/50">→</span>
+                  <div className="w-28 shrink-0 flex justify-center overflow-hidden">
+                    <MathRenderer latex={ex.result} displayMode={false} className="scale-[0.6] origin-center" />
+                  </div>
+                  <span className="text-muted-foreground/70 text-[9px]">{ex.desc}</span>
                 </div>
-                <span className="text-muted-foreground/70 text-[9px]">{ex.desc}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+
+          {/* 累乗・根号 */}
+          <div className="space-y-1">
+            <p className="text-[9px] font-medium text-foreground/60 border-b border-border/20 pb-0.5">累乗・根号</p>
+            <div className="space-y-1.5">
+              {[
+                { input: "a+bのc乗", result: "(a+b)^{c}", desc: "a+b 全体が底" },
+                { input: "a +bのc乗", result: "a+b^{c}", desc: "b だけが底、a は別の項" },
+                { input: "ルートa+b", result: "\\sqrt{a+b}", desc: "a+b 全体が根号の中" },
+                { input: "ルートa +b", result: "\\sqrt{a}+b", desc: "a だけが根号の中" },
+              ].map((ex, i) => (
+                <div key={i} className="flex items-center gap-2 text-[10px]">
+                  <code className="px-1.5 py-0.5 rounded bg-background border border-border/50 font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {ex.input}
+                  </code>
+                  <span className="text-muted-foreground/50">→</span>
+                  <div className="w-28 shrink-0 flex justify-center overflow-hidden">
+                    <MathRenderer latex={ex.result} displayMode={false} className="scale-[0.6] origin-center" />
+                  </div>
+                  <span className="text-muted-foreground/70 text-[9px]">{ex.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 添え字 */}
+          <div className="space-y-1">
+            <p className="text-[9px] font-medium text-foreground/60 border-b border-border/20 pb-0.5">添え字・上付き</p>
+            <div className="space-y-1.5">
+              {[
+                { input: "R_2", result: "R_{2}", desc: "_ で下付き添え字" },
+                { input: "x^2", result: "x^{2}", desc: "^ で上付き" },
+                { input: "R添え字2", result: "R_{2}", desc: "日本語でも書ける" },
+                { input: "x上付き2", result: "x^{2}", desc: "日本語でも書ける" },
+              ].map((ex, i) => (
+                <div key={i} className="flex items-center gap-2 text-[10px]">
+                  <code className="px-1.5 py-0.5 rounded bg-background border border-border/50 font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {ex.input}
+                  </code>
+                  <span className="text-muted-foreground/50">→</span>
+                  <div className="w-28 shrink-0 flex justify-center overflow-hidden">
+                    <MathRenderer latex={ex.result} displayMode={false} className="scale-[0.6] origin-center" />
+                  </div>
+                  <span className="text-muted-foreground/70 text-[9px]">{ex.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <p className="text-[9px] text-muted-foreground/50 pt-1 border-t border-border/30">
-            💡 <span className="font-medium">コツ:</span> 複数の項を分数や根号でまとめたいときは<span className="text-emerald-600 font-medium">スペースなし</span>で繋げ、
-            分けたいところに<span className="text-amber-600 font-medium">半角スペース</span>を入れてください。
+            💡 <span className="font-medium">ルール:</span>{" "}
+            <span className="text-emerald-600 font-medium">スペースなし</span>＝ひとまとまりの項、{" "}
+            <span className="text-amber-600 font-medium">半角スペース</span>＝項の区切り。{" "}
+            <span className="text-blue-600 font-medium">_</span>＝下付き添え字、{" "}
+            <span className="text-blue-600 font-medium">^</span>＝上付き。日本語と自由に混在OK。
           </p>
         </div>
       </details>
@@ -552,15 +608,15 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       <div className="text-[9px] text-muted-foreground/60 leading-relaxed space-y-1">
         <div>
           💡 日本語:<span className="text-emerald-600 font-medium">「2分の1」</span>→ ½ 
-          <span className="text-emerald-600 font-medium">「いんてぐらる」</span>→ ∫ 
+          <span className="text-emerald-600 font-medium">「R_2分のV」</span>→ V/(R₂) 
           | LaTeX: <span className="text-blue-600 font-medium">\frac&#123;1&#125;&#123;2&#125;</span> 
           | 算術: <span className="text-orange-600 font-medium">x^2 + 1</span>
         </div>
         <div>
-          📠 <span className="font-medium text-foreground/60">スペース区切りでグループ化:</span>{" "}
-          <span className="text-emerald-600 font-medium">1+2分の3</span> → (1+2)分の3{" "}
-          | <span className="text-amber-600 font-medium">1+ 2分の3</span> → 1+(¾){" "}
-          | <span className="text-purple-600 font-medium">a ルートb</span> → a√b
+          📐 <span className="font-medium text-foreground/60">スペース区切り:</span>{" "}
+          <span className="text-emerald-600 font-medium">a+b分のc</span> → (a+b)分のc{" "}
+          | <span className="text-amber-600 font-medium">a +b分のc</span> → a+(b分のc){" "}
+          | 添え字: <span className="text-blue-600 font-medium">R_2</span> / <span className="text-blue-600 font-medium">R添え字2</span>
         </div>
       </div>
     </div>

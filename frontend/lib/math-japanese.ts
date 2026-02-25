@@ -1348,12 +1348,19 @@ function containsLatexNotation(s: string): boolean {
 }
 
 /**
+ * 日本語文字（ひらがな・カタカナ・漢字）を含むかを判定
+ */
+function containsJapanese(s: string): boolean {
+  return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(s);
+}
+
+/**
  * 純粋な算術式かどうかを判定 (2+4, 3*5, x=2 など)
  * 日本語文字が含まれていなければ算術式とみなす
  */
 function isPureArithmetic(s: string): boolean {
   // 日本語文字（ひらがな、カタカナ、漢字）が含まれていない
-  return !/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(s);
+  return !containsJapanese(s);
 }
 
 export function parseJapanesemath(input: string): string {
@@ -1362,7 +1369,9 @@ export function parseJapanesemath(input: string): string {
 
   // ── Phase -1: LaTeX / 算術式のパススルー ──
   // 入力がすでにLaTeX記法や純粋な算術式の場合、そのまま返す
-  if (containsLatexNotation(result)) {
+  // ただし日本語文字が含まれている場合は日本語パーサーを通す
+  // （例: "R_2分のV" は _ があるが「分の」を処理すべき）
+  if (containsLatexNotation(result) && !containsJapanese(result)) {
     // 全角→半角のみ適用してそのまま返す
     return zenkakuToHankaku(result);
   }
@@ -1439,6 +1448,29 @@ export function parseJapanesemath(input: string): string {
   result = result.replace(
     /([a-zA-Z])で(?:へんびぶん|偏微分)/g,
     (_, x) => `\\frac{\\partial}{\\partial ${x}}`
+  );
+
+  // ── Phase 1.5: 添え字・上付き（日本語表現 + LaTeX _/^ 記法保持） ──
+  // [var]の添え字[n] / [var]のそえじ[n] → var_{n}
+  result = result.replace(
+    /([a-zA-Z])(?:の)?(?:そえじ|添え字|添字)(\S+)/g,
+    (_, v, n) => `${v}_{${resolveTerm(n)}}`
+  );
+  // [var]の上付き[n] / [var]のうえつき[n] → var^{n}
+  result = result.replace(
+    /([a-zA-Z])(?:の)?(?:うえつき|上付き|上つき)(\S+)/g,
+    (_, v, n) => `${v}^{${resolveTerm(n)}}`
+  );
+
+  // LaTeX _/^ 記法の正規化: R_2 → R_{2}, x^2 → x^{2}
+  // 中括弧なしの単一文字の添え字・上付きを中括弧付きに正規化
+  result = result.replace(
+    /([a-zA-Z])_([a-zA-Z0-9])(\b|(?=[^a-zA-Z0-9{]))/g,
+    (_, v, n) => `${v}_{${n}}`
+  );
+  result = result.replace(
+    /([a-zA-Z])\^([a-zA-Z0-9])(\b|(?=[^a-zA-Z0-9{]))/g,
+    (_, v, n) => `${v}^{${n}}`
   );
 
   // ── Phase 2: 装飾パターン ──
