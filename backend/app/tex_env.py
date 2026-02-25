@@ -95,5 +95,3 @@ for _p in _LIBGS_CANDIDATES:
         break
 
 logger.info(f"TeX commands: xelatex={XELATEX_CMD}, pdflatex={PDFLATEX_CMD}, dvisvgm={DVISVGM_CMD}, pdftocairo={PDFTOCAIRO_CMD}")
-
-logger.info(f"TeX environment: xelatex={XELATEX_CMD}, dvisvgm={DVISVGM_CMD}")

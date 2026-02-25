@@ -244,7 +244,7 @@ function AutoTextarea({
 function HeadingBlockEditor({ block }: { block: Block }) {
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const content = block.content as Extract<Block["content"], { type: "heading" }>;
-  const sizes: Record<number, string> = { 1: "text-2xl", 2: "text-xl", 3: "text-lg" };
+  const headingClass: Record<number, string> = { 1: "latex-heading-1", 2: "latex-heading-2", 3: "latex-heading-3" };
 
   return (
     <div>
@@ -252,9 +252,8 @@ function HeadingBlockEditor({ block }: { block: Block }) {
         value={content.text}
         onChange={(text) => updateContent(block.id, { text })}
         placeholder={`見出し ${content.level}`}
-        className={`${sizes[content.level]} font-bold leading-snug`}
+        className={headingClass[content.level] || "latex-heading-1"}
         style={{
-          fontFamily: block.style.fontFamily === "serif" ? '"Hiragino Mincho ProN", serif' : '"Hiragino Sans", sans-serif',
           textAlign: block.style.textAlign || "left",
           color: block.style.textColor || undefined,
         }}
@@ -549,12 +548,12 @@ function MathBlockEditor({ block }: { block: Block }) {
 
   return (
     <div className="space-y-2">
-      {/* プレビュー（確定済み数式） */}
+      {/* プレビュー（確定済み数式） — LaTeX風: 背景なし、中央配置 */}
       <div
-        className={`flex justify-center py-3 px-4 rounded-lg transition-all cursor-pointer ${
+        className={`transition-all cursor-pointer ${
           content.latex
-            ? "bg-violet-50/30 dark:bg-violet-950/10 hover:bg-violet-50/50"
-            : "bg-violet-50/50 dark:bg-violet-950/20"
+            ? "latex-display-math"
+            : "flex justify-center py-3 px-4 bg-violet-50/50 dark:bg-violet-950/20 rounded-lg"
         }`}
       >
         {content.latex ? (
@@ -600,10 +599,10 @@ function ListBlockEditor({ block }: { block: Block }) {
   const content = block.content as Extract<Block["content"], { type: "list" }>;
 
   return (
-    <div className="space-y-0.5 pl-1">
+    <div className="latex-list">
       {content.items.map((item, i) => (
         <div key={i} className="flex items-start gap-2">
-          <span className="text-muted-foreground text-sm mt-0.5 w-5 text-right shrink-0 select-none">
+          <span className="text-sm mt-0.5 w-5 text-right shrink-0 select-none" style={{ color: '#1a1a2e' }}>
             {content.style === "numbered" ? `${i + 1}.` : "•"}
           </span>
           <input
@@ -628,10 +627,6 @@ function ListBlockEditor({ block }: { block: Block }) {
             }}
             placeholder={`項目 ${i + 1}`}
             className="flex-1 bg-transparent border-none outline-none text-sm py-0.5 focus:ring-0"
-            style={{
-              fontFamily: block.style.fontFamily === "serif" ? '"Hiragino Mincho ProN", serif' : '"Hiragino Sans", sans-serif',
-              color: block.style.textColor || undefined,
-            }}
           />
         </div>
       ))}
@@ -652,12 +647,12 @@ function TableBlockEditor({ block }: { block: Block }) {
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-lg border border-border/60">
-        <table className="w-full border-collapse">
+      <div className="overflow-x-auto">
+        <table className="latex-table w-full">
           <thead>
-            <tr className="bg-muted/40">
+            <tr>
               {content.headers.map((h, i) => (
-                <th key={i} className="border-b border-r border-border/40 last:border-r-0">
+                <th key={i}>
                   <input
                     value={h}
                     onChange={(e) => {
@@ -665,7 +660,7 @@ function TableBlockEditor({ block }: { block: Block }) {
                       newH[i] = e.target.value;
                       updateContent(block.id, { headers: newH });
                     }}
-                    className="w-full px-2.5 py-1.5 text-xs font-semibold bg-transparent border-none outline-none"
+                    className="w-full px-2 py-1 text-xs font-semibold bg-transparent border-none outline-none"
                     placeholder={`列${i + 1}`}
                   />
                 </th>
@@ -674,9 +669,9 @@ function TableBlockEditor({ block }: { block: Block }) {
           </thead>
           <tbody>
             {content.rows.map((row, ri) => (
-              <tr key={ri} className="hover:bg-muted/20">
+              <tr key={ri}>
                 {row.map((cell, ci) => (
-                  <td key={ci} className="border-b border-r border-border/30 last:border-r-0 last:border-b-0">
+                  <td key={ci}>
                     <input
                       value={cell}
                       onChange={(e) => {
@@ -685,7 +680,7 @@ function TableBlockEditor({ block }: { block: Block }) {
                         );
                         updateContent(block.id, { rows: newRows });
                       }}
-                      className="w-full px-2.5 py-1.5 text-xs bg-transparent border-none outline-none"
+                      className="w-full px-2 py-1 text-xs bg-transparent border-none outline-none"
                     />
                   </td>
                 ))}
@@ -765,7 +760,7 @@ function ImageBlockEditor({ block }: { block: Block }) {
 }
 
 function DividerBlock() {
-  return <hr className="my-2 border-border/60" />;
+  return <hr className="latex-divider" />;
 }
 
 function CodeBlockEditor({ block }: { block: Block }) {
@@ -773,20 +768,21 @@ function CodeBlockEditor({ block }: { block: Block }) {
   const content = block.content as Extract<Block["content"], { type: "code" }>;
 
   return (
-    <div className="rounded-lg bg-slate-900 dark:bg-slate-950 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/50">
+    <div className="latex-code-block">
+      <div className="flex items-center justify-between mb-1">
         <input
           value={content.language}
           onChange={(e) => updateContent(block.id, { language: e.target.value })}
           placeholder="言語"
-          className="bg-transparent text-[10px] text-slate-400 border-none outline-none w-24"
+          className="bg-transparent text-[10px] text-slate-500 border-none outline-none w-24"
         />
       </div>
       <textarea
         value={content.code}
         onChange={(e) => updateContent(block.id, { code: e.target.value })}
         placeholder="コードを入力..."
-        className="w-full px-3 py-2 bg-transparent text-sm font-mono text-slate-200 border-none outline-none resize-y min-h-[60px]"
+        className="w-full bg-transparent text-sm font-mono border-none outline-none resize-y min-h-[60px]"
+        style={{ color: '#1a1a2e', lineHeight: '1.5' }}
         rows={3}
       />
     </div>
@@ -798,7 +794,7 @@ function QuoteBlockEditor({ block }: { block: Block }) {
   const content = block.content as Extract<Block["content"], { type: "quote" }>;
 
   return (
-    <div className="border-l-4 border-amber-400 pl-4 py-1 bg-amber-50/30 dark:bg-amber-950/10 rounded-r-lg">
+    <div className="latex-quote">
       <AutoTextarea
         value={content.text}
         onChange={(text) => updateContent(block.id, { text })}

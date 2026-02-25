@@ -17,12 +17,12 @@ CJK_SANS_FONT = os.environ.get("CJK_SANS_FONT", "Hiragino Sans")
 
 
 def canvas_preamble() -> str:
-    """Canvas 対応 XeLaTeX プリアンブル"""
+    """Canvas 対応 XeLaTeX プリアンブル (zxjatype: 軽量CJK, ctex依存なし)"""
     return rf"""\documentclass[a4paper]{{article}}
 \usepackage{{fontspec}}
-\usepackage{{xeCJK}}
-\setCJKmainfont{{{CJK_MAIN_FONT}}}
-\setCJKsansfont{{{CJK_SANS_FONT}}}
+\usepackage{{zxjatype}}
+\setjamainfont{{{CJK_MAIN_FONT}}}
+\setjasansfont{{{CJK_SANS_FONT}}}
 \usepackage[absolute]{{textpos}}
 \setlength{{\TPHorizModule}}{{1mm}}
 \setlength{{\TPVertModule}}{{1mm}}
@@ -61,7 +61,7 @@ def _style_commands(style: ElementStyle) -> str:
 
     # --- font family (sans のときだけ切替) ---
     if style.fontFamily == "sans":
-        parts.append(rf"\CJKfontspec{{{CJK_SANS_FONT}}}")
+        parts.append(rf"\fontspec{{{CJK_SANS_FONT}}}")
 
     # --- weight / shape ---
     if style.bold:

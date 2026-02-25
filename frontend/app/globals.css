@@ -115,16 +115,110 @@ html {
   border-radius: 4px;
 }
 
-/* Document editor text style reset (always dark text inside white A4 page) */
-.document-page,
+/* Document editor — A4 page PDF-like styling */
+.document-page {
+  font-family: "Hiragino Mincho ProN", "Noto Serif CJK JP", "Times New Roman", serif;
+  font-size: 10.5pt;
+  line-height: 1.6;
+  color: #1a1a2e;
+}
 .document-page * {
   color: #1a1a2e;
 }
 .document-page input,
 .document-page textarea {
   color: #1a1a2e;
+  font-family: inherit;
 }
 .document-page input::placeholder,
 .document-page textarea::placeholder {
   color: #9ca3af;
+}
+
+/* LaTeX-style heading sizes (article class: \section 17pt, \subsection 12pt, \subsubsection 10pt) */
+.document-page .latex-heading-1 {
+  font-size: 17.28pt;
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+  line-height: 1.3;
+}
+.document-page .latex-heading-2 {
+  font-size: 12pt;
+  font-weight: 700;
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+  line-height: 1.35;
+}
+.document-page .latex-heading-3 {
+  font-size: 10.5pt;
+  font-weight: 700;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+  line-height: 1.4;
+}
+
+/* LaTeX display math: centered, vertical space */
+.document-page .latex-display-math {
+  display: flex;
+  justify-content: center;
+  padding: 0.8em 0;
+}
+
+/* LaTeX code block: monospace, light frame */
+.document-page .latex-code-block {
+  font-family: "Menlo", "Consolas", "Courier New", monospace;
+  font-size: 9pt;
+  background: #fafafa;
+  border: 0.5px solid #e0e0e0;
+  padding: 8px 10px;
+  border-radius: 0;
+  line-height: 1.5;
+}
+
+/* LaTeX quote block: indented */
+.document-page .latex-quote {
+  border-left: 2px solid #444;
+  padding-left: 1em;
+  margin: 0.5em 0;
+  font-style: italic;
+}
+
+/* LaTeX table: booktabs-style rules */
+.document-page .latex-table {
+  border-collapse: collapse;
+  font-size: 10pt;
+}
+.document-page .latex-table thead tr {
+  border-top: 1.5px solid #222;
+  border-bottom: 0.8px solid #222;
+}
+.document-page .latex-table tbody tr:last-child {
+  border-bottom: 1.5px solid #222;
+}
+.document-page .latex-table th,
+.document-page .latex-table td {
+  padding: 4px 8px;
+  text-align: left;
+  border: none;
+}
+.document-page .latex-table th {
+  font-weight: 600;
+}
+
+/* LaTeX list: tighter spacing */
+.document-page .latex-list {
+  padding-left: 2em;
+  margin: 0.3em 0;
+}
+.document-page .latex-list li {
+  margin-bottom: 0.15em;
+  line-height: 1.5;
+}
+
+/* LaTeX divider */
+.document-page .latex-divider {
+  border: none;
+  border-top: 0.5px solid #888;
+  margin: 1em 0;
 }
