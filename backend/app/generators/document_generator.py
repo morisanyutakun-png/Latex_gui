@@ -22,11 +22,56 @@ from ..models import (
 )
 from ..utils.latex_utils import escape_latex, text_to_latex_paragraphs
 import re
+import platform
+import subprocess
+import shutil
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-# ──── Font config (macOS) ────
-CJK_MAIN_FONT = "Hiragino Mincho ProN"
-CJK_SANS_FONT = "Hiragino Sans"
+# ──── Font config (cross-platform CJK detection) ────
+
+def _detect_cjk_fonts() -> tuple[str, str]:
+    """Detect available CJK fonts. Returns (main_font, sans_font)."""
+    system = platform.system()
+
+    if system == "Darwin":  # macOS
+        candidates = [
+            ("Hiragino Mincho ProN", "Hiragino Sans"),
+            ("Hiragino Mincho Pro", "Hiragino Kaku Gothic Pro"),
+        ]
+    else:  # Linux / Docker
+        candidates = [
+            ("Noto Serif CJK JP", "Noto Sans CJK JP"),
+            ("Noto Serif JP", "Noto Sans JP"),
+            ("IPAexMincho", "IPAexGothic"),
+            ("IPAMincho", "IPAGothic"),
+        ]
+
+    # Try fc-list to verify font availability
+    if shutil.which("fc-list"):
+        try:
+            result = subprocess.run(
+                ["fc-list", ":lang=ja", "family"],
+                capture_output=True, text=True, timeout=5
+            )
+            available = result.stdout
+            for main, sans in candidates:
+                if main in available:
+                    logger.info(f"CJK fonts detected: {main}, {sans}")
+                    return (main, sans)
+        except Exception as e:
+            logger.warning(f"fc-list failed: {e}")
+
+    # Fallback: use first candidate for this OS
+    main, sans = candidates[0]
+    logger.info(f"CJK fonts (fallback): {main}, {sans}")
+    return (main, sans)
+
+
+# Cache the detected fonts at module level
+CJK_MAIN_FONT, CJK_SANS_FONT = _detect_cjk_fonts()
 
 
 # ──── Package requirements per block type ────

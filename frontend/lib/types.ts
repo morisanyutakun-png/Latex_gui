@@ -169,16 +169,16 @@ export const DOCUMENT_CLASSES: DocumentClassInfo[] = [
     id: "article",
     name: "article",
     japanese: "論文・レポート",
-    description: "短い文書向け。章(\\chapter)なし。\\section から始まる。",
-    features: ["\\section", "\\subsection", "\\abstract", "二段組対応"],
+    description: "短い文書向け。セクション見出しで構成。",
+    features: ["セクション", "サブセクション", "概要", "二段組対応"],
     icon: "📝",
   },
   {
     id: "report",
     name: "report",
     japanese: "報告書",
-    description: "章(\\chapter)を持つ長い報告書。表紙ページあり。",
-    features: ["\\chapter", "\\section", "\\appendix", "表紙ページ"],
+    description: "章立てのある長い報告書。表紙ページ付き。",
+    features: ["章", "セクション", "付録", "表紙ページ"],
     icon: "📊",
   },
   {
@@ -186,7 +186,7 @@ export const DOCUMENT_CLASSES: DocumentClassInfo[] = [
     name: "book",
     japanese: "書籍",
     description: "書籍向け。左右ページの区別、部・章構成。",
-    features: ["\\part", "\\chapter", "\\frontmatter", "見開き対応"],
+    features: ["部", "章", "前付け", "見開き対応"],
     icon: "📚",
   },
   {
@@ -194,7 +194,7 @@ export const DOCUMENT_CLASSES: DocumentClassInfo[] = [
     name: "letter",
     japanese: "手紙",
     description: "ビジネスレター形式。宛先・署名付き。",
-    features: ["\\opening", "\\closing", "\\signature", "封筒対応"],
+    features: ["挨拶文", "結語", "署名", "封筒対応"],
     icon: "✉️",
   },
   {
@@ -202,7 +202,7 @@ export const DOCUMENT_CLASSES: DocumentClassInfo[] = [
     name: "beamer",
     japanese: "スライド",
     description: "プレゼンテーション用スライド。",
-    features: ["\\frame", "\\pause", "テーマ切替", "アニメーション"],
+    features: ["スライド", "一時停止", "テーマ切替", "アニメーション"],
     icon: "🖥️",
   },
   {

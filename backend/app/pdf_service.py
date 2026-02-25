@@ -42,6 +42,7 @@ def compile_pdf(doc: DocumentModel) -> bytes:
                     "xelatex",
                     "-interaction=nonstopmode",
                     "-halt-on-error",
+                    "-no-shell-escape",
                     "-output-directory", str(tmpdir),
                     str(tex_path),
                 ],

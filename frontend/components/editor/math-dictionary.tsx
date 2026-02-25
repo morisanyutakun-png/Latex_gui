@@ -13,14 +13,14 @@ import { Search } from "lucide-react";
 // 公式テンプレート（辞書に含まれない複合公式）
 // ══════════════════════════════════════════
 
-interface FormulaTemplate {
+export interface FormulaTemplate {
   label: string;
   latex: string;
   japanese: string;
   category: string;
 }
 
-const FORMULA_TEMPLATES: FormulaTemplate[] = [
+export const FORMULA_TEMPLATES: FormulaTemplate[] = [
   // 行列
   { label: "2×2行列", latex: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}", japanese: "2×2行列", category: "行列" },
   { label: "3×3行列", latex: "\\begin{pmatrix} a & b & c \\\\ d & e & f \\\\ g & h & i \\end{pmatrix}", japanese: "3×3行列", category: "行列" },

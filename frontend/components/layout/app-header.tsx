@@ -73,7 +73,9 @@ export function AppHeader() {
       URL.revokeObjectURL(url);
       toast.success("PDFを生成しました");
     } catch (err: unknown) {
-      toast.error(`PDF生成エラー: ${err instanceof Error ? err.message : "不明なエラー"}`);
+      const message = err instanceof Error ? err.message : "不明なエラー";
+      console.error("PDF生成エラー:", message);
+      toast.error("PDF生成に失敗しました。入力内容を確認してもう一度お試しください。");
     } finally {
       setGenerating(false);
     }

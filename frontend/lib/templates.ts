@@ -206,7 +206,7 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "report",
     name: "技術報告書",
-    description: "章立て構造の長い報告書・仕様書に。\\chapter が使える",
+    description: "章立て構造の長い報告書・仕様書に",
     gradient: "from-slate-500 via-gray-400 to-zinc-400",
     accentColor: "bg-slate-500",
     icon: "📋",
@@ -216,7 +216,7 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "book",
     name: "書籍・教科書",
-    description: "複数章・部構成の書籍に。\\part, \\chapter が使える",
+    description: "複数章・部構成の書籍に。部・章構成対応",
     gradient: "from-amber-500 via-orange-400 to-yellow-400",
     accentColor: "bg-amber-500",
     icon: "📚",

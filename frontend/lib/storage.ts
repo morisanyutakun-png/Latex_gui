@@ -27,5 +27,16 @@ export function downloadAsJSON(doc: DocumentModel, filename: string): void {
 
 export async function loadFromJSONFile(file: File): Promise<DocumentModel> {
   const text = await file.text();
-  return JSON.parse(text) as DocumentModel;
+  const data = JSON.parse(text);
+  // 最低限の構造バリデーション
+  if (
+    !data ||
+    typeof data !== "object" ||
+    !Array.isArray(data.blocks) ||
+    typeof data.settings !== "object" ||
+    typeof data.metadata !== "object"
+  ) {
+    throw new Error("無効なドキュメント形式です");
+  }
+  return data as DocumentModel;
 }

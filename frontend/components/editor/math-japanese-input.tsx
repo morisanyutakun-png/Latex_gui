@@ -16,7 +16,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, BookOpen } from "lucide-react";
+import { Search, BookOpen, FlaskConical } from "lucide-react";
+import { FORMULA_TEMPLATES, type FormulaTemplate } from "./math-dictionary";
 
 // ══════════════════════════════════════════
 // 統合数式入力コンポーネント（日本語 + LaTeX + 辞書検索）
@@ -44,6 +45,7 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [showDictBrowser, setShowDictBrowser] = useState(false);
   const [dictCategory, setDictCategory] = useState("すべて");
+  const [dictSearch, setDictSearch] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // parseの結果（日本語→LaTeX変換 or LaTeX直書きパススルー）
@@ -90,7 +92,6 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
     for (const entry of MATH_DICTIONARY) {
       const key = entry.latex;
       if (seen.has(key)) continue;
-      // LaTeXコード自体にマッチ (e.g., "\\int" or "frac")
       const latexLower = entry.latex.toLowerCase();
       const descMatch = entry.description.toLowerCase().includes(q);
       const latexMatch = latexLower.includes(q) || latexLower.includes(normQ);
@@ -106,6 +107,26 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
             : entry.latex,
           preview,
           category: entry.category,
+        });
+      }
+    }
+
+    // 3. Formula templates search
+    for (const f of FORMULA_TEMPLATES) {
+      const key = f.latex;
+      if (seen.has(key)) continue;
+      const labelMatch = f.label.toLowerCase().includes(q);
+      const jpMatch = f.japanese.toLowerCase().includes(q) || normalizeForMatch(f.japanese).includes(normQ);
+      const latexMatch = f.latex.toLowerCase().includes(q);
+      const catMatch = f.category.toLowerCase().includes(q);
+      if (labelMatch || jpMatch || latexMatch || catMatch) {
+        seen.add(key);
+        results.push({
+          type: "formula",
+          display: `${f.label} — ${f.category}`,
+          latex: f.latex,
+          preview: f.latex,
+          category: f.category,
         });
       }
     }
@@ -171,26 +192,69 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
     }
   }, [inputText]);
 
-  // 辞書ブラウザ用カテゴリリスト
+  // 辞書ブラウザ用カテゴリリスト（辞書 + 公式テンプレート統合）
   const dictCategories = useMemo(() => {
     const cats = new Set<string>();
     for (const e of MATH_DICTIONARY) cats.add(e.category);
+    // 公式テンプレートカテゴリもマージ
+    for (const f of FORMULA_TEMPLATES) cats.add(f.category);
     return ["すべて", ...Array.from(cats)];
   }, []);
 
-  // 辞書ブラウザ用フィルタ
-  const dictBrowserItems = useMemo(() => {
-    let items = [...MATH_DICTIONARY];
+  // 辞書ブラウザ用フィルタ（辞書 + 公式テンプレート統合、辞書検索欄 or メイン入力テキストで絞り込み）
+  type DictBrowserItem = { kind: "dict"; entry: MathDictEntry } | { kind: "formula"; entry: FormulaTemplate };
+
+  const dictBrowserItems = useMemo((): DictBrowserItem[] => {
+    let dictItems: DictBrowserItem[] = MATH_DICTIONARY.map((e) => ({ kind: "dict" as const, entry: e }));
+    let formulaItems: DictBrowserItem[] = FORMULA_TEMPLATES.map((f) => ({ kind: "formula" as const, entry: f }));
+    let items = [...dictItems, ...formulaItems];
+
     if (dictCategory !== "すべて") {
-      items = items.filter((e) => e.category === dictCategory);
+      items = items.filter((item) =>
+        item.kind === "dict" ? item.entry.category === dictCategory : item.entry.category === dictCategory
+      );
+    }
+    // 辞書内検索欄 → メイン入力欄 の優先順で絞り込みワードを決定
+    const filterText = dictSearch.trim() || inputText.trim();
+    if (filterText) {
+      const q = filterText.toLowerCase();
+      const normQ = normalizeForMatch(filterText);
+      items = items.filter((item) => {
+        if (item.kind === "dict") {
+          const e = item.entry;
+          const normR = normalizeForMatch(e.reading);
+          return (
+            normR.includes(normQ) ||
+            e.description.toLowerCase().includes(q) ||
+            e.latex.toLowerCase().includes(q) ||
+            e.category.toLowerCase().includes(q) ||
+            e.aliases.some((a) => normalizeForMatch(a).includes(normQ))
+          );
+        } else {
+          const f = item.entry;
+          return (
+            f.label.toLowerCase().includes(q) ||
+            f.japanese.toLowerCase().includes(q) ||
+            normalizeForMatch(f.japanese).includes(normQ) ||
+            f.latex.toLowerCase().includes(q) ||
+            f.category.toLowerCase().includes(q)
+          );
+        }
+      });
     }
     return items;
-  }, [dictCategory]);
+  }, [dictCategory, dictSearch, inputText]);
 
-  const handleDictInsert = useCallback((entry: MathDictEntry) => {
-    const latex = (entry.kind === "binary" || entry.kind === "unary")
-      ? entry.latex.replace(/\{[A-Z]\}/g, "").replace(/_\s*\^/g, "").trim()
-      : entry.latex;
+  const handleDictInsert = useCallback((item: DictBrowserItem) => {
+    let latex: string;
+    if (item.kind === "dict") {
+      const entry = item.entry;
+      latex = (entry.kind === "binary" || entry.kind === "unary")
+        ? entry.latex.replace(/\{[A-Z]\}/g, "").replace(/_\s*\^/g, "").trim()
+        : entry.latex;
+    } else {
+      latex = item.entry.latex;
+    }
     if (onInsert) {
       onInsert(latex);
     } else {
@@ -245,6 +309,11 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
                         辞書
                       </span>
                     )}
+                    {s.type === "formula" && (
+                      <span className="px-1 py-0 rounded text-[7px] bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0">
+                        公式
+                      </span>
+                    )}
                   </div>
                   <span className="text-[9px] text-muted-foreground">{s.category}</span>
                 </div>
@@ -296,6 +365,19 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
 
         {showDictBrowser && (
           <div className="mt-1.5 border rounded-xl overflow-hidden bg-background shadow-sm">
+            {/* 辞書内検索 */}
+            <div className="px-2 pt-2 pb-1.5 border-b border-border/30">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
+                <input
+                  type="text"
+                  value={dictSearch}
+                  onChange={(e) => setDictSearch(e.target.value)}
+                  placeholder="辞書内を検索（読み・説明・LaTeXコマンド）"
+                  className="w-full pl-7 pr-2 py-1.5 text-[11px] rounded-md border border-border/50 bg-muted/30 placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                />
+              </div>
+            </div>
             {/* カテゴリタブ */}
             <div className="px-2 pt-2 pb-1.5 overflow-x-auto border-b border-border/30">
               <div className="flex gap-1 min-w-max">
@@ -315,32 +397,49 @@ export function JapaneseMathInput({ onSubmit, onInsert, initialLatex = "", class
               </div>
             </div>
             <div className="px-3 py-0.5 text-[9px] text-muted-foreground/60 border-b border-border/30">
-              {dictBrowserItems.length}件 — クリックで挿入
+              {dictBrowserItems.length}件
+              {(dictSearch.trim() || inputText.trim()) && " (絞り込み中)"}
+              {" — クリックで挿入"}
             </div>
             <ScrollArea className="h-44">
               <div className="p-1.5 space-y-0.5">
-                {dictBrowserItems.map((entry, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleDictInsert(entry)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-primary/8 active:bg-primary/15 transition-colors group text-left"
-                  >
-                    <div className="w-16 shrink-0 flex justify-center overflow-hidden">
-                      <MathRenderer
-                        latex={entry.latex.replace(/\{[AB]\}/g, "").replace(/\{N\}/g, "")}
-                        displayMode={false}
-                        className="scale-[0.7] origin-center"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[11px] font-medium truncate block">{entry.reading}</span>
-                      <span className="text-[9px] text-muted-foreground/70 truncate block">{entry.description}</span>
-                    </div>
-                    <span className="text-[8px] font-mono text-muted-foreground/40 group-hover:text-muted-foreground/80 truncate max-w-[80px] shrink-0 transition-colors">
-                      {entry.latex.length > 25 ? entry.latex.slice(0, 25) + "…" : entry.latex}
-                    </span>
-                  </button>
-                ))}
+                {dictBrowserItems.map((item, i) => {
+                  const isFormula = item.kind === "formula";
+                  const displayLatex = isFormula
+                    ? item.entry.latex
+                    : item.entry.latex.replace(/\{[AB]\}/g, "").replace(/\{N\}/g, "");
+                  const title = isFormula ? item.entry.label : item.entry.reading;
+                  const subtitle = isFormula ? item.entry.japanese : item.entry.description;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => handleDictInsert(item)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-primary/8 active:bg-primary/15 transition-colors group text-left"
+                    >
+                      <div className="w-16 shrink-0 flex justify-center overflow-hidden">
+                        <MathRenderer
+                          latex={displayLatex}
+                          displayMode={false}
+                          className={isFormula ? "scale-[0.5] origin-center" : "scale-[0.7] origin-center"}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-medium truncate">{title}</span>
+                          {isFormula && (
+                            <span className="px-1 py-0 rounded text-[8px] bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0">
+                              公式
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[9px] text-muted-foreground/70 truncate block">{subtitle}</span>
+                      </div>
+                      <span className="text-[8px] font-mono text-muted-foreground/40 group-hover:text-muted-foreground/80 truncate max-w-[80px] shrink-0 transition-colors">
+                        {displayLatex.length > 25 ? displayLatex.slice(0, 25) + "…" : displayLatex}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </ScrollArea>
           </div>

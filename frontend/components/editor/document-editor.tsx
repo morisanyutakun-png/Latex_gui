@@ -120,20 +120,13 @@ function InsertMenu({ index, variant = "line" }: { index: number; variant?: "lin
                   >
                     <Icon className={`h-4 w-4 ${info.color}`} />
                     <span className="text-[10px] font-medium leading-none">{info.name}</span>
-                    {info.packages && info.packages.length > 0 && (
-                      <span className="text-[8px] text-muted-foreground/50 font-mono leading-none truncate max-w-full">
-                        {info.packages[0]}{info.packages.length > 1 ? "+" : ""}
-                      </span>
-                    )}
                   </DropdownMenuItem>
                 );
               })}
             </div>
           </React.Fragment>
         ))}
-        <div className="mt-1 px-2 py-1 text-[8px] text-muted-foreground/40 text-center border-t border-border/30">
-          パッケージはバックエンドで自動宣言されます
-        </div>
+
       </DropdownMenuContent>
     </DropdownMenu>
   );
