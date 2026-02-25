@@ -79,14 +79,16 @@ TEX_ENV = _build_texlive_env()
 XELATEX_CMD = find_xelatex()
 PDFLATEX_CMD = find_command("pdflatex")
 DVISVGM_CMD = find_command("dvisvgm")
-PDFTOCAIRO_CMD = find_command("pdftocairo") if shutil.which("pdftocairo") else ""
+PDFTOCAIRO_CMD = find_command("pdftocairo")
 
 # Ghostscript 共有ライブラリ (dvisvgm --pdf に必要)
 _LIBGS_CANDIDATES = [
-    "/opt/homebrew/lib/libgs.dylib",      # macOS Homebrew ARM
-    "/usr/local/lib/libgs.dylib",          # macOS Intel
-    "/usr/lib/x86_64-linux-gnu/libgs.so",  # Debian/Ubuntu
-    "/usr/lib64/libgs.so",                 # RHEL/Fedora
+    "/opt/homebrew/lib/libgs.dylib",          # macOS Homebrew ARM
+    "/usr/local/lib/libgs.dylib",              # macOS Intel
+    "/usr/lib/x86_64-linux-gnu/libgs.so",      # Debian/Ubuntu x86_64
+    "/usr/lib/aarch64-linux-gnu/libgs.so",     # Debian/Ubuntu ARM64
+    "/usr/lib64/libgs.so",                     # RHEL/Fedora
+    "/usr/lib/libgs.so",                       # Generic Linux
 ]
 for _p in _LIBGS_CANDIDATES:
     if Path(_p).is_file():

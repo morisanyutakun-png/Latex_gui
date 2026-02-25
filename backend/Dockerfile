@@ -1,13 +1,30 @@
 FROM python:3.12-slim
 
-# TeX Live + 日本語フォント（Noto CJK）
+# TeX Live + 日本語フォント + SVG変換ツール
+# - texlive-xetex:        XeLaTeX (PDF生成)
+# - texlive-latex-extra:   booktabs, tcolorbox, enumitem, listings, fancyhdr 等
+# - texlive-pictures:      tikz, circuitikz (回路図)
+# - texlive-science:       pgfplots (グラフ), mhchem (化学式)
+# - texlive-fonts-recommended: 基本フォント
+# - texlive-lang-japanese: 日本語TeX基盤
+# - fonts-noto-cjk:        Noto CJKフォント
+# - poppler-utils:         pdftocairo (PDF→SVG変換。プレビュー用)
+# - ghostscript:           dvisvgm フォールバック用 libgs
+# - fontconfig:            fc-list (フォント検出)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-xetex \
+    texlive-latex-extra \
+    texlive-pictures \
+    texlive-science \
     texlive-fonts-recommended \
     texlive-lang-japanese \
     fonts-noto-cjk \
     fonts-noto-cjk-extra \
-    && rm -rf /var/lib/apt/lists/*
+    poppler-utils \
+    ghostscript \
+    fontconfig \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -fv
 
 # Docker環境ではNoto CJKフォントを使用
 ENV CJK_MAIN_FONT="Noto Serif CJK JP"

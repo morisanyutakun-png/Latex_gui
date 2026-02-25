@@ -146,7 +146,6 @@ def _detect_required_packages(doc: DocumentModel) -> list[str]:
 
     # Always-required base packages
     add("\\usepackage{fontspec}")
-    add("\\usepackage{zxjatype}")
     add("\\usepackage{xcolor}")
     add("\\usepackage{hyperref}")
 
@@ -214,11 +213,11 @@ def generate_document_latex(doc: DocumentModel) -> str:
     lines.append(f"\\usepackage[{geom}]{{geometry}}")
     lines.append("")
 
-    # ──── Fonts ────
-    lines.append("% ── Fonts (zxjatype: lightweight CJK, no ctex dependency) ──")
-    lines.append(f"\\setjamainfont{{{CJK_MAIN_FONT}}}")
-    lines.append(f"\\setjasansfont{{{CJK_SANS_FONT}}}")
-    lines.append(f"\\setjamonofont{{{CJK_SANS_FONT}}}")
+    # ──── Fonts (fontspec only: no zxjatype/ctex dependency) ────
+    lines.append("% ── Fonts (fontspec: CJK direct, fully portable) ──")
+    lines.append(f"\\setmainfont{{{CJK_MAIN_FONT}}}")
+    lines.append(f"\\setsansfont{{{CJK_SANS_FONT}}}")
+    lines.append(f"\\setmonofont{{{CJK_SANS_FONT}}}")
     lines.append("")
 
     # ──── Line spacing ────

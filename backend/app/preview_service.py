@@ -15,6 +15,7 @@ import shutil
 from pathlib import Path
 
 from .tex_env import TEX_ENV, PDFLATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,7 @@ def _compile_to_svg(latex_source: str) -> str:
             raise RuntimeError(f"LaTeX compilation error: {error_msg}")
 
         # Step 2: PDF → SVG (pdftocairo: reliable on macOS, no Ghostscript lib needed)
-        if PDFTOCAIRO_CMD:
+        if PDFTOCAIRO_CMD and shutil.which(PDFTOCAIRO_CMD):
             try:
                 result = subprocess.run(
                     [PDFTOCAIRO_CMD, "-svg", str(pdf_path), str(svg_path)],

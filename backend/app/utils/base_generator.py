@@ -17,12 +17,11 @@ CJK_SANS_FONT = os.environ.get("CJK_SANS_FONT", "Hiragino Sans")
 
 
 def canvas_preamble() -> str:
-    """Canvas 対応 XeLaTeX プリアンブル (zxjatype: 軽量CJK, ctex依存なし)"""
+    """Canvas 対応 XeLaTeX プリアンブル (fontspec only: ctex/zxjatype依存なし)"""
     return rf"""\documentclass[a4paper]{{article}}
 \usepackage{{fontspec}}
-\usepackage{{zxjatype}}
-\setjamainfont{{{CJK_MAIN_FONT}}}
-\setjasansfont{{{CJK_SANS_FONT}}}
+\setmainfont{{{CJK_MAIN_FONT}}}
+\setsansfont{{{CJK_SANS_FONT}}}
 \usepackage[absolute]{{textpos}}
 \setlength{{\TPHorizModule}}{{1mm}}
 \setlength{{\TPVertModule}}{{1mm}}
