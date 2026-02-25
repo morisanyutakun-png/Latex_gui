@@ -11,6 +11,7 @@ import asyncio
 import gc
 import os
 import platform
+import shutil
 import subprocess
 import tempfile
 import logging
@@ -20,7 +21,7 @@ from .models import DocumentModel
 from .generators.document_generator import generate_document_latex
 from .tex_env import (
     TEX_ENV, XELATEX_CMD, PDFLATEX_CMD,
-    DEFAULT_ENGINE, PDFLATEX_CJK_OK, XELATEX_OK,
+    DEFAULT_ENGINE,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,8 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
 
     エンジン選択順:
       1. DEFAULT_ENGINE (起動時テスト済み)
-      2. 失敗時はもう一方のエンジンにフォールバック
+      2. 失敗時はもう一方のエンジンに必ずフォールバック
+         (起動時テスト結果に関わらず実行時に再試行)
     """
     primary = DEFAULT_ENGINE
     fallback = "xelatex" if primary == "pdflatex" else "pdflatex"
@@ -100,16 +102,20 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
         primary_error = e
 
     # ── Fallback engine ──
-    fallback_ok = XELATEX_OK if fallback == "xelatex" else PDFLATEX_CJK_OK
-    if fallback_ok:
+    # 起動時テスト結果に関わらず常にフォールバックを試行する。
+    # CJK.sty 欠損等、起動後に環境が変化している可能性があるため。
+    fallback_cmd = ENGINE_CMD.get(fallback)
+    if fallback_cmd and shutil.which(fallback_cmd):
         logger.info(f"Falling back to {fallback}...")
         try:
             latex_source = generate_document_latex(doc, engine=fallback)
-            pdf = _compile_latex(latex_source, ENGINE_CMD[fallback], timeout=45)
+            pdf = _compile_latex(latex_source, fallback_cmd, timeout=45)
             logger.info(f"PDF generated successfully with {fallback} (fallback)")
             return pdf
         except PDFGenerationError as e:
             logger.error(f"{fallback} also failed: {e.user_message}")
+    else:
+        logger.warning(f"Fallback engine {fallback} ({fallback_cmd}) not found on system")
 
     raise primary_error
 
@@ -210,6 +216,9 @@ def _parse_latex_error(log: str) -> str:
         return "表の列数が一致していない可能性があります。表の内容を確認してください。"
     if "file not found" in log_lower and "image" in log_lower:
         return "画像の読み込みに失敗しました。画像URLが正しいか確認してください。"
+    # CJK.sty / bxcjkjatype missing (pdflatex Japanese support package)
+    if "cjk.sty" in log_lower and "not found" in log_lower:
+        return "日本語サポートパッケージ(CJK.sty)が見つかりません。xelatexへのフォールバックを試行します。"
     # CJK font errors
     if ("cjkmainfont" in log_lower or "cjksansfont" in log_lower) and ("not found" in log_lower or "cannot" in log_lower):
         return "CJKフォントが見つかりません。システムにフォントがインストールされているか確認してください。"
