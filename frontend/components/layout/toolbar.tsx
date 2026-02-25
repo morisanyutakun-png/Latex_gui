@@ -159,7 +159,7 @@ export function Toolbar() {
   const listContent = block?.content.type === "list" ? (block.content as { style: string }) : null;
 
   return (
-    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border/40 bg-background/80 backdrop-blur-sm flex-wrap">
+    <div className="flex items-center gap-1 px-4 py-1.5 border-b border-border/30 glass flex-wrap">
       {/* Font Family */}
       <ToolbarSelect
         value={style.fontFamily || "sans"}

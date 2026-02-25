@@ -20,8 +20,12 @@ def canvas_preamble() -> str:
     """Canvas 対応 XeLaTeX プリアンブル (fontspec only: ctex/zxjatype依存なし)"""
     return rf"""\documentclass[a4paper]{{article}}
 \usepackage{{fontspec}}
-\setmainfont{{{CJK_MAIN_FONT}}}
-\setsansfont{{{CJK_SANS_FONT}}}
+\IfFontExistsTF{{{CJK_MAIN_FONT}}}{{%
+  \setmainfont{{{CJK_MAIN_FONT}}}%
+}}{{\typeout{{WARNING: Font {CJK_MAIN_FONT} not found, using default}}}}
+\IfFontExistsTF{{{CJK_SANS_FONT}}}{{%
+  \setsansfont{{{CJK_SANS_FONT}}}%
+}}{{\typeout{{WARNING: Font {CJK_SANS_FONT} not found, using default}}}}
 \usepackage[absolute]{{textpos}}
 \setlength{{\TPHorizModule}}{{1mm}}
 \setlength{{\TPVertModule}}{{1mm}}

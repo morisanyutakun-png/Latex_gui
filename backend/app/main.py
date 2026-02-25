@@ -39,6 +39,79 @@ async def health_check():
     return {"status": "ok", "message": "PDF生成サーバーは正常に動作しています"}
 
 
+@app.get("/api/debug/tex-info")
+async def tex_debug_info():
+    """TeX環境の診断情報を返す（デプロイ問題のデバッグ用）"""
+    import shutil
+    import subprocess
+    from .tex_env import XELATEX_CMD, PDFLATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD, TEX_ENV
+    from .generators.document_generator import CJK_MAIN_FONT, CJK_SANS_FONT
+
+    info: dict = {
+        "commands": {
+            "xelatex": {"path": XELATEX_CMD, "exists": shutil.which(XELATEX_CMD) is not None},
+            "pdflatex": {"path": PDFLATEX_CMD, "exists": shutil.which(PDFLATEX_CMD) is not None},
+            "pdftocairo": {"path": PDFTOCAIRO_CMD, "exists": shutil.which(PDFTOCAIRO_CMD) is not None},
+            "dvisvgm": {"path": DVISVGM_CMD, "exists": shutil.which(DVISVGM_CMD) is not None},
+        },
+        "fonts": {
+            "main": CJK_MAIN_FONT,
+            "sans": CJK_SANS_FONT,
+        },
+        "env": {
+            "CJK_MAIN_FONT": os.environ.get("CJK_MAIN_FONT", "(not set)"),
+            "CJK_SANS_FONT": os.environ.get("CJK_SANS_FONT", "(not set)"),
+            "LIBGS": TEX_ENV.get("LIBGS", "(not set)"),
+        },
+    }
+
+    # Test fc-list
+    if shutil.which("fc-list"):
+        try:
+            result = subprocess.run(
+                ["fc-list", ":lang=ja", "family"],
+                capture_output=True, text=True, timeout=5
+            )
+            fonts = sorted(set(l.strip() for l in result.stdout.split("\n") if l.strip()))
+            info["fc_list_ja"] = fonts[:20]
+        except Exception as e:
+            info["fc_list_ja"] = f"error: {e}"
+    else:
+        info["fc_list_ja"] = "fc-list not available"
+
+    # Quick XeLaTeX compile test
+    try:
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tex = (
+                "\\documentclass{article}\n"
+                "\\usepackage{fontspec}\n"
+                f"\\IfFontExistsTF{{{CJK_MAIN_FONT}}}{{\\setmainfont{{{CJK_MAIN_FONT}}}}}{{\\typeout{{FONT NOT FOUND}}}}\n"
+                "\\begin{document}\nHello World テスト\n\\end{document}\n"
+            )
+            tex_path = Path(tmpdir) / "test.tex"
+            tex_path.write_text(tex, encoding="utf-8")
+            result = subprocess.run(
+                [XELATEX_CMD, "-interaction=nonstopmode", "-halt-on-error",
+                 "-output-directory", str(tmpdir), str(tex_path)],
+                capture_output=True, text=True, timeout=15,
+                cwd=tmpdir, env=TEX_ENV,
+            )
+            pdf_exists = (Path(tmpdir) / "test.pdf").exists()
+            info["compile_test"] = {
+                "success": result.returncode == 0 and pdf_exists,
+                "returncode": result.returncode,
+                "pdf_generated": pdf_exists,
+                "log_tail": result.stdout[-500:] if result.stdout else "",
+                "stderr": result.stderr[-200:] if result.stderr else "",
+            }
+    except Exception as e:
+        info["compile_test"] = {"success": False, "error": str(e)}
+
+    return info
+
+
 @app.get("/api/capabilities")
 async def get_capabilities():
     """利用可能な機能一覧を返す"""

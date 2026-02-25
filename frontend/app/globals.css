@@ -4,49 +4,49 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Bright, vibrant palette */
-  --background: 250 20% 98%;
-  --foreground: 240 10% 12%;
+  /* Apple-inspired clean palette */
+  --background: 0 0% 100%;
+  --foreground: 0 0% 7%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 12%;
+  --card-foreground: 0 0% 7%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 12%;
-  --primary: 252 80% 58%;
+  --popover-foreground: 0 0% 7%;
+  --primary: 211 100% 50%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 250 15% 94%;
-  --secondary-foreground: 240 10% 18%;
-  --muted: 250 15% 94%;
-  --muted-foreground: 240 5% 46%;
-  --accent: 250 15% 92%;
-  --accent-foreground: 240 10% 18%;
-  --destructive: 0 72% 51%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 220 9% 20%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 220 9% 20%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 250 12% 89%;
-  --input: 250 12% 89%;
-  --ring: 252 80% 58%;
-  --radius: 0.625rem;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 211 100% 50%;
+  --radius: 0.75rem;
 }
 
 .dark {
-  --background: 240 16% 8%;
-  --foreground: 240 5% 92%;
-  --card: 240 14% 11%;
-  --card-foreground: 240 5% 92%;
-  --popover: 240 14% 11%;
-  --popover-foreground: 240 5% 92%;
-  --primary: 252 75% 65%;
+  --background: 224 20% 5%;
+  --foreground: 210 20% 95%;
+  --card: 224 18% 8%;
+  --card-foreground: 210 20% 95%;
+  --popover: 224 18% 8%;
+  --popover-foreground: 210 20% 95%;
+  --primary: 211 100% 55%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 12% 16%;
-  --secondary-foreground: 240 5% 85%;
-  --muted: 240 12% 16%;
-  --muted-foreground: 240 5% 55%;
-  --accent: 240 12% 18%;
-  --accent-foreground: 240 5% 85%;
-  --destructive: 0 72% 51%;
+  --secondary: 224 14% 12%;
+  --secondary-foreground: 210 15% 85%;
+  --muted: 224 14% 12%;
+  --muted-foreground: 215 14% 50%;
+  --accent: 224 14% 14%;
+  --accent-foreground: 210 15% 85%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 240 12% 18%;
-  --input: 240 12% 18%;
-  --ring: 252 75% 65%;
+  --border: 224 14% 14%;
+  --input: 224 14% 14%;
+  --ring: 211 100% 55%;
 }
 
 @theme inline {
@@ -78,7 +78,11 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+      "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -105,14 +109,21 @@ html {
 
 /* Selection */
 ::selection {
-  background: hsl(252 80% 58% / 0.15);
+  background: hsl(211 100% 50% / 0.12);
 }
 
 /* Focus visible */
 *:focus-visible {
-  outline: 2px solid hsl(var(--ring));
+  outline: 2px solid hsl(var(--ring) / 0.5);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
+}
+
+/* Apple-style glassmorphism */
+.glass {
+  background: hsl(var(--background) / 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
 
 /* Document editor — A4 page PDF-like styling */

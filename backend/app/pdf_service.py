@@ -66,7 +66,19 @@ def compile_pdf(doc: DocumentModel) -> bytes:
 
         if result.returncode != 0:
             log_output = result.stdout + "\n" + result.stderr
-            logger.error(f"XeLaTeX compilation failed:\n{log_output}")
+            logger.error(f"XeLaTeX compilation failed (exit={result.returncode}):\n{log_output[-3000:]}")
+
+            # Detect OOM kill / signal kill (negative return codes on Linux)
+            if result.returncode < 0:
+                import signal
+                try:
+                    sig_name = signal.Signals(-result.returncode).name
+                except (ValueError, AttributeError):
+                    sig_name = str(-result.returncode)
+                raise PDFGenerationError(
+                    f"PDF生成プロセスが強制終了されました (signal: {sig_name})。メモリ不足の可能性があります。",
+                    detail=f"Process killed by signal {sig_name}. Last output: {log_output[-1000:]}"
+                )
 
             user_msg = _parse_latex_error(log_output)
             raise PDFGenerationError(user_msg, detail=log_output[-2000:])
@@ -88,6 +100,16 @@ def _parse_latex_error(log: str) -> str:
     error_lines = [l.strip() for l in log.split("\n") if l.strip().startswith("!")]
     error_detail = error_lines[0] if error_lines else ""
 
+    # Also look for key error patterns in the full log
+    if not error_detail:
+        # fontspec errors use a different format
+        for line in log.split("\n"):
+            line_s = line.strip()
+            if "fatal" in line_s.lower() or "error" in line_s.lower():
+                if len(line_s) > 10 and len(line_s) < 200:
+                    error_detail = line_s
+                    break
+
     if "undefined control sequence" in log_lower:
         return f"未定義のコマンドがあります。入力内容を確認してください。({error_detail})"
     if "missing $ inserted" in log_lower:
@@ -96,11 +118,11 @@ def _parse_latex_error(log: str) -> str:
         return "表の列数が一致していない可能性があります。表の内容を確認してください。"
     if "file not found" in log_lower and "image" in log_lower:
         return "画像の読み込みに失敗しました。画像URLが正しいか確認してください。"
-    # CJK font errors — very specific pattern
+    # CJK font errors
     if ("cjkmainfont" in log_lower or "cjksansfont" in log_lower) and ("not found" in log_lower or "cannot" in log_lower):
         return "CJKフォントが見つかりません。システムにフォントがインストールされているか確認してください。"
     # Generic font error (e.g. setmainfont used with non-existent font)
-    if "fontspec error" in log_lower:
+    if "fontspec error" in log_lower or "fontspec" in log_lower and "not found" in log_lower:
         return f"フォントの読み込みに問題があります。({error_detail})"
     if "emergency stop" in log_lower:
         return f"文書の処理中に重大なエラーが発生しました。({error_detail})"
@@ -110,4 +132,9 @@ def _parse_latex_error(log: str) -> str:
     # Default: include the first error line for diagnosis
     if error_detail:
         return f"PDF生成エラー: {error_detail}"
-    return "PDFの作成中にエラーが発生しました。入力内容を確認してもう一度お試しください。"
+
+    # Last resort: include last meaningful log lines for diagnosis
+    meaningful_lines = [l.strip() for l in log.split("\n") if l.strip() and not l.startswith("(")]
+    tail = meaningful_lines[-5:] if meaningful_lines else []
+    tail_str = "; ".join(tail)[:200]
+    return f"PDFコンパイルに失敗しました。(ログ: {tail_str})" if tail_str else "PDFの作成中にエラーが発生しました。サーバーログを確認してください。"

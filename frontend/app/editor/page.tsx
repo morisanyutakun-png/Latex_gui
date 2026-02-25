@@ -26,7 +26,7 @@ export default function EditorPage() {
   if (!document) return null;
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background">
       <AppHeader />
       <Toolbar />
       <DocumentEditor />

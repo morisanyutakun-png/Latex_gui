@@ -21,6 +21,7 @@ from ..models import (
     ChartContent,
 )
 from ..utils.latex_utils import escape_latex, text_to_latex_paragraphs
+import os
 import re
 import platform
 import subprocess
@@ -33,7 +34,17 @@ logger = logging.getLogger(__name__)
 # ──── Font config (cross-platform CJK detection) ────
 
 def _detect_cjk_fonts() -> tuple[str, str]:
-    """Detect available CJK fonts. Returns (main_font, sans_font)."""
+    """Detect available CJK fonts. Returns (main_font, sans_font).
+    
+    Priority: env vars > fc-list detection > OS defaults
+    """
+    # 1. Environment variables override (Docker/cloud)
+    env_main = os.environ.get("CJK_MAIN_FONT", "").strip()
+    env_sans = os.environ.get("CJK_SANS_FONT", "").strip()
+    if env_main and env_sans:
+        logger.info(f"CJK fonts from env: {env_main}, {env_sans}")
+        return (env_main, env_sans)
+
     system = platform.system()
 
     if system == "Darwin":  # macOS
@@ -44,12 +55,12 @@ def _detect_cjk_fonts() -> tuple[str, str]:
     else:  # Linux / Docker
         candidates = [
             ("Noto Serif CJK JP", "Noto Sans CJK JP"),
-            ("Noto Serif JP", "Noto Sans JP"),
+            ("Noto Sans CJK JP", "Noto Sans CJK JP"),  # Sans fallback
             ("IPAexMincho", "IPAexGothic"),
             ("IPAMincho", "IPAGothic"),
         ]
 
-    # Try fc-list to verify font availability
+    # 2. Try fc-list to verify font availability
     if shutil.which("fc-list"):
         try:
             result = subprocess.run(
@@ -57,14 +68,16 @@ def _detect_cjk_fonts() -> tuple[str, str]:
                 capture_output=True, text=True, timeout=5
             )
             available = result.stdout
+            logger.info(f"fc-list Japanese fonts: {available[:500]}")
             for main, sans in candidates:
                 if main in available:
                     logger.info(f"CJK fonts detected: {main}, {sans}")
                     return (main, sans)
+            logger.warning("No expected CJK fonts found in fc-list output")
         except Exception as e:
             logger.warning(f"fc-list failed: {e}")
 
-    # Fallback: use first candidate for this OS
+    # 3. Fallback: use first candidate for this OS
     main, sans = candidates[0]
     logger.info(f"CJK fonts (fallback): {main}, {sans}")
     return (main, sans)
@@ -213,11 +226,14 @@ def generate_document_latex(doc: DocumentModel) -> str:
     lines.append(f"\\usepackage[{geom}]{{geometry}}")
     lines.append("")
 
-    # ──── Fonts (fontspec only: no zxjatype/ctex dependency) ────
-    lines.append("% ── Fonts (fontspec: CJK direct, fully portable) ──")
-    lines.append(f"\\setmainfont{{{CJK_MAIN_FONT}}}")
-    lines.append(f"\\setsansfont{{{CJK_SANS_FONT}}}")
-    lines.append(f"\\setmonofont{{{CJK_SANS_FONT}}}")
+    # ──── Fonts (fontspec: conditional loading for cloud portability) ────
+    lines.append("% ── Fonts (fontspec: IfFontExistsTF for robustness) ──")
+    lines.append(f"\\IfFontExistsTF{{{CJK_MAIN_FONT}}}{{%")
+    lines.append(f"  \\setmainfont{{{CJK_MAIN_FONT}}}%")
+    lines.append(f"}}{{\\typeout{{WARNING: Font {CJK_MAIN_FONT} not found, using default}}}}")
+    lines.append(f"\\IfFontExistsTF{{{CJK_SANS_FONT}}}{{%")
+    lines.append(f"  \\setsansfont{{{CJK_SANS_FONT}}}%")
+    lines.append(f"}}{{\\typeout{{WARNING: Font {CJK_SANS_FONT} not found, using default}}}}")
     lines.append("")
 
     # ──── Line spacing ────
