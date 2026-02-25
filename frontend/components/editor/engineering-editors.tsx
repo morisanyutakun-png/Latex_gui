@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Block } from "@/lib/types";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
@@ -16,12 +16,18 @@ import {
 } from "@/components/ui/select";
 import {
   CIRCUIT_PRESETS,
+  CIRCUIT_CATEGORIES,
+  CIRCUIT_COMPONENTS,
   DIAGRAM_PRESETS,
   CHEMISTRY_PRESETS,
   CHART_PRESETS,
 } from "@/lib/presets";
+import type { CircuitPreset } from "@/lib/presets";
 import { MathRenderer } from "./math-editor";
-import { Zap, GitBranch, FlaskConical, BarChart3, Sparkles, Code2, ChevronRight } from "lucide-react";
+import {
+  Zap, GitBranch, FlaskConical, BarChart3, Sparkles,
+  Code2, ChevronRight, Search, X, Puzzle, Copy, Check,
+} from "lucide-react";
 
 // ──── Shared Preset Card ────
 function PresetCard({ name, description, active, onClick, accent }: {
@@ -47,6 +53,113 @@ function PresetCard({ name, description, active, onClick, accent }: {
   );
 }
 
+// ──── Circuit Code Description ────
+// Show a human-readable summary of the circuitikz components
+function CircuitCodeSummary({ code, presetName }: { code: string; presetName?: string }) {
+  const components = useMemo(() => {
+    const found: { type: string; count: number }[] = [];
+    const patterns: [RegExp, string][] = [
+      [/to\[R/g, "抵抗"],
+      [/to\[C/g, "コンデンサ"],
+      [/to\[L/g, "インダクタ"],
+      [/to\[V/g, "電圧源"],
+      [/to\[sV/g, "AC電圧源"],
+      [/to\[I/g, "電流源"],
+      [/to\[D[\],]/g, "ダイオード"],
+      [/to\[zD/g, "ツェナーD"],
+      [/to\[led/g, "LED"],
+      [/to\[pD/g, "フォトD"],
+      [/node\[op amp/g, "オペアンプ"],
+      [/node\[npn\]/g, "NPN Tr"],
+      [/node\[pnp\]/g, "PNP Tr"],
+      [/node\[nmos\]/g, "NMOS"],
+      [/node\[pmos\]/g, "PMOS"],
+      [/node\[ground\]/g, "GND"],
+      [/node\[vcc\]/g, "VCC"],
+      [/to\[voltmeter/g, "電圧計"],
+      [/to\[thermistor/g, "サーミスタ"],
+      [/to\[vR/g, "可変抵抗"],
+    ];
+    for (const [regexp, label] of patterns) {
+      const matches = code.match(regexp);
+      if (matches) {
+        found.push({ type: label, count: matches.length });
+      }
+    }
+    return found;
+  }, [code]);
+
+  if (components.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {components.map((c) => (
+        <span
+          key={c.type}
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-cyan-100/80 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-[9px] font-medium"
+        >
+          {c.type}{c.count > 1 ? ` ×${c.count}` : ""}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ──── Component Palette ────
+function ComponentPalette({ onInsert }: { onInsert: (snippet: string) => void }) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const categories = useMemo(() => {
+    const cats = new Map<string, typeof CIRCUIT_COMPONENTS>();
+    for (const comp of CIRCUIT_COMPONENTS) {
+      if (!cats.has(comp.category)) cats.set(comp.category, []);
+      cats.get(comp.category)!.push(comp);
+    }
+    return cats;
+  }, []);
+
+  const handleClick = (comp: typeof CIRCUIT_COMPONENTS[0]) => {
+    onInsert(comp.snippet);
+    setCopiedId(comp.id);
+    setTimeout(() => setCopiedId(null), 1200);
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+        <Puzzle className="h-3 w-3 text-cyan-500" />
+        部品パレット（クリックでコードに挿入）
+      </p>
+      <div className="space-y-2">
+        {Array.from(categories.entries()).map(([cat, comps]) => (
+          <div key={cat}>
+            <p className="text-[8px] uppercase font-bold text-muted-foreground/60 mb-1 tracking-wider">
+              {cat}
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {comps.map((comp) => (
+                <button
+                  key={comp.id}
+                  onClick={() => handleClick(comp)}
+                  title={`${comp.description}\n${comp.snippet}`}
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg border transition-all ${
+                    copiedId === comp.id
+                      ? "border-green-400 bg-green-50 dark:bg-green-950/20 text-green-700"
+                      : "border-border/40 bg-background hover:border-cyan-300 hover:bg-cyan-50/50 dark:hover:bg-cyan-950/20"
+                  }`}
+                >
+                  <span className="font-mono font-bold text-[9px] w-5 text-center">{comp.icon}</span>
+                  <span className="text-[9px]">{comp.name}</span>
+                  {copiedId === comp.id && <Check className="h-2.5 w-2.5" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ──── Circuit Editor ────
 
 export function CircuitBlockEditor({ block }: { block: Block }) {
@@ -54,21 +167,77 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
   const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "circuit" }>;
   const isEditing = editingBlockId === block.id;
-  const [showCode, setShowCode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("すべて");
+  const [showPalette, setShowPalette] = useState(false);
+
+  // Filter presets by category and search
+  const filteredPresets = useMemo(() => {
+    let results = CIRCUIT_PRESETS;
+
+    // Category filter
+    if (selectedCategory !== "すべて") {
+      results = results.filter((p) => p.category === selectedCategory);
+    }
+
+    // Search filter — matches name, description, tags
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      results = results.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.tags.some((t) => t.toLowerCase().includes(q)) ||
+          p.id.toLowerCase().includes(q)
+      );
+    }
+
+    return results;
+  }, [selectedCategory, searchQuery]);
+
+  const activePreset = CIRCUIT_PRESETS.find((p) => p.id === content.preset);
+
+  const handleInsertSnippet = (snippet: string) => {
+    const current = content.code || "";
+    const newCode = current ? `${current}\n${snippet}` : snippet;
+    updateContent(block.id, { code: newCode });
+  };
 
   return (
     <div className="space-y-2">
       {/* Preview/Placeholder */}
-      <div className={`flex flex-col items-center py-4 px-4 rounded-lg ${!content.code ? "bg-cyan-50/50 dark:bg-cyan-950/20" : "bg-white dark:bg-card"}`}>
+      <div
+        className={`flex flex-col items-center py-4 px-4 rounded-lg ${
+          !content.code ? "bg-cyan-50/50 dark:bg-cyan-950/20" : "bg-white dark:bg-card"
+        }`}
+      >
         {content.code ? (
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-xs">
-              <Zap className="h-3 w-3" />
-              {content.preset ? CIRCUIT_PRESETS.find(p => p.id === content.preset)?.name || "回路図" : "回路図"}
+          <div className="w-full space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-xs font-medium">
+                <Zap className="h-3 w-3" />
+                {activePreset?.name || "カスタム回路図"}
+              </div>
+              {activePreset?.category && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-muted-foreground">
+                  {activePreset.category}
+                </span>
+              )}
             </div>
             {content.caption && (
-              <p className="text-[10px] text-muted-foreground">{content.caption}</p>
+              <p className="text-[10px] text-muted-foreground text-center">{content.caption}</p>
             )}
+            {/* Show component summary */}
+            <div className="flex justify-center">
+              <CircuitCodeSummary code={content.code} presetName={activePreset?.name} />
+            </div>
+            {/* Simplified code preview */}
+            <div className="mx-auto max-w-md">
+              <pre className="text-[8px] font-mono text-muted-foreground/60 bg-slate-50 dark:bg-slate-900 rounded-md p-2 overflow-hidden max-h-16 leading-relaxed">
+                {content.code.split("\n").slice(0, 4).join("\n")}
+                {content.code.split("\n").length > 4 ? "\n..." : ""}
+              </pre>
+            </div>
           </div>
         ) : (
           <span className="text-muted-foreground/40 text-sm italic flex items-center gap-2">
@@ -88,27 +257,100 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
             className="h-8 text-xs"
           />
 
-          {/* Preset Grid — always visible, Canva-style */}
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-cyan-500" />
-              テンプレートから選択（クリックで即反映）
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {CIRCUIT_PRESETS.map((preset) => (
-                <PresetCard
-                  key={preset.id}
-                  name={preset.name}
-                  description={preset.description}
-                  active={content.preset === preset.id}
-                  accent="cyan"
-                  onClick={() => updateContent(block.id, { code: preset.code, preset: preset.id })}
+          {/* Search + Category filter */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="回路を検索... (例: オペアンプ, フィルタ, MOSFET)"
+                  className="h-8 text-xs pl-7 pr-7"
                 />
-              ))}
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                {filteredPresets.length}件
+              </span>
+            </div>
+
+            {/* Category pills */}
+            <div className="flex gap-1 flex-wrap">
+              {CIRCUIT_CATEGORIES.map((cat) => {
+                const count =
+                  cat === "すべて"
+                    ? CIRCUIT_PRESETS.length
+                    : CIRCUIT_PRESETS.filter((p) => p.category === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-2 py-0.5 text-[9px] rounded-full transition-all ${
+                      selectedCategory === cat
+                        ? "bg-cyan-500 text-white font-semibold"
+                        : "bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:bg-cyan-100 dark:hover:bg-cyan-900/30"
+                    }`}
+                  >
+                    {cat}
+                    <span className="ml-0.5 opacity-60">({count})</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Code editor — hidden behind toggle */}
+          {/* Preset Grid with scroll */}
+          <ScrollArea className="max-h-64">
+            <div className="grid grid-cols-2 gap-2 pr-2">
+              {filteredPresets.length > 0 ? (
+                filteredPresets.map((preset) => (
+                  <CircuitPresetCard
+                    key={preset.id}
+                    preset={preset}
+                    active={content.preset === preset.id}
+                    onClick={() =>
+                      updateContent(block.id, {
+                        code: preset.code,
+                        preset: preset.id,
+                      })
+                    }
+                  />
+                ))
+              ) : (
+                <div className="col-span-2 text-center py-6 text-muted-foreground/50 text-xs">
+                  <Search className="h-5 w-5 mx-auto mb-1 opacity-50" />
+                  該当する回路が見つかりません
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
+          {/* Component Palette */}
+          <details className="group" open={showPalette}>
+            <summary
+              onClick={(e) => { e.preventDefault(); setShowPalette(!showPalette); }}
+              className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none"
+            >
+              <ChevronRight className={`h-3 w-3 transition-transform ${showPalette ? "rotate-90" : ""}`} />
+              <Puzzle className="h-3 w-3" />
+              部品パレット（コードに追記）
+            </summary>
+            {showPalette && (
+              <div className="mt-2">
+                <ComponentPalette onInsert={handleInsertSnippet} />
+              </div>
+            )}
+          </details>
+
+          {/* Code editor */}
           <details className="group">
             <summary className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none">
               <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
@@ -119,12 +361,53 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
               value={content.code}
               onChange={(e) => updateContent(block.id, { code: e.target.value })}
               placeholder="circuitikz コードを入力..."
-              className="mt-2 w-full font-mono text-xs p-2 h-28 rounded-lg border border-cyan-200 dark:border-cyan-800 focus:ring-cyan-400 bg-slate-50 dark:bg-slate-900 resize-y"
+              className="mt-2 w-full font-mono text-xs p-2 h-36 rounded-lg border border-cyan-200 dark:border-cyan-800 focus:ring-cyan-400 bg-slate-50 dark:bg-slate-900 resize-y"
             />
           </details>
         </div>
       )}
     </div>
+  );
+}
+
+// Circuit-specific preset card with tags and component info
+function CircuitPresetCard({ preset, active, onClick }: {
+  preset: CircuitPreset; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-start p-3 rounded-xl border-2 transition-all text-left ${
+        active
+          ? "border-cyan-400 bg-cyan-50 dark:bg-cyan-950/20 shadow-sm"
+          : "border-border/50 hover:border-cyan-300 hover:shadow-sm"
+      }`}
+    >
+      <div className="flex items-center gap-1.5 w-full">
+        <span className="text-xs font-semibold flex-1">{preset.name}</span>
+        <span className="text-[7px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-muted-foreground shrink-0">
+          {preset.category}
+        </span>
+      </div>
+      <span className="text-[9px] text-muted-foreground leading-relaxed mt-0.5">
+        {preset.description}
+      </span>
+      <div className="flex flex-wrap gap-0.5 mt-1.5">
+        {preset.tags.slice(0, 3).map((tag) => (
+          <span
+            key={tag}
+            className="px-1 py-0 text-[7px] rounded bg-cyan-50 dark:bg-cyan-950/20 text-cyan-600 dark:text-cyan-400"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+      {active && (
+        <span className="mt-1.5 inline-flex items-center gap-0.5 text-[8px] font-medium text-cyan-600 dark:text-cyan-400">
+          <Sparkles className="h-2.5 w-2.5" /> 選択中
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -307,7 +590,7 @@ export function ChemistryBlockEditor({ block }: { block: Block }) {
             />
             {/* Quick-insert symbols */}
             <div className="flex gap-1 flex-wrap">
-              {["->", "<=>", "^{2+}", "_{(aq)}", "->[\u89e6\u5a92]", "v", "^"].map((sym) => (
+              {["->", "<=>", "^{2+}", "_{(aq)}", "->[触媒]", "v", "^"].map((sym) => (
                 <button
                   key={sym}
                   onClick={() => updateContent(block.id, { formula: content.formula + " " + sym + " " })}

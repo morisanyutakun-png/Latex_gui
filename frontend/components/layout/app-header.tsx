@@ -75,7 +75,12 @@ export function AppHeader() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "不明なエラー";
       console.error("PDF生成エラー:", message);
-      toast.error("PDF生成に失敗しました。入力内容を確認してもう一度お試しください。");
+      // サーバー接続エラーかコンパイルエラーかで表示を切り替え
+      if (message.includes("接続できません") || message.includes("リクエストに失敗")) {
+        toast.error(message, { duration: 8000 });
+      } else {
+        toast.error(`PDF生成に失敗: ${message}`, { duration: 6000 });
+      }
     } finally {
       setGenerating(false);
     }

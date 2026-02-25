@@ -57,6 +57,7 @@ class ImageContent(CamelModel):
 
 class DividerContent(CamelModel):
     type: Literal["divider"] = "divider"
+    style: Optional[str] = "solid"  # solid, dashed, dotted
 
 
 class CodeContent(CamelModel):
