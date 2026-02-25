@@ -550,14 +550,12 @@ function MathBlockEditor({ block }: { block: Block }) {
   const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
-  const [inputMode, setInputMode] = useState<"japanese" | "dictionary" | "spacing">("japanese");
 
   const handleInsert = (latex: string) => {
     updateContent(block.id, { latex: (content.latex + " " + latex).trim() });
   };
 
   const handleJapaneseSubmit = (latex: string) => {
-    // 既存のlatexに追記（多項式対応）
     if (content.latex.trim()) {
       updateContent(block.id, { latex: content.latex + " " + latex });
     } else {
@@ -585,45 +583,36 @@ function MathBlockEditor({ block }: { block: Block }) {
         )}
       </div>
 
-      {/* 編集パネル */}
+      {/* 編集パネル（統合レイアウト） */}
       {isEditing && (
         <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
-          {/* モードタブ */}
-          <div className="flex items-center gap-1 border-b pb-2">
-            {[
-              { id: "japanese" as const, label: "🇯🇵 日本語入力", desc: "読み方で書く" },
-              { id: "dictionary" as const, label: "📚 辞書・公式", desc: "検索して選ぶ" },
-              { id: "spacing" as const, label: "📏 スペース", desc: "間隔を調整" },
-            ].map((mode) => (
-              <button
-                key={mode.id}
-                onClick={() => setInputMode(mode.id)}
-                className={`flex-1 px-2 py-1.5 rounded-lg text-center transition-all ${
-                  inputMode === mode.id
-                    ? "bg-primary/10 text-primary border border-primary/20"
-                    : "text-muted-foreground hover:bg-muted/50"
-                }`}
-              >
-                <span className="text-[10px] font-medium block">{mode.label}</span>
-              </button>
-            ))}
-          </div>
+          {/* 日本語入力（メイン・常時表示） */}
+          <JapaneseMathInput
+            onSubmit={handleJapaneseSubmit}
+            initialLatex={content.latex}
+          />
 
-          {/* モードコンテンツ */}
-          {inputMode === "japanese" && (
-            <JapaneseMathInput
-              onSubmit={handleJapaneseSubmit}
-              initialLatex={content.latex}
-            />
-          )}
+          {/* 辞書・公式（折りたたみ） */}
+          <details className="group">
+            <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
+              <span className="transition-transform group-open:rotate-90">&#9654;</span>
+              辞書・公式を参照
+            </summary>
+            <div className="mt-1.5">
+              <MathDictionary onInsert={handleInsert} />
+            </div>
+          </details>
 
-          {inputMode === "dictionary" && (
-            <MathDictionary onInsert={handleInsert} />
-          )}
-
-          {inputMode === "spacing" && (
-            <SpacingControl onInsert={handleInsert} />
-          )}
+          {/* スペース調整（折りたたみ） */}
+          <details className="group">
+            <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
+              <span className="transition-transform group-open:rotate-90">&#9654;</span>
+              スペース調整
+            </summary>
+            <div className="mt-1.5">
+              <SpacingControl onInsert={handleInsert} />
+            </div>
+          </details>
 
           {/* LaTeX コード (上級者向け) */}
           {content.latex && (
