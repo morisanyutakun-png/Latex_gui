@@ -236,13 +236,49 @@ def generate_document_latex(doc: DocumentModel, engine: str = "pdflatex") -> str
 
     # ──── Fonts ────
     if engine == "xelatex":
-        lines.append("% ── Fonts (fontspec: IfFontExistsTF for robustness) ──")
-        lines.append(f"\\IfFontExistsTF{{{CJK_MAIN_FONT}}}{{%")
-        lines.append(f"  \\setmainfont{{{CJK_MAIN_FONT}}}%")
-        lines.append(f"}}{{\\typeout{{WARNING: Font {CJK_MAIN_FONT} not found, using default}}}}")
-        lines.append(f"\\IfFontExistsTF{{{CJK_SANS_FONT}}}{{%")
-        lines.append(f"  \\setsansfont{{{CJK_SANS_FONT}}}%")
-        lines.append(f"}}{{\\typeout{{WARNING: Font {CJK_SANS_FONT} not found, using default}}}}")
+        # CJK フォントのフォールバックチェーン (複数候補を順に試す)
+        main_candidates = [
+            CJK_MAIN_FONT,
+            "Noto Serif CJK JP",
+            "Noto Sans CJK JP",
+            "IPAMincho",
+            "IPAexMincho",
+            "Hiragino Mincho ProN",
+            "TakaoMincho",
+            "VL Gothic",
+        ]
+        sans_candidates = [
+            CJK_SANS_FONT,
+            "Noto Sans CJK JP",
+            "IPAGothic",
+            "IPAexGothic",
+            "Hiragino Sans",
+            "TakaoGothic",
+            "VL Gothic",
+        ]
+        # 重複除去 (順序維持)
+        main_candidates = list(dict.fromkeys(f for f in main_candidates if f))
+        sans_candidates = list(dict.fromkeys(f for f in sans_candidates if f))
+
+        lines.append("% ── CJK Fonts (fallback chain for cross-platform robustness) ──")
+        lines.append("\\newif\\ifCJKmainfontset \\CJKmainfontsetfalse")
+        for font in main_candidates:
+            lines.append(f"\\ifCJKmainfontset\\else")
+            lines.append(f"  \\IfFontExistsTF{{{font}}}{{\\setmainfont{{{font}}}\\CJKmainfontsettrue}}{{}}")
+            lines.append(f"\\fi")
+        lines.append("\\ifCJKmainfontset\\else")
+        lines.append("  \\typeout{WARNING: No CJK main font found. Japanese text may not render.}")
+        lines.append("\\fi")
+        lines.append("")
+
+        lines.append("\\newif\\ifCJKsansfontset \\CJKsansfontsetfalse")
+        for font in sans_candidates:
+            lines.append(f"\\ifCJKsansfontset\\else")
+            lines.append(f"  \\IfFontExistsTF{{{font}}}{{\\setsansfont{{{font}}}\\CJKsansfontsettrue}}{{}}")
+            lines.append(f"\\fi")
+        lines.append("\\ifCJKsansfontset\\else")
+        lines.append("  \\typeout{WARNING: No CJK sans font found.}")
+        lines.append("\\fi")
         lines.append("")
     # pdflatex: bxcjkjatype handles fonts automatically
 

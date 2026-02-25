@@ -1,0 +1,30 @@
+# Nixpacks 設定 (Koyeb / Railway 等の buildpack デプロイ用)
+# Docker デプロイの場合は Dockerfile が優先されるため、この設定は無視されます。
+#
+# 使用方法:
+#   Koyeb で「Buildpack」モードを選択した場合に自動的に読み込まれます。
+#   推奨: Docker モードを使用してください (Dockerfile の方が確実です)。
+
+[phases.setup]
+# TeX Live + CJK サポート (日本語PDF生成に必要)
+aptPkgs = [
+    "texlive-latex-base",
+    "texlive-latex-recommended",
+    "texlive-latex-extra",
+    "texlive-pictures",
+    "texlive-science",
+    "texlive-fonts-recommended",
+    "texlive-lang-japanese",
+    "texlive-lang-cjk",
+    "texlive-xetex",
+    "fonts-noto-cjk",
+    "poppler-utils",
+    "fontconfig",
+]
+
+[phases.build]
+# TeX パッケージデータベースを更新
+cmds = ["texhash || true", "fc-cache -fv || true"]
+
+[start]
+cmd = "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"

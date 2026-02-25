@@ -21,7 +21,7 @@ from .models import DocumentModel
 from .generators.document_generator import generate_document_latex
 from .tex_env import (
     TEX_ENV, XELATEX_CMD, PDFLATEX_CMD,
-    DEFAULT_ENGINE,
+    DEFAULT_ENGINE, CJK_STY_AVAILABLE, PDFLATEX_CJK_OK, XELATEX_OK,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,15 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     primary = DEFAULT_ENGINE
     fallback = "xelatex" if primary == "pdflatex" else "pdflatex"
 
+    logger.info(
+        f"PDF compilation: primary={primary}, fallback={fallback}, "
+        f"CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
+        f"pdflatex_cjk={'OK' if PDFLATEX_CJK_OK else 'NG'}, "
+        f"xelatex={'OK' if XELATEX_OK else 'NG'}"
+    )
+
     # ── Primary engine ──
+    primary_error = None
     try:
         latex_source = generate_document_latex(doc, engine=primary)
         pdf = _compile_latex(latex_source, ENGINE_CMD[primary], timeout=30)
@@ -103,9 +111,15 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
 
     # ── Fallback engine ──
     # 起動時テスト結果に関わらず常にフォールバックを試行する。
-    # CJK.sty 欠損等、起動後に環境が変化している可能性があるため。
     fallback_cmd = ENGINE_CMD.get(fallback)
-    if fallback_cmd and shutil.which(fallback_cmd):
+    fallback_error = None
+
+    # shutil.which でアプリ PATH + TEX_ENV 両方で検索
+    fallback_available = bool(
+        fallback_cmd and (shutil.which(fallback_cmd) or Path(fallback_cmd).is_file())
+    )
+
+    if fallback_available:
         logger.info(f"Falling back to {fallback}...")
         try:
             latex_source = generate_document_latex(doc, engine=fallback)
@@ -114,8 +128,32 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             return pdf
         except PDFGenerationError as e:
             logger.error(f"{fallback} also failed: {e.user_message}")
+            fallback_error = e
     else:
         logger.warning(f"Fallback engine {fallback} ({fallback_cmd}) not found on system")
+
+    # ── 両方失敗: ユーザー向けの統合エラーメッセージ ──
+    if not CJK_STY_AVAILABLE and not XELATEX_OK:
+        # TeX Live が正しくインストールされていない
+        raise PDFGenerationError(
+            "PDF生成に失要なLaTeXパッケージ（CJK.sty）がサーバーにインストールされていません。"
+            "サーバー管理者に texlive-lang-cjk のインストールを依頼してください。"
+            "Dockerでのデプロイが推奨されます。",
+            detail=(
+                f"Primary ({primary}): {primary_error.detail if primary_error else 'N/A'}\n"
+                f"Fallback ({fallback}): {fallback_error.detail if fallback_error else 'not available'}"
+            ),
+        )
+
+    # fallback もエラーの場合は両方のエラーを含める
+    if fallback_error:
+        raise PDFGenerationError(
+            f"{primary_error.user_message} フォールバック({fallback})も失敗: {fallback_error.user_message}",
+            detail=(
+                f"Primary ({primary}): {primary_error.detail}\n"
+                f"Fallback ({fallback}): {fallback_error.detail}"
+            ),
+        )
 
     raise primary_error
 

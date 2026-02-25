@@ -243,16 +243,22 @@ docker compose up --build
 
 1. GitHubにリポジトリをプッシュ
 2. [Koyeb](https://app.koyeb.com/) でアカウント作成
-3. 「Create App」→「Docker」を選択
+3. 「Create App」→ **必ず「Docker」を選択**（Buildpackでは TeX Live が正しくインストールされない可能性があります）
 4. リポジトリを接続し、以下を設定:
    - **Dockerfile path:** `backend/Dockerfile`
-   - **Build context:** `.`（リポジトリルート）
+   - **Build context:** `.`（リポジトリルート）または `backend/`（どちらでも動作します）
    - **Port:** `8000`
 5. 環境変数を設定:
    - `ALLOWED_ORIGINS` = `https://your-app.vercel.app`（Vercelの本番URL）
    - `CJK_MAIN_FONT` = `Noto Serif CJK JP`（Dockerfileで設定済み、変更不要）
    - `CJK_SANS_FONT` = `Noto Sans CJK JP`（Dockerfileで設定済み、変更不要）
 6. デプロイ実行
+7. デプロイ後に `https://your-backend.koyeb.app/api/debug/tex-info` にアクセスして TeX 環境を確認
+
+> **⚠️ トラブルシューティング:** `CJK.sty not found` エラーが出る場合:
+> - Koyebのデプロイが **Docker モード** になっているか確認（Buildpackモードではなく）
+> - ビルドログで `[OK] CJK.sty` の表示があるか確認
+> - `/api/debug/tex-info` エンドポイントで診断情報を確認
 
 ### Frontend を Vercel にデプロイ
 

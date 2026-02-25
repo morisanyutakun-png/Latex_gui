@@ -90,6 +90,7 @@ async def tex_debug_info():
     from .tex_env import (
         XELATEX_CMD, PDFLATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD, TEX_ENV,
         DEFAULT_ENGINE, PDFLATEX_CJK_OK, XELATEX_OK,
+        CJK_STY_AVAILABLE, BXCJKJATYPE_AVAILABLE,
     )
     from .generators.document_generator import CJK_MAIN_FONT, CJK_SANS_FONT
 
@@ -98,6 +99,10 @@ async def tex_debug_info():
             "default": DEFAULT_ENGINE,
             "pdflatex_cjk_ok": PDFLATEX_CJK_OK,
             "xelatex_ok": XELATEX_OK,
+        },
+        "packages": {
+            "CJK_sty": CJK_STY_AVAILABLE,
+            "bxcjkjatype_sty": BXCJKJATYPE_AVAILABLE,
         },
         "commands": {
             "xelatex": {"path": XELATEX_CMD, "exists": shutil.which(XELATEX_CMD) is not None},

@@ -1,0 +1,14 @@
+# Heroku 互換 buildpack 用 (Koyeb / Railway / Render 等)
+# heroku-buildpack-apt を使用する場合にこのファイルが読み込まれます。
+texlive-latex-base
+texlive-latex-recommended
+texlive-latex-extra
+texlive-pictures
+texlive-science
+texlive-fonts-recommended
+texlive-lang-japanese
+texlive-lang-cjk
+texlive-xetex
+fonts-noto-cjk
+poppler-utils
+fontconfig
