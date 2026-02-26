@@ -17,15 +17,9 @@ CJK_SANS_FONT = os.environ.get("CJK_SANS_FONT", "Hiragino Sans")
 
 
 def canvas_preamble() -> str:
-    """Canvas 対応 XeLaTeX プリアンブル (fontspec only: ctex/zxjatype依存なし)"""
+    """Canvas 対応 LuaLaTeX プリアンブル (luatexja-preset で日本語対応)"""
     return rf"""\documentclass[a4paper]{{article}}
-\usepackage{{fontspec}}
-\IfFontExistsTF{{{CJK_MAIN_FONT}}}{{%
-  \setmainfont{{{CJK_MAIN_FONT}}}%
-}}{{\typeout{{WARNING: Font {CJK_MAIN_FONT} not found, using default}}}}
-\IfFontExistsTF{{{CJK_SANS_FONT}}}{{%
-  \setsansfont{{{CJK_SANS_FONT}}}%
-}}{{\typeout{{WARNING: Font {CJK_SANS_FONT} not found, using default}}}}
+\usepackage[haranoaji]{{luatexja-preset}}
 \usepackage[absolute]{{textpos}}
 \setlength{{\TPHorizModule}}{{1mm}}
 \setlength{{\TPVertModule}}{{1mm}}
@@ -62,9 +56,9 @@ def _style_commands(style: ElementStyle) -> str:
     leading = fs * 1.35
     parts.append(rf"\fontsize{{{fs:.1f}pt}}{{{leading:.1f}pt}}\selectfont")
 
-    # --- font family (sans のときだけ切替) ---
+    # --- font family (sans のときだけ切替 — luatexja のゴシックに切替) ---
     if style.fontFamily == "sans":
-        parts.append(rf"\fontspec{{{CJK_SANS_FONT}}}")
+        parts.append(r"\sffamily")
 
     # --- weight / shape ---
     if style.bold:

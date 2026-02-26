@@ -8,7 +8,7 @@ from ..utils.base_generator import canvas_preamble, render_canvas_element
 
 
 def generate_canvas_pdf(doc: DocumentModel) -> str:
-    """DocumentModel (pages/elements) → XeLaTeX ソース"""
+    """DocumentModel (pages/elements) → LuaLaTeX ソース"""
     preamble = canvas_preamble()
 
     page_blocks: list[str] = []

@@ -2,9 +2,8 @@
 ブロックプレビューサービス: LaTeXブロック → SVG画像
 回路図・ダイアグラム等のリアルタイムプレビュー用
 
-最適化:
-  - pdflatex を使用 (CJK不要のブロックなので xelatex より高速)
-  - pdftocairo で直接 PDF→SVG 変換 (dvisvgm の Ghostscript 問題を回避)
+LuaLaTeX 専用版:
+  - lualatex → PDF → pdftocairo → SVG
   - インメモリ LRU キャッシュ (同一コードの再コンパイル回避)
 """
 import subprocess
@@ -14,7 +13,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from .tex_env import TEX_ENV, PDFLATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD
+from .tex_env import TEX_ENV, LUALATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD
 import shutil
 
 logger = logging.getLogger(__name__)
@@ -103,8 +102,7 @@ def _wrap_block_latex(code: str, block_type: str) -> str:
 def _compile_to_svg(latex_source: str) -> str:
     """Compile LaTeX source to SVG.
     
-    Pipeline: pdflatex → PDF → pdftocairo → SVG
-    (pdflatex is ~40% faster than xelatex for non-CJK content)
+    Pipeline: lualatex → PDF → pdftocairo → SVG
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = Path(tmpdir) / "preview.tex"
@@ -113,25 +111,25 @@ def _compile_to_svg(latex_source: str) -> str:
 
         tex_path.write_text(latex_source, encoding="utf-8")
 
-        # Step 1: Compile LaTeX → PDF (pdflatex: fast, no fontspec overhead)
+        # Step 1: Compile LaTeX → PDF (lualatex)
         try:
             result = subprocess.run(
                 [
-                    PDFLATEX_CMD,
+                    LUALATEX_CMD,
                     "-interaction=nonstopmode",
                     "-halt-on-error",
-                    "-no-shell-escape",
+                    "-file-line-error",
                     "-output-directory", str(tmpdir),
                     str(tex_path),
                 ],
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=15,
                 cwd=tmpdir,
                 env=TEX_ENV,
             )
         except FileNotFoundError:
-            raise RuntimeError("pdflatex not found")
+            raise RuntimeError("lualatex not found")
         except subprocess.TimeoutExpired:
             raise RuntimeError("LaTeX compilation timeout")
 

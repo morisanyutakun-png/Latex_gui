@@ -78,17 +78,15 @@ def _get_memory_info() -> dict:
 
 @app.get("/api/debug/tex-info")
 async def tex_debug_info():
-    """TeX環境の診断情報を返す（軽量版 — コンパイルテストは実行しない）"""
+    """TeX環境の診断情報を返す（LuaLaTeX 専用版）"""
     import shutil
     import subprocess
     from pathlib import Path
     from .tex_env import (
-        XELATEX_CMD, PDFLATEX_CMD, LUALATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD,
-        TEX_ENV, DEFAULT_ENGINE, FALLBACK_ENGINES,
-        PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
-        CJK_STY_AVAILABLE, BXCJKJATYPE_AVAILABLE,
-        XECJK_STY_AVAILABLE, LUATEXJA_STY_AVAILABLE, LUATEXJA_PRESET_AVAILABLE,
-        PDFLATEX_AVAILABLE, LUALATEX_AVAILABLE, XELATEX_AVAILABLE,
+        LUALATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD,
+        TEX_ENV, DEFAULT_ENGINE,
+        LUALATEX_JA_OK, LUALATEX_AVAILABLE,
+        LUATEXJA_STY_AVAILABLE, LUATEXJA_PRESET_AVAILABLE,
         DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT,
         is_warmup_done, is_lualatex_cache_warm,
     )
@@ -100,27 +98,18 @@ async def tex_debug_info():
         },
         "engine": {
             "default": DEFAULT_ENGINE,
-            "fallbacks": FALLBACK_ENGINES,
-            "pdflatex_cjk_ok": PDFLATEX_CJK_OK,
+            "mode": "lualatex-only",
             "lualatex_ja_ok": LUALATEX_JA_OK,
-            "xelatex_ok": XELATEX_OK,
         },
         "availability": {
-            "pdflatex": PDFLATEX_AVAILABLE,
             "lualatex": LUALATEX_AVAILABLE,
-            "xelatex": XELATEX_AVAILABLE,
         },
         "packages": {
-            "CJK_sty": CJK_STY_AVAILABLE,
-            "bxcjkjatype_sty": BXCJKJATYPE_AVAILABLE,
-            "xeCJK_sty": XECJK_STY_AVAILABLE,
             "luatexja_sty": LUATEXJA_STY_AVAILABLE,
             "luatexja_preset_sty": LUATEXJA_PRESET_AVAILABLE,
         },
         "commands": {
-            "pdflatex": {"path": PDFLATEX_CMD, "exists": bool(shutil.which(PDFLATEX_CMD) or Path(PDFLATEX_CMD).is_file())},
             "lualatex": {"path": LUALATEX_CMD, "exists": bool(shutil.which(LUALATEX_CMD) or Path(LUALATEX_CMD).is_file())},
-            "xelatex": {"path": XELATEX_CMD, "exists": bool(shutil.which(XELATEX_CMD) or Path(XELATEX_CMD).is_file())},
             "pdftocairo": {"path": PDFTOCAIRO_CMD, "exists": bool(shutil.which(PDFTOCAIRO_CMD))},
             "dvisvgm": {"path": DVISVGM_CMD, "exists": bool(shutil.which(DVISVGM_CMD))},
         },
@@ -129,11 +118,8 @@ async def tex_debug_info():
             "sans": DETECTED_CJK_SANS_FONT,
         },
         "env": {
-            "CJK_MAIN_FONT": os.environ.get("CJK_MAIN_FONT", "(not set)"),
-            "CJK_SANS_FONT": os.environ.get("CJK_SANS_FONT", "(not set)"),
-            "TEXINPUTS": TEX_ENV.get("TEXINPUTS", "(not set)"),
-            "COMPILE_MEM_LIMIT_MB": os.environ.get("COMPILE_MEM_LIMIT_MB", "512"),
-            "COMPILE_TOTAL_BUDGET_SECONDS": os.environ.get("COMPILE_TOTAL_BUDGET_SECONDS", "42"),
+            "COMPILE_MEM_LIMIT_MB": os.environ.get("COMPILE_MEM_LIMIT_MB", "1536"),
+            "COMPILE_TIMEOUT_SECONDS": os.environ.get("COMPILE_TIMEOUT_SECONDS", "30"),
         },
     }
 
@@ -151,9 +137,9 @@ async def tex_debug_info():
     else:
         info["fc_list_ja"] = "fc-list not available"
 
-    # ── .sty ファイルシステム検索 (fast) ──
+    # ── .sty ファイルシステム検索 (luatexja のみ) ──
     sty_files = {}
-    for sty_name in ["CJK.sty", "bxcjkjatype.sty", "xeCJK.sty", "luatexja.sty", "luatexja-preset.sty"]:
+    for sty_name in ["luatexja.sty", "luatexja-preset.sty"]:
         try:
             r = subprocess.run(
                 ["find", "/usr", "-name", sty_name, "-type", "f"],
@@ -182,8 +168,7 @@ async def tex_debug_info():
 async def warmup_status():
     """ウォームアップ状態を即座に返す (軽量)"""
     from .tex_env import (
-        PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
-        PDFLATEX_AVAILABLE, LUALATEX_AVAILABLE, XELATEX_AVAILABLE,
+        LUALATEX_JA_OK, LUALATEX_AVAILABLE,
         DEFAULT_ENGINE, is_warmup_done, is_lualatex_cache_warm,
     )
     return {
@@ -191,13 +176,12 @@ async def warmup_status():
         "lualatex_cache_warm": is_lualatex_cache_warm(),
         "default_engine": DEFAULT_ENGINE,
         "availability": {
-            "pdflatex": PDFLATEX_AVAILABLE,
             "lualatex": LUALATEX_AVAILABLE,
-            "xelatex": XELATEX_AVAILABLE,
         },
         "compile_tested": {
-            "pdflatex": PDFLATEX_CJK_OK,
             "lualatex": LUALATEX_JA_OK,
+        },
+    }
             "xelatex": XELATEX_OK,
         },
     }

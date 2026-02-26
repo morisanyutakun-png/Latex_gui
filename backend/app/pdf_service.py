@@ -1,11 +1,11 @@
 """
-PDF生成サービス: LaTeX生成 → コンパイル → PDF返却 (v5)
+PDF生成サービス: LaTeX生成 → LuaLaTeX コンパイル → PDF返却 (v6 — LuaLaTeX 専用)
 
-軽量クラウド対応:
-  - pdflatex を最優先 (軽量・高速)
-  - lualatex フォールバック時はフォントキャッシュ活用で高速起動
+方針:
+  - エンジン: lualatex のみ (フォールバックなし)
+  - 日本語: luatexja-preset[haranoaji]
+  - shell-escape 原則禁止
   - 同時コンパイル制限 + メモリ上限でクラウド OOM 防止
-  - RLIMIT_AS を十分大きく設定 (lualatex 仮想メモリ対応)
 """
 import asyncio
 import gc
@@ -21,12 +21,8 @@ from pathlib import Path
 from .models import DocumentModel
 from .generators.document_generator import generate_document_latex
 from .tex_env import (
-    TEX_ENV, XELATEX_CMD, PDFLATEX_CMD, LUALATEX_CMD,
-    DEFAULT_ENGINE, FALLBACK_ENGINES,
-    CJK_STY_AVAILABLE,
-    PDFLATEX_AVAILABLE, LUALATEX_AVAILABLE, XELATEX_AVAILABLE,
-    PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
-    wait_for_warmup, is_warmup_done, is_lualatex_cache_warm,
+    TEX_ENV, LUALATEX_CMD, LUALATEX_AVAILABLE,
+    wait_for_warmup, is_lualatex_cache_warm,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,18 +31,12 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "2"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
-# メモリ上限 (bytes)。Linux で resource.setrlimit に使用。
-# lualatex は仮想メモリを大量に使う (フォントキャッシュ等で 800MB+ になることがある)
-# RLIMIT_AS が小さすぎると SIGKILL / mmap failed で即死するため、十分大きくする
+# メモリ上限 (bytes)
 MEM_LIMIT_MB = int(os.environ.get("COMPILE_MEM_LIMIT_MB", "1536"))
 MEM_LIMIT_BYTES = MEM_LIMIT_MB * 1024 * 1024
 
-# エンジンコマンドマップ
-ENGINE_CMD = {
-    "pdflatex": PDFLATEX_CMD,
-    "lualatex": LUALATEX_CMD,
-    "xelatex": XELATEX_CMD,
-}
+# コンパイルタイムアウト (秒)
+COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "30"))
 
 
 class PDFGenerationError(Exception):
@@ -64,165 +54,81 @@ def _make_preexec_fn():
     def _set_limits():
         try:
             import resource
-            # RLIMIT_AS: 仮想メモリ上限
             resource.setrlimit(resource.RLIMIT_AS, (MEM_LIMIT_BYTES, MEM_LIMIT_BYTES))
         except Exception:
-            pass  # 設定失敗しても続行
+            pass
     return _set_limits
 
 
 def generate_latex(doc: DocumentModel) -> str:
-    """DocumentModelからLaTeXソースを生成 (自動検出エンジン用)"""
-    return generate_document_latex(doc, engine=DEFAULT_ENGINE)
+    """DocumentModelからLaTeXソースを生成 (lualatex 固定)"""
+    return generate_document_latex(doc, engine="lualatex")
 
 
 async def compile_pdf(doc: DocumentModel) -> bytes:
-    """LaTeX生成 → コンパイル → PDFバイト列
-
-    非同期セマフォで同時コンパイル数を制限し、クラウド環境の OOM を防止。
-    起動時テスト済みのエンジンを優先使用。
-    """
+    """LaTeX生成 → LuaLaTeX コンパイル → PDFバイト列"""
     async with _compile_semaphore:
         return await asyncio.get_event_loop().run_in_executor(
             None, _compile_pdf_sync, doc
         )
 
 
-# ── 全体のタイムバジェット (Vercel の 60s 以内に収めるため余裕を持たせる) ──
-TOTAL_TIME_BUDGET = int(os.environ.get("COMPILE_TOTAL_BUDGET_SECONDS", "45"))
-
-
 def _compile_pdf_sync(doc: DocumentModel) -> bytes:
-    """同期版 PDF 生成 (スレッドプールで実行される)
-
-    エンジン選択戦略 (v4):
-      1. ウォームアップ完了チェック (最大1秒 — ブロックしない)
-      2. ウォームアップ済み → テスト通過エンジンのみ使用 (高速)
-      3. ウォームアップ未完了 → pdflatex 優先で即試行 (最大2エンジン)
-    """
-    from . import tex_env as te
-
+    """同期版 PDF 生成 — LuaLaTeX 一本"""
     t0 = time.monotonic()
 
-    # ── ウォームアップ待ち (最大1秒 — コールドスタート時はすぐ諦める) ──
-    warmup_done = te.wait_for_warmup(timeout=1.0)
-
+    # ウォームアップ待ち (最大3秒 — Dockerビルドでキャッシュ構築済みなら即完了)
+    warmup_done = wait_for_warmup(timeout=3.0)
     if warmup_done:
-        # ウォームアップ完了: テスト通過エンジンのみ使用
-        engine_ok = {
-            "pdflatex": te.PDFLATEX_CJK_OK,
-            "lualatex": te.LUALATEX_JA_OK,
-            "xelatex": te.XELATEX_OK,
-        }
-        tested_engines = [e for e in ["pdflatex", "lualatex", "xelatex"] if engine_ok.get(e)]
-        engines_to_try = tested_engines[:2] if tested_engines else [te.DEFAULT_ENGINE]
-        logger.info(
-            f"[compile] Warmup done. engines={engines_to_try}, "
-            f"pdflatex={'OK' if te.PDFLATEX_CJK_OK else 'NG'}, "
-            f"lualatex={'OK' if te.LUALATEX_JA_OK else 'NG'}, "
-            f"xelatex={'OK' if te.XELATEX_OK else 'NG'}"
-        )
+        logger.info("[compile] Warmup done, lualatex cache warm")
     else:
-        # ウォームアップ未完了: pdflatex 優先で最大2エンジン試行
-        avail = {"pdflatex": te.PDFLATEX_AVAILABLE,
-                 "lualatex": te.LUALATEX_AVAILABLE,
-                 "xelatex": te.XELATEX_AVAILABLE}
-        engines_to_try = [e for e in ["pdflatex", "xelatex", "lualatex"] if avail.get(e)][:2]
-        if not engines_to_try:
-            engines_to_try = ["pdflatex"]
-        logger.info(
-            f"[compile] Warmup NOT done. Trying (max 2): {engines_to_try}"
+        logger.info("[compile] Warmup not done, proceeding with lualatex anyway")
+
+    # lualatex コマンド存在確認
+    cmd_exists = bool(shutil.which(LUALATEX_CMD) or Path(LUALATEX_CMD).is_file())
+    if not cmd_exists:
+        raise PDFGenerationError(
+            "LuaLaTeX エンジンがシステムに見つかりません。",
+            detail=f"{LUALATEX_CMD} not found in PATH"
         )
 
-    errors: list[tuple[str, PDFGenerationError]] = []
+    # タイムアウト決定
+    timeout = COMPILE_TIMEOUT if is_lualatex_cache_warm() else COMPILE_TIMEOUT + 20
 
-    # ── エンジンを順に試行 (最大2つ) ──
-    for engine_name in engines_to_try:
-        engine_cmd = ENGINE_CMD.get(engine_name)
-        if not engine_cmd:
-            continue
+    logger.info(f"[compile] lualatex (timeout={timeout}s)")
 
-        # 全体タイムバジェット超過チェック
+    try:
+        latex_source = generate_document_latex(doc, engine="lualatex")
+        pdf = _compile_latex(latex_source, timeout=timeout)
         elapsed = time.monotonic() - t0
-        if elapsed > TOTAL_TIME_BUDGET:
-            logger.warning(f"[compile] Total budget exceeded ({elapsed:.1f}s > {TOTAL_TIME_BUDGET}s), aborting")
-            break
-
-        # コマンドの存在確認
-        cmd_exists = bool(shutil.which(engine_cmd) or Path(engine_cmd).is_file())
-        if not cmd_exists:
-            logger.warning(f"{engine_name} ({engine_cmd}) not found on system, skipping")
-            errors.append((engine_name, PDFGenerationError(
-                f"{engine_name}がシステムに見つかりません",
-                detail=f"{engine_cmd} not found in PATH"
-            )))
-            continue
-
-        # ── タイムアウト決定 (v5: lualatex 緩和) ──
-        if engine_name == "pdflatex":
-            compile_timeout = 25
-        elif engine_name == "lualatex":
-            # Docker ビルド時にフォントキャッシュ構築済み → 10-15秒
-            # 未構築の場合 → 初回は 30-60 秒かかるが、タイムバジェット内で最大限待つ
-            compile_timeout = 20 if te.is_lualatex_cache_warm() else 40
-        else:  # xelatex
-            compile_timeout = 25
-
-        # 全体の残り時間を考慮 (TOTAL_TIME_BUDGET 内に収める)
-        elapsed = time.monotonic() - t0
-        max_remaining = max(TOTAL_TIME_BUDGET - elapsed - 2.0, 10.0)  # 2秒はレスポンス送信用に残す
-        compile_timeout = min(compile_timeout, int(max_remaining))
-
-        logger.info(f"[compile] Trying {engine_name} (timeout={compile_timeout}s, elapsed={elapsed:.1f}s)")
-
-        try:
-            latex_source = generate_document_latex(doc, engine=engine_name)
-            pdf = _compile_latex(latex_source, engine_cmd, timeout=compile_timeout)
-            logger.info(f"[compile] PDF generated with {engine_name} ({time.monotonic() - t0:.1f}s total)")
-            return pdf
-        except PDFGenerationError as e:
-            logger.warning(f"{engine_name} failed: {e.user_message}")
-            errors.append((engine_name, e))
-
-    # ── 全エンジン失敗 ──
-    error_details = []
-    user_messages = []
-    for eng, err in errors:
-        user_messages.append(f"[{eng}] {err.user_message}")
-        error_details.append(f"--- {eng} ---\n{err.detail}")
-
-    combined_detail = "\n".join(error_details)
-    combined_msg = " / ".join(user_messages)
-
-    raise PDFGenerationError(
-        f"PDF生成に失敗しました: {combined_msg}",
-        detail=combined_detail,
-    )
+        logger.info(f"[compile] PDF generated with lualatex ({elapsed:.1f}s)")
+        return pdf
+    except PDFGenerationError:
+        raise
+    except Exception as e:
+        raise PDFGenerationError(
+            f"PDF生成中に予期しないエラーが発生しました: {e}",
+            detail=str(e),
+        )
 
 
-def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> bytes:
-    """指定エンジンでLaTeXソースをコンパイルしPDFバイト列を返す"""
+def _compile_latex(latex_source: str, timeout: int = 30) -> bytes:
+    """LuaLaTeX でコンパイルしPDFバイト列を返す"""
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = Path(tmpdir) / "document.tex"
         pdf_path = Path(tmpdir) / "document.pdf"
 
         tex_path.write_text(latex_source, encoding="utf-8")
-        engine_name = Path(engine_cmd).name
-        logger.info(f"Compiling with {engine_name}...")
+        logger.info("Compiling with lualatex...")
 
-        # エンジン別の最適なオプションを設定
         cmd_args = [
-            engine_cmd,
+            LUALATEX_CMD,
             "-interaction=nonstopmode",
             "-halt-on-error",
+            "-file-line-error",
             "-output-directory", str(tmpdir),
+            str(tex_path),
         ]
-        if "lualatex" in engine_name:
-            # lualatex: --no-shell-escape は lualatex では問題を起こすことがある
-            pass
-        else:
-            cmd_args.insert(3, "-no-shell-escape")
-        cmd_args.append(str(tex_path))
 
         try:
             result = subprocess.run(
@@ -236,20 +142,20 @@ def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> byt
             )
         except FileNotFoundError:
             raise PDFGenerationError(
-                f"PDF生成エンジン({engine_name})が見つかりません。",
-                detail=f"{engine_name} command not found"
+                "LuaLaTeX エンジンが見つかりません。",
+                detail="lualatex command not found"
             )
         except subprocess.TimeoutExpired:
             raise PDFGenerationError(
                 "PDF生成に時間がかかりすぎました。内容を短くして再度お試しください。",
-                detail=f"{engine_name} compilation timeout ({timeout}s)"
+                detail=f"lualatex compilation timeout ({timeout}s)"
             )
 
         if result.returncode != 0:
             log_output = result.stdout + "\n" + result.stderr
-            logger.error(f"{engine_name} failed (exit={result.returncode}):\n{log_output[-3000:]}")
+            logger.error(f"lualatex failed (exit={result.returncode}):\n{log_output[-3000:]}")
 
-            # Detect OOM kill / signal kill (negative return codes)
+            # OOM / signal kill 検出
             if result.returncode < 0:
                 import signal as _signal
                 try:
@@ -267,12 +173,11 @@ def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> byt
         if not pdf_path.exists():
             raise PDFGenerationError(
                 "PDFファイルの生成に失敗しました。",
-                detail=f"PDF not found after {engine_name} compilation"
+                detail="PDF not found after lualatex compilation"
             )
 
         pdf_bytes = pdf_path.read_bytes()
 
-    # コンパイル後に GC を促進 (メモリ逼迫時の回収)
     gc.collect()
     return pdf_bytes
 
@@ -285,13 +190,11 @@ def _parse_latex_error(log: str) -> str:
     error_lines = [l.strip() for l in log.split("\n") if l.strip().startswith("!")]
     error_detail = error_lines[0] if error_lines else ""
 
-    # Also look for key error patterns in the full log
     if not error_detail:
-        # fontspec errors use a different format
         for line in log.split("\n"):
             line_s = line.strip()
             if "fatal" in line_s.lower() or "error" in line_s.lower():
-                if len(line_s) > 10 and len(line_s) < 200:
+                if 10 < len(line_s) < 200:
                     error_detail = line_s
                     break
 
@@ -303,35 +206,18 @@ def _parse_latex_error(log: str) -> str:
         return "表の列数が一致していない可能性があります。表の内容を確認してください。"
     if "file not found" in log_lower and "image" in log_lower:
         return "画像の読み込みに失敗しました。画像URLが正しいか確認してください。"
-    # ── パッケージ未検出エラー ──
-    # 重要: 長い名前を先にチェック ("xecjk.sty" は "cjk.sty" を含むため)
-    if "xecjk.sty" in log_lower and "not found" in log_lower:
-        return "xeCJKパッケージが見つかりません。"
-    if "luatexja.sty" in log_lower and "not found" in log_lower:
-        return "luatexjaパッケージが見つかりません。"
-    if "bxcjkjatype.sty" in log_lower and "not found" in log_lower:
-        return "bxcjkjatypeパッケージが見つかりません。"
-    # CJK.sty は xecjk.sty にマッチしないよう、xecjk が含まれないことを確認
-    if "cjk.sty" in log_lower and "not found" in log_lower and "xecjk" not in log_lower:
-        return "CJK.styパッケージが見つかりません。"
-    # CJK font errors — setCJKmainfont / setCJKsansfont コマンドの実行エラーのみ検出
-    # (LaTeX変数名 CJKmainfontset 等の誤検出を防ぐため、厳密にパターンを限定)
-    if "\\setcjkmainfont" in log_lower or "\\setcjksansfont" in log_lower:
-        if "not found" in log_lower or "cannot" in log_lower:
-            return "CJKフォントが見つかりません。システムにフォントがインストールされているか確認してください。"
-    # Generic font error (e.g. setmainfont used with non-existent font)
-    if "fontspec error" in log_lower or "fontspec" in log_lower and "not found" in log_lower:
+    if "luatexja" in log_lower and "not found" in log_lower:
+        return "luatexjaパッケージが見つかりません。TeX Live が正しくインストールされているか確認してください。"
+    if "fontspec error" in log_lower or ("fontspec" in log_lower and "not found" in log_lower):
         return f"フォントの読み込みに問題があります。({error_detail})"
     if "emergency stop" in log_lower:
         return f"文書の処理中に重大なエラーが発生しました。({error_detail})"
     if "file not found" in log_lower:
         return f"必要なファイルが見つかりません。({error_detail})"
 
-    # Default: include the first error line for diagnosis
     if error_detail:
         return f"PDF生成エラー: {error_detail}"
 
-    # Last resort: include last meaningful log lines for diagnosis
     meaningful_lines = [l.strip() for l in log.split("\n") if l.strip() and not l.startswith("(")]
     tail = meaningful_lines[-5:] if meaningful_lines else []
     tail_str = "; ".join(tail)[:200]

@@ -1,17 +1,8 @@
 #!/bin/sh
-# Docker entrypoint: TeX の TEXINPUTS をランタイムに読み込んでからアプリ起動
-# (Dockerfile の RUN ステップで設定した環境変数は ENV に焼き込めないため、
-#  ファイル経由でランタイムに反映する)
-
+# Docker entrypoint: LuaLaTeX 専用構成
+# TEXINPUTS ハックは不要 (luatexja は kpsewhich で解決される)
 set -e
 
-# TEXINPUTS の復元
-if [ -f /etc/texinputs.env ]; then
-    echo "[entrypoint] Loading TEXINPUTS from /etc/texinputs.env"
-    . /etc/texinputs.env
-    export TEXINPUTS
-    echo "[entrypoint] TEXINPUTS=${TEXINPUTS}"
-fi
-
+echo "[entrypoint] Engine: lualatex only"
 echo "[entrypoint] Starting application..."
 exec "$@"

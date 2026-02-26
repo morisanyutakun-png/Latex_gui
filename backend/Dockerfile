@@ -1,137 +1,113 @@
 FROM python:3.12-slim-bookworm
 
-# ──── TeX Live インストール ────
+# ════════════════════════════════════════════════════════════════
+# LaTeX PDF生成 Docker — LuaLaTeX 専用構成
 #
-# 重要: python:3.12-slim-bookworm (Debian 12) を使用すること。
-#
-# 3エンジン対応:
-#   1) pdflatex + bxcjkjatype (軽量、主エンジン)
-#   2) lualatex + luatexja (堅牢、HaranoAji内蔵)
-#   3) xelatex + xeCJK (フォント検出方式)
+# 方針:
+#   - エンジン: lualatex のみ (pdflatex/xelatex は不使用)
+#   - 日本語: luatexja-preset[haranoaji] (HaranoAji フォント内蔵)
+#   - 回路図: circuitikz (TikZ/PGF)
+#   - 軽量化: 必要最小限のTeX Liveコレクション + キャッシュ削除
+# ════════════════════════════════════════════════════════════════
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# ──── 1. システム依存 + TeX Live ────
+#
+# パッケージ選定理由:
+#   texlive-luatex        … lualatex 本体 + luatexja + HaranoAji
+#   texlive-latex-base    … LaTeX カーネル (article, geometry 等)
+#   texlive-latex-recommended … booktabs, graphicx, hyperref 等 基本パッケージ
+#   texlive-latex-extra   … tcolorbox, enumitem, listings, mathtools 等
+#   texlive-pictures      … tikz, pgf, circuitikz
+#   texlive-science       … mhchem (化学式), siunitx 等
+#   texlive-fonts-recommended … 標準欧文フォント
+#   texlive-lang-japanese … luatexja-preset, jlreq, ltjsarticle 等
+#   fonts-noto-cjk        … CJK フォント (Noto Sans/Serif CJK JP)
+#   poppler-utils         … pdftocairo (PDF→SVG 変換)
+#   fontconfig            … fc-cache (フォントキャッシュ)
+#   locales               … ja_JP.UTF-8 ロケール生成用
+#
+# 削除したもの (方針変更):
+#   texlive-xetex         … xelatex 不使用
+#   texlive-lang-cjk      … CJK 全般 (luatexja には不要)
+#   texlive-lang-chinese   … 中国語不要
+#   latex-cjk-common      … pdflatex+CJK.sty 用 (不要)
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        texlive-luatex \
         texlive-latex-base \
         texlive-latex-recommended \
         texlive-latex-extra \
-        texlive-luatex \
         texlive-pictures \
         texlive-science \
         texlive-fonts-recommended \
         texlive-lang-japanese \
-        texlive-lang-cjk \
-        texlive-lang-chinese \
-        texlive-xetex \
-        latex-cjk-common \
         fonts-noto-cjk \
         poppler-utils \
         fontconfig \
+        locales \
     && rm -rf /var/lib/apt/lists/*
 
-# ── TeX パッケージDB再構築 + フォントキャッシュ ──
+# ──── 2. ロケール設定 (ja_JP.UTF-8) ────
+RUN sed -i '/ja_JP.UTF-8/s/^# //' /etc/locale.gen \
+    && locale-gen ja_JP.UTF-8
+ENV LANG=ja_JP.UTF-8
+ENV LC_ALL=ja_JP.UTF-8
+
+# ──── 3. TeX パッケージDB + フォントキャッシュ ────
 RUN mktexlsr && texhash && fc-cache -fv
 
-# ── .sty パスを検出して TEXINPUTS を確定 (ENV に焼き込む) ──
-# profile.d は subprocess では読まれないため、Dockerの ENV で永続化する
-RUN set -ex; \
-    EXTRA=""; \
-    for STY in CJK.sty bxcjkjatype.sty xeCJK.sty luatexja.sty luatexja-preset.sty; do \
-      if ! kpsewhich "$STY" >/dev/null 2>&1; then \
-        FOUND=$(find /usr -name "$STY" -type f 2>/dev/null | head -1); \
-        if [ -n "$FOUND" ]; then \
-          DIR=$(dirname "$FOUND"); \
-          echo "  $STY not in kpsewhich DB, found at $DIR"; \
-          EXTRA="${EXTRA}${DIR}//:"; \
-        else \
-          echo "  WARNING: $STY not found anywhere!"; \
-        fi; \
-      else \
-        echo "  $STY: $(kpsewhich $STY)"; \
-      fi; \
-    done; \
-    if [ -n "$EXTRA" ]; then \
-      echo "TEXINPUTS=.:${EXTRA}\$TEXINPUTS" > /etc/texinputs.env; \
-    fi; \
-    which pdflatex && echo "  [OK] pdflatex"; \
-    which lualatex && echo "  [OK] lualatex"; \
-    which xelatex  && echo "  [OK] xelatex"; \
-    echo "=== TeX Live verification complete ==="
+# ──── 4. スモークテスト (ビルド時に1回だけ) ────
+# 日本語 + 数式 + circuitikz を含む文書をコンパイルし、
+# パッケージ不足を Docker ビルド時に検出する。
+# 同時に lualatex フォントキャッシュを構築 (ランタイム高速化)。
+RUN set -e; cd /tmp \
+    && printf '\
+\\documentclass{article}\n\
+\\usepackage[haranoaji]{luatexja-preset}\n\
+\\usepackage{amsmath,amssymb}\n\
+\\usepackage{tikz}\n\
+\\usepackage{circuitikz}\n\
+\\begin{document}\n\
+\\section{スモークテスト}\n\
+日本語の表示テスト。数式: $E = mc^2$\n\
+\\[\n\
+  \\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\n\
+\\]\n\
+\\begin{circuitikz}[american]\n\
+  \\draw (0,0) to[R, l=$R_1$] (2,0);\n\
+\\end{circuitikz}\n\
+\\end{document}\n' > smoke.tex \
+    && lualatex -interaction=nonstopmode -halt-on-error -file-line-error smoke.tex \
+    && echo "=== [PASS] lualatex smoke test (1st run — cache built) ===" \
+    && lualatex -interaction=nonstopmode -halt-on-error -file-line-error smoke.tex \
+    && echo "=== [PASS] lualatex smoke test (2nd run — cache warm) ===" \
+    && rm -f /tmp/smoke.* \
+    && echo "=== Smoke test complete ==="
 
-# ── TEXINPUTS を ENV に焼き込む ──
-# 前のRUN stepで作成した設定を読み取り、ARGでENVに渡す
-# (RUN 内の export は次の RUN に引き継がれないため、ファイル経由で渡す)
-RUN if [ -f /etc/texinputs.env ]; then \
-      cat /etc/texinputs.env; \
-    else \
-      echo "No extra TEXINPUTS needed"; \
-    fi
-
-# ── 実際のコンパイルテスト (3エンジン) + フォントキャッシュ構築 ──
-# Docker ビルド時に lualatex のフォントキャッシュを作成しておくことで
-# ランタイムのコンパイルが高速 (3-10秒) になる。
-RUN set -e; \
-    if [ -f /etc/texinputs.env ]; then . /etc/texinputs.env; export TEXINPUTS; fi; \
-    cd /tmp \
-    && printf '\\documentclass{article}\n\\usepackage[whole]{bxcjkjatype}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_cjk.tex \
-    && (pdflatex -interaction=nonstopmode -halt-on-error test_cjk.tex \
-        && echo "=== [OK] pdflatex + bxcjkjatype ===" \
-        || echo "=== [WARN] pdflatex + CJK failed ===") \
-    && printf '\\documentclass{article}\n\\usepackage[haranoaji]{luatexja-preset}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_lua.tex \
-    && (lualatex -interaction=nonstopmode -halt-on-error test_lua.tex \
-        && echo "=== [OK] lualatex + luatexja-preset (font cache built) ===" \
-        || echo "=== [WARN] lualatex + luatexja-preset failed ===") \
-    && printf '\\documentclass{article}\n\\usepackage{xeCJK}\n\\setCJKmainfont{Noto Sans CJK JP}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_xe.tex \
-    && (xelatex -interaction=nonstopmode -halt-on-error test_xe.tex \
-        && echo "=== [OK] xelatex + xeCJK ===" \
-        || echo "=== [WARN] xelatex + xeCJK failed ===") \
-    && echo "=== 2nd lualatex run (ensure cache warm) ===" \
-    && (lualatex -interaction=nonstopmode -halt-on-error test_lua.tex \
-        && echo "=== [OK] lualatex 2nd run (cache verified) ===" \
-        || true) \
-    && rm -f /tmp/test_* \
-    && echo "=== Font cache verification ===" \
-    && find / -path "*/luatex-cache*" -type d 2>/dev/null | head -5 || true
-
+# ──── 5. 環境変数 ────
 ENV MAX_CONCURRENT_COMPILES=2
 ENV COMPILE_MEM_LIMIT_MB=1536
-ENV COMPILE_TOTAL_BUDGET_SECONDS=45
-ENV CJK_MAIN_FONT="Noto Serif CJK JP"
-ENV CJK_SANS_FONT="Noto Sans CJK JP"
+ENV COMPILE_TIMEOUT_SECONDS=30
 
 WORKDIR /app
 
-# ── アプリケーションコードのコピー (entrypoint.sh も同時に処理) ──
-COPY . /tmp/_ctx/
-RUN set -e; \
-    if [ -f /tmp/_ctx/requirements.txt ]; then \
-        cp /tmp/_ctx/requirements.txt /app/requirements.txt; \
-    elif [ -f /tmp/_ctx/backend/requirements.txt ]; then \
-        cp /tmp/_ctx/backend/requirements.txt /app/requirements.txt; \
-    else \
-        echo "FATAL: requirements.txt not found in build context" >&2; exit 1; \
-    fi
+# ──── 6. Python 依存 (レイヤキャッシュ最適化) ────
+COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN set -e; \
-    if [ -d /tmp/_ctx/app ]; then \
-        cp -a /tmp/_ctx/app /app/app; \
-    elif [ -d /tmp/_ctx/backend/app ]; then \
-        cp -a /tmp/_ctx/backend/app /app/app; \
-    else \
-        echo "FATAL: app/ directory not found in build context" >&2; exit 1; \
-    fi; \
-    # entrypoint.sh のコピー \
-    if [ -f /tmp/_ctx/entrypoint.sh ]; then \
-        cp /tmp/_ctx/entrypoint.sh /app/entrypoint.sh; \
-    elif [ -f /tmp/_ctx/backend/entrypoint.sh ]; then \
-        cp /tmp/_ctx/backend/entrypoint.sh /app/entrypoint.sh; \
-    else \
-        printf '#!/bin/sh\nset -e\nif [ -f /etc/texinputs.env ]; then . /etc/texinputs.env; export TEXINPUTS; fi\nexec "$@"\n' > /app/entrypoint.sh; \
-    fi; \
-    chmod +x /app/entrypoint.sh; \
-    rm -rf /tmp/_ctx
+# ──── 7. アプリケーションコード ────
+COPY app/ /app/app/
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# ──── 8. non-root ユーザー ────
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser \
+    && chown -R appuser:appuser /app \
+    && mkdir -p /tmp/latex-work && chown appuser:appuser /tmp/latex-work
+USER appuser
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

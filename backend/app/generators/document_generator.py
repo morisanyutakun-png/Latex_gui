@@ -84,7 +84,7 @@ INLINE_MATH_PACKAGES = [
 ]
 
 
-def _detect_required_packages(doc: DocumentModel, engine: str = "pdflatex") -> list[str]:
+def _detect_required_packages(doc: DocumentModel, engine: str = "lualatex") -> list[str]:
     """Scan all blocks and determine which packages are needed."""
     block_types_used: set[str] = set()
     has_inline_math = False
@@ -103,18 +103,9 @@ def _detect_required_packages(doc: DocumentModel, engine: str = "pdflatex") -> l
             seen.add(line)
             packages.append(line)
 
-    # Always-required base packages (engine-dependent)
-    if engine == "xelatex":
-        # xeCJK: 正式なCJKサポートパッケージ (fontspecのsetmainfontではなく
-        # setCJKmainfontを使用し、確実にCJK文字を処理する)
-        add("\\usepackage{xeCJK}")
-    elif engine == "lualatex":
-        # luatexja-preset: HaranoAji プリセットで最小限の読み込み
-        # (luatexja 単体よりもフォント設定が簡潔になり起動が早い)
-        add("\\usepackage[haranoaji]{luatexja-preset}")
-    else:
-        # pdflatex: bxcjkjatype で日本語対応
-        add("\\usepackage[whole]{bxcjkjatype}")
+    # Always-required base packages (LuaLaTeX + luatexja)
+    # engine 引数は後方互換のため残すが、常に luatexja-preset を使用
+    add("\\usepackage[haranoaji]{luatexja-preset}")
     add("\\usepackage{xcolor}")
     add("\\usepackage{hyperref}")
 
@@ -132,11 +123,10 @@ def _detect_required_packages(doc: DocumentModel, engine: str = "pdflatex") -> l
     return packages
 
 
-def generate_document_latex(doc: DocumentModel, engine: str = "pdflatex") -> str:
+def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str:
     """Generate a complete LaTeX document from the block-based model.
     
-    engine: 'pdflatex' (default, low memory ~50MB) or 'xelatex' (heavy ~200MB+).
-    pdflatex uses bxcjkjatype for Japanese, xelatex uses fontspec.
+    engine: 'lualatex' (固定)。luatexja-preset[haranoaji] で日本語処理。
     """
     settings = doc.settings
     meta = doc.metadata
@@ -187,20 +177,9 @@ def generate_document_latex(doc: DocumentModel, engine: str = "pdflatex") -> str
     lines.append("")
 
     # ──── Fonts ────
-    if engine == "xelatex":
-        # xeCJK: Python 側で起動時に検出・検証済みのフォントを直接設定
-        # (LaTeX 内での \IfFontExistsTF チェーンは廃止 — 誤検出の原因だった)
-        lines.append("% ── CJK Fonts (detected at startup by Python) ──")
-        if CJK_MAIN_FONT:
-            lines.append(f"\\setCJKmainfont{{{CJK_MAIN_FONT}}}")
-        if CJK_SANS_FONT:
-            lines.append(f"\\setCJKsansfont{{{CJK_SANS_FONT}}}")
-        lines.append("")
-    elif engine == "lualatex":
-        # luatexja-preset[haranoaji] がフォント設定を含むため追加設定不要
-        lines.append("% ── luatexja-preset[haranoaji]: fonts pre-configured ──")
-        lines.append("")
-    # pdflatex: bxcjkjatype handles fonts automatically
+    # luatexja-preset[haranoaji] がフォント設定を含むため追加設定不要
+    lines.append("% ── luatexja-preset[haranoaji]: fonts pre-configured ──")
+    lines.append("")
 
     # ──── Line spacing ────
     spacing = settings.line_spacing
