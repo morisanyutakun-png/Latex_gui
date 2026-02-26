@@ -95,12 +95,13 @@ ENV COMPILE_TIMEOUT_SECONDS=30
 WORKDIR /app
 
 # ──── 6. Python 依存 (レイヤキャッシュ最適化) ────
-COPY requirements.txt /app/requirements.txt
+# NOTE: ビルドコンテキストはリポジトリルート (Koyeb等) を想定
+COPY backend/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ──── 7. アプリケーションコード ────
-COPY app/ /app/app/
-COPY entrypoint.sh /app/entrypoint.sh
+COPY backend/app/ /app/app/
+COPY backend/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # ──── 8. non-root ユーザー ────
