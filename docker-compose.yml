@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     environment:
       - ALLOWED_ORIGINS=http://localhost:3000
-      - MAX_CONCURRENT_COMPILES=2
+      - MAX_CONCURRENT_COMPILES=1
       - COMPILE_TIMEOUT_SECONDS=120
       - REQUEST_TIMEOUT_SECONDS=180
     # LuaLaTeX は通常300-500MB使用。十分な余裕を確保。

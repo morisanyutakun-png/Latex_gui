@@ -1,6 +1,7 @@
-"""FastAPI メインアプリケーション (クラウド軽量版 v4)"""
+"""FastAPI メインアプリケーション (512MB最適化版 v5)"""
 import os
 import logging
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
@@ -60,20 +61,54 @@ async def health_check():
 
 
 def _get_memory_info() -> dict:
-    """現在のプロセスメモリ使用量を取得"""
+    """プロセスメモリ + コンテナメモリ上限を取得"""
+    info: dict = {}
     try:
         import resource
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-        # maxrss は macOS では bytes、Linux では KB
         import platform
+        usage = resource.getrusage(resource.RUSAGE_SELF)
         maxrss = usage.ru_maxrss
         if platform.system() == "Linux":
             maxrss *= 1024  # KB → bytes
-        return {
-            "rss_mb": round(maxrss / (1024 * 1024), 1),
-        }
+        info["process_rss_mb"] = round(maxrss / (1024 * 1024), 1)
     except Exception:
-        return {"rss_mb": -1}
+        info["process_rss_mb"] = -1
+
+    # コンテナのメモリ上限を取得 (cgroup v1/v2)
+    try:
+        # cgroup v2
+        p = Path("/sys/fs/cgroup/memory.max")
+        if p.exists():
+            val = p.read_text().strip()
+            if val != "max":
+                info["container_limit_mb"] = round(int(val) / (1024 * 1024), 1)
+            else:
+                info["container_limit_mb"] = "unlimited"
+        else:
+            # cgroup v1
+            p = Path("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+            if p.exists():
+                val = int(p.read_text().strip())
+                if val < 2**62:  # "unlimited" は巨大な値
+                    info["container_limit_mb"] = round(val / (1024 * 1024), 1)
+                else:
+                    info["container_limit_mb"] = "unlimited"
+    except Exception:
+        info["container_limit_mb"] = "unknown"
+
+    # コンテナの現在のメモリ使用量 (cgroup)
+    try:
+        p = Path("/sys/fs/cgroup/memory.current")
+        if p.exists():
+            info["container_used_mb"] = round(int(p.read_text().strip()) / (1024 * 1024), 1)
+        else:
+            p = Path("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+            if p.exists():
+                info["container_used_mb"] = round(int(p.read_text().strip()) / (1024 * 1024), 1)
+    except Exception:
+        pass
+
+    return info
 
 
 @app.get("/api/debug/tex-info")

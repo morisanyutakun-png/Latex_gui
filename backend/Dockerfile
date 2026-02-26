@@ -66,7 +66,10 @@ RUN luaotfload-tool --update \
     && echo "=== luaotfload DB finalized ==="
 
 # ──── 6. 環境変数 ────
-ENV MAX_CONCURRENT_COMPILES=2 \
+# Koyeb Free (512MB) 対応:
+#   - 同時コンパイルは絶対に1 (LuaLaTeX 1プロセスで300-400MB使用)
+#   - タイムアウトは十分確保
+ENV MAX_CONCURRENT_COMPILES=1 \
     COMPILE_TIMEOUT_SECONDS=120
 
 WORKDIR /app
