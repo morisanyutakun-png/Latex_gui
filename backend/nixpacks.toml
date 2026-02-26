@@ -8,7 +8,7 @@
 # Buildpack モードの場合にのみ、この設定が使われます。
 
 [phases.setup]
-# TeX Live + CJK + LuaTeX サポート
+# TeX Live (LuaLaTeX 専用構成)
 aptPkgs = [
     "texlive-latex-base",
     "texlive-latex-recommended",
@@ -18,30 +18,27 @@ aptPkgs = [
     "texlive-science",
     "texlive-fonts-recommended",
     "texlive-lang-japanese",
-    "texlive-lang-cjk",
-    "texlive-lang-chinese",
-    "texlive-xetex",
-    "latex-cjk-common",
     "fonts-noto-cjk",
     "poppler-utils",
     "fontconfig",
 ]
 
 [phases.build]
-# TeX パッケージデータベースとフォントキャッシュを更新
-# 各コマンドの失敗を許容 (|| true) して後続を実行
+# TeX パッケージデータベースとフォントキャッシュを完全構築
 cmds = [
     "mktexlsr || true",
     "texhash || true",
     "fc-cache -fv || true",
-    # lualatex フォントキャッシュを事前構築 (初回実行は 30-60 秒かかるが、ビルド時に済ませておけばランタイムは高速)
-    "mkdir -p /tmp/texwarm && printf '\\\\documentclass{article}\\n\\\\usepackage[haranoaji]{luatexja-preset}\\n\\\\begin{document}\\nWarm up テスト\\n\\\\end{document}\\n' > /tmp/texwarm/warm.tex && cd /tmp/texwarm && lualatex -interaction=nonstopmode warm.tex && echo '=== lualatex cache warmed ===' && rm -rf /tmp/texwarm || echo '=== lualatex warmup failed (non-fatal) ==='",
-    "echo '=== TeX verification ===' && which pdflatex && which lualatex && which xelatex && kpsewhich CJK.sty && kpsewhich luatexja.sty && kpsewhich xeCJK.sty || echo 'Some TeX packages missing'",
+    "luaotfload-tool --update --force || true",
+    "fmtutil-sys --byfmt lualatex || true",
+    # 包括的スモークテスト: 全パッケージのキャッシュを構築
+    "mkdir -p /tmp/texwarm && printf '\\\\documentclass{article}\\n\\\\usepackage[haranoaji]{luatexja-preset}\\n\\\\usepackage{amsmath,amssymb,amsthm,mathtools}\\n\\\\usepackage{xcolor}\\n\\\\usepackage{geometry}\\n\\\\usepackage{hyperref}\\n\\\\usepackage{graphicx}\\n\\\\usepackage{booktabs}\\n\\\\usepackage{enumitem}\\n\\\\usepackage{tcolorbox}\\n\\\\usepackage{tikz}\\n\\\\usepackage{circuitikz}\\n\\\\usepackage[version=4]{mhchem}\\n\\\\usepackage{pgfplots}\\n\\\\pgfplotsset{compat=1.18}\\n\\\\usepackage{fancyhdr}\\n\\\\usepackage{listings}\\n\\\\begin{document}\\nスモークテスト $E=mc^2$\\n\\\\end{document}\\n' > /tmp/texwarm/warm.tex && cd /tmp/texwarm && lualatex -interaction=nonstopmode warm.tex && lualatex -interaction=nonstopmode warm.tex && echo '=== lualatex cache warmed ===' && rm -rf /tmp/texwarm || echo '=== lualatex warmup failed (non-fatal) ==='",
+    "luaotfload-tool --update || true",
+    "echo '=== TeX verification ===' && which lualatex && kpsewhich luatexja.sty || echo 'Some TeX packages missing'",
 ]
 
 [variables]
-COMPILE_MEM_LIMIT_MB = "1536"
-COMPILE_TOTAL_BUDGET_SECONDS = "45"
+COMPILE_TIMEOUT_SECONDS = "120"
 CJK_MAIN_FONT = "Noto Serif CJK JP"
 CJK_SANS_FONT = "Noto Sans CJK JP"
 

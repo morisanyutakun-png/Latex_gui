@@ -8,10 +8,9 @@ services:
     environment:
       - ALLOWED_ORIGINS=http://localhost:3000
       - MAX_CONCURRENT_COMPILES=2
-      - COMPILE_MEM_LIMIT_MB=1536
-      - COMPILE_TIMEOUT_SECONDS=30
-      - REQUEST_TIMEOUT_SECONDS=60
-    # クラウド環境でのメモリ制限 (lualatex は ~500MB 使用)
+      - COMPILE_TIMEOUT_SECONDS=120
+      - REQUEST_TIMEOUT_SECONDS=180
+    # LuaLaTeX は通常300-500MB使用。十分な余裕を確保。
     deploy:
       resources:
         limits:
@@ -19,7 +18,7 @@ services:
         reservations:
           memory: 512M
     mem_limit: 2048m
-    memswap_limit: 2048m
+    memswap_limit: 3072m
 
   frontend:
     build: ./frontend

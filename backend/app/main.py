@@ -118,8 +118,7 @@ async def tex_debug_info():
             "sans": DETECTED_CJK_SANS_FONT,
         },
         "env": {
-            "COMPILE_MEM_LIMIT_MB": os.environ.get("COMPILE_MEM_LIMIT_MB", "1536"),
-            "COMPILE_TIMEOUT_SECONDS": os.environ.get("COMPILE_TIMEOUT_SECONDS", "30"),
+            "COMPILE_TIMEOUT_SECONDS": os.environ.get("COMPILE_TIMEOUT_SECONDS", "120"),
         },
     }
 

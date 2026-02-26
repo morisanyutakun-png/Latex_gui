@@ -23,7 +23,7 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(doc),
         // Vercel Route Handler (max 60s) + マージン
-        signal: AbortSignal.timeout(62000),
+        signal: AbortSignal.timeout(58000),
       });
 
       if (!res.ok) {

@@ -1,11 +1,11 @@
 """
-TeX Live環境ユーティリティ — LuaLaTeX 専用版 (v4)
+TeX Live環境ユーティリティ — LuaLaTeX 専用版 (v5 — ビルド時キャッシュ活用)
 
 方針:
   - エンジン: lualatex のみ
   - 日本語: luatexja-preset[haranoaji] (HaranoAji フォント内蔵)
-  - pdflatex / xelatex は不使用
-  - バックグラウンド・ウォームアップで lualatex フォントキャッシュを構築
+  - Docker ビルド時にフォントキャッシュ・パッケージDB を完全構築済み
+  - ウォームアップは軽量確認のみ (ビルドキャッシュがあるため高速)
 """
 import os
 import shutil
@@ -124,8 +124,11 @@ _warmup_started = False
 _lualatex_cache_warm = False
 
 
-def _test_compile(cmd: str, tex_source: str, env: dict, label: str, timeout: int = 45) -> bool:
-    """コンパイルテスト。成功すれば True"""
+def _test_compile(cmd: str, tex_source: str, env: dict, label: str, timeout: int = 30) -> bool:
+    """コンパイルテスト。成功すれば True
+    
+    Docker ビルドでキャッシュ構築済みなので通常 5-10 秒で完了。
+    """
     if not _cmd_exists(cmd):
         logger.info(f"[{label}] command not found: {cmd}")
         return False
@@ -156,10 +159,10 @@ def _test_compile(cmd: str, tex_source: str, env: dict, label: str, timeout: int
 
 
 def _run_warmup():
-    """バックグラウンドで lualatex コンパイルテスト + フォントキャッシュ構築"""
+    """バックグラウンドで lualatex 動作確認 (ビルドキャッシュ活用で高速)"""
     global LUALATEX_JA_OK, _lualatex_cache_warm
 
-    logger.info("[warmup] Starting lualatex warmup...")
+    logger.info("[warmup] Starting lualatex verification (build cache should exist)...")
     t0 = time.monotonic()
 
     if LUALATEX_AVAILABLE:
@@ -168,7 +171,7 @@ def _run_warmup():
             "\\usepackage[haranoaji]{luatexja-preset}\n"
             f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
         )
-        LUALATEX_JA_OK = _test_compile(LUALATEX_CMD, tex, TEX_ENV, "warmup:lualatex", timeout=60)
+        LUALATEX_JA_OK = _test_compile(LUALATEX_CMD, tex, TEX_ENV, "warmup:lualatex", timeout=30)
         if LUALATEX_JA_OK:
             _lualatex_cache_warm = True
     else:

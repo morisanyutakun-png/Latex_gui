@@ -1,16 +1,16 @@
 """
-PDF生成サービス: LaTeX生成 → LuaLaTeX コンパイル → PDF返却 (v6 — LuaLaTeX 専用)
+PDF生成サービス: LaTeX生成 → LuaLaTeX コンパイル → PDF返却 (v7 — 軽量ランタイム)
 
 方針:
   - エンジン: lualatex のみ (フォールバックなし)
   - 日本語: luatexja-preset[haranoaji]
   - shell-escape 原則禁止
-  - 同時コンパイル制限 + メモリ上限でクラウド OOM 防止
+  - Docker ビルド時にフォントキャッシュ・パッケージDB を完全構築済み
+  - ランタイムは純粋なコンパイルのみ (RLIMIT_AS 制限廃止)
 """
 import asyncio
 import gc
 import os
-import platform
 import shutil
 import subprocess
 import tempfile
@@ -31,12 +31,8 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "2"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
-# メモリ上限 (bytes)
-MEM_LIMIT_MB = int(os.environ.get("COMPILE_MEM_LIMIT_MB", "1536"))
-MEM_LIMIT_BYTES = MEM_LIMIT_MB * 1024 * 1024
-
-# コンパイルタイムアウト (秒)
-COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "30"))
+# コンパイルタイムアウト (秒) — ビルド時キャッシュ済みなので通常10-20秒で完了
+COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "120"))
 
 
 class PDFGenerationError(Exception):
@@ -45,19 +41,6 @@ class PDFGenerationError(Exception):
         self.user_message = user_message
         self.detail = detail
         super().__init__(user_message)
-
-
-def _make_preexec_fn():
-    """subprocess 実行前にメモリ上限を設定する関数を返す (Linux のみ)"""
-    if platform.system() != "Linux":
-        return None
-    def _set_limits():
-        try:
-            import resource
-            resource.setrlimit(resource.RLIMIT_AS, (MEM_LIMIT_BYTES, MEM_LIMIT_BYTES))
-        except Exception:
-            pass
-    return _set_limits
 
 
 def generate_latex(doc: DocumentModel) -> str:
@@ -77,12 +60,12 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     """同期版 PDF 生成 — LuaLaTeX 一本"""
     t0 = time.monotonic()
 
-    # ウォームアップ待ち (最大3秒 — Dockerビルドでキャッシュ構築済みなら即完了)
-    warmup_done = wait_for_warmup(timeout=3.0)
+    # ウォームアップ待ち (最大2秒 — Dockerビルドでキャッシュ構築済みなら即完了)
+    warmup_done = wait_for_warmup(timeout=2.0)
     if warmup_done:
         logger.info("[compile] Warmup done, lualatex cache warm")
     else:
-        logger.info("[compile] Warmup not done, proceeding with lualatex anyway")
+        logger.info("[compile] Warmup not complete yet, proceeding anyway (build cache should exist)")
 
     # lualatex コマンド存在確認
     cmd_exists = bool(shutil.which(LUALATEX_CMD) or Path(LUALATEX_CMD).is_file())
@@ -92,9 +75,8 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             detail=f"{LUALATEX_CMD} not found in PATH"
         )
 
-    # タイムアウト決定
-    timeout = COMPILE_TIMEOUT if is_lualatex_cache_warm() else COMPILE_TIMEOUT + 20
-
+    # タイムアウトは十分確保 (ビルド時キャッシュ済みなので通常10-20秒)
+    timeout = COMPILE_TIMEOUT
     logger.info(f"[compile] lualatex (timeout={timeout}s)")
 
     try:
@@ -112,8 +94,14 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
         )
 
 
-def _compile_latex(latex_source: str, timeout: int = 30) -> bytes:
-    """LuaLaTeX でコンパイルしPDFバイト列を返す"""
+def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
+    """LuaLaTeX でコンパイルしPDFバイト列を返す
+    
+    注意: RLIMIT_AS (仮想メモリ制限) は設定しない。
+    LuaTeX は仮想アドレス空間を大量に使用し、
+    RLIMIT_AS 制限は SIGKILL の主要原因だった。
+    メモリ制限は Docker コンテナレベルで行う。
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = Path(tmpdir) / "document.tex"
         pdf_path = Path(tmpdir) / "document.pdf"
@@ -138,7 +126,6 @@ def _compile_latex(latex_source: str, timeout: int = 30) -> bytes:
                 timeout=timeout,
                 cwd=tmpdir,
                 env=TEX_ENV,
-                preexec_fn=_make_preexec_fn(),
             )
         except FileNotFoundError:
             raise PDFGenerationError(

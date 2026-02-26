@@ -4,7 +4,7 @@
  * CORS 問題を回避し、バックエンド URL をサーバー側だけで管理する。
  * Vercel 環境変数: API_URL (NEXT_PUBLIC_ 不要)
  *
- * v4: リトライ対応 + タイムアウト整合性改善
+ * v5: タイムアウト大幅緩和 (Dockerビルド時キャッシュ活用)
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -14,8 +14,9 @@ export const maxDuration = 60;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// バックエンドの TOTAL_TIME_BUDGET=45s + ネットワーク遅延に余裕を持たせる
-const BACKEND_TIMEOUT_MS = 52000;
+// バックエンドの COMPILE_TIMEOUT=120s + ネットワーク遅延に余裕を持たせる
+// Vercel Hobbyの60秒制限を考慮し、その範囲内で最大限待つ
+const BACKEND_TIMEOUT_MS = 55000;
 
 async function callBackend(body: string): Promise<Response> {
   return fetch(`${BACKEND}/api/generate-pdf`, {
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       const isTimeout = firstErr instanceof Error && (firstErr.name === "TimeoutError" || firstErr.name === "AbortError");
       const isNetwork = firstErr instanceof Error && firstErr.message?.includes("fetch");
 
-      if ((isTimeout || isNetwork) && elapsed1 < 52000) {
+      if ((isTimeout || isNetwork) && elapsed1 < 55000) {
         console.log(`[proxy] First attempt failed (${elapsed1}ms), retrying once...`);
         // 残り時間で再試行 (Vercelの60秒上限を考慮)
         const retryTimeout = Math.min(BACKEND_TIMEOUT_MS, Math.max((57000 - elapsed1), 8000));

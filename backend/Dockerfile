@@ -1,39 +1,19 @@
 FROM python:3.12-slim-bookworm
 
 # ════════════════════════════════════════════════════════════════
-# LaTeX PDF生成 Docker — LuaLaTeX 専用構成
+# LaTeX PDF生成 Docker — LuaLaTeX 専用 (メモリ最適化 v6)
 #
 # 方針:
-#   - エンジン: lualatex のみ (pdflatex/xelatex は不使用)
+#   - エンジン: lualatex のみ
 #   - 日本語: luatexja-preset[haranoaji] (HaranoAji フォント内蔵)
-#   - 回路図: circuitikz (TikZ/PGF)
-#   - 軽量化: 必要最小限のTeX Liveコレクション + キャッシュ削除
+#   - ビルド時に全パッケージ・フォントキャッシュ・フォーマットを事前構築
+#   - ランタイムは軽量コンパイルのみ (メモリ最小化)
 # ════════════════════════════════════════════════════════════════
 
-ENV DEBIAN_FRONTEND=noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
 
 # ──── 1. システム依存 + TeX Live ────
-#
-# パッケージ選定理由:
-#   texlive-luatex        … lualatex 本体 + luatexja + HaranoAji
-#   texlive-latex-base    … LaTeX カーネル (article, geometry 等)
-#   texlive-latex-recommended … booktabs, graphicx, hyperref 等 基本パッケージ
-#   texlive-latex-extra   … tcolorbox, enumitem, listings, mathtools 等
-#   texlive-pictures      … tikz, pgf, circuitikz
-#   texlive-science       … mhchem (化学式), siunitx 等
-#   texlive-fonts-recommended … 標準欧文フォント
-#   texlive-lang-japanese … luatexja-preset, jlreq, ltjsarticle 等
-#   fonts-noto-cjk        … CJK フォント (Noto Sans/Serif CJK JP)
-#   poppler-utils         … pdftocairo (PDF→SVG 変換)
-#   fontconfig            … fc-cache (フォントキャッシュ)
-#   locales               … ja_JP.UTF-8 ロケール生成用
-#
-# 削除したもの (方針変更):
-#   texlive-xetex         … xelatex 不使用
-#   texlive-lang-cjk      … CJK 全般 (luatexja には不要)
-#   texlive-lang-chinese   … 中国語不要
-#   latex-cjk-common      … pdflatex+CJK.sty 用 (不要)
-
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         texlive-luatex \
@@ -53,62 +33,85 @@ RUN apt-get update \
 # ──── 2. ロケール設定 (ja_JP.UTF-8) ────
 RUN sed -i '/ja_JP.UTF-8/s/^# //' /etc/locale.gen \
     && locale-gen ja_JP.UTF-8
-ENV LANG=ja_JP.UTF-8
-ENV LC_ALL=ja_JP.UTF-8
+ENV LANG=ja_JP.UTF-8 \
+    LC_ALL=ja_JP.UTF-8
 
-# ──── 3. TeX パッケージDB + フォントキャッシュ ────
-RUN mktexlsr && texhash && fc-cache -fv
+# ──── 3. フォントキャッシュ + TeX DB 完全構築 ────
+RUN fc-cache -fv \
+    && mktexlsr \
+    && texhash \
+    && luaotfload-tool --update --force \
+    && fmtutil-sys --byfmt lualatex \
+    && echo "=== Font & format caches built ==="
 
-# ──── 4. スモークテスト (ビルド時に1回だけ) ────
-# 日本語 + 数式 + circuitikz を含む文書をコンパイルし、
-# パッケージ不足を Docker ビルド時に検出する。
-# 同時に lualatex フォントキャッシュを構築 (ランタイム高速化)。
-RUN set -e; cd /tmp \
-    && printf '\
-\\documentclass{article}\n\
-\\usepackage[haranoaji]{luatexja-preset}\n\
-\\usepackage{amsmath,amssymb}\n\
-\\usepackage{tikz}\n\
-\\usepackage{circuitikz}\n\
-\\begin{document}\n\
-\\section{スモークテスト}\n\
-日本語の表示テスト。数式: $E = mc^2$\n\
-\\[\n\
-  \\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\n\
-\\]\n\
-\\begin{circuitikz}[american]\n\
-  \\draw (0,0) to[R, l=$R_1$] (2,0);\n\
-\\end{circuitikz}\n\
-\\end{document}\n' > smoke.tex \
-    && lualatex -interaction=nonstopmode -halt-on-error -file-line-error smoke.tex \
-    && echo "=== [PASS] lualatex smoke test (1st run — cache built) ===" \
-    && lualatex -interaction=nonstopmode -halt-on-error -file-line-error smoke.tex \
-    && echo "=== [PASS] lualatex smoke test (2nd run — cache warm) ===" \
-    && rm -f /tmp/smoke.* \
-    && echo "=== Smoke test complete ==="
+# ──── 4. 包括的スモークテスト (全パッケージのキャッシュ構築) ────
+# アプリが使う全パッケージを含むテストをコンパイルし、
+# - パッケージ不足を Docker ビルド時に検出
+# - lualatex のフォントキャッシュを完全に構築
+# - LuaTeX の内部キャッシュ (luaotfload DB) をウォーム
+# 3回コンパイルして安定したキャッシュを確保
+COPY backend/tests/smoke_full.tex /tmp/smoke_full.tex
+WORKDIR /tmp
+RUN echo "=== Smoke test 1/3 (cold — building all caches) ===" \
+    && lualatex -interaction=nonstopmode -halt-on-error smoke_full.tex \
+    && echo "=== Smoke test 2/3 (warming cache) ===" \
+    && lualatex -interaction=nonstopmode -halt-on-error smoke_full.tex \
+    && echo "=== Smoke test 3/3 (cache fully warm) ===" \
+    && lualatex -interaction=nonstopmode -halt-on-error smoke_full.tex \
+    && echo "=== All smoke tests passed ===" \
+    && rm -f /tmp/smoke_full.*
 
-# ──── 5. 環境変数 ────
-ENV MAX_CONCURRENT_COMPILES=2
-ENV COMPILE_MEM_LIMIT_MB=1536
-ENV COMPILE_TIMEOUT_SECONDS=30
+# ──── 5. luaotfload DB 最終更新 (スモークテスト後) ────
+RUN luaotfload-tool --update \
+    && echo "=== luaotfload DB finalized ==="
+
+# ──── 6. 環境変数 ────
+ENV MAX_CONCURRENT_COMPILES=2 \
+    COMPILE_TIMEOUT_SECONDS=120
 
 WORKDIR /app
 
-# ──── 6. Python 依存 (レイヤキャッシュ最適化) ────
-# NOTE: ビルドコンテキストはリポジトリルート (Koyeb等) を想定
+# ──── 7. Python 依存 ────
 COPY backend/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ──── 7. アプリケーションコード ────
+# ──── 8. アプリケーションコード ────
 COPY backend/app/ /app/app/
 COPY backend/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# ──── 8. non-root ユーザー ────
+# ──── 9. non-root ユーザー + キャッシュ共有 ────
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser \
     && chown -R appuser:appuser /app \
-    && mkdir -p /tmp/latex-work && chown appuser:appuser /tmp/latex-work
+    && mkdir -p /tmp/latex-work && chown appuser:appuser /tmp/latex-work \
+    && mkdir -p /home/appuser && chown appuser:appuser /home/appuser \
+    && chmod -R a+r /var/lib/texmf \
+    && chmod -R a+r /usr/share/texlive \
+    && chmod -R a+r /usr/share/texmf \
+    && find /root -name "luaotfload*" -exec cp -r {} /home/appuser/ \; 2>/dev/null || true
+
+# luaotfload キャッシュをコピー (存在する場合のみ)
+RUN cp -r /root/.texlive* /home/appuser/ 2>/dev/null; \
+    cp -r /root/texmf /home/appuser/ 2>/dev/null; \
+    chown -R appuser:appuser /home/appuser; \
+    echo "=== Cache permissions set ==="
+
+# TEXMFVAR/TEXMFCONFIG を appuser 書き込み可能な場所に設定
+ENV TEXMFVAR=/home/appuser/texmf-var \
+    TEXMFCONFIG=/home/appuser/texmf-config
+RUN mkdir -p /home/appuser/texmf-var /home/appuser/texmf-config \
+    && chown -R appuser:appuser /home/appuser
+
 USER appuser
+
+# ──── 10. appuser 環境でフォントキャッシュ構築 ────
+COPY backend/tests/warmup.tex /tmp/warmup.tex
+WORKDIR /tmp
+RUN luaotfload-tool --update 2>/dev/null || true
+RUN lualatex -interaction=nonstopmode -halt-on-error warmup.tex \
+    && lualatex -interaction=nonstopmode -halt-on-error warmup.tex \
+    && rm -f /tmp/warmup.* \
+    && echo "=== appuser cache warm ==="
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]
