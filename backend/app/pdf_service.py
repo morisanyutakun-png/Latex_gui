@@ -87,9 +87,30 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
 
     3エンジンフォールバック:
       1. DEFAULT_ENGINE (起動時テスト済み)
-      2. FALLBACK_ENGINES (残りのエンジンを順に試行)
+      2. FALLBACK_ENGINES (残りの **テスト通過済み** エンジンのみ)
+      3. 全テスト失敗時は DEFAULT_ENGINE をラストリゾートで試行
     """
-    engines_to_try = [DEFAULT_ENGINE] + FALLBACK_ENGINES
+    # 起動テスト結果マップ
+    engine_ok = {
+        "pdflatex": PDFLATEX_CJK_OK,
+        "lualatex": LUALATEX_JA_OK,
+        "xelatex": XELATEX_OK,
+    }
+
+    # テスト通過済みエンジンを優先順で構築
+    engines_to_try: list[str] = []
+    # 1) DEFAULT_ENGINE (テスト通過済みなので最優先)
+    engines_to_try.append(DEFAULT_ENGINE)
+    # 2) テスト通過済みの他エンジン
+    for e in FALLBACK_ENGINES:
+        if engine_ok.get(e, False) and e not in engines_to_try:
+            engines_to_try.append(e)
+    # 3) テスト未通過だがバイナリが存在するエンジン (ラストリゾート)
+    for e in FALLBACK_ENGINES:
+        if e not in engines_to_try:
+            cmd = ENGINE_CMD.get(e)
+            if cmd and (shutil.which(cmd) or Path(cmd).is_file()):
+                engines_to_try.append(e)
 
     logger.info(
         f"PDF compilation: engines={engines_to_try}, "
@@ -101,7 +122,7 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     errors: list[tuple[str, PDFGenerationError]] = []
 
     # ── 全エンジンを順に試行 ──
-    for engine_name in engines_to_try:
+    for idx, engine_name in enumerate(engines_to_try):
         engine_cmd = ENGINE_CMD.get(engine_name)
         if not engine_cmd:
             continue
@@ -116,9 +137,13 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             )))
             continue
 
+        # テスト通過済みエンジンは長めのタイムアウト、未通過は短め
+        is_tested = engine_ok.get(engine_name, False)
+        compile_timeout = 40 if is_tested else 15
+
         try:
             latex_source = generate_document_latex(doc, engine=engine_name)
-            pdf = _compile_latex(latex_source, engine_cmd, timeout=45)
+            pdf = _compile_latex(latex_source, engine_cmd, timeout=compile_timeout)
             logger.info(f"PDF generated successfully with {engine_name}")
             return pdf
         except PDFGenerationError as e:

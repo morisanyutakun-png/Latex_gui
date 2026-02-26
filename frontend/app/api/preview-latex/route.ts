@@ -3,6 +3,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 30;
+
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function POST(req: NextRequest) {

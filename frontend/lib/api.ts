@@ -12,26 +12,23 @@ import { DocumentModel } from "./types";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export async function generatePDF(doc: DocumentModel): Promise<Blob> {
-  // Pre-flight health check
-  const healthy = await healthCheck();
-  if (!healthy) {
-    throw new Error(
-      "PDF生成サーバーに接続できません。\n" +
-      "バックエンドサーバーが起動しているか確認してください。"
-    );
-  }
-
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/generate-pdf`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(doc),
+      // ブラウザ側タイムアウト: Vercel Route Handler (max 60s) + マージン
+      signal: AbortSignal.timeout(65000),
     });
   } catch (networkErr) {
+    // ネットワークエラー or ブラウザ側タイムアウト
+    const isTimeout = networkErr instanceof Error &&
+      (networkErr.name === "TimeoutError" || networkErr.name === "AbortError");
     throw new Error(
-      "PDF生成サーバーへのリクエストに失敗しました。\n" +
-      "ネットワーク接続を確認してください。"
+      isTimeout
+        ? "PDF生成に時間がかかりすぎています。しばらく待ってから再度お試しください。"
+        : "PDF生成サーバーへのリクエストに失敗しました。\nネットワーク接続を確認してください。"
     );
   }
 

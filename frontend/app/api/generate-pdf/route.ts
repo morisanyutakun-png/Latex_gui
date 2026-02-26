@@ -6,9 +6,16 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
+// Vercel Serverless Function の実行時間上限 (秒)
+// Hobby: max 60s, Pro: max 300s
+export const maxDuration = 60;
+
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
+  console.log(`[proxy] generate-pdf → ${BACKEND}/api/generate-pdf`);
+
   try {
     const body = await req.text();
 
@@ -16,8 +23,11 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
-      signal: AbortSignal.timeout(55000), // Vercel の 60s 制限より少し短く
+      signal: AbortSignal.timeout(55000),
     });
+
+    const elapsed = Date.now() - t0;
+    console.log(`[proxy] generate-pdf response: ${res.status} (${elapsed}ms)`);
 
     if (!res.ok) {
       const errBody = await res.text();
@@ -36,10 +46,13 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[proxy] generate-pdf error:", err);
-    const message = err instanceof Error && err.name === "TimeoutError"
-      ? "バックエンドサーバーがタイムアウトしました"
-      : "バックエンドサーバーに接続できません";
+    const elapsed = Date.now() - t0;
+    console.error(`[proxy] generate-pdf FAILED after ${elapsed}ms:`, err);
+
+    const isTimeout = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+    const message = isTimeout
+      ? `PDF生成がタイムアウトしました (${Math.round(elapsed / 1000)}秒)。Koyeb バックエンドの応答が遅い可能性があります。`
+      : `バックエンドサーバーに接続できません (${BACKEND})`;
     return NextResponse.json(
       { detail: { message } },
       { status: 502 },
