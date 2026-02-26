@@ -110,7 +110,7 @@ WORKDIR /tmp
 RUN luaotfload-tool --update 2>/dev/null || true
 RUN lualatex -interaction=nonstopmode -halt-on-error warmup.tex \
     && lualatex -interaction=nonstopmode -halt-on-error warmup.tex \
-    && rm -f /tmp/warmup.* \
+    && rm -f /tmp/warmup.aux /tmp/warmup.log /tmp/warmup.pdf \
     && echo "=== appuser cache warm ==="
 
 EXPOSE 8000
