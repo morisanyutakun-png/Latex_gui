@@ -152,16 +152,20 @@ def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> byt
         engine_name = Path(engine_cmd).name
         logger.info(f"Compiling with {engine_name}...")
 
+        # lualatex は -no-shell-escape を渡すとエラーになる場合がある
+        cmd_args = [
+            engine_cmd,
+            "-interaction=nonstopmode",
+            "-halt-on-error",
+            "-output-directory", str(tmpdir),
+            str(tex_path),
+        ]
+        if "lualatex" not in engine_name:
+            cmd_args.insert(3, "-no-shell-escape")
+
         try:
             result = subprocess.run(
-                [
-                    engine_cmd,
-                    "-interaction=nonstopmode",
-                    "-halt-on-error",
-                    "-no-shell-escape",
-                    "-output-directory", str(tmpdir),
-                    str(tex_path),
-                ],
+                cmd_args,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -238,15 +242,17 @@ def _parse_latex_error(log: str) -> str:
         return "表の列数が一致していない可能性があります。表の内容を確認してください。"
     if "file not found" in log_lower and "image" in log_lower:
         return "画像の読み込みに失敗しました。画像URLが正しいか確認してください。"
-    # CJK.sty / bxcjkjatype missing (pdflatex Japanese support package)
-    if "cjk.sty" in log_lower and "not found" in log_lower:
-        return "日本語サポートパッケージ(CJK.sty)が見つかりません。"
-    if "bxcjkjatype.sty" in log_lower and "not found" in log_lower:
-        return "日本語サポートパッケージ(bxcjkjatype.sty)が見つかりません。"
-    if "luatexja.sty" in log_lower and "not found" in log_lower:
-        return "luatexjaパッケージが見つかりません。"
+    # ── パッケージ未検出エラー ──
+    # 重要: 長い名前を先にチェック ("xecjk.sty" は "cjk.sty" を含むため)
     if "xecjk.sty" in log_lower and "not found" in log_lower:
         return "xeCJKパッケージが見つかりません。"
+    if "luatexja.sty" in log_lower and "not found" in log_lower:
+        return "luatexjaパッケージが見つかりません。"
+    if "bxcjkjatype.sty" in log_lower and "not found" in log_lower:
+        return "bxcjkjatypeパッケージが見つかりません。"
+    # CJK.sty は xecjk.sty にマッチしないよう、xecjk が含まれないことを確認
+    if "cjk.sty" in log_lower and "not found" in log_lower and "xecjk" not in log_lower:
+        return "CJK.styパッケージが見つかりません。"
     # CJK font errors — setCJKmainfont / setCJKsansfont コマンドの実行エラーのみ検出
     # (LaTeX変数名 CJKmainfontset 等の誤検出を防ぐため、厳密にパターンを限定)
     if "\\setcjkmainfont" in log_lower or "\\setcjksansfont" in log_lower:

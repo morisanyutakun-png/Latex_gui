@@ -87,39 +87,49 @@ async def tex_debug_info():
     """TeX環境の診断情報を返す（デプロイ問題のデバッグ用）"""
     import shutil
     import subprocess
+    import tempfile
+    from pathlib import Path
     from .tex_env import (
-        XELATEX_CMD, PDFLATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD, TEX_ENV,
-        DEFAULT_ENGINE, PDFLATEX_CJK_OK, XELATEX_OK,
+        XELATEX_CMD, PDFLATEX_CMD, LUALATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD,
+        TEX_ENV, DEFAULT_ENGINE, FALLBACK_ENGINES,
+        PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
         CJK_STY_AVAILABLE, BXCJKJATYPE_AVAILABLE,
+        XECJK_STY_AVAILABLE, LUATEXJA_STY_AVAILABLE,
+        DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT,
     )
-    from .generators.document_generator import CJK_MAIN_FONT, CJK_SANS_FONT
 
     info: dict = {
         "engine": {
             "default": DEFAULT_ENGINE,
+            "fallbacks": FALLBACK_ENGINES,
             "pdflatex_cjk_ok": PDFLATEX_CJK_OK,
+            "lualatex_ja_ok": LUALATEX_JA_OK,
             "xelatex_ok": XELATEX_OK,
         },
         "packages": {
             "CJK_sty": CJK_STY_AVAILABLE,
             "bxcjkjatype_sty": BXCJKJATYPE_AVAILABLE,
+            "xeCJK_sty": XECJK_STY_AVAILABLE,
+            "luatexja_sty": LUATEXJA_STY_AVAILABLE,
         },
         "commands": {
-            "xelatex": {"path": XELATEX_CMD, "exists": shutil.which(XELATEX_CMD) is not None},
-            "pdflatex": {"path": PDFLATEX_CMD, "exists": shutil.which(PDFLATEX_CMD) is not None},
-            "pdftocairo": {"path": PDFTOCAIRO_CMD, "exists": shutil.which(PDFTOCAIRO_CMD) is not None},
-            "dvisvgm": {"path": DVISVGM_CMD, "exists": shutil.which(DVISVGM_CMD) is not None},
+            "pdflatex": {"path": PDFLATEX_CMD, "exists": bool(shutil.which(PDFLATEX_CMD) or Path(PDFLATEX_CMD).is_file())},
+            "lualatex": {"path": LUALATEX_CMD, "exists": bool(shutil.which(LUALATEX_CMD) or Path(LUALATEX_CMD).is_file())},
+            "xelatex": {"path": XELATEX_CMD, "exists": bool(shutil.which(XELATEX_CMD) or Path(XELATEX_CMD).is_file())},
+            "pdftocairo": {"path": PDFTOCAIRO_CMD, "exists": bool(shutil.which(PDFTOCAIRO_CMD))},
+            "dvisvgm": {"path": DVISVGM_CMD, "exists": bool(shutil.which(DVISVGM_CMD))},
         },
         "fonts": {
-            "main": CJK_MAIN_FONT,
-            "sans": CJK_SANS_FONT,
+            "main": DETECTED_CJK_MAIN_FONT,
+            "sans": DETECTED_CJK_SANS_FONT,
         },
         "env": {
             "CJK_MAIN_FONT": os.environ.get("CJK_MAIN_FONT", "(not set)"),
             "CJK_SANS_FONT": os.environ.get("CJK_SANS_FONT", "(not set)"),
-            "LIBGS": TEX_ENV.get("LIBGS", "(not set)"),
             "TEXINPUTS": TEX_ENV.get("TEXINPUTS", "(not set)"),
+            "LIBGS": TEX_ENV.get("LIBGS", "(not set)"),
             "COMPILE_MEM_LIMIT_MB": os.environ.get("COMPILE_MEM_LIMIT_MB", "512"),
+            "PATH": TEX_ENV.get("PATH", "")[:300],
         },
     }
 
@@ -137,68 +147,50 @@ async def tex_debug_info():
     else:
         info["fc_list_ja"] = "fc-list not available"
 
-    # Quick pdflatex compile test (primary engine — low memory)
-    try:
-        import tempfile
-        from pathlib import Path
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tex = (
-                "\\documentclass{article}\n"
-                "\\usepackage[whole]{bxcjkjatype}\n"
-                "\\begin{document}\nHello World テスト\n\\end{document}\n"
-            )
-            tex_path = Path(tmpdir) / "test.tex"
-            tex_path.write_text(tex, encoding="utf-8")
-            result = subprocess.run(
-                [PDFLATEX_CMD, "-interaction=nonstopmode", "-halt-on-error",
-                 "-output-directory", str(tmpdir), str(tex_path)],
-                capture_output=True, text=True, timeout=15,
-                cwd=tmpdir, env=TEX_ENV,
-            )
-            pdf_exists = (Path(tmpdir) / "test.pdf").exists()
-            info["pdflatex_test"] = {
-                "success": result.returncode == 0 and pdf_exists,
-                "returncode": result.returncode,
-                "pdf_generated": pdf_exists,
-                "log_tail": result.stdout[-500:] if result.stdout else "",
-                "stderr": result.stderr[-200:] if result.stderr else "",
-            }
-    except Exception as e:
-        info["pdflatex_test"] = {"success": False, "error": str(e)}
+    # ── 3エンジン即時コンパイルテスト ──
+    test_cases = [
+        ("pdflatex", PDFLATEX_CMD, (
+            "\\documentclass{article}\n"
+            "\\usepackage[whole]{bxcjkjatype}\n"
+            "\\begin{document}\n日本語テスト ABC\n\\end{document}\n"
+        )),
+        ("lualatex", LUALATEX_CMD, (
+            "\\documentclass{article}\n"
+            "\\usepackage{luatexja}\n"
+            "\\begin{document}\n日本語テスト ABC\n\\end{document}\n"
+        )),
+        ("xelatex", XELATEX_CMD, (
+            "\\documentclass{article}\n"
+            "\\usepackage{xeCJK}\n"
+            f"\\setCJKmainfont{{{DETECTED_CJK_MAIN_FONT or 'Noto Sans CJK JP'}}}\n"
+            "\\begin{document}\n日本語テスト ABC\n\\end{document}\n"
+        )),
+    ]
+    for eng_name, eng_cmd, tex_src in test_cases:
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tex_path = Path(tmpdir) / "test.tex"
+                tex_path.write_text(tex_src, encoding="utf-8")
+                r = subprocess.run(
+                    [eng_cmd, "-interaction=nonstopmode", "-halt-on-error",
+                     "-output-directory", str(tmpdir), str(tex_path)],
+                    capture_output=True, text=True, timeout=30,
+                    cwd=tmpdir, env=TEX_ENV,
+                )
+                pdf_exists = (Path(tmpdir) / "test.pdf").exists()
+                info[f"{eng_name}_test"] = {
+                    "success": r.returncode == 0 and pdf_exists,
+                    "returncode": r.returncode,
+                    "pdf_generated": pdf_exists,
+                    "log_tail": r.stdout[-500:] if r.stdout else "",
+                    "stderr": r.stderr[-200:] if r.stderr else "",
+                }
+        except Exception as e:
+            info[f"{eng_name}_test"] = {"success": False, "error": str(e)}
 
-    # Quick XeLaTeX compile test (fallback engine — high memory)
-    try:
-        import tempfile
-        from pathlib import Path
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tex = (
-                "\\documentclass{article}\n"
-                "\\usepackage{fontspec}\n"
-                f"\\IfFontExistsTF{{{CJK_MAIN_FONT}}}{{\\setmainfont{{{CJK_MAIN_FONT}}}}}{{\\typeout{{FONT NOT FOUND}}}}\n"
-                "\\begin{document}\nHello World テスト\n\\end{document}\n"
-            )
-            tex_path = Path(tmpdir) / "test.tex"
-            tex_path.write_text(tex, encoding="utf-8")
-            result = subprocess.run(
-                [XELATEX_CMD, "-interaction=nonstopmode", "-halt-on-error",
-                 "-output-directory", str(tmpdir), str(tex_path)],
-                capture_output=True, text=True, timeout=15,
-                cwd=tmpdir, env=TEX_ENV,
-            )
-            pdf_exists = (Path(tmpdir) / "test.pdf").exists()
-            info["xelatex_test"] = {
-                "success": result.returncode == 0 and pdf_exists,
-                "returncode": result.returncode,
-                "pdf_generated": pdf_exists,
-                "log_tail": result.stdout[-500:] if result.stdout else "",
-                "stderr": result.stderr[-200:] if result.stderr else "",
-            }
-    except Exception as e:
-        info["xelatex_test"] = {"success": False, "error": str(e)}
-
-    # Filesystem search for key .sty files
+    # ── .sty ファイルシステム検索 ──
     sty_files = {}
-    for sty_name in ["CJK.sty", "bxcjkjatype.sty", "fontspec.sty"]:
+    for sty_name in ["CJK.sty", "bxcjkjatype.sty", "xeCJK.sty", "luatexja.sty"]:
         try:
             r = subprocess.run(
                 ["find", "/usr", "-name", sty_name, "-type", "f"],
@@ -210,7 +202,7 @@ async def tex_debug_info():
             sty_files[sty_name] = "search failed"
     info["sty_filesystem"] = sty_files
 
-    # Debian version
+    # OS info
     try:
         with open("/etc/os-release") as f:
             for line in f:

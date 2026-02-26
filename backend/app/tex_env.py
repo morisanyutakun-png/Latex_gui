@@ -44,6 +44,22 @@ def _build_texlive_env() -> dict[str, str]:
     if extra:
         env["PATH"] = ":".join(extra) + ":" + current_path
         logger.info(f"Added TeX Live paths: {extra}")
+
+    # Docker ビルド時に /etc/texinputs.env に保存された TEXINPUTS を復元
+    _texinputs_env_file = Path("/etc/texinputs.env")
+    if _texinputs_env_file.is_file():
+        try:
+            for line in _texinputs_env_file.read_text().strip().split("\n"):
+                line = line.strip()
+                if line.startswith("TEXINPUTS="):
+                    val = line.split("=", 1)[1]
+                    # シェル変数 $TEXINPUTS の展開
+                    val = val.replace("$TEXINPUTS", env.get("TEXINPUTS", ""))
+                    env["TEXINPUTS"] = val
+                    logger.info(f"Loaded TEXINPUTS from {_texinputs_env_file}: {val}")
+        except Exception as e:
+            logger.warning(f"Failed to read {_texinputs_env_file}: {e}")
+
     return env
 
 
@@ -87,19 +103,27 @@ def _check_sty_kpsewhich(name: str, env: dict) -> str | None:
 
 
 def _find_sty_filesystem(name: str) -> str | None:
-    for search_dir in ["/usr/share/texmf", "/usr/share/texlive", "/usr/local/texlive"]:
+    search_dirs = [
+        "/usr/share/texmf",
+        "/usr/share/texlive",
+        "/usr/local/texlive",
+        "/usr/share/texmf-dist",
+        "/nix/store",  # nixpacks環境
+    ]
+    for search_dir in search_dirs:
         if not Path(search_dir).is_dir():
             continue
         try:
             r = subprocess.run(
                 ["find", search_dir, "-name", name, "-type", "f"],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True, text=True, timeout=30,
             )
             for line in r.stdout.strip().split("\n"):
                 if line.strip():
+                    logger.info(f"Filesystem search: {name} → {line.strip()}")
                     return line.strip()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"find {name} in {search_dir} failed: {e}")
     return None
 
 
@@ -132,6 +156,8 @@ def _ensure_sty_available(name: str, env: dict) -> bool:
 
 CJK_STY_AVAILABLE = _ensure_sty_available("CJK.sty", TEX_ENV)
 BXCJKJATYPE_AVAILABLE = _ensure_sty_available("bxcjkjatype.sty", TEX_ENV)
+XECJK_STY_AVAILABLE = _ensure_sty_available("xeCJK.sty", TEX_ENV)
+LUATEXJA_STY_AVAILABLE = _ensure_sty_available("luatexja.sty", TEX_ENV)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -230,6 +256,9 @@ def _test_pdflatex_cjk() -> bool:
 
 
 def _test_lualatex_ja() -> bool:
+    if not LUATEXJA_STY_AVAILABLE:
+        logger.info("[lualatex+luatexja] luatexja.sty not found, skipping")
+        return False
     tex = (
         "\\documentclass{article}\n"
         "\\usepackage{luatexja}\n"
@@ -239,6 +268,9 @@ def _test_lualatex_ja() -> bool:
 
 
 def _test_xelatex_cjk() -> bool:
+    if not XECJK_STY_AVAILABLE:
+        logger.info("[xelatex+xeCJK] xeCJK.sty not found, skipping")
+        return False
     if not DETECTED_CJK_MAIN_FONT:
         logger.info("[xelatex+xeCJK] No CJK font detected, skipping")
         return False
@@ -284,7 +316,9 @@ logger.info(
 )
 logger.info(
     f"Packages: CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
-    f"bxcjkjatype={'OK' if BXCJKJATYPE_AVAILABLE else 'NG'}"
+    f"bxcjkjatype={'OK' if BXCJKJATYPE_AVAILABLE else 'NG'}, "
+    f"xeCJK.sty={'OK' if XECJK_STY_AVAILABLE else 'NG'}, "
+    f"luatexja.sty={'OK' if LUATEXJA_STY_AVAILABLE else 'NG'}"
 )
 logger.info(f"CJK fonts: main={DETECTED_CJK_MAIN_FONT or '(none)'}, sans={DETECTED_CJK_SANS_FONT or '(none)'}")
 

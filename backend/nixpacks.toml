@@ -1,16 +1,19 @@
 # Nixpacks 設定 (Koyeb / Railway 等の buildpack デプロイ用)
-# Docker デプロイの場合は Dockerfile が優先されるため、この設定は無視されます。
 #
-# 使用方法:
-#   Koyeb で「Buildpack」モードを選択した場合に自動的に読み込まれます。
-#   推奨: Docker モードを使用してください (Dockerfile の方が確実です)。
+# 注意: Koyeb では Docker モードを強く推奨します。
+#   Dockerfile の方が確実にTeX Liveが構成されます。
+#   Koyeb の設定で「Docker」を選択し、
+#   Dockerfile path: backend/Dockerfile を指定してください。
+#
+# Buildpack モードの場合にのみ、この設定が使われます。
 
 [phases.setup]
-# TeX Live + CJK サポート (日本語PDF生成に必要)
+# TeX Live + CJK + LuaTeX サポート
 aptPkgs = [
     "texlive-latex-base",
     "texlive-latex-recommended",
     "texlive-latex-extra",
+    "texlive-luatex",
     "texlive-pictures",
     "texlive-science",
     "texlive-fonts-recommended",
@@ -23,8 +26,14 @@ aptPkgs = [
 ]
 
 [phases.build]
-# TeX パッケージデータベースを更新
-cmds = ["mktexlsr || true", "texhash || true", "fc-cache -fv || true"]
+# TeX パッケージデータベースとフォントキャッシュを更新
+# 各コマンドの失敗を許容 (|| true) して後続を実行
+cmds = [
+    "mktexlsr || true",
+    "texhash || true",
+    "fc-cache -fv || true",
+    "echo '=== TeX verification ===' && which pdflatex && which lualatex && which xelatex && kpsewhich CJK.sty && kpsewhich luatexja.sty && kpsewhich xeCJK.sty || echo 'Some TeX packages missing'",
+]
 
 [variables]
 COMPILE_MEM_LIMIT_MB = "512"
