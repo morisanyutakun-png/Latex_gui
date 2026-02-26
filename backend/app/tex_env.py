@@ -162,6 +162,7 @@ CJK_STY_AVAILABLE = _ensure_sty_available("CJK.sty", TEX_ENV)
 BXCJKJATYPE_AVAILABLE = _ensure_sty_available("bxcjkjatype.sty", TEX_ENV)
 XECJK_STY_AVAILABLE = _ensure_sty_available("xeCJK.sty", TEX_ENV)
 LUATEXJA_STY_AVAILABLE = _ensure_sty_available("luatexja.sty", TEX_ENV)
+LUATEXJA_PRESET_AVAILABLE = _ensure_sty_available("luatexja-preset.sty", TEX_ENV)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -308,7 +309,7 @@ def _run_warmup():
     if LUALATEX_AVAILABLE:
         tex = (
             "\\documentclass{article}\n"
-            "\\usepackage{luatexja}\n"
+            "\\usepackage[haranoaji]{luatexja-preset}\n"
             f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
         )
         # Dockerビルドでキャッシュ済みなら20秒で十分、未構築でも45秒

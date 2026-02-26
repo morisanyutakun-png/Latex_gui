@@ -37,7 +37,7 @@ RUN mktexlsr && texhash && fc-cache -fv
 # profile.d は subprocess では読まれないため、Dockerの ENV で永続化する
 RUN set -ex; \
     EXTRA=""; \
-    for STY in CJK.sty bxcjkjatype.sty xeCJK.sty luatexja.sty; do \
+    for STY in CJK.sty bxcjkjatype.sty xeCJK.sty luatexja.sty luatexja-preset.sty; do \
       if ! kpsewhich "$STY" >/dev/null 2>&1; then \
         FOUND=$(find /usr -name "$STY" -type f 2>/dev/null | head -1); \
         if [ -n "$FOUND" ]; then \
@@ -78,21 +78,25 @@ RUN set -e; \
     && (pdflatex -interaction=nonstopmode -halt-on-error test_cjk.tex \
         && echo "=== [OK] pdflatex + bxcjkjatype ===" \
         || echo "=== [WARN] pdflatex + CJK failed ===") \
-    && printf '\\documentclass{article}\n\\usepackage{luatexja}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_lua.tex \
+    && printf '\\documentclass{article}\n\\usepackage[haranoaji]{luatexja-preset}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_lua.tex \
     && (lualatex -interaction=nonstopmode -halt-on-error test_lua.tex \
-        && echo "=== [OK] lualatex + luatexja (font cache built) ===" \
-        || echo "=== [WARN] lualatex + luatexja failed ===") \
+        && echo "=== [OK] lualatex + luatexja-preset (font cache built) ===" \
+        || echo "=== [WARN] lualatex + luatexja-preset failed ===") \
     && printf '\\documentclass{article}\n\\usepackage{xeCJK}\n\\setCJKmainfont{Noto Sans CJK JP}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_xe.tex \
     && (xelatex -interaction=nonstopmode -halt-on-error test_xe.tex \
         && echo "=== [OK] xelatex + xeCJK ===" \
         || echo "=== [WARN] xelatex + xeCJK failed ===") \
+    && echo "=== 2nd lualatex run (ensure cache warm) ===" \
+    && (lualatex -interaction=nonstopmode -halt-on-error test_lua.tex \
+        && echo "=== [OK] lualatex 2nd run (cache verified) ===" \
+        || true) \
     && rm -f /tmp/test_* \
     && echo "=== Font cache verification ===" \
     && find / -path "*/luatex-cache*" -type d 2>/dev/null | head -5 || true
 
 ENV MAX_CONCURRENT_COMPILES=2
-ENV COMPILE_MEM_LIMIT_MB=512
-ENV COMPILE_TOTAL_BUDGET_SECONDS=42
+ENV COMPILE_MEM_LIMIT_MB=1536
+ENV COMPILE_TOTAL_BUDGET_SECONDS=45
 ENV CJK_MAIN_FONT="Noto Serif CJK JP"
 ENV CJK_SANS_FONT="Noto Sans CJK JP"
 

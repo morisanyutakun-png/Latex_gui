@@ -109,8 +109,9 @@ def _detect_required_packages(doc: DocumentModel, engine: str = "pdflatex") -> l
         # setCJKmainfontを使用し、確実にCJK文字を処理する)
         add("\\usepackage{xeCJK}")
     elif engine == "lualatex":
-        # luatexja: HaranoAjiフォント内蔵、外部フォント不要で最も堅牢
-        add("\\usepackage{luatexja}")
+        # luatexja-preset: HaranoAji プリセットで最小限の読み込み
+        # (luatexja 単体よりもフォント設定が簡潔になり起動が早い)
+        add("\\usepackage[haranoaji]{luatexja-preset}")
     else:
         # pdflatex: bxcjkjatype で日本語対応
         add("\\usepackage[whole]{bxcjkjatype}")
@@ -196,9 +197,8 @@ def generate_document_latex(doc: DocumentModel, engine: str = "pdflatex") -> str
             lines.append(f"\\setCJKsansfont{{{CJK_SANS_FONT}}}")
         lines.append("")
     elif engine == "lualatex":
-        # luatexja: HaranoAji フォント内蔵 — 追加のフォント設定不要
-        # (\usepackage{luatexja} だけで日本語が自動的に処理される)
-        lines.append("% ── luatexja: bundled HaranoAji fonts, no additional config needed ──")
+        # luatexja-preset[haranoaji] がフォント設定を含むため追加設定不要
+        lines.append("% ── luatexja-preset[haranoaji]: fonts pre-configured ──")
         lines.append("")
     # pdflatex: bxcjkjatype handles fonts automatically
 

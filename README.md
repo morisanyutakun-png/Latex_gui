@@ -224,10 +224,17 @@ curl -X POST http://localhost:8000/api/generate-pdf \
 
 ### 構成
 
+```
+ブラウザ → Vercel (Next.js) → Koyeb (FastAPI + TeX Live)
+                 ↑ Route Handler でプロキシ      ↑ Docker コンテナ
+```
+
 | サービス | プラットフォーム | 備考 |
 |---------|---------------|------|
 | Frontend (Next.js) | Vercel | Git連携で自動デプロイ |
-| Backend (FastAPI) | Koyeb | Dockerイメージでデプロイ |
+| Backend (FastAPI + TeX Live) | Koyeb | Docker モードで必ずデプロイ |
+
+**通信フロー:** ブラウザ → Vercel `/api/generate-pdf` (Route Handler) → Koyeb バックエンド → PDF返却
 
 ### Docker でローカル確認
 
@@ -239,43 +246,67 @@ docker compose up --build
 # Backend:  http://localhost:8000
 ```
 
-### Backend を Koyeb にデプロイ
+### 1. Backend を Koyeb にデプロイ（先にやる）
 
 1. GitHubにリポジトリをプッシュ
 2. [Koyeb](https://app.koyeb.com/) でアカウント作成
-3. 「Create App」→ **必ず「Docker」を選択**（Buildpackでは TeX Live が正しくインストールされない可能性があります）
-4. リポジトリを接続し、以下を設定:
+3. 「Create App」→ **必ず「Docker」を選択**（Buildpackでは TeX Live が正しくインストールされません）
+4. GitHub リポジトリを接続し、以下を設定:
    - **Dockerfile path:** `backend/Dockerfile`
-   - **Build context:** `.`（リポジトリルート）または `backend/`（どちらでも動作します）
+   - **Build context:** `backend/`
    - **Port:** `8000`
-5. 環境変数を設定:
-   - `ALLOWED_ORIGINS` = `https://your-app.vercel.app`（Vercelの本番URL）
-   - `CJK_MAIN_FONT` = `Noto Serif CJK JP`（Dockerfileで設定済み、変更不要）
-   - `CJK_SANS_FONT` = `Noto Sans CJK JP`（Dockerfileで設定済み、変更不要）
-6. デプロイ実行
-7. デプロイ後に `https://your-backend.koyeb.app/api/debug/tex-info` にアクセスして TeX 環境を確認
+5. **インスタンスタイプ:** Nano ($2.7/月) 以上、メモリ 512MB+
+   - lualatex はメモリを多く使うため、256MB インスタンスではタイムアウトします
+6. 環境変数を設定（Koyeb 管理画面 → Environment Variables）:
+   - `ALLOWED_ORIGINS` = `https://your-app.vercel.app`（後で Vercel の URL が分かったら設定）
+7. デプロイ実行
+8. デプロイ後に `https://your-backend.koyeb.app/api/health` にアクセスして動作確認
+9. `https://your-backend.koyeb.app/api/debug/tex-info` で TeX 環境を確認
 
-> **⚠️ トラブルシューティング:** `CJK.sty not found` エラーが出る場合:
-> - Koyebのデプロイが **Docker モード** になっているか確認（Buildpackモードではなく）
-> - ビルドログで `[OK] CJK.sty` の表示があるか確認
-> - `/api/debug/tex-info` エンドポイントで診断情報を確認
+> **⚠️ 重要:** Koyeb の URL（例: `https://xxx-xxx.koyeb.app`）をメモしておく。次の Vercel 設定で使います。
 
-### Frontend を Vercel にデプロイ
+> **トラブルシューティング:**
+> - `CJK.sty not found` → Koyeb のデプロイが **Docker モード** か確認（Buildpack ではダメ）
+> - `lualatex timeout` → インスタンスのメモリが 256MB 以下でないか確認
+> - ビルドログで `[OK] pdflatex + bxcjkjatype` / `[OK] lualatex` が出ているか確認
+
+### 2. Frontend を Vercel にデプロイ
 
 1. [Vercel](https://vercel.com/) でアカウント作成
 2. 「Import Project」→ GitHubリポジトリを接続
 3. 以下を設定:
    - **Root Directory:** `frontend`
    - **Framework Preset:** Next.js（自動検出）
-4. 環境変数を設定:
-   - `NEXT_PUBLIC_API_URL` = `https://your-backend.koyeb.app`（KoyebのURL）
+4. **環境変数を設定（Vercel Settings → Environment Variables）:**
+   - `API_URL` = `https://your-backend.koyeb.app`（Koyeb の URL）
+   
+   > ⚠️ `NEXT_PUBLIC_API_URL` ではなく **`API_URL`** を設定してください。  
+   > ブラウザからは Vercel の Route Handler 経由でプロキシするため、  
+   > バックエンド URL はサーバーサイドだけで使います（CORS 問題を回避）。
+
 5. デプロイ実行
+6. Vercel のデプロイ完了後、Vercel の URL（例: `https://your-app.vercel.app`）を  
+   Koyeb の環境変数 `ALLOWED_ORIGINS` に設定
+
+### 3. 動作確認
+
+1. Vercel の URL にアクセス → エディタ画面を開く
+2. テンプレートを選択してブロックを追加
+3. 「PDF出力」ボタンを押す
+4. 初回はバックエンドのコールドスタートで 15-30 秒かかることがあります  
+   → タイムアウトした場合は数秒待って再度ボタンを押してください
+5. 2回目以降は 5-15 秒で生成されます
 
 ### 環境変数一覧
 
-| 変数名 | 設定場所 | 説明 | 例 |
-|--------|---------|------|-----|
-| `NEXT_PUBLIC_API_URL` | Vercel | BackendのURL | `https://xxx.koyeb.app` |
-| `ALLOWED_ORIGINS` | Koyeb | CORSで許可するオリジン（カンマ区切り） | `https://xxx.vercel.app` |
-| `CJK_MAIN_FONT` | Koyeb | 明朝体フォント名 | `Noto Serif CJK JP` |
-| `CJK_SANS_FONT` | Koyeb | ゴシック体フォント名 | `Noto Sans CJK JP` |
+| 変数名 | 設定場所 | 必須 | 説明 | 例 |
+|--------|---------|------|------|-----|
+| `API_URL` | Vercel | **必須** | Koyeb バックエンドの URL（サーバーサイドのみ） | `https://xxx.koyeb.app` |
+| `ALLOWED_ORIGINS` | Koyeb | **必須** | CORS で許可する Vercel の URL | `https://xxx.vercel.app` |
+| `CJK_MAIN_FONT` | Koyeb | 任意 | 明朝体フォント名（Dockerfile で設定済み） | `Noto Serif CJK JP` |
+| `CJK_SANS_FONT` | Koyeb | 任意 | ゴシック体フォント名（Dockerfile で設定済み） | `Noto Sans CJK JP` |
+| `COMPILE_MEM_LIMIT_MB` | Koyeb | 任意 | LaTeX プロセスのメモリ上限 (MB) | `1536` |
+
+> **注意:** `NEXT_PUBLIC_API_URL` は本番環境では設定しないでください。  
+> 設定するとブラウザから直接バックエンドにアクセスしてしまい、CORS エラーが発生します。  
+> ローカル開発時のみ `NEXT_PUBLIC_API_URL=http://localhost:8000` を `.env.local` に設定します。

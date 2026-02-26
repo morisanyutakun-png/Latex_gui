@@ -87,7 +87,7 @@ async def tex_debug_info():
         TEX_ENV, DEFAULT_ENGINE, FALLBACK_ENGINES,
         PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
         CJK_STY_AVAILABLE, BXCJKJATYPE_AVAILABLE,
-        XECJK_STY_AVAILABLE, LUATEXJA_STY_AVAILABLE,
+        XECJK_STY_AVAILABLE, LUATEXJA_STY_AVAILABLE, LUATEXJA_PRESET_AVAILABLE,
         PDFLATEX_AVAILABLE, LUALATEX_AVAILABLE, XELATEX_AVAILABLE,
         DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT,
         is_warmup_done, is_lualatex_cache_warm,
@@ -115,6 +115,7 @@ async def tex_debug_info():
             "bxcjkjatype_sty": BXCJKJATYPE_AVAILABLE,
             "xeCJK_sty": XECJK_STY_AVAILABLE,
             "luatexja_sty": LUATEXJA_STY_AVAILABLE,
+            "luatexja_preset_sty": LUATEXJA_PRESET_AVAILABLE,
         },
         "commands": {
             "pdflatex": {"path": PDFLATEX_CMD, "exists": bool(shutil.which(PDFLATEX_CMD) or Path(PDFLATEX_CMD).is_file())},
@@ -152,7 +153,7 @@ async def tex_debug_info():
 
     # ── .sty ファイルシステム検索 (fast) ──
     sty_files = {}
-    for sty_name in ["CJK.sty", "bxcjkjatype.sty", "xeCJK.sty", "luatexja.sty"]:
+    for sty_name in ["CJK.sty", "bxcjkjatype.sty", "xeCJK.sty", "luatexja.sty", "luatexja-preset.sty"]:
         try:
             r = subprocess.run(
                 ["find", "/usr", "-name", sty_name, "-type", "f"],

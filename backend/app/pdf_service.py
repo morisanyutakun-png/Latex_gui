@@ -1,11 +1,11 @@
 """
-PDF生成サービス: LaTeX生成 → コンパイル → PDF返却 (v3)
+PDF生成サービス: LaTeX生成 → コンパイル → PDF返却 (v5)
 
 軽量クラウド対応:
-  - バックグラウンド・ウォームアップ方式でエンジンを検証
-  - ウォームアップ完了前でも最善のエンジンで即座に試行
-  - lualatex フォントキャッシュ状態でタイムアウトを動的に調整
-  - asyncio Semaphore で最大同時コンパイル数を制限 (OOM 防止)
+  - pdflatex を最優先 (軽量・高速)
+  - lualatex フォールバック時はフォントキャッシュ活用で高速起動
+  - 同時コンパイル制限 + メモリ上限でクラウド OOM 防止
+  - RLIMIT_AS を十分大きく設定 (lualatex 仮想メモリ対応)
 """
 import asyncio
 import gc
@@ -36,8 +36,9 @@ MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "2"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
 # メモリ上限 (bytes)。Linux で resource.setrlimit に使用。
-# xelatex は仮想メモリ 500MB+ 必要なため、十分な値を設定する
-MEM_LIMIT_MB = int(os.environ.get("COMPILE_MEM_LIMIT_MB", "512"))
+# lualatex は仮想メモリを大量に使う (フォントキャッシュ等で 800MB+ になることがある)
+# RLIMIT_AS が小さすぎると SIGKILL / mmap failed で即死するため、十分大きくする
+MEM_LIMIT_MB = int(os.environ.get("COMPILE_MEM_LIMIT_MB", "1536"))
 MEM_LIMIT_BYTES = MEM_LIMIT_MB * 1024 * 1024
 
 # エンジンコマンドマップ
@@ -87,8 +88,8 @@ async def compile_pdf(doc: DocumentModel) -> bytes:
         )
 
 
-# ── 全体のタイムバジェット (Vercel の 58s 以内に収めるため余裕を持たせる) ──
-TOTAL_TIME_BUDGET = int(os.environ.get("COMPILE_TOTAL_BUDGET_SECONDS", "42"))
+# ── 全体のタイムバジェット (Vercel の 60s 以内に収めるため余裕を持たせる) ──
+TOTAL_TIME_BUDGET = int(os.environ.get("COMPILE_TOTAL_BUDGET_SECONDS", "45"))
 
 
 def _compile_pdf_sync(doc: DocumentModel) -> bytes:
@@ -157,17 +158,19 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             )))
             continue
 
-        # ── タイムアウト決定 (v4: 短縮版) ──
+        # ── タイムアウト決定 (v5: lualatex 緩和) ──
         if engine_name == "pdflatex":
             compile_timeout = 25
         elif engine_name == "lualatex":
-            compile_timeout = 18 if te.is_lualatex_cache_warm() else 30
+            # Docker ビルド時にフォントキャッシュ構築済み → 10-15秒
+            # 未構築の場合 → 初回は 30-60 秒かかるが、タイムバジェット内で最大限待つ
+            compile_timeout = 20 if te.is_lualatex_cache_warm() else 40
         else:  # xelatex
             compile_timeout = 25
 
-        # 全体の残り時間を考慮 (TOTAL_TIME_BUDGET内に収める)
+        # 全体の残り時間を考慮 (TOTAL_TIME_BUDGET 内に収める)
         elapsed = time.monotonic() - t0
-        max_remaining = max(TOTAL_TIME_BUDGET - elapsed, 8.0)  # 最低8秒は確保
+        max_remaining = max(TOTAL_TIME_BUDGET - elapsed - 2.0, 10.0)  # 2秒はレスポンス送信用に残す
         compile_timeout = min(compile_timeout, int(max_remaining))
 
         logger.info(f"[compile] Trying {engine_name} (timeout={compile_timeout}s, elapsed={elapsed:.1f}s)")
@@ -207,16 +210,19 @@ def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> byt
         engine_name = Path(engine_cmd).name
         logger.info(f"Compiling with {engine_name}...")
 
-        # lualatex は -no-shell-escape を渡すとエラーになる場合がある
+        # エンジン別の最適なオプションを設定
         cmd_args = [
             engine_cmd,
             "-interaction=nonstopmode",
             "-halt-on-error",
             "-output-directory", str(tmpdir),
-            str(tex_path),
         ]
-        if "lualatex" not in engine_name:
+        if "lualatex" in engine_name:
+            # lualatex: --no-shell-escape は lualatex では問題を起こすことがある
+            pass
+        else:
             cmd_args.insert(3, "-no-shell-escape")
+        cmd_args.append(str(tex_path))
 
         try:
             result = subprocess.run(

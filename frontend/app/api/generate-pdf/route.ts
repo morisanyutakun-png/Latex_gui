@@ -14,8 +14,8 @@ export const maxDuration = 60;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// バックエンドの TOTAL_TIME_BUDGET=42s + ネットワーク遅延に余裕を持たせる
-const BACKEND_TIMEOUT_MS = 50000;
+// バックエンドの TOTAL_TIME_BUDGET=45s + ネットワーク遅延に余裕を持たせる
+const BACKEND_TIMEOUT_MS = 52000;
 
 async function callBackend(body: string): Promise<Response> {
   return fetch(`${BACKEND}/api/generate-pdf`, {
