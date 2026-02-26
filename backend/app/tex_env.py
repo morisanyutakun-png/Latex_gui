@@ -1,9 +1,13 @@
 """
-TeX Live環境ユーティリティ
-subprocessからTeX Liveのコマンドを確実に実行するための環境設定
+TeX Live環境ユーティリティ — 3エンジン対応版
 
-起動時にCJK.styの所在を確認し、kpsewhichで見つからない場合はファイルシステム検索で
-TEXINPUTSに追加する。これによりDebian 12/13のTeXパッケージDB不整合問題を回避する。
+3エンジン対応 (優先順):
+  1. pdflatex + bxcjkjatype  — 最軽量 (~50MB)、CJK.sty 必須
+  2. lualatex + luatexja     — 最も堅牢。HaranoAji フォント内蔵、外部フォント不要
+  3. xelatex  + xeCJK        — フォント検出を Python 側で事前に行い確実に設定
+
+起動時に **実際の日本語テキスト** でコンパイルテストを実施し、
+確実に動くエンジンだけを使う。
 """
 import os
 import shutil
@@ -15,37 +19,36 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# TeX Live の標準インストールパス
+# ══════════════════════════════════════════════════════════════════
+# 1. PATH 構築
+# ══════════════════════════════════════════════════════════════════
+
 _TEXLIVE_PATHS = [
-    "/Library/TeX/texbin",                          # macOS TeX Live
-    "/usr/local/texlive/2025/bin/universal-darwin",  # macOS universal
-    "/usr/local/texlive/2025/bin/x86_64-darwin",     # macOS x86
-    "/usr/local/texlive/2025/bin/aarch64-darwin",    # macOS ARM
-    "/usr/local/texlive/2025/bin/x86_64-linux",      # Linux
-    "/usr/local/texlive/2025/bin/aarch64-linux",     # Linux ARM
-    "/usr/bin",                                       # System fallback
+    "/Library/TeX/texbin",
+    "/usr/local/texlive/2025/bin/universal-darwin",
+    "/usr/local/texlive/2025/bin/x86_64-darwin",
+    "/usr/local/texlive/2025/bin/aarch64-darwin",
+    "/usr/local/texlive/2025/bin/x86_64-linux",
+    "/usr/local/texlive/2025/bin/aarch64-linux",
+    "/usr/local/texlive/2024/bin/x86_64-linux",
+    "/usr/local/texlive/2024/bin/aarch64-linux",
+    "/usr/bin",
 ]
 
 
 def _build_texlive_env() -> dict[str, str]:
-    """TeX Live のパスを含む環境変数を構築。"""
+    """TeX Live のパスを含む環境変数を構築"""
     env = os.environ.copy()
     current_path = env.get("PATH", "")
-
-    extra_paths = []
-    for p in _TEXLIVE_PATHS:
-        if Path(p).is_dir() and p not in current_path:
-            extra_paths.append(p)
-
-    if extra_paths:
-        env["PATH"] = ":".join(extra_paths) + ":" + current_path
-        logger.info(f"Added TeX Live paths to env: {extra_paths}")
-
+    extra = [p for p in _TEXLIVE_PATHS if Path(p).is_dir() and p not in current_path]
+    if extra:
+        env["PATH"] = ":".join(extra) + ":" + current_path
+        logger.info(f"Added TeX Live paths: {extra}")
     return env
 
 
 def find_command(name: str) -> str:
-    """任意のTeX Live コマンドのフルパスを返す"""
+    """TeX Live コマンドのフルパスを返す"""
     found = shutil.which(name)
     if found:
         return found
@@ -56,24 +59,20 @@ def find_command(name: str) -> str:
     return name
 
 
-# ── モジュール読み込み時に環境を構築してキャッシュ ──
+# ── 環境とコマンドのキャッシュ ──
 TEX_ENV = _build_texlive_env()
 XELATEX_CMD = find_command("xelatex")
 PDFLATEX_CMD = find_command("pdflatex")
+LUALATEX_CMD = find_command("lualatex")
 DVISVGM_CMD = find_command("dvisvgm")
 PDFTOCAIRO_CMD = find_command("pdftocairo")
 
 
 # ══════════════════════════════════════════════════════════════════
-# CJK.sty / bxcjkjatype.sty のスマート検出
-#
-# kpsewhich がDB不整合で見つけられないケースがある。
-# その場合、find コマンドでファイルシステムを検索し、
-# 見つかったディレクトリを TEXINPUTS に追加する。
+# 2. .sty パッケージ検出 (pdflatex 用)
 # ══════════════════════════════════════════════════════════════════
 
 def _check_sty_kpsewhich(name: str, env: dict) -> str | None:
-    """kpsewhich で .sty ファイルのパスを取得。見つからなければ None"""
     try:
         r = subprocess.run(
             [find_command("kpsewhich"), name],
@@ -81,17 +80,14 @@ def _check_sty_kpsewhich(name: str, env: dict) -> str | None:
         )
         path = r.stdout.strip()
         if r.returncode == 0 and path:
-            logger.info(f"kpsewhich {name} → {path}")
             return path
-    except Exception as e:
-        logger.warning(f"kpsewhich {name} failed: {e}")
+    except Exception:
+        pass
     return None
 
 
 def _find_sty_filesystem(name: str) -> str | None:
-    """ファイルシステムを検索して .sty ファイルのパスを取得"""
-    search_dirs = ["/usr/share/texmf", "/usr/share/texlive", "/usr/local/texlive"]
-    for search_dir in search_dirs:
+    for search_dir in ["/usr/share/texmf", "/usr/share/texlive", "/usr/local/texlive"]:
         if not Path(search_dir).is_dir():
             continue
         try:
@@ -101,174 +97,209 @@ def _find_sty_filesystem(name: str) -> str | None:
             )
             for line in r.stdout.strip().split("\n"):
                 if line.strip():
-                    logger.info(f"find {name} → {line.strip()}")
                     return line.strip()
-        except Exception as e:
-            logger.warning(f"find {name} in {search_dir} failed: {e}")
+        except Exception:
+            pass
     return None
 
 
 def _ensure_sty_available(name: str, env: dict) -> bool:
-    """
-    .sty ファイルが TeX から使えることを保証する。
-    1. kpsewhich で検索
-    2. 失敗 → texhash 実行後に再検索
-    3. 失敗 → ファイルシステム検索して TEXINPUTS に追加
-    """
-    # Step 1: kpsewhich
+    """kpsewhich → texhash → ファイルシステム検索 → TEXINPUTS 追加"""
     if _check_sty_kpsewhich(name, env):
+        logger.info(f"{name}: found by kpsewhich")
         return True
 
-    # Step 2: texhash して再試行
-    logger.warning(f"{name} not found by kpsewhich. Running texhash...")
     try:
-        subprocess.run(
-            [find_command("texhash")],
-            capture_output=True, text=True, timeout=30, env=env,
-        )
+        subprocess.run([find_command("texhash")], capture_output=True, timeout=30, env=env)
     except Exception:
         pass
-
     if _check_sty_kpsewhich(name, env):
+        logger.info(f"{name}: found after texhash")
         return True
 
-    # Step 3: ファイルシステム検索 → TEXINPUTS に追加
-    logger.warning(f"{name} still not found by kpsewhich. Searching filesystem...")
     fs_path = _find_sty_filesystem(name)
     if fs_path:
         sty_dir = str(Path(fs_path).parent)
-        # TEXINPUTS に追加 (末尾 // で再帰検索)
         current = env.get("TEXINPUTS", "")
         if sty_dir not in current:
-            new_val = f".:{sty_dir}//:{current}" if current else f".:{sty_dir}//"
-            env["TEXINPUTS"] = new_val
+            env["TEXINPUTS"] = f".:{sty_dir}//:{current}" if current else f".:{sty_dir}//"
             logger.info(f"Added {sty_dir} to TEXINPUTS for {name}")
-            logger.info(f"TEXINPUTS = {new_val}")
         return True
 
-    logger.error(f"{name} not found anywhere on the system!")
+    logger.warning(f"{name}: NOT found on system")
     return False
 
 
-# ── .sty ファイルの可用性チェック ──
 CJK_STY_AVAILABLE = _ensure_sty_available("CJK.sty", TEX_ENV)
 BXCJKJATYPE_AVAILABLE = _ensure_sty_available("bxcjkjatype.sty", TEX_ENV)
 
-logger.info(
-    f"Package availability: CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
-    f"bxcjkjatype.sty={'OK' if BXCJKJATYPE_AVAILABLE else 'NG'}, "
-    f"TEXINPUTS={TEX_ENV.get('TEXINPUTS', '(not set)')}"
-)
+
+# ══════════════════════════════════════════════════════════════════
+# 3. CJK フォント検出 (xelatex 用 — Python 側で事前に確定)
+# ══════════════════════════════════════════════════════════════════
+
+def _detect_available_cjk_font() -> tuple[str, str]:
+    """fc-list で実際に使える CJK フォント名を (main, sans) で返す。
+    
+    見つからない場合は空文字列を返す。
+    """
+    env_main = os.environ.get("CJK_MAIN_FONT", "").strip()
+    env_sans = os.environ.get("CJK_SANS_FONT", "").strip()
+    if env_main and env_sans:
+        logger.info(f"CJK fonts from env: main={env_main}, sans={env_sans}")
+        return (env_main, env_sans)
+
+    system = platform.system()
+    if system == "Darwin":
+        candidates = [
+            ("Hiragino Mincho ProN", "Hiragino Sans"),
+            ("Hiragino Mincho Pro", "Hiragino Kaku Gothic Pro"),
+        ]
+    else:
+        candidates = [
+            ("Noto Serif CJK JP", "Noto Sans CJK JP"),
+            ("Noto Sans CJK JP", "Noto Sans CJK JP"),
+            ("IPAexMincho", "IPAexGothic"),
+            ("IPAMincho", "IPAGothic"),
+        ]
+
+    if shutil.which("fc-list"):
+        try:
+            r = subprocess.run(
+                ["fc-list", ":lang=ja", "family"],
+                capture_output=True, text=True, timeout=5,
+            )
+            available = r.stdout
+            for main, sans in candidates:
+                if main in available:
+                    logger.info(f"CJK fonts detected: main={main}, sans={sans}")
+                    return (main, sans)
+        except Exception as e:
+            logger.warning(f"fc-list failed: {e}")
+
+    main, sans = candidates[0]
+    logger.warning(f"CJK fonts (unverified fallback): main={main}, sans={sans}")
+    return (main, sans)
+
+
+DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT = _detect_available_cjk_font()
 
 
 # ══════════════════════════════════════════════════════════════════
-# 起動時エンジンテスト
+# 4. 起動時エンジンテスト — 実際の日本語テキストでコンパイル
 # ══════════════════════════════════════════════════════════════════
 
-def _test_pdflatex_cjk(env: dict) -> bool:
-    """pdflatex + bxcjkjatype (CJK.sty) が使えるか実際にコンパイルして確認"""
-    if not CJK_STY_AVAILABLE and not BXCJKJATYPE_AVAILABLE:
-        logger.info("Skipping pdflatex CJK test: CJK.sty/bxcjkjatype not found")
+_JP_TEST_TEXT = "日本語テスト ABCabc 123"
+
+
+def _test_compile(cmd: str, tex_source: str, env: dict, label: str) -> bool:
+    """汎用コンパイルテスト。成功すれば True"""
+    if not shutil.which(cmd) and not Path(cmd).is_file():
+        logger.info(f"[{label}] command not found: {cmd}")
         return False
     try:
         with tempfile.TemporaryDirectory() as d:
-            tex = (
-                "\\documentclass{article}\n"
-                "\\usepackage[whole]{bxcjkjatype}\n"
-                "\\begin{document}\ntest テスト\n\\end{document}\n"
-            )
-            p = Path(d) / "t.tex"
-            p.write_text(tex)
+            p = Path(d) / "test.tex"
+            p.write_text(tex_source, encoding="utf-8")
             r = subprocess.run(
-                [PDFLATEX_CMD, "-interaction=nonstopmode", "-halt-on-error",
+                [cmd, "-interaction=nonstopmode", "-halt-on-error",
                  "-output-directory", d, str(p)],
-                capture_output=True, text=True, timeout=30, cwd=d, env=env,
+                capture_output=True, text=True, timeout=45, cwd=d, env=env,
             )
-            ok = r.returncode == 0 and (Path(d) / "t.pdf").exists()
-            if not ok:
-                logger.warning(f"pdflatex CJK test failed (rc={r.returncode})")
-                if r.stdout:
-                    tail = r.stdout.strip().split("\n")[-5:]
-                    logger.warning(f"pdflatex log: {' | '.join(tail)}")
-            else:
-                logger.info("pdflatex CJK test: OK")
-            return ok
-    except Exception as e:
-        logger.warning(f"pdflatex CJK test exception: {e}")
-        return False
-
-
-def _test_xelatex(env: dict) -> bool:
-    """xelatex + fontspec が使えるか確認 (フォント無しでも OK)"""
-    try:
-        with tempfile.TemporaryDirectory() as d:
-            # 最小限のテスト — fontspec のみ (フォント設定なし)
-            # フォントが無くてもコンパイル自体は成功する
-            tex = (
-                "\\documentclass{article}\n"
-                "\\usepackage{fontspec}\n"
-                "\\begin{document}\nHello World\n\\end{document}\n"
-            )
-            p = Path(d) / "t.tex"
-            p.write_text(tex)
-            r = subprocess.run(
-                [XELATEX_CMD, "-interaction=nonstopmode", "-halt-on-error",
-                 "-output-directory", d, str(p)],
-                capture_output=True, text=True, timeout=30, cwd=d, env=env,
-            )
-            ok = r.returncode == 0 and (Path(d) / "t.pdf").exists()
+            ok = r.returncode == 0 and (Path(d) / "test.pdf").exists()
             if ok:
-                logger.info("xelatex test: OK")
+                logger.info(f"[{label}] compile test: OK")
             else:
-                logger.warning(f"xelatex test failed (rc={r.returncode})")
-                if r.stdout:
-                    tail = r.stdout.strip().split("\n")[-5:]
-                    logger.warning(f"xelatex log: {' | '.join(tail)}")
-                if r.stderr:
-                    logger.warning(f"xelatex stderr: {r.stderr[-300:]}")
+                tail = (r.stdout + r.stderr).strip().split("\n")[-5:]
+                logger.warning(f"[{label}] compile test FAILED (rc={r.returncode}): {' | '.join(tail)}")
             return ok
     except Exception as e:
-        logger.warning(f"xelatex test exception: {e}")
+        logger.warning(f"[{label}] compile test exception: {e}")
         return False
 
 
-# 起動時テスト結果をキャッシュ
-PDFLATEX_CJK_OK = _test_pdflatex_cjk(TEX_ENV)
-XELATEX_OK = _test_xelatex(TEX_ENV)
+def _test_pdflatex_cjk() -> bool:
+    if not CJK_STY_AVAILABLE and not BXCJKJATYPE_AVAILABLE:
+        return False
+    tex = (
+        "\\documentclass{article}\n"
+        "\\usepackage[whole]{bxcjkjatype}\n"
+        f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
+    )
+    return _test_compile(PDFLATEX_CMD, tex, TEX_ENV, "pdflatex+CJK")
 
-# デフォルトエンジンの決定
-# - pdflatex + CJK が動く → pdflatex (軽量)
-# - 動かない → xelatex にフォールバック
+
+def _test_lualatex_ja() -> bool:
+    tex = (
+        "\\documentclass{article}\n"
+        "\\usepackage{luatexja}\n"
+        f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
+    )
+    return _test_compile(LUALATEX_CMD, tex, TEX_ENV, "lualatex+luatexja")
+
+
+def _test_xelatex_cjk() -> bool:
+    if not DETECTED_CJK_MAIN_FONT:
+        logger.info("[xelatex+xeCJK] No CJK font detected, skipping")
+        return False
+    tex = (
+        "\\documentclass{article}\n"
+        "\\usepackage{xeCJK}\n"
+        f"\\setCJKmainfont{{{DETECTED_CJK_MAIN_FONT}}}\n"
+        f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
+    )
+    return _test_compile(XELATEX_CMD, tex, TEX_ENV, "xelatex+xeCJK")
+
+
+# ── 起動テスト実行 ──
+PDFLATEX_CJK_OK = _test_pdflatex_cjk()
+LUALATEX_JA_OK = _test_lualatex_ja()
+XELATEX_OK = _test_xelatex_cjk()
+
+# ── デフォルトエンジン決定 (軽量順) ──
 if PDFLATEX_CJK_OK:
     DEFAULT_ENGINE = "pdflatex"
+elif LUALATEX_JA_OK:
+    DEFAULT_ENGINE = "lualatex"
 elif XELATEX_OK:
     DEFAULT_ENGINE = "xelatex"
 else:
-    # どちらも失敗 — 最終手段として xelatex を優先 (フォント問題は
-    # document_generator 側のフォールバックチェーンで吸収できる可能性あり)
-    if shutil.which(XELATEX_CMD):
+    # 全て失敗 — フォールバック優先順位
+    if shutil.which(LUALATEX_CMD) or Path(LUALATEX_CMD).is_file():
+        DEFAULT_ENGINE = "lualatex"
+    elif shutil.which(XELATEX_CMD) or Path(XELATEX_CMD).is_file():
         DEFAULT_ENGINE = "xelatex"
     else:
         DEFAULT_ENGINE = "pdflatex"
 
+# ── フォールバック順序 ──
+_ALL_ENGINES = ["pdflatex", "lualatex", "xelatex"]
+FALLBACK_ENGINES = [e for e in _ALL_ENGINES if e != DEFAULT_ENGINE]
+
 logger.info(
-    f"Engine test results: pdflatex+CJK={'OK' if PDFLATEX_CJK_OK else 'NG'}, "
-    f"xelatex={'OK' if XELATEX_OK else 'NG'} → default={DEFAULT_ENGINE}"
+    f"Engine tests: pdflatex+CJK={'OK' if PDFLATEX_CJK_OK else 'NG'}, "
+    f"lualatex+luatexja={'OK' if LUALATEX_JA_OK else 'NG'}, "
+    f"xelatex+xeCJK={'OK' if XELATEX_OK else 'NG'} "
+    f"→ DEFAULT={DEFAULT_ENGINE}, fallbacks={FALLBACK_ENGINES}"
 )
 logger.info(
-    f"Package availability: CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
-    f"bxcjkjatype.sty={'OK' if BXCJKJATYPE_AVAILABLE else 'NG'}"
+    f"Packages: CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
+    f"bxcjkjatype={'OK' if BXCJKJATYPE_AVAILABLE else 'NG'}"
 )
+logger.info(f"CJK fonts: main={DETECTED_CJK_MAIN_FONT or '(none)'}, sans={DETECTED_CJK_SANS_FONT or '(none)'}")
 
 
-# Ghostscript 共有ライブラリ (dvisvgm --pdf に必要)
+# ══════════════════════════════════════════════════════════════════
+# 5. Ghostscript (dvisvgm 用)
+# ══════════════════════════════════════════════════════════════════
+
 _LIBGS_CANDIDATES = [
-    "/opt/homebrew/lib/libgs.dylib",          # macOS Homebrew ARM
-    "/usr/local/lib/libgs.dylib",              # macOS Intel
-    "/usr/lib/x86_64-linux-gnu/libgs.so",      # Debian/Ubuntu x86_64
-    "/usr/lib/aarch64-linux-gnu/libgs.so",     # Debian/Ubuntu ARM64
-    "/usr/lib64/libgs.so",                     # RHEL/Fedora
-    "/usr/lib/libgs.so",                       # Generic Linux
+    "/opt/homebrew/lib/libgs.dylib",
+    "/usr/local/lib/libgs.dylib",
+    "/usr/lib/x86_64-linux-gnu/libgs.so",
+    "/usr/lib/aarch64-linux-gnu/libgs.so",
+    "/usr/lib64/libgs.so",
+    "/usr/lib/libgs.so",
 ]
 for _p in _LIBGS_CANDIDATES:
     if Path(_p).is_file():
@@ -276,4 +307,7 @@ for _p in _LIBGS_CANDIDATES:
         logger.info(f"LIBGS set to {_p}")
         break
 
-logger.info(f"TeX commands: xelatex={XELATEX_CMD}, pdflatex={PDFLATEX_CMD}, dvisvgm={DVISVGM_CMD}, pdftocairo={PDFTOCAIRO_CMD}")
+logger.info(
+    f"TeX commands: pdflatex={PDFLATEX_CMD}, lualatex={LUALATEX_CMD}, "
+    f"xelatex={XELATEX_CMD}, dvisvgm={DVISVGM_CMD}, pdftocairo={PDFTOCAIRO_CMD}"
+)

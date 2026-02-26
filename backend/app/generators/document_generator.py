@@ -21,70 +21,18 @@ from ..models import (
     ChartContent,
 )
 from ..utils.latex_utils import escape_latex, text_to_latex_paragraphs
+from ..tex_env import DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT
 import os
 import re
-import platform
-import subprocess
-import shutil
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-# ──── Font config (cross-platform CJK detection) ────
-
-def _detect_cjk_fonts() -> tuple[str, str]:
-    """Detect available CJK fonts. Returns (main_font, sans_font).
-    
-    Priority: env vars > fc-list detection > OS defaults
-    """
-    # 1. Environment variables override (Docker/cloud)
-    env_main = os.environ.get("CJK_MAIN_FONT", "").strip()
-    env_sans = os.environ.get("CJK_SANS_FONT", "").strip()
-    if env_main and env_sans:
-        logger.info(f"CJK fonts from env: {env_main}, {env_sans}")
-        return (env_main, env_sans)
-
-    system = platform.system()
-
-    if system == "Darwin":  # macOS
-        candidates = [
-            ("Hiragino Mincho ProN", "Hiragino Sans"),
-            ("Hiragino Mincho Pro", "Hiragino Kaku Gothic Pro"),
-        ]
-    else:  # Linux / Docker
-        candidates = [
-            ("Noto Serif CJK JP", "Noto Sans CJK JP"),
-            ("Noto Sans CJK JP", "Noto Sans CJK JP"),  # Sans fallback
-            ("IPAexMincho", "IPAexGothic"),
-            ("IPAMincho", "IPAGothic"),
-        ]
-
-    # 2. Try fc-list to verify font availability
-    if shutil.which("fc-list"):
-        try:
-            result = subprocess.run(
-                ["fc-list", ":lang=ja", "family"],
-                capture_output=True, text=True, timeout=5
-            )
-            available = result.stdout
-            logger.info(f"fc-list Japanese fonts: {available[:500]}")
-            for main, sans in candidates:
-                if main in available:
-                    logger.info(f"CJK fonts detected: {main}, {sans}")
-                    return (main, sans)
-            logger.warning("No expected CJK fonts found in fc-list output")
-        except Exception as e:
-            logger.warning(f"fc-list failed: {e}")
-
-    # 3. Fallback: use first candidate for this OS
-    main, sans = candidates[0]
-    logger.info(f"CJK fonts (fallback): {main}, {sans}")
-    return (main, sans)
-
-
-# Cache the detected fonts at module level
-CJK_MAIN_FONT, CJK_SANS_FONT = _detect_cjk_fonts()
+# ──── Font config ────
+# tex_env.py で起動時に検出済みのフォント名を使用 (重複検出を排除)
+CJK_MAIN_FONT = DETECTED_CJK_MAIN_FONT
+CJK_SANS_FONT = DETECTED_CJK_SANS_FONT
 
 
 # ──── Package requirements per block type ────
@@ -143,12 +91,10 @@ def _detect_required_packages(doc: DocumentModel, engine: str = "pdflatex") -> l
 
     for block in doc.blocks:
         block_types_used.add(block.content.type)
-        # Check for inline math in paragraphs ($...$)
         if block.content.type == "paragraph":
             if "$" in block.content.text:
                 has_inline_math = True
 
-    # Collect unique package lines, preserving order
     seen: set[str] = set()
     packages: list[str] = []
 
@@ -159,9 +105,14 @@ def _detect_required_packages(doc: DocumentModel, engine: str = "pdflatex") -> l
 
     # Always-required base packages (engine-dependent)
     if engine == "xelatex":
-        add("\\usepackage{fontspec}")
+        # xeCJK: 正式なCJKサポートパッケージ (fontspecのsetmainfontではなく
+        # setCJKmainfontを使用し、確実にCJK文字を処理する)
+        add("\\usepackage{xeCJK}")
+    elif engine == "lualatex":
+        # luatexja: HaranoAjiフォント内蔵、外部フォント不要で最も堅牢
+        add("\\usepackage{luatexja}")
     else:
-        # pdflatex: Japanese support via bxcjkjatype (low memory, no fontspec)
+        # pdflatex: bxcjkjatype で日本語対応
         add("\\usepackage[whole]{bxcjkjatype}")
     add("\\usepackage{xcolor}")
     add("\\usepackage{hyperref}")
@@ -236,49 +187,18 @@ def generate_document_latex(doc: DocumentModel, engine: str = "pdflatex") -> str
 
     # ──── Fonts ────
     if engine == "xelatex":
-        # CJK フォントのフォールバックチェーン (複数候補を順に試す)
-        main_candidates = [
-            CJK_MAIN_FONT,
-            "Noto Serif CJK JP",
-            "Noto Sans CJK JP",
-            "IPAMincho",
-            "IPAexMincho",
-            "Hiragino Mincho ProN",
-            "TakaoMincho",
-            "VL Gothic",
-        ]
-        sans_candidates = [
-            CJK_SANS_FONT,
-            "Noto Sans CJK JP",
-            "IPAGothic",
-            "IPAexGothic",
-            "Hiragino Sans",
-            "TakaoGothic",
-            "VL Gothic",
-        ]
-        # 重複除去 (順序維持)
-        main_candidates = list(dict.fromkeys(f for f in main_candidates if f))
-        sans_candidates = list(dict.fromkeys(f for f in sans_candidates if f))
-
-        lines.append("% ── CJK Fonts (fallback chain for cross-platform robustness) ──")
-        lines.append("\\newif\\ifCJKmainfontset \\CJKmainfontsetfalse")
-        for font in main_candidates:
-            lines.append(f"\\ifCJKmainfontset\\else")
-            lines.append(f"  \\IfFontExistsTF{{{font}}}{{\\setmainfont{{{font}}}\\CJKmainfontsettrue}}{{}}")
-            lines.append(f"\\fi")
-        lines.append("\\ifCJKmainfontset\\else")
-        lines.append("  \\typeout{WARNING: No CJK main font found. Japanese text may not render.}")
-        lines.append("\\fi")
+        # xeCJK: Python 側で起動時に検出・検証済みのフォントを直接設定
+        # (LaTeX 内での \IfFontExistsTF チェーンは廃止 — 誤検出の原因だった)
+        lines.append("% ── CJK Fonts (detected at startup by Python) ──")
+        if CJK_MAIN_FONT:
+            lines.append(f"\\setCJKmainfont{{{CJK_MAIN_FONT}}}")
+        if CJK_SANS_FONT:
+            lines.append(f"\\setCJKsansfont{{{CJK_SANS_FONT}}}")
         lines.append("")
-
-        lines.append("\\newif\\ifCJKsansfontset \\CJKsansfontsetfalse")
-        for font in sans_candidates:
-            lines.append(f"\\ifCJKsansfontset\\else")
-            lines.append(f"  \\IfFontExistsTF{{{font}}}{{\\setsansfont{{{font}}}\\CJKsansfontsettrue}}{{}}")
-            lines.append(f"\\fi")
-        lines.append("\\ifCJKsansfontset\\else")
-        lines.append("  \\typeout{WARNING: No CJK sans font found.}")
-        lines.append("\\fi")
+    elif engine == "lualatex":
+        # luatexja: HaranoAji フォント内蔵 — 追加のフォント設定不要
+        # (\usepackage{luatexja} だけで日本語が自動的に処理される)
+        lines.append("% ── luatexja: bundled HaranoAji fonts, no additional config needed ──")
         lines.append("")
     # pdflatex: bxcjkjatype handles fonts automatically
 

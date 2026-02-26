@@ -66,22 +66,28 @@ RUN if [ -f /etc/profile.d/texinputs.sh ]; then \
       . /etc/profile.d/texinputs.sh && echo "TEXINPUTS=$TEXINPUTS"; \
     fi
 
-# ── 実際のコンパイルテスト (pdflatex + CJK) ──
+# ── 実際のコンパイルテスト (3エンジン) ──
 RUN set -e; \
     EXTRA_TEXINPUTS=""; \
     if [ -f /etc/profile.d/texinputs.sh ]; then . /etc/profile.d/texinputs.sh; fi; \
     cd /tmp \
-    && printf '\\documentclass{article}\n\\usepackage[whole]{bxcjkjatype}\n\\begin{document}\nHello テスト\n\\end{document}\n' > test_cjk.tex \
+    && printf '\\documentclass{article}\n\\usepackage[whole]{bxcjkjatype}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_cjk.tex \
     && if pdflatex -interaction=nonstopmode -halt-on-error test_cjk.tex; then \
-         echo "=== [OK] pdflatex + bxcjkjatype compile test PASSED ==="; \
+         echo "=== [OK] pdflatex + bxcjkjatype PASSED ==="; \
        else \
-         echo "=== [WARN] pdflatex + CJK failed, testing xelatex fallback... ==="; \
-         printf '\\documentclass{article}\n\\usepackage{fontspec}\n\\setmainfont{Noto Sans CJK JP}\n\\begin{document}\nHello テスト\n\\end{document}\n' > test_xe.tex; \
-         if xelatex -interaction=nonstopmode -halt-on-error test_xe.tex; then \
-           echo "=== [OK] xelatex fallback compile test PASSED ==="; \
-         else \
-           echo "=== [FAIL] Both engines failed! Check TeX Live installation. ==="; \
-         fi; \
+         echo "=== [WARN] pdflatex + CJK failed ==="; \
+       fi \
+    && printf '\\documentclass{article}\n\\usepackage{luatexja}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_lua.tex \
+    && if lualatex -interaction=nonstopmode -halt-on-error test_lua.tex; then \
+         echo "=== [OK] lualatex + luatexja PASSED ==="; \
+       else \
+         echo "=== [WARN] lualatex + luatexja failed ==="; \
+       fi \
+    && printf '\\documentclass{article}\n\\usepackage{xeCJK}\n\\setCJKmainfont{Noto Sans CJK JP}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_xe.tex \
+    && if xelatex -interaction=nonstopmode -halt-on-error test_xe.tex; then \
+         echo "=== [OK] xelatex + xeCJK PASSED ==="; \
+       else \
+         echo "=== [WARN] xelatex + xeCJK failed ==="; \
        fi \
     && rm -f /tmp/test_*
 

@@ -19,8 +19,9 @@ from pathlib import Path
 from .models import DocumentModel
 from .generators.document_generator import generate_document_latex
 from .tex_env import (
-    TEX_ENV, XELATEX_CMD, PDFLATEX_CMD,
-    DEFAULT_ENGINE, CJK_STY_AVAILABLE, PDFLATEX_CJK_OK, XELATEX_OK,
+    TEX_ENV, XELATEX_CMD, PDFLATEX_CMD, LUALATEX_CMD,
+    DEFAULT_ENGINE, FALLBACK_ENGINES,
+    CJK_STY_AVAILABLE, PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ MEM_LIMIT_BYTES = MEM_LIMIT_MB * 1024 * 1024
 # エンジンコマンドマップ
 ENGINE_CMD = {
     "pdflatex": PDFLATEX_CMD,
+    "lualatex": LUALATEX_CMD,
     "xelatex": XELATEX_CMD,
 }
 
@@ -83,25 +85,23 @@ async def compile_pdf(doc: DocumentModel) -> bytes:
 def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     """同期版 PDF 生成 (スレッドプールで実行される)
 
-    エンジン選択順:
+    3エンジンフォールバック:
       1. DEFAULT_ENGINE (起動時テスト済み)
-      2. 失敗時はもう一方のエンジンを必ず試行
+      2. FALLBACK_ENGINES (残りのエンジンを順に試行)
     """
-    primary = DEFAULT_ENGINE
-    fallback = "xelatex" if primary == "pdflatex" else "pdflatex"
+    engines_to_try = [DEFAULT_ENGINE] + FALLBACK_ENGINES
 
     logger.info(
-        f"PDF compilation: primary={primary}, fallback={fallback}, "
-        f"CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
+        f"PDF compilation: engines={engines_to_try}, "
         f"pdflatex_cjk={'OK' if PDFLATEX_CJK_OK else 'NG'}, "
-        f"xelatex={'OK' if XELATEX_OK else 'NG'}, "
-        f"TEXINPUTS={TEX_ENV.get('TEXINPUTS', '(not set)')}"
+        f"lualatex_ja={'OK' if LUALATEX_JA_OK else 'NG'}, "
+        f"xelatex={'OK' if XELATEX_OK else 'NG'}"
     )
 
     errors: list[tuple[str, PDFGenerationError]] = []
 
-    # ── 両エンジンを順に試行 (起動テスト結果に関わらず常に両方試す) ──
-    for engine_name in [primary, fallback]:
+    # ── 全エンジンを順に試行 ──
+    for engine_name in engines_to_try:
         engine_cmd = ENGINE_CMD.get(engine_name)
         if not engine_cmd:
             continue
@@ -240,10 +240,18 @@ def _parse_latex_error(log: str) -> str:
         return "画像の読み込みに失敗しました。画像URLが正しいか確認してください。"
     # CJK.sty / bxcjkjatype missing (pdflatex Japanese support package)
     if "cjk.sty" in log_lower and "not found" in log_lower:
-        return "日本語サポートパッケージ(CJK.sty)が見つかりません。xelatexへのフォールバックを試行します。"
-    # CJK font errors
-    if ("cjkmainfont" in log_lower or "cjksansfont" in log_lower) and ("not found" in log_lower or "cannot" in log_lower):
-        return "CJKフォントが見つかりません。システムにフォントがインストールされているか確認してください。"
+        return "日本語サポートパッケージ(CJK.sty)が見つかりません。"
+    if "bxcjkjatype.sty" in log_lower and "not found" in log_lower:
+        return "日本語サポートパッケージ(bxcjkjatype.sty)が見つかりません。"
+    if "luatexja.sty" in log_lower and "not found" in log_lower:
+        return "luatexjaパッケージが見つかりません。"
+    if "xecjk.sty" in log_lower and "not found" in log_lower:
+        return "xeCJKパッケージが見つかりません。"
+    # CJK font errors — setCJKmainfont / setCJKsansfont コマンドの実行エラーのみ検出
+    # (LaTeX変数名 CJKmainfontset 等の誤検出を防ぐため、厳密にパターンを限定)
+    if "\\setcjkmainfont" in log_lower or "\\setcjksansfont" in log_lower:
+        if "not found" in log_lower or "cannot" in log_lower:
+            return "CJKフォントが見つかりません。システムにフォントがインストールされているか確認してください。"
     # Generic font error (e.g. setmainfont used with non-existent font)
     if "fontspec error" in log_lower or "fontspec" in log_lower and "not found" in log_lower:
         return f"フォントの読み込みに問題があります。({error_detail})"
