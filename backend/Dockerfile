@@ -116,6 +116,8 @@ RUN lualatex -interaction=nonstopmode -halt-on-error warmup.tex \
     && rm -f /tmp/warmup.aux /tmp/warmup.log /tmp/warmup.pdf \
     && echo "=== appuser cache warm ==="
 
+WORKDIR /app
+
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
