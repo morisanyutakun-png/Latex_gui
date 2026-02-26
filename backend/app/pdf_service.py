@@ -85,10 +85,11 @@ async def compile_pdf(doc: DocumentModel) -> bytes:
 def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     """同期版 PDF 生成 (スレッドプールで実行される)
 
-    3エンジンフォールバック:
-      1. DEFAULT_ENGINE (起動時テスト済み)
-      2. FALLBACK_ENGINES (残りの **テスト通過済み** エンジンのみ)
-      3. 全テスト失敗時は DEFAULT_ENGINE をラストリゾートで試行
+    エンジン選択戦略:
+      1. 起動テスト通過済みエンジンのみを使用 (高速)
+      2. 全て失敗時は DEFAULT_ENGINE をラストリゾートで試行 (短タイムアウト)
+    
+    起動テスト未通過のエンジンは .sty が欠けているため試行しない。
     """
     # 起動テスト結果マップ
     engine_ok = {
@@ -97,20 +98,11 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
         "xelatex": XELATEX_OK,
     }
 
-    # テスト通過済みエンジンを優先順で構築
-    engines_to_try: list[str] = []
-    # 1) DEFAULT_ENGINE (テスト通過済みなので最優先)
-    engines_to_try.append(DEFAULT_ENGINE)
-    # 2) テスト通過済みの他エンジン
-    for e in FALLBACK_ENGINES:
-        if engine_ok.get(e, False) and e not in engines_to_try:
-            engines_to_try.append(e)
-    # 3) テスト未通過だがバイナリが存在するエンジン (ラストリゾート)
-    for e in FALLBACK_ENGINES:
-        if e not in engines_to_try:
-            cmd = ENGINE_CMD.get(e)
-            if cmd and (shutil.which(cmd) or Path(cmd).is_file()):
-                engines_to_try.append(e)
+    # テスト通過済みエンジンのみ (軽量順)
+    tested_engines = [e for e in ["pdflatex", "lualatex", "xelatex"] if engine_ok.get(e)]
+    
+    # 通過済みが1つもない場合のみ、ラストリゾートとして DEFAULT_ENGINE を入れる
+    engines_to_try = tested_engines if tested_engines else [DEFAULT_ENGINE]
 
     logger.info(
         f"PDF compilation: engines={engines_to_try}, "
@@ -121,8 +113,8 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
 
     errors: list[tuple[str, PDFGenerationError]] = []
 
-    # ── 全エンジンを順に試行 ──
-    for idx, engine_name in enumerate(engines_to_try):
+    # ── テスト通過済みエンジンを順に試行 ──
+    for engine_name in engines_to_try:
         engine_cmd = ENGINE_CMD.get(engine_name)
         if not engine_cmd:
             continue
@@ -137,9 +129,13 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             )))
             continue
 
-        # テスト通過済みエンジンは長めのタイムアウト、未通過は短め
-        is_tested = engine_ok.get(engine_name, False)
-        compile_timeout = 40 if is_tested else 15
+        # pdflatex は軽量なのでタイムアウト短め、lualatex は重いので長め
+        if engine_name == "pdflatex":
+            compile_timeout = 30
+        elif engine_name == "lualatex":
+            compile_timeout = 45
+        else:
+            compile_timeout = 35
 
         try:
             latex_source = generate_document_latex(doc, engine=engine_name)

@@ -218,7 +218,7 @@ DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT = _detect_available_cjk_font()
 _JP_TEST_TEXT = "日本語テスト ABCabc 123"
 
 
-def _test_compile(cmd: str, tex_source: str, env: dict, label: str) -> bool:
+def _test_compile(cmd: str, tex_source: str, env: dict, label: str, timeout: int = 30) -> bool:
     """汎用コンパイルテスト。成功すれば True"""
     if not shutil.which(cmd) and not Path(cmd).is_file():
         logger.info(f"[{label}] command not found: {cmd}")
@@ -230,7 +230,7 @@ def _test_compile(cmd: str, tex_source: str, env: dict, label: str) -> bool:
             r = subprocess.run(
                 [cmd, "-interaction=nonstopmode", "-halt-on-error",
                  "-output-directory", d, str(p)],
-                capture_output=True, text=True, timeout=45, cwd=d, env=env,
+                capture_output=True, text=True, timeout=timeout, cwd=d, env=env,
             )
             ok = r.returncode == 0 and (Path(d) / "test.pdf").exists()
             if ok:
@@ -239,6 +239,9 @@ def _test_compile(cmd: str, tex_source: str, env: dict, label: str) -> bool:
                 tail = (r.stdout + r.stderr).strip().split("\n")[-5:]
                 logger.warning(f"[{label}] compile test FAILED (rc={r.returncode}): {' | '.join(tail)}")
             return ok
+    except subprocess.TimeoutExpired:
+        logger.warning(f"[{label}] compile test TIMEOUT ({timeout}s)")
+        return False
     except Exception as e:
         logger.warning(f"[{label}] compile test exception: {e}")
         return False
@@ -252,7 +255,7 @@ def _test_pdflatex_cjk() -> bool:
         "\\usepackage[whole]{bxcjkjatype}\n"
         f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
     )
-    return _test_compile(PDFLATEX_CMD, tex, TEX_ENV, "pdflatex+CJK")
+    return _test_compile(PDFLATEX_CMD, tex, TEX_ENV, "pdflatex+CJK", timeout=15)
 
 
 def _test_lualatex_ja() -> bool:
@@ -264,7 +267,7 @@ def _test_lualatex_ja() -> bool:
         "\\usepackage{luatexja}\n"
         f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
     )
-    return _test_compile(LUALATEX_CMD, tex, TEX_ENV, "lualatex+luatexja")
+    return _test_compile(LUALATEX_CMD, tex, TEX_ENV, "lualatex+luatexja", timeout=30)
 
 
 def _test_xelatex_cjk() -> bool:
@@ -280,7 +283,7 @@ def _test_xelatex_cjk() -> bool:
         f"\\setCJKmainfont{{{DETECTED_CJK_MAIN_FONT}}}\n"
         f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
     )
-    return _test_compile(XELATEX_CMD, tex, TEX_ENV, "xelatex+xeCJK")
+    return _test_compile(XELATEX_CMD, tex, TEX_ENV, "xelatex+xeCJK", timeout=20)
 
 
 # ── 起動テスト実行 ──

@@ -22,7 +22,9 @@ RUN apt-get update \
         texlive-fonts-recommended \
         texlive-lang-japanese \
         texlive-lang-cjk \
+        texlive-lang-chinese \
         texlive-xetex \
+        latex-cjk-common \
         fonts-noto-cjk \
         poppler-utils \
         fontconfig \
