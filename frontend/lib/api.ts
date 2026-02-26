@@ -1,6 +1,15 @@
 import { DocumentModel } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+/**
+ * API ベース URL
+ *
+ * 本番 (Vercel): 空文字列 → 同一オリジンの /api/* Route Handler を経由
+ *   → サーバーサイドで Koyeb バックエンドへプロキシ (CORS 不要)
+ *
+ * ローカル開発: NEXT_PUBLIC_API_URL=http://localhost:8000 を .env.local に設定
+ *   → 直接バックエンドに接続
+ */
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export async function generatePDF(doc: DocumentModel): Promise<Blob> {
   // Pre-flight health check
@@ -8,8 +17,7 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
   if (!healthy) {
     throw new Error(
       "PDF生成サーバーに接続できません。\n" +
-      "バックエンドを起動してください：\n" +
-      "cd backend && python3 -m uvicorn app.main:app --port 8000"
+      "バックエンドサーバーが起動しているか確認してください。"
     );
   }
 
@@ -53,7 +61,7 @@ export async function previewLatex(doc: DocumentModel): Promise<string> {
 
 export async function healthCheck(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(5000) });
     return res.ok;
   } catch {
     return false;

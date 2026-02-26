@@ -41,9 +41,17 @@ app = FastAPI(
 app.add_middleware(TimeoutMiddleware)
 
 # CORS設定（環境変数 ALLOWED_ORIGINS でカンマ区切り指定可能）
-_default_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
-_origins = os.environ.get("ALLOWED_ORIGINS", "").split(",") if os.environ.get("ALLOWED_ORIGINS") else _default_origins
-_origins = [o.strip() for o in _origins if o.strip()]
+# Vercel の Route Handler 経由の場合、サーバー間通信なので CORS 不要。
+# ローカル開発 & 直接アクセス用にのみ必要。
+_default_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+_env_origins = os.environ.get("ALLOWED_ORIGINS", "").strip()
+if _env_origins:
+    _origins = [o.strip() for o in _env_origins.split(",") if o.strip()]
+else:
+    _origins = _default_origins
 
 app.add_middleware(
     CORSMiddleware,
