@@ -24,7 +24,12 @@ aptPkgs = [
 
 [phases.build]
 # TeX パッケージデータベースを更新
-cmds = ["texhash || true", "fc-cache -fv || true"]
+cmds = ["mktexlsr || true", "texhash || true", "fc-cache -fv || true"]
+
+[variables]
+COMPILE_MEM_LIMIT_MB = "512"
+CJK_MAIN_FONT = "Noto Serif CJK JP"
+CJK_SANS_FONT = "Noto Sans CJK JP"
 
 [start]
 cmd = "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"

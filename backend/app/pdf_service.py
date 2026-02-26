@@ -5,7 +5,6 @@ PDF生成サービス: LaTeX生成 → コンパイル → PDF返却
   - 起動時にエンジンを自動テスト (pdflatex+CJK → xelatex の優先度)
   - CJK.sty が無い環境では自動的に xelatex にフォールバック
   - asyncio Semaphore で最大同時コンパイル数を制限 (OOM 防止)
-  - subprocess にメモリ上限を設定 (Linux ulimit)
 """
 import asyncio
 import gc
@@ -30,8 +29,9 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "2"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
-# メモリ上限 (bytes)。Linux で resource.setrlimit に使用。デフォルト 256MB
-MEM_LIMIT_MB = int(os.environ.get("COMPILE_MEM_LIMIT_MB", "256"))
+# メモリ上限 (bytes)。Linux で resource.setrlimit に使用。
+# xelatex は仮想メモリ 500MB+ 必要なため、十分な値を設定する
+MEM_LIMIT_MB = int(os.environ.get("COMPILE_MEM_LIMIT_MB", "512"))
 MEM_LIMIT_BYTES = MEM_LIMIT_MB * 1024 * 1024
 
 # エンジンコマンドマップ
@@ -85,8 +85,7 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
 
     エンジン選択順:
       1. DEFAULT_ENGINE (起動時テスト済み)
-      2. 失敗時はもう一方のエンジンに必ずフォールバック
-         (起動時テスト結果に関わらず実行時に再試行)
+      2. 失敗時はもう一方のエンジンを必ず試行
     """
     primary = DEFAULT_ENGINE
     fallback = "xelatex" if primary == "pdflatex" else "pdflatex"
@@ -95,67 +94,52 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
         f"PDF compilation: primary={primary}, fallback={fallback}, "
         f"CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
         f"pdflatex_cjk={'OK' if PDFLATEX_CJK_OK else 'NG'}, "
-        f"xelatex={'OK' if XELATEX_OK else 'NG'}"
+        f"xelatex={'OK' if XELATEX_OK else 'NG'}, "
+        f"TEXINPUTS={TEX_ENV.get('TEXINPUTS', '(not set)')}"
     )
 
-    # ── Primary engine ──
-    primary_error = None
-    try:
-        latex_source = generate_document_latex(doc, engine=primary)
-        pdf = _compile_latex(latex_source, ENGINE_CMD[primary], timeout=30)
-        logger.info(f"PDF generated successfully with {primary}")
-        return pdf
-    except PDFGenerationError as e:
-        logger.warning(f"{primary} failed: {e.user_message}")
-        primary_error = e
+    errors: list[tuple[str, PDFGenerationError]] = []
 
-    # ── Fallback engine ──
-    # 起動時テスト結果に関わらず常にフォールバックを試行する。
-    fallback_cmd = ENGINE_CMD.get(fallback)
-    fallback_error = None
+    # ── 両エンジンを順に試行 (起動テスト結果に関わらず常に両方試す) ──
+    for engine_name in [primary, fallback]:
+        engine_cmd = ENGINE_CMD.get(engine_name)
+        if not engine_cmd:
+            continue
 
-    # shutil.which でアプリ PATH + TEX_ENV 両方で検索
-    fallback_available = bool(
-        fallback_cmd and (shutil.which(fallback_cmd) or Path(fallback_cmd).is_file())
-    )
+        # コマンドの存在確認 (PATH + 直接パス)
+        cmd_exists = bool(shutil.which(engine_cmd) or Path(engine_cmd).is_file())
+        if not cmd_exists:
+            logger.warning(f"{engine_name} ({engine_cmd}) not found on system, skipping")
+            errors.append((engine_name, PDFGenerationError(
+                f"{engine_name}がシステムに見つかりません",
+                detail=f"{engine_cmd} not found in PATH"
+            )))
+            continue
 
-    if fallback_available:
-        logger.info(f"Falling back to {fallback}...")
         try:
-            latex_source = generate_document_latex(doc, engine=fallback)
-            pdf = _compile_latex(latex_source, fallback_cmd, timeout=45)
-            logger.info(f"PDF generated successfully with {fallback} (fallback)")
+            latex_source = generate_document_latex(doc, engine=engine_name)
+            pdf = _compile_latex(latex_source, engine_cmd, timeout=45)
+            logger.info(f"PDF generated successfully with {engine_name}")
             return pdf
         except PDFGenerationError as e:
-            logger.error(f"{fallback} also failed: {e.user_message}")
-            fallback_error = e
-    else:
-        logger.warning(f"Fallback engine {fallback} ({fallback_cmd}) not found on system")
+            logger.warning(f"{engine_name} failed: {e.user_message}")
+            errors.append((engine_name, e))
 
-    # ── 両方失敗: ユーザー向けの統合エラーメッセージ ──
-    if not CJK_STY_AVAILABLE and not XELATEX_OK:
-        # TeX Live が正しくインストールされていない
-        raise PDFGenerationError(
-            "PDF生成に失要なLaTeXパッケージ（CJK.sty）がサーバーにインストールされていません。"
-            "サーバー管理者に texlive-lang-cjk のインストールを依頼してください。"
-            "Dockerでのデプロイが推奨されます。",
-            detail=(
-                f"Primary ({primary}): {primary_error.detail if primary_error else 'N/A'}\n"
-                f"Fallback ({fallback}): {fallback_error.detail if fallback_error else 'not available'}"
-            ),
-        )
+    # ── 全エンジン失敗 ──
+    # 実際のエラー内容を全て含めたメッセージを構築
+    error_details = []
+    user_messages = []
+    for eng, err in errors:
+        user_messages.append(f"[{eng}] {err.user_message}")
+        error_details.append(f"--- {eng} ---\n{err.detail}")
 
-    # fallback もエラーの場合は両方のエラーを含める
-    if fallback_error:
-        raise PDFGenerationError(
-            f"{primary_error.user_message} フォールバック({fallback})も失敗: {fallback_error.user_message}",
-            detail=(
-                f"Primary ({primary}): {primary_error.detail}\n"
-                f"Fallback ({fallback}): {fallback_error.detail}"
-            ),
-        )
+    combined_detail = "\n".join(error_details)
+    combined_msg = " / ".join(user_messages)
 
-    raise primary_error
+    raise PDFGenerationError(
+        f"PDF生成に失敗しました: {combined_msg}",
+        detail=combined_detail,
+    )
 
 
 def _compile_latex(latex_source: str, engine_cmd: str, timeout: int = 30) -> bytes:

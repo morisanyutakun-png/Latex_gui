@@ -118,6 +118,8 @@ async def tex_debug_info():
             "CJK_MAIN_FONT": os.environ.get("CJK_MAIN_FONT", "(not set)"),
             "CJK_SANS_FONT": os.environ.get("CJK_SANS_FONT", "(not set)"),
             "LIBGS": TEX_ENV.get("LIBGS", "(not set)"),
+            "TEXINPUTS": TEX_ENV.get("TEXINPUTS", "(not set)"),
+            "COMPILE_MEM_LIMIT_MB": os.environ.get("COMPILE_MEM_LIMIT_MB", "512"),
         },
     }
 
@@ -193,6 +195,30 @@ async def tex_debug_info():
             }
     except Exception as e:
         info["xelatex_test"] = {"success": False, "error": str(e)}
+
+    # Filesystem search for key .sty files
+    sty_files = {}
+    for sty_name in ["CJK.sty", "bxcjkjatype.sty", "fontspec.sty"]:
+        try:
+            r = subprocess.run(
+                ["find", "/usr", "-name", sty_name, "-type", "f"],
+                capture_output=True, text=True, timeout=10,
+            )
+            paths = [l.strip() for l in r.stdout.strip().split("\n") if l.strip()]
+            sty_files[sty_name] = paths if paths else "NOT FOUND"
+        except Exception:
+            sty_files[sty_name] = "search failed"
+    info["sty_filesystem"] = sty_files
+
+    # Debian version
+    try:
+        with open("/etc/os-release") as f:
+            for line in f:
+                if line.startswith("PRETTY_NAME="):
+                    info["os"] = line.strip().split("=", 1)[1].strip('"')
+                    break
+    except Exception:
+        info["os"] = "unknown"
 
     return info
 
