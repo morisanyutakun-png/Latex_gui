@@ -182,9 +182,6 @@ async def warmup_status():
             "lualatex": LUALATEX_JA_OK,
         },
     }
-            "xelatex": XELATEX_OK,
-        },
-    }
 
 
 @app.get("/api/capabilities")
