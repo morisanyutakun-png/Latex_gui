@@ -1,11 +1,9 @@
-"""FastAPI メインアプリケーション (クラウド軽量版 v3)"""
+"""FastAPI メインアプリケーション (クラウド軽量版 v4)"""
 import os
 import logging
-import asyncio
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from .models import DocumentModel, ErrorResponse
 from .pdf_service import compile_pdf, generate_latex, PDFGenerationError
@@ -14,31 +12,11 @@ from .preview_service import preview_block_svg
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# リクエストタイムアウト (PDF生成が長すぎる場合に打ち切り)
-REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT_SECONDS", "60"))
-
-
-class TimeoutMiddleware(BaseHTTPMiddleware):
-    """リクエスト全体のタイムアウトを設定するミドルウェア"""
-    async def dispatch(self, request: Request, call_next):
-        try:
-            return await asyncio.wait_for(
-                call_next(request), timeout=REQUEST_TIMEOUT
-            )
-        except asyncio.TimeoutError:
-            return JSONResponse(
-                status_code=504,
-                content={"success": False, "message": "リクエストがタイムアウトしました。内容を短くして再度お試しください。"},
-            )
-
 app = FastAPI(
     title="LaTeX GUI - PDF生成API",
-    description="GUIで作成した文書をPDF化するAPI (クラウド軽量版 v3)",
-    version="0.3.0",
+    description="GUIで作成した文書をPDF化するAPI (クラウド軽量版 v4)",
+    version="0.4.0",
 )
-
-# タイムアウトミドルウェアを追加
-app.add_middleware(TimeoutMiddleware)
 
 # CORS設定（環境変数 ALLOWED_ORIGINS でカンマ区切り指定可能）
 # Vercel の Route Handler 経由の場合、サーバー間通信なので CORS 不要。
@@ -154,7 +132,7 @@ async def tex_debug_info():
             "CJK_SANS_FONT": os.environ.get("CJK_SANS_FONT", "(not set)"),
             "TEXINPUTS": TEX_ENV.get("TEXINPUTS", "(not set)"),
             "COMPILE_MEM_LIMIT_MB": os.environ.get("COMPILE_MEM_LIMIT_MB", "512"),
-            "REQUEST_TIMEOUT_SECONDS": os.environ.get("REQUEST_TIMEOUT_SECONDS", "60"),
+            "COMPILE_TOTAL_BUDGET_SECONDS": os.environ.get("COMPILE_TOTAL_BUDGET_SECONDS", "42"),
         },
     }
 

@@ -41,6 +41,7 @@ cmds = [
 
 [variables]
 COMPILE_MEM_LIMIT_MB = "512"
+COMPILE_TOTAL_BUDGET_SECONDS = "42"
 CJK_MAIN_FONT = "Noto Serif CJK JP"
 CJK_SANS_FONT = "Noto Sans CJK JP"
 

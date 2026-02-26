@@ -23,6 +23,21 @@ export default function EditorPage() {
     }
   }, [document, router]);
 
+  // エディタを開いた瞬間にバックエンド (Koyeb) を起こす
+  // コールドスタート時はコンテナ起動に10-30秒かかるため、
+  // PDF生成ボタンを押す前に事前にウォームアップしておく
+  useEffect(() => {
+    const warmup = async () => {
+      try {
+        // health エンドポイントを叩いてコンテナを起動させる
+        await fetch("/api/health", { signal: AbortSignal.timeout(15000) });
+      } catch {
+        // 失敗しても問題ない — PDF生成時にリトライされる
+      }
+    };
+    warmup();
+  }, []);
+
   if (!document) return null;
 
   return (

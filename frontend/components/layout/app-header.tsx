@@ -75,10 +75,13 @@ export function AppHeader() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "不明なエラー";
       console.error("PDF生成エラー:", message);
-      if (message.includes("接続できません") || message.includes("リクエストに失敗")) {
-        toast.error(message, { duration: 8000 });
+      if (message.includes("接続できません") || message.includes("リクエストに失敗") || message.includes("起動中")) {
+        toast.error(message, {
+          duration: 10000,
+          description: "数秒待ってからもう一度お試しください",
+        });
       } else {
-        toast.error(`PDF生成に失敗: ${message}`, { duration: 6000 });
+        toast.error(`PDF生成に失敗: ${message}`, { duration: 8000 });
       }
     } finally {
       setGenerating(false);

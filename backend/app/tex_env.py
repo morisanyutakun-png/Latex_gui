@@ -286,26 +286,33 @@ def _run_warmup():
     logger.info("[warmup] Starting background engine warmup...")
     t0 = time.monotonic()
 
-    # 1. pdflatex (最速 — 5-15秒)
+    # 1. pdflatex (最速 — 3-10秒)
     if PDFLATEX_AVAILABLE:
         tex = (
             "\\documentclass{article}\n"
             "\\usepackage[whole]{bxcjkjatype}\n"
             f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
         )
-        PDFLATEX_CJK_OK = _test_compile(PDFLATEX_CMD, tex, TEX_ENV, "warmup:pdflatex", timeout=20)
+        PDFLATEX_CJK_OK = _test_compile(PDFLATEX_CMD, tex, TEX_ENV, "warmup:pdflatex", timeout=15)
     else:
         logger.info("[warmup] pdflatex: not available (missing binary or CJK packages)")
 
-    # 2. lualatex (フォントキャッシュ構築に時間がかかる — 最大120秒)
+    # pdflatex が成功したら、ウォームアップ完了を早期通知
+    # (lualatex/xelatex テスト完了を待たずに PDF 生成リクエストに応答できる)
+    if PDFLATEX_CJK_OK:
+        DEFAULT_ENGINE = "pdflatex"
+        _warmup_event.set()
+        logger.info("[warmup] Early completion: pdflatex OK, notifying waiters")
+
+    # 2. lualatex (フォントキャッシュがDockerビルドで構築済みなら高速)
     if LUALATEX_AVAILABLE:
         tex = (
             "\\documentclass{article}\n"
             "\\usepackage{luatexja}\n"
             f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
         )
-        # 初回はフォントキャッシュ構築のため長いタイムアウトを設定
-        LUALATEX_JA_OK = _test_compile(LUALATEX_CMD, tex, TEX_ENV, "warmup:lualatex", timeout=120)
+        # Dockerビルドでキャッシュ済みなら20秒で十分、未構築でも45秒
+        LUALATEX_JA_OK = _test_compile(LUALATEX_CMD, tex, TEX_ENV, "warmup:lualatex", timeout=45)
         if LUALATEX_JA_OK:
             _lualatex_cache_warm = True
     else:
@@ -330,7 +337,7 @@ def _run_warmup():
         DEFAULT_ENGINE = "lualatex"
     elif XELATEX_OK:
         DEFAULT_ENGINE = "xelatex"
-    # else: 初期値のまま (下で設定)
+    # else: 初期値のまま
 
     _ALL_ENGINES = ["pdflatex", "lualatex", "xelatex"]
     FALLBACK_ENGINES = [e for e in _ALL_ENGINES if e != DEFAULT_ENGINE]
@@ -344,7 +351,7 @@ def _run_warmup():
         f"→ DEFAULT={DEFAULT_ENGINE}"
     )
 
-    # ウォームアップ完了を通知
+    # ウォームアップ完了を通知 (早期通知済みの場合は再設定 — 冪等)
     _warmup_event.set()
 
 

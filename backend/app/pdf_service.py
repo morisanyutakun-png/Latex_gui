@@ -87,31 +87,34 @@ async def compile_pdf(doc: DocumentModel) -> bytes:
         )
 
 
+# ── 全体のタイムバジェット (Vercel の 58s 以内に収めるため余裕を持たせる) ──
+TOTAL_TIME_BUDGET = int(os.environ.get("COMPILE_TOTAL_BUDGET_SECONDS", "42"))
+
+
 def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     """同期版 PDF 生成 (スレッドプールで実行される)
 
-    エンジン選択戦略 (v3):
-      1. ウォームアップ完了待ち (最大5秒 — すでに数十秒経過しているはず)
-      2. ウォームアップ済み → テスト通過エンジンを使用 (高速)
-      3. ウォームアップ未完了 → パッケージ可用性から推定して試行 (寛大なタイムアウト)
+    エンジン選択戦略 (v4):
+      1. ウォームアップ完了チェック (最大1秒 — ブロックしない)
+      2. ウォームアップ済み → テスト通過エンジンのみ使用 (高速)
+      3. ウォームアップ未完了 → pdflatex 優先で即試行 (最大2エンジン)
     """
-    # モジュール経由でアクセスする (ウォームアップスレッドがグローバル変数を更新するため)
     from . import tex_env as te
 
     t0 = time.monotonic()
 
-    # ── ウォームアップ待ち (最大5秒) ──
-    warmup_done = te.wait_for_warmup(timeout=5.0)
+    # ── ウォームアップ待ち (最大1秒 — コールドスタート時はすぐ諦める) ──
+    warmup_done = te.wait_for_warmup(timeout=1.0)
 
     if warmup_done:
-        # ウォームアップ完了: テスト結果を信頼する
+        # ウォームアップ完了: テスト通過エンジンのみ使用
         engine_ok = {
             "pdflatex": te.PDFLATEX_CJK_OK,
             "lualatex": te.LUALATEX_JA_OK,
             "xelatex": te.XELATEX_OK,
         }
         tested_engines = [e for e in ["pdflatex", "lualatex", "xelatex"] if engine_ok.get(e)]
-        engines_to_try = tested_engines if tested_engines else [te.DEFAULT_ENGINE]
+        engines_to_try = tested_engines[:2] if tested_engines else [te.DEFAULT_ENGINE]
         logger.info(
             f"[compile] Warmup done. engines={engines_to_try}, "
             f"pdflatex={'OK' if te.PDFLATEX_CJK_OK else 'NG'}, "
@@ -119,24 +122,30 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             f"xelatex={'OK' if te.XELATEX_OK else 'NG'}"
         )
     else:
-        # ウォームアップ未完了: パッケージ可用性から推定 (全て試行)
-        engines_to_try = [e for e in ["pdflatex", "lualatex", "xelatex"]
-                          if {"pdflatex": te.PDFLATEX_AVAILABLE,
-                              "lualatex": te.LUALATEX_AVAILABLE,
-                              "xelatex": te.XELATEX_AVAILABLE}.get(e)]
+        # ウォームアップ未完了: pdflatex 優先で最大2エンジン試行
+        avail = {"pdflatex": te.PDFLATEX_AVAILABLE,
+                 "lualatex": te.LUALATEX_AVAILABLE,
+                 "xelatex": te.XELATEX_AVAILABLE}
+        engines_to_try = [e for e in ["pdflatex", "xelatex", "lualatex"] if avail.get(e)][:2]
         if not engines_to_try:
-            engines_to_try = [te.DEFAULT_ENGINE]
+            engines_to_try = ["pdflatex"]
         logger.info(
-            f"[compile] Warmup NOT done yet. Trying available engines: {engines_to_try}"
+            f"[compile] Warmup NOT done. Trying (max 2): {engines_to_try}"
         )
 
     errors: list[tuple[str, PDFGenerationError]] = []
 
-    # ── エンジンを順に試行 ──
+    # ── エンジンを順に試行 (最大2つ) ──
     for engine_name in engines_to_try:
         engine_cmd = ENGINE_CMD.get(engine_name)
         if not engine_cmd:
             continue
+
+        # 全体タイムバジェット超過チェック
+        elapsed = time.monotonic() - t0
+        if elapsed > TOTAL_TIME_BUDGET:
+            logger.warning(f"[compile] Total budget exceeded ({elapsed:.1f}s > {TOTAL_TIME_BUDGET}s), aborting")
+            break
 
         # コマンドの存在確認
         cmd_exists = bool(shutil.which(engine_cmd) or Path(engine_cmd).is_file())
@@ -148,21 +157,17 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             )))
             continue
 
-        # ── タイムアウト決定 ──
-        # lualatex はフォントキャッシュ状態で大きく変わる
+        # ── タイムアウト決定 (v4: 短縮版) ──
         if engine_name == "pdflatex":
-            compile_timeout = 30
+            compile_timeout = 25
         elif engine_name == "lualatex":
-            if te.is_lualatex_cache_warm():
-                compile_timeout = 20  # キャッシュ済み: 高速
-            else:
-                compile_timeout = 50  # キャッシュ未構築: 余裕を持たせる
+            compile_timeout = 18 if te.is_lualatex_cache_warm() else 30
         else:  # xelatex
-            compile_timeout = 35
+            compile_timeout = 25
 
-        # 全体の残り時間も考慮 (REQUEST_TIMEOUT=60s 内に収める)
+        # 全体の残り時間を考慮 (TOTAL_TIME_BUDGET内に収める)
         elapsed = time.monotonic() - t0
-        max_remaining = max(50.0 - elapsed, 10.0)  # 最低10秒は確保
+        max_remaining = max(TOTAL_TIME_BUDGET - elapsed, 8.0)  # 最低8秒は確保
         compile_timeout = min(compile_timeout, int(max_remaining))
 
         logger.info(f"[compile] Trying {engine_name} (timeout={compile_timeout}s, elapsed={elapsed:.1f}s)")

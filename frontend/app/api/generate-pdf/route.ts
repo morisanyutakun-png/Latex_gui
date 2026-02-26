@@ -3,6 +3,8 @@
  *
  * CORS 問題を回避し、バックエンド URL をサーバー側だけで管理する。
  * Vercel 環境変数: API_URL (NEXT_PUBLIC_ 不要)
+ *
+ * v4: リトライ対応 + タイムアウト整合性改善
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -12,6 +14,18 @@ export const maxDuration = 60;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// バックエンドの TOTAL_TIME_BUDGET=42s + ネットワーク遅延に余裕を持たせる
+const BACKEND_TIMEOUT_MS = 50000;
+
+async function callBackend(body: string): Promise<Response> {
+  return fetch(`${BACKEND}/api/generate-pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
+  });
+}
+
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
   console.log(`[proxy] generate-pdf → ${BACKEND}/api/generate-pdf`);
@@ -19,14 +33,33 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.text();
 
-    const res = await fetch(`${BACKEND}/api/generate-pdf`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-      // バックエンドの REQUEST_TIMEOUT=60s に合わせてマージンを設定
-      // ウォームアップ完了後は 5-15 秒で返るが、初回は最大 50-55 秒かかる可能性
-      signal: AbortSignal.timeout(58000),
-    });
+    let res: Response;
+    try {
+      res = await callBackend(body);
+    } catch (firstErr) {
+      // 初回失敗時: コールドスタートの可能性があるためリトライ
+      const elapsed1 = Date.now() - t0;
+      const isTimeout = firstErr instanceof Error && (firstErr.name === "TimeoutError" || firstErr.name === "AbortError");
+      const isNetwork = firstErr instanceof Error && firstErr.message?.includes("fetch");
+
+      if ((isTimeout || isNetwork) && elapsed1 < 52000) {
+        console.log(`[proxy] First attempt failed (${elapsed1}ms), retrying once...`);
+        // 残り時間で再試行 (Vercelの60秒上限を考慮)
+        const retryTimeout = Math.min(BACKEND_TIMEOUT_MS, Math.max((57000 - elapsed1), 8000));
+        try {
+          res = await fetch(`${BACKEND}/api/generate-pdf`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+            signal: AbortSignal.timeout(retryTimeout),
+          });
+        } catch (retryErr) {
+          throw retryErr; // リトライも失敗
+        }
+      } else {
+        throw firstErr;
+      }
+    }
 
     const elapsed = Date.now() - t0;
     console.log(`[proxy] generate-pdf response: ${res.status} (${elapsed}ms)`);
@@ -53,8 +86,8 @@ export async function POST(req: NextRequest) {
 
     const isTimeout = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
     const message = isTimeout
-      ? `PDF生成がタイムアウトしました (${Math.round(elapsed / 1000)}秒)。Koyeb バックエンドの応答が遅い可能性があります。`
-      : `バックエンドサーバーに接続できません (${BACKEND})`;
+      ? `PDF生成がタイムアウトしました (${Math.round(elapsed / 1000)}秒)。バックエンドがまだ起動中の可能性があります。数秒待ってから再度お試しください。`
+      : `バックエンドサーバーに接続できません (${BACKEND})。サーバーが起動しているか確認してください。`;
     return NextResponse.json(
       { detail: { message } },
       { status: 502 },

@@ -12,35 +12,58 @@ import { DocumentModel } from "./types";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export async function generatePDF(doc: DocumentModel): Promise<Blob> {
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}/api/generate-pdf`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(doc),
-      // ブラウザ側タイムアウト: Vercel Route Handler (max 60s) + マージン
-      signal: AbortSignal.timeout(65000),
-    });
-  } catch (networkErr) {
-    // ネットワークエラー or ブラウザ側タイムアウト
-    const isTimeout = networkErr instanceof Error &&
-      (networkErr.name === "TimeoutError" || networkErr.name === "AbortError");
-    throw new Error(
-      isTimeout
-        ? "PDF生成に時間がかかりすぎています。しばらく待ってから再度お試しください。"
-        : "PDF生成サーバーへのリクエストに失敗しました。\nネットワーク接続を確認してください。"
-    );
+  // 最大2回試行 (初回がコールドスタートタイムアウトの場合にリトライ)
+  const maxAttempts = 2;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}/api/generate-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(doc),
+        // Vercel Route Handler (max 60s) + マージン
+        signal: AbortSignal.timeout(62000),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        const detail = err?.detail;
+        const message = typeof detail === "string"
+          ? detail
+          : detail?.message || `PDF生成に失敗しました (HTTP ${res.status})`;
+
+        // 502/504 はリトライ可能
+        if ((res.status === 502 || res.status === 504) && attempt < maxAttempts) {
+          lastError = new Error(message);
+          continue;
+        }
+        throw new Error(message);
+      }
+
+      return await res.blob();
+    } catch (networkErr) {
+      if (networkErr instanceof Error && networkErr.message?.startsWith("PDF")) {
+        throw networkErr; // アプリケーションエラー（リトライ不要）
+      }
+
+      const isTimeout = networkErr instanceof Error &&
+        (networkErr.name === "TimeoutError" || networkErr.name === "AbortError");
+
+      if (isTimeout && attempt < maxAttempts) {
+        lastError = new Error("PDF生成サーバーが応答待ちです。再試行中...");
+        continue;
+      }
+
+      throw new Error(
+        isTimeout
+          ? "PDF生成に時間がかかりすぎています。サーバーが起動中の可能性があるため、しばらく待ってから再度お試しください。"
+          : "PDF生成サーバーへのリクエストに失敗しました。\nネットワーク接続を確認してください。"
+      );
+    }
   }
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => null);
-    const detail = err?.detail;
-    const message = typeof detail === "string"
-      ? detail
-      : detail?.message || `PDF生成に失敗しました (HTTP ${res.status})`;
-    throw new Error(message);
-  }
-  return res.blob();
+  throw lastError || new Error("PDF生成に失敗しました");
 }
 
 export async function previewLatex(doc: DocumentModel): Promise<string> {
