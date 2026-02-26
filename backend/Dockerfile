@@ -68,8 +68,9 @@ RUN if [ -f /etc/texinputs.env ]; then \
       echo "No extra TEXINPUTS needed"; \
     fi
 
-# ── entrypoint スクリプトをコピー (ランタイム TEXINPUTS 用) ──
-# ── 実際のコンパイルテスト (3エンジン) ──
+# ── 実際のコンパイルテスト (3エンジン) + フォントキャッシュ構築 ──
+# Docker ビルド時に lualatex のフォントキャッシュを作成しておくことで
+# ランタイムのコンパイルが高速 (3-10秒) になる。
 RUN set -e; \
     if [ -f /etc/texinputs.env ]; then . /etc/texinputs.env; export TEXINPUTS; fi; \
     cd /tmp \
@@ -79,13 +80,15 @@ RUN set -e; \
         || echo "=== [WARN] pdflatex + CJK failed ===") \
     && printf '\\documentclass{article}\n\\usepackage{luatexja}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_lua.tex \
     && (lualatex -interaction=nonstopmode -halt-on-error test_lua.tex \
-        && echo "=== [OK] lualatex + luatexja ===" \
+        && echo "=== [OK] lualatex + luatexja (font cache built) ===" \
         || echo "=== [WARN] lualatex + luatexja failed ===") \
     && printf '\\documentclass{article}\n\\usepackage{xeCJK}\n\\setCJKmainfont{Noto Sans CJK JP}\n\\begin{document}\nHello テスト 日本語\n\\end{document}\n' > test_xe.tex \
     && (xelatex -interaction=nonstopmode -halt-on-error test_xe.tex \
         && echo "=== [OK] xelatex + xeCJK ===" \
         || echo "=== [WARN] xelatex + xeCJK failed ===") \
-    && rm -f /tmp/test_*
+    && rm -f /tmp/test_* \
+    && echo "=== Font cache verification ===" \
+    && find / -path "*/luatex-cache*" -type d 2>/dev/null | head -5 || true
 
 ENV MAX_CONCURRENT_COMPILES=2
 ENV COMPILE_MEM_LIMIT_MB=512

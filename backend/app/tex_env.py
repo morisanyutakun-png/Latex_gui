@@ -1,13 +1,16 @@
 """
-TeX Live環境ユーティリティ — 3エンジン対応版
+TeX Live環境ユーティリティ — 3エンジン対応版 (v3 — 遅延ウォームアップ方式)
 
 3エンジン対応 (優先順):
   1. pdflatex + bxcjkjatype  — 最軽量 (~50MB)、CJK.sty 必須
   2. lualatex + luatexja     — 最も堅牢。HaranoAji フォント内蔵、外部フォント不要
   3. xelatex  + xeCJK        — フォント検出を Python 側で事前に行い確実に設定
 
-起動時に **実際の日本語テキスト** でコンパイルテストを実施し、
-確実に動くエンジンだけを使う。
+v3 変更点:
+  - 起動時はバイナリと .sty の存在確認のみ (高速、< 1秒)
+  - コンパイルテストはバックグラウンドスレッドで実施 (サーバー起動をブロックしない)
+  - lualatex のフォントキャッシュを起動後にバックグラウンドで構築
+  - PDF 生成時にウォームアップ待機 → キャッシュ済みなら高速
 """
 import os
 import shutil
@@ -15,6 +18,8 @@ import subprocess
 import platform
 import logging
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -53,7 +58,6 @@ def _build_texlive_env() -> dict[str, str]:
                 line = line.strip()
                 if line.startswith("TEXINPUTS="):
                     val = line.split("=", 1)[1]
-                    # シェル変数 $TEXINPUTS の展開
                     val = val.replace("$TEXINPUTS", env.get("TEXINPUTS", ""))
                     env["TEXINPUTS"] = val
                     logger.info(f"Loaded TEXINPUTS from {_texinputs_env_file}: {val}")
@@ -85,7 +89,7 @@ PDFTOCAIRO_CMD = find_command("pdftocairo")
 
 
 # ══════════════════════════════════════════════════════════════════
-# 2. .sty パッケージ検出 (pdflatex 用)
+# 2. .sty パッケージ検出 (高速 — kpsewhich + ファイルシステム)
 # ══════════════════════════════════════════════════════════════════
 
 def _check_sty_kpsewhich(name: str, env: dict) -> str | None:
@@ -165,10 +169,7 @@ LUATEXJA_STY_AVAILABLE = _ensure_sty_available("luatexja.sty", TEX_ENV)
 # ══════════════════════════════════════════════════════════════════
 
 def _detect_available_cjk_font() -> tuple[str, str]:
-    """fc-list で実際に使える CJK フォント名を (main, sans) で返す。
-    
-    見つからない場合は空文字列を返す。
-    """
+    """fc-list で実際に使える CJK フォント名を (main, sans) で返す。"""
     env_main = os.environ.get("CJK_MAIN_FONT", "").strip()
     env_sans = os.environ.get("CJK_SANS_FONT", "").strip()
     if env_main and env_sans:
@@ -212,32 +213,62 @@ DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT = _detect_available_cjk_font()
 
 
 # ══════════════════════════════════════════════════════════════════
-# 4. 起動時エンジンテスト — 実際の日本語テキストでコンパイル
+# 4. エンジン利用可能性チェック (高速 — コンパイルしない)
+# ══════════════════════════════════════════════════════════════════
+
+def _cmd_exists(cmd: str) -> bool:
+    return bool(shutil.which(cmd) or Path(cmd).is_file())
+
+
+# パッケージ＋バイナリが揃っているかどうか (コンパイル未検証)
+PDFLATEX_AVAILABLE = _cmd_exists(PDFLATEX_CMD) and (CJK_STY_AVAILABLE or BXCJKJATYPE_AVAILABLE)
+LUALATEX_AVAILABLE = _cmd_exists(LUALATEX_CMD) and LUATEXJA_STY_AVAILABLE
+XELATEX_AVAILABLE = _cmd_exists(XELATEX_CMD) and XECJK_STY_AVAILABLE and bool(DETECTED_CJK_MAIN_FONT)
+
+
+# ══════════════════════════════════════════════════════════════════
+# 5. バックグラウンド・ウォームアップ (サーバー起動をブロックしない)
 # ══════════════════════════════════════════════════════════════════
 
 _JP_TEST_TEXT = "日本語テスト ABCabc 123"
 
+# ── ウォームアップ状態 ──
+# スレッドセーフな状態管理
+_warmup_lock = threading.Lock()
+_warmup_event = threading.Event()  # ウォームアップ完了を通知
+_warmup_started = False
+
+# コンパイルテスト結果 (ウォームアップ完了後に設定)
+PDFLATEX_CJK_OK = False
+LUALATEX_JA_OK = False
+XELATEX_OK = False
+
+# lualatex フォントキャッシュ状態
+_lualatex_cache_warm = False
+
 
 def _test_compile(cmd: str, tex_source: str, env: dict, label: str, timeout: int = 30) -> bool:
     """汎用コンパイルテスト。成功すれば True"""
-    if not shutil.which(cmd) and not Path(cmd).is_file():
+    if not _cmd_exists(cmd):
         logger.info(f"[{label}] command not found: {cmd}")
         return False
     try:
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "test.tex"
             p.write_text(tex_source, encoding="utf-8")
+            t0 = time.monotonic()
             r = subprocess.run(
                 [cmd, "-interaction=nonstopmode", "-halt-on-error",
                  "-output-directory", d, str(p)],
                 capture_output=True, text=True, timeout=timeout, cwd=d, env=env,
             )
+            elapsed = time.monotonic() - t0
             ok = r.returncode == 0 and (Path(d) / "test.pdf").exists()
             if ok:
-                logger.info(f"[{label}] compile test: OK")
+                logger.info(f"[{label}] compile test: OK ({elapsed:.1f}s)")
             else:
                 tail = (r.stdout + r.stderr).strip().split("\n")[-5:]
-                logger.warning(f"[{label}] compile test FAILED (rc={r.returncode}): {' | '.join(tail)}")
+                logger.warning(f"[{label}] compile test FAILED (rc={r.returncode}, {elapsed:.1f}s): {' | '.join(tail)}")
             return ok
     except subprocess.TimeoutExpired:
         logger.warning(f"[{label}] compile test TIMEOUT ({timeout}s)")
@@ -247,87 +278,147 @@ def _test_compile(cmd: str, tex_source: str, env: dict, label: str, timeout: int
         return False
 
 
-def _test_pdflatex_cjk() -> bool:
-    if not CJK_STY_AVAILABLE and not BXCJKJATYPE_AVAILABLE:
-        return False
-    tex = (
-        "\\documentclass{article}\n"
-        "\\usepackage[whole]{bxcjkjatype}\n"
-        f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
+def _run_warmup():
+    """バックグラウンドで全エンジンのコンパイルテスト + フォントキャッシュ構築"""
+    global PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK, _lualatex_cache_warm
+    global DEFAULT_ENGINE, FALLBACK_ENGINES
+
+    logger.info("[warmup] Starting background engine warmup...")
+    t0 = time.monotonic()
+
+    # 1. pdflatex (最速 — 5-15秒)
+    if PDFLATEX_AVAILABLE:
+        tex = (
+            "\\documentclass{article}\n"
+            "\\usepackage[whole]{bxcjkjatype}\n"
+            f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
+        )
+        PDFLATEX_CJK_OK = _test_compile(PDFLATEX_CMD, tex, TEX_ENV, "warmup:pdflatex", timeout=20)
+    else:
+        logger.info("[warmup] pdflatex: not available (missing binary or CJK packages)")
+
+    # 2. lualatex (フォントキャッシュ構築に時間がかかる — 最大120秒)
+    if LUALATEX_AVAILABLE:
+        tex = (
+            "\\documentclass{article}\n"
+            "\\usepackage{luatexja}\n"
+            f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
+        )
+        # 初回はフォントキャッシュ構築のため長いタイムアウトを設定
+        LUALATEX_JA_OK = _test_compile(LUALATEX_CMD, tex, TEX_ENV, "warmup:lualatex", timeout=120)
+        if LUALATEX_JA_OK:
+            _lualatex_cache_warm = True
+    else:
+        logger.info("[warmup] lualatex: not available (missing binary or luatexja.sty)")
+
+    # 3. xelatex (15-20秒)
+    if XELATEX_AVAILABLE:
+        tex = (
+            "\\documentclass{article}\n"
+            "\\usepackage{xeCJK}\n"
+            f"\\setCJKmainfont{{{DETECTED_CJK_MAIN_FONT}}}\n"
+            f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
+        )
+        XELATEX_OK = _test_compile(XELATEX_CMD, tex, TEX_ENV, "warmup:xelatex", timeout=30)
+    else:
+        logger.info("[warmup] xelatex: not available (missing binary, xeCJK.sty, or CJK font)")
+
+    # ── デフォルトエンジン再決定 ──
+    if PDFLATEX_CJK_OK:
+        DEFAULT_ENGINE = "pdflatex"
+    elif LUALATEX_JA_OK:
+        DEFAULT_ENGINE = "lualatex"
+    elif XELATEX_OK:
+        DEFAULT_ENGINE = "xelatex"
+    # else: 初期値のまま (下で設定)
+
+    _ALL_ENGINES = ["pdflatex", "lualatex", "xelatex"]
+    FALLBACK_ENGINES = [e for e in _ALL_ENGINES if e != DEFAULT_ENGINE]
+
+    elapsed = time.monotonic() - t0
+    logger.info(
+        f"[warmup] Complete ({elapsed:.1f}s): "
+        f"pdflatex={'OK' if PDFLATEX_CJK_OK else 'NG'}, "
+        f"lualatex={'OK' if LUALATEX_JA_OK else 'NG'}, "
+        f"xelatex={'OK' if XELATEX_OK else 'NG'} "
+        f"→ DEFAULT={DEFAULT_ENGINE}"
     )
-    return _test_compile(PDFLATEX_CMD, tex, TEX_ENV, "pdflatex+CJK", timeout=15)
+
+    # ウォームアップ完了を通知
+    _warmup_event.set()
 
 
-def _test_lualatex_ja() -> bool:
-    if not LUATEXJA_STY_AVAILABLE:
-        logger.info("[lualatex+luatexja] luatexja.sty not found, skipping")
-        return False
-    tex = (
-        "\\documentclass{article}\n"
-        "\\usepackage{luatexja}\n"
-        f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
-    )
-    return _test_compile(LUALATEX_CMD, tex, TEX_ENV, "lualatex+luatexja", timeout=30)
+def start_background_warmup():
+    """バックグラウンドでウォームアップスレッドを開始する。
+    
+    FastAPI の startup イベントから呼び出す。
+    """
+    global _warmup_started
+    with _warmup_lock:
+        if _warmup_started:
+            return
+        _warmup_started = True
+
+    t = threading.Thread(target=_run_warmup, daemon=True, name="tex-warmup")
+    t.start()
+    logger.info("[warmup] Background warmup thread started")
 
 
-def _test_xelatex_cjk() -> bool:
-    if not XECJK_STY_AVAILABLE:
-        logger.info("[xelatex+xeCJK] xeCJK.sty not found, skipping")
-        return False
-    if not DETECTED_CJK_MAIN_FONT:
-        logger.info("[xelatex+xeCJK] No CJK font detected, skipping")
-        return False
-    tex = (
-        "\\documentclass{article}\n"
-        "\\usepackage{xeCJK}\n"
-        f"\\setCJKmainfont{{{DETECTED_CJK_MAIN_FONT}}}\n"
-        f"\\begin{{document}}\n{_JP_TEST_TEXT}\n\\end{{document}}\n"
-    )
-    return _test_compile(XELATEX_CMD, tex, TEX_ENV, "xelatex+xeCJK", timeout=20)
+def wait_for_warmup(timeout: float = 10.0) -> bool:
+    """ウォームアップ完了を待つ。タイムアウトしたら False を返す。"""
+    if _warmup_event.is_set():
+        return True
+    logger.info(f"[warmup] Waiting for warmup (max {timeout}s)...")
+    return _warmup_event.wait(timeout=timeout)
 
 
-# ── 起動テスト実行 ──
-PDFLATEX_CJK_OK = _test_pdflatex_cjk()
-LUALATEX_JA_OK = _test_lualatex_ja()
-XELATEX_OK = _test_xelatex_cjk()
+def is_warmup_done() -> bool:
+    """ウォームアップが完了しているか"""
+    return _warmup_event.is_set()
 
-# ── デフォルトエンジン決定 (軽量順) ──
-if PDFLATEX_CJK_OK:
+
+def is_lualatex_cache_warm() -> bool:
+    """lualatex のフォントキャッシュが構築済みか"""
+    return _lualatex_cache_warm
+
+
+# ── 初期のデフォルトエンジン (ウォームアップ前) ──
+# パッケージ可用性から推定 (コンパイル未検証だが最善の推定)
+if PDFLATEX_AVAILABLE:
     DEFAULT_ENGINE = "pdflatex"
-elif LUALATEX_JA_OK:
+elif LUALATEX_AVAILABLE:
     DEFAULT_ENGINE = "lualatex"
-elif XELATEX_OK:
+elif XELATEX_AVAILABLE:
     DEFAULT_ENGINE = "xelatex"
 else:
-    # 全て失敗 — フォールバック優先順位
-    if shutil.which(LUALATEX_CMD) or Path(LUALATEX_CMD).is_file():
+    if _cmd_exists(LUALATEX_CMD):
         DEFAULT_ENGINE = "lualatex"
-    elif shutil.which(XELATEX_CMD) or Path(XELATEX_CMD).is_file():
+    elif _cmd_exists(XELATEX_CMD):
         DEFAULT_ENGINE = "xelatex"
     else:
         DEFAULT_ENGINE = "pdflatex"
 
-# ── フォールバック順序 ──
 _ALL_ENGINES = ["pdflatex", "lualatex", "xelatex"]
 FALLBACK_ENGINES = [e for e in _ALL_ENGINES if e != DEFAULT_ENGINE]
 
 logger.info(
-    f"Engine tests: pdflatex+CJK={'OK' if PDFLATEX_CJK_OK else 'NG'}, "
-    f"lualatex+luatexja={'OK' if LUALATEX_JA_OK else 'NG'}, "
-    f"xelatex+xeCJK={'OK' if XELATEX_OK else 'NG'} "
-    f"→ DEFAULT={DEFAULT_ENGINE}, fallbacks={FALLBACK_ENGINES}"
-)
-logger.info(
-    f"Packages: CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
+    f"[init] Package availability: CJK.sty={'OK' if CJK_STY_AVAILABLE else 'NG'}, "
     f"bxcjkjatype={'OK' if BXCJKJATYPE_AVAILABLE else 'NG'}, "
     f"xeCJK.sty={'OK' if XECJK_STY_AVAILABLE else 'NG'}, "
     f"luatexja.sty={'OK' if LUATEXJA_STY_AVAILABLE else 'NG'}"
 )
-logger.info(f"CJK fonts: main={DETECTED_CJK_MAIN_FONT or '(none)'}, sans={DETECTED_CJK_SANS_FONT or '(none)'}")
+logger.info(
+    f"[init] Engine availability (pre-warmup): "
+    f"pdflatex={'avail' if PDFLATEX_AVAILABLE else 'N/A'}, "
+    f"lualatex={'avail' if LUALATEX_AVAILABLE else 'N/A'}, "
+    f"xelatex={'avail' if XELATEX_AVAILABLE else 'N/A'} "
+    f"→ DEFAULT={DEFAULT_ENGINE}"
+)
+logger.info(f"[init] CJK fonts: main={DETECTED_CJK_MAIN_FONT or '(none)'}, sans={DETECTED_CJK_SANS_FONT or '(none)'}")
 
 
 # ══════════════════════════════════════════════════════════════════
-# 5. Ghostscript (dvisvgm 用)
+# 6. Ghostscript (dvisvgm 用)
 # ══════════════════════════════════════════════════════════════════
 
 _LIBGS_CANDIDATES = [

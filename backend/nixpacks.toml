@@ -34,6 +34,8 @@ cmds = [
     "mktexlsr || true",
     "texhash || true",
     "fc-cache -fv || true",
+    # lualatex フォントキャッシュを事前構築 (初回実行は 30-60 秒かかるが、ビルド時に済ませておけばランタイムは高速)
+    "mkdir -p /tmp/texwarm && printf '\\\\documentclass{article}\\n\\\\usepackage{luatexja}\\n\\\\begin{document}\\nWarm up テスト\\n\\\\end{document}\\n' > /tmp/texwarm/warm.tex && cd /tmp/texwarm && lualatex -interaction=nonstopmode warm.tex && echo '=== lualatex cache warmed ===' && rm -rf /tmp/texwarm || echo '=== lualatex warmup failed (non-fatal) ==='",
     "echo '=== TeX verification ===' && which pdflatex && which lualatex && which xelatex && kpsewhich CJK.sty && kpsewhich luatexja.sty && kpsewhich xeCJK.sty || echo 'Some TeX packages missing'",
 ]
 

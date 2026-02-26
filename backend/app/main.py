@@ -1,4 +1,4 @@
-"""FastAPI メインアプリケーション (クラウド軽量版)"""
+"""FastAPI メインアプリケーション (クラウド軽量版 v3)"""
 import os
 import logging
 import asyncio
@@ -33,8 +33,8 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(
     title="LaTeX GUI - PDF生成API",
-    description="GUIで作成した文書をPDF化するAPI (クラウド軽量版)",
-    version="0.2.0",
+    description="GUIで作成した文書をPDF化するAPI (クラウド軽量版 v3)",
+    version="0.3.0",
 )
 
 # タイムアウトミドルウェアを追加
@@ -60,6 +60,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── サーバー起動時にバックグラウンド・ウォームアップを開始 ──
+@app.on_event("startup")
+async def _startup_warmup():
+    from .tex_env import start_background_warmup
+    start_background_warmup()
+    logger.info("Background TeX warmup triggered")
 
 
 @app.get("/api/health")
@@ -92,10 +100,9 @@ def _get_memory_info() -> dict:
 
 @app.get("/api/debug/tex-info")
 async def tex_debug_info():
-    """TeX環境の診断情報を返す（デプロイ問題のデバッグ用）"""
+    """TeX環境の診断情報を返す（軽量版 — コンパイルテストは実行しない）"""
     import shutil
     import subprocess
-    import tempfile
     from pathlib import Path
     from .tex_env import (
         XELATEX_CMD, PDFLATEX_CMD, LUALATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD,
@@ -103,16 +110,27 @@ async def tex_debug_info():
         PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
         CJK_STY_AVAILABLE, BXCJKJATYPE_AVAILABLE,
         XECJK_STY_AVAILABLE, LUATEXJA_STY_AVAILABLE,
+        PDFLATEX_AVAILABLE, LUALATEX_AVAILABLE, XELATEX_AVAILABLE,
         DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT,
+        is_warmup_done, is_lualatex_cache_warm,
     )
 
     info: dict = {
+        "warmup": {
+            "done": is_warmup_done(),
+            "lualatex_cache_warm": is_lualatex_cache_warm(),
+        },
         "engine": {
             "default": DEFAULT_ENGINE,
             "fallbacks": FALLBACK_ENGINES,
             "pdflatex_cjk_ok": PDFLATEX_CJK_OK,
             "lualatex_ja_ok": LUALATEX_JA_OK,
             "xelatex_ok": XELATEX_OK,
+        },
+        "availability": {
+            "pdflatex": PDFLATEX_AVAILABLE,
+            "lualatex": LUALATEX_AVAILABLE,
+            "xelatex": XELATEX_AVAILABLE,
         },
         "packages": {
             "CJK_sty": CJK_STY_AVAILABLE,
@@ -135,13 +153,12 @@ async def tex_debug_info():
             "CJK_MAIN_FONT": os.environ.get("CJK_MAIN_FONT", "(not set)"),
             "CJK_SANS_FONT": os.environ.get("CJK_SANS_FONT", "(not set)"),
             "TEXINPUTS": TEX_ENV.get("TEXINPUTS", "(not set)"),
-            "LIBGS": TEX_ENV.get("LIBGS", "(not set)"),
             "COMPILE_MEM_LIMIT_MB": os.environ.get("COMPILE_MEM_LIMIT_MB", "512"),
-            "PATH": TEX_ENV.get("PATH", "")[:300],
+            "REQUEST_TIMEOUT_SECONDS": os.environ.get("REQUEST_TIMEOUT_SECONDS", "60"),
         },
     }
 
-    # Test fc-list
+    # Test fc-list (fast)
     if shutil.which("fc-list"):
         try:
             result = subprocess.run(
@@ -155,48 +172,7 @@ async def tex_debug_info():
     else:
         info["fc_list_ja"] = "fc-list not available"
 
-    # ── 3エンジン即時コンパイルテスト ──
-    test_cases = [
-        ("pdflatex", PDFLATEX_CMD, (
-            "\\documentclass{article}\n"
-            "\\usepackage[whole]{bxcjkjatype}\n"
-            "\\begin{document}\n日本語テスト ABC\n\\end{document}\n"
-        )),
-        ("lualatex", LUALATEX_CMD, (
-            "\\documentclass{article}\n"
-            "\\usepackage{luatexja}\n"
-            "\\begin{document}\n日本語テスト ABC\n\\end{document}\n"
-        )),
-        ("xelatex", XELATEX_CMD, (
-            "\\documentclass{article}\n"
-            "\\usepackage{xeCJK}\n"
-            f"\\setCJKmainfont{{{DETECTED_CJK_MAIN_FONT or 'Noto Sans CJK JP'}}}\n"
-            "\\begin{document}\n日本語テスト ABC\n\\end{document}\n"
-        )),
-    ]
-    for eng_name, eng_cmd, tex_src in test_cases:
-        try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                tex_path = Path(tmpdir) / "test.tex"
-                tex_path.write_text(tex_src, encoding="utf-8")
-                r = subprocess.run(
-                    [eng_cmd, "-interaction=nonstopmode", "-halt-on-error",
-                     "-output-directory", str(tmpdir), str(tex_path)],
-                    capture_output=True, text=True, timeout=30,
-                    cwd=tmpdir, env=TEX_ENV,
-                )
-                pdf_exists = (Path(tmpdir) / "test.pdf").exists()
-                info[f"{eng_name}_test"] = {
-                    "success": r.returncode == 0 and pdf_exists,
-                    "returncode": r.returncode,
-                    "pdf_generated": pdf_exists,
-                    "log_tail": r.stdout[-500:] if r.stdout else "",
-                    "stderr": r.stderr[-200:] if r.stderr else "",
-                }
-        except Exception as e:
-            info[f"{eng_name}_test"] = {"success": False, "error": str(e)}
-
-    # ── .sty ファイルシステム検索 ──
+    # ── .sty ファイルシステム検索 (fast) ──
     sty_files = {}
     for sty_name in ["CJK.sty", "bxcjkjatype.sty", "xeCJK.sty", "luatexja.sty"]:
         try:
@@ -221,6 +197,31 @@ async def tex_debug_info():
         info["os"] = "unknown"
 
     return info
+
+
+@app.get("/api/debug/warmup-status")
+async def warmup_status():
+    """ウォームアップ状態を即座に返す (軽量)"""
+    from .tex_env import (
+        PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
+        PDFLATEX_AVAILABLE, LUALATEX_AVAILABLE, XELATEX_AVAILABLE,
+        DEFAULT_ENGINE, is_warmup_done, is_lualatex_cache_warm,
+    )
+    return {
+        "warmup_done": is_warmup_done(),
+        "lualatex_cache_warm": is_lualatex_cache_warm(),
+        "default_engine": DEFAULT_ENGINE,
+        "availability": {
+            "pdflatex": PDFLATEX_AVAILABLE,
+            "lualatex": LUALATEX_AVAILABLE,
+            "xelatex": XELATEX_AVAILABLE,
+        },
+        "compile_tested": {
+            "pdflatex": PDFLATEX_CJK_OK,
+            "lualatex": LUALATEX_JA_OK,
+            "xelatex": XELATEX_OK,
+        },
+    }
 
 
 @app.get("/api/capabilities")

@@ -1,9 +1,10 @@
 """
-PDF生成サービス: LaTeX生成 → コンパイル → PDF返却
+PDF生成サービス: LaTeX生成 → コンパイル → PDF返却 (v3)
 
 軽量クラウド対応:
-  - 起動時にエンジンを自動テスト (pdflatex+CJK → xelatex の優先度)
-  - CJK.sty が無い環境では自動的に xelatex にフォールバック
+  - バックグラウンド・ウォームアップ方式でエンジンを検証
+  - ウォームアップ完了前でも最善のエンジンで即座に試行
+  - lualatex フォントキャッシュ状態でタイムアウトを動的に調整
   - asyncio Semaphore で最大同時コンパイル数を制限 (OOM 防止)
 """
 import asyncio
@@ -14,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import logging
+import time
 from pathlib import Path
 
 from .models import DocumentModel
@@ -21,7 +23,10 @@ from .generators.document_generator import generate_document_latex
 from .tex_env import (
     TEX_ENV, XELATEX_CMD, PDFLATEX_CMD, LUALATEX_CMD,
     DEFAULT_ENGINE, FALLBACK_ENGINES,
-    CJK_STY_AVAILABLE, PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
+    CJK_STY_AVAILABLE,
+    PDFLATEX_AVAILABLE, LUALATEX_AVAILABLE, XELATEX_AVAILABLE,
+    PDFLATEX_CJK_OK, LUALATEX_JA_OK, XELATEX_OK,
+    wait_for_warmup, is_warmup_done, is_lualatex_cache_warm,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,41 +90,55 @@ async def compile_pdf(doc: DocumentModel) -> bytes:
 def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     """同期版 PDF 生成 (スレッドプールで実行される)
 
-    エンジン選択戦略:
-      1. 起動テスト通過済みエンジンのみを使用 (高速)
-      2. 全て失敗時は DEFAULT_ENGINE をラストリゾートで試行 (短タイムアウト)
-    
-    起動テスト未通過のエンジンは .sty が欠けているため試行しない。
+    エンジン選択戦略 (v3):
+      1. ウォームアップ完了待ち (最大5秒 — すでに数十秒経過しているはず)
+      2. ウォームアップ済み → テスト通過エンジンを使用 (高速)
+      3. ウォームアップ未完了 → パッケージ可用性から推定して試行 (寛大なタイムアウト)
     """
-    # 起動テスト結果マップ
-    engine_ok = {
-        "pdflatex": PDFLATEX_CJK_OK,
-        "lualatex": LUALATEX_JA_OK,
-        "xelatex": XELATEX_OK,
-    }
+    # モジュール経由でアクセスする (ウォームアップスレッドがグローバル変数を更新するため)
+    from . import tex_env as te
 
-    # テスト通過済みエンジンのみ (軽量順)
-    tested_engines = [e for e in ["pdflatex", "lualatex", "xelatex"] if engine_ok.get(e)]
-    
-    # 通過済みが1つもない場合のみ、ラストリゾートとして DEFAULT_ENGINE を入れる
-    engines_to_try = tested_engines if tested_engines else [DEFAULT_ENGINE]
+    t0 = time.monotonic()
 
-    logger.info(
-        f"PDF compilation: engines={engines_to_try}, "
-        f"pdflatex_cjk={'OK' if PDFLATEX_CJK_OK else 'NG'}, "
-        f"lualatex_ja={'OK' if LUALATEX_JA_OK else 'NG'}, "
-        f"xelatex={'OK' if XELATEX_OK else 'NG'}"
-    )
+    # ── ウォームアップ待ち (最大5秒) ──
+    warmup_done = te.wait_for_warmup(timeout=5.0)
+
+    if warmup_done:
+        # ウォームアップ完了: テスト結果を信頼する
+        engine_ok = {
+            "pdflatex": te.PDFLATEX_CJK_OK,
+            "lualatex": te.LUALATEX_JA_OK,
+            "xelatex": te.XELATEX_OK,
+        }
+        tested_engines = [e for e in ["pdflatex", "lualatex", "xelatex"] if engine_ok.get(e)]
+        engines_to_try = tested_engines if tested_engines else [te.DEFAULT_ENGINE]
+        logger.info(
+            f"[compile] Warmup done. engines={engines_to_try}, "
+            f"pdflatex={'OK' if te.PDFLATEX_CJK_OK else 'NG'}, "
+            f"lualatex={'OK' if te.LUALATEX_JA_OK else 'NG'}, "
+            f"xelatex={'OK' if te.XELATEX_OK else 'NG'}"
+        )
+    else:
+        # ウォームアップ未完了: パッケージ可用性から推定 (全て試行)
+        engines_to_try = [e for e in ["pdflatex", "lualatex", "xelatex"]
+                          if {"pdflatex": te.PDFLATEX_AVAILABLE,
+                              "lualatex": te.LUALATEX_AVAILABLE,
+                              "xelatex": te.XELATEX_AVAILABLE}.get(e)]
+        if not engines_to_try:
+            engines_to_try = [te.DEFAULT_ENGINE]
+        logger.info(
+            f"[compile] Warmup NOT done yet. Trying available engines: {engines_to_try}"
+        )
 
     errors: list[tuple[str, PDFGenerationError]] = []
 
-    # ── テスト通過済みエンジンを順に試行 ──
+    # ── エンジンを順に試行 ──
     for engine_name in engines_to_try:
         engine_cmd = ENGINE_CMD.get(engine_name)
         if not engine_cmd:
             continue
 
-        # コマンドの存在確認 (PATH + 直接パス)
+        # コマンドの存在確認
         cmd_exists = bool(shutil.which(engine_cmd) or Path(engine_cmd).is_file())
         if not cmd_exists:
             logger.warning(f"{engine_name} ({engine_cmd}) not found on system, skipping")
@@ -129,25 +148,35 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             )))
             continue
 
-        # pdflatex は軽量なのでタイムアウト短め、lualatex は重いので長め
+        # ── タイムアウト決定 ──
+        # lualatex はフォントキャッシュ状態で大きく変わる
         if engine_name == "pdflatex":
             compile_timeout = 30
         elif engine_name == "lualatex":
-            compile_timeout = 45
-        else:
+            if te.is_lualatex_cache_warm():
+                compile_timeout = 20  # キャッシュ済み: 高速
+            else:
+                compile_timeout = 50  # キャッシュ未構築: 余裕を持たせる
+        else:  # xelatex
             compile_timeout = 35
+
+        # 全体の残り時間も考慮 (REQUEST_TIMEOUT=60s 内に収める)
+        elapsed = time.monotonic() - t0
+        max_remaining = max(50.0 - elapsed, 10.0)  # 最低10秒は確保
+        compile_timeout = min(compile_timeout, int(max_remaining))
+
+        logger.info(f"[compile] Trying {engine_name} (timeout={compile_timeout}s, elapsed={elapsed:.1f}s)")
 
         try:
             latex_source = generate_document_latex(doc, engine=engine_name)
             pdf = _compile_latex(latex_source, engine_cmd, timeout=compile_timeout)
-            logger.info(f"PDF generated successfully with {engine_name}")
+            logger.info(f"[compile] PDF generated with {engine_name} ({time.monotonic() - t0:.1f}s total)")
             return pdf
         except PDFGenerationError as e:
             logger.warning(f"{engine_name} failed: {e.user_message}")
             errors.append((engine_name, e))
 
     # ── 全エンジン失敗 ──
-    # 実際のエラー内容を全て含めたメッセージを構築
     error_details = []
     user_messages = []
     for eng, err in errors:

@@ -23,7 +23,9 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
-      signal: AbortSignal.timeout(55000),
+      // バックエンドの REQUEST_TIMEOUT=60s に合わせてマージンを設定
+      // ウォームアップ完了後は 5-15 秒で返るが、初回は最大 50-55 秒かかる可能性
+      signal: AbortSignal.timeout(58000),
     });
 
     const elapsed = Date.now() - t0;
