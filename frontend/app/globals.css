@@ -126,6 +126,52 @@ html {
   -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
 
+/* ── Stripe-style scrolling animation ── */
+@keyframes scroll-up {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-33.333%);
+  }
+}
+
+@keyframes scroll-down {
+  0% {
+    transform: translateY(-33.333%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.animate-scroll-up {
+  animation: scroll-up linear infinite;
+}
+
+.animate-scroll-down {
+  animation: scroll-down linear infinite;
+}
+
+/* Mask for scroll columns — fade edges */
+.scroll-column-mask {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 15%,
+    black 85%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 15%,
+    black 85%,
+    transparent 100%
+  );
+  height: 100%;
+}
+
 /* Document editor — A4 page PDF-like styling */
 .document-page {
   font-family: "Hiragino Mincho ProN", "Noto Serif CJK JP", "Times New Roman", serif;
