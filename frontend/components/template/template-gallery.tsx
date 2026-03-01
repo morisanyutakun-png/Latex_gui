@@ -234,11 +234,11 @@ export function TemplateGallery() {
         </div>
 
         {/* ── Scrolling formula columns (Stripe end-roll effect) ── */}
-        <div className="absolute inset-0 flex justify-between px-4 pointer-events-none">
-          <ScrollColumn items={SCROLL_FORMULAS.slice(0, 10)} speed={45} direction="up" className="w-48 hidden lg:block opacity-60" />
-          <ScrollColumn items={SCROLL_CODE_SNIPPETS.slice(0, 10)} speed={55} direction="down" className="w-48 hidden xl:block opacity-40" />
-          <ScrollColumn items={SCROLL_FORMULAS.slice(10)} speed={50} direction="up" className="w-48 hidden xl:block opacity-40" />
-          <ScrollColumn items={SCROLL_CODE_SNIPPETS.slice(10)} speed={40} direction="down" className="w-48 hidden lg:block opacity-60" />
+        <div className="absolute inset-0 flex justify-between px-2 sm:px-4 pointer-events-none">
+          <ScrollColumn items={SCROLL_FORMULAS.slice(0, 10)} speed={45} direction="up" className="w-24 sm:w-36 lg:w-48 opacity-25 sm:opacity-40 lg:opacity-60" />
+          <ScrollColumn items={SCROLL_CODE_SNIPPETS.slice(0, 10)} speed={55} direction="down" className="w-36 lg:w-48 hidden md:block opacity-30 lg:opacity-40" />
+          <ScrollColumn items={SCROLL_FORMULAS.slice(10)} speed={50} direction="up" className="w-36 lg:w-48 hidden md:block opacity-30 lg:opacity-40" />
+          <ScrollColumn items={SCROLL_CODE_SNIPPETS.slice(10)} speed={40} direction="down" className="w-24 sm:w-36 lg:w-48 opacity-25 sm:opacity-40 lg:opacity-60" />
         </div>
 
         {/* ── Hero content ── */}
