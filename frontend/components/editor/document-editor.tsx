@@ -395,7 +395,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           {isInMathMode ? (
             <>
               <Sigma className="h-2.5 w-2.5" />
-              <span>数式モード — 日本語で入力できます</span>
+                <span>数式モード — 日本語で入力: ルート「a+b」, 絶対値x, a/b, から〜まで総和</span>
               <span className="ml-auto text-violet-400/60 text-[8px]">⇧⌘M で閉じる</span>
             </>
           ) : (
@@ -500,7 +500,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               )}
               <div className="px-2 py-1 rounded bg-violet-100/60 dark:bg-violet-900/30 text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-2">
                 <Sigma className="h-3 w-3" />
-                <span>日本語で数式入力（例: アルファ, 2分の1, xの2乗）</span>
+                <span>日本語で数式入力（例: ルート「a+b」, 絶対値x, 2分の1, から〜まで積分）</span>
                 <span className="ml-auto text-[9px] text-violet-400/60">⇧⌘M で閉じる</span>
               </div>
             </div>
@@ -547,13 +547,15 @@ function MathBlockEditor({ block }: { block: Block }) {
   }, [block.id, updateContent]);
 
   return (
-    <div className="space-y-2">
-      {/* プレビュー（確定済み数式） — LaTeX風: 背景なし、中央配置 */}
+    <div className="space-y-0">
+      {/* 数式プレビュー — 入力欄のすぐ上に配置 */}
       <div
         className={`transition-all cursor-pointer ${
           content.latex
-            ? "latex-display-math"
-            : "flex justify-center py-3 px-4 bg-violet-50/50 dark:bg-violet-950/20 rounded-lg"
+            ? isEditing
+              ? "latex-display-math border-b border-violet-200/50 dark:border-violet-800/50 pb-2 mb-0"
+              : "latex-display-math"
+            : "flex justify-center py-3 px-4 bg-violet-50/50 dark:bg-violet-950/20 rounded-t-lg"
         }`}
       >
         {content.latex ? (
@@ -566,10 +568,9 @@ function MathBlockEditor({ block }: { block: Block }) {
         )}
       </div>
 
-      {/* 編集パネル */}
+      {/* 入力欄 — プレビュー直下（隙間なし） */}
       {isEditing && (
-        <div className="space-y-2 border rounded-xl p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
-          {/* 統合入力（日本語 + LaTeX + 辞書検索 + スペース調整） */}
+        <div className="border rounded-b-xl border-t-0 p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
           <JapaneseMathInput
             onApply={handleApply}
             initialSourceText={content.sourceText || ""}

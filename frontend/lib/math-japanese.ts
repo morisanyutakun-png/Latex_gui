@@ -1523,6 +1523,9 @@ function convertArrows(s: string): string {
  */
 function enhanceArithmetic(s: string): string {
   s = zenkakuToHankaku(s);
+  // 「」→ 通常括弧 (Phase5 convertBrackets で自動サイズ化)
+  s = s.replace(/「([^」]+)」/g, (_, x) => `(${x})`);
+  s = s.replace(/『([^』]+)』/g, (_, x) => `[${x}]`);
   // Unicode記号変換
   for (const [re, latex] of UNICODE_TO_LATEX) {
     s = s.replace(re, latex);
@@ -1588,16 +1591,47 @@ export function parseJapanesemath(input: string): string {
     (_, n, x) => `\\sqrt[${resolveTerm(n)}]{${resolveTerm(x)}}`
   );
 
-  // るーと[x] / 平方根[x] / 根号[x] → \sqrt{x}
-  // 括弧付きも処理: ルート(a+b) → \sqrt{a+b}
+  // ── 演算子モデル: 単項前置演算子 (Unary Prefix) ──
+  // ※ すべての「」消費パターンはbare「」変換より先に実行
+
+  // ルート / 平方根 / 根号 → \sqrt{}
+  result = result.replace(
+    /(?:るーと|平方根|根号|√)「([^」]+)」/g,
+    (_, x) => `\\sqrt{${x}}`
+  );
   result = result.replace(
     /(?:るーと|平方根|根号|√)\(([^)]+)\)/g,
     (_, x) => `\\sqrt{${x}}`
   );
   result = result.replace(
-    /(?:るーと|平方根|根号|√)([^\s(]+)/g,
+    /(?:るーと|平方根|根号|√)([^\s(「]+)/g,
     (_, x) => `\\sqrt{${resolveTerm(x)}}`
   );
+
+  // 絶対値 → \left| ... \right|
+  result = result.replace(/(?:ぜったいち|絶対値)「([^」]+)」/g, (_, x) => `\\left| ${x} \\right|`);
+  result = result.replace(/(?:ぜったいち|絶対値)\(([^)]+)\)/g, (_, x) => `\\left| ${x} \\right|`);
+  result = result.replace(/(?:ぜったいち|絶対値)([^\s(「]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
+
+  // ノルム → \left\| ... \right\|
+  result = result.replace(/(?:のるむ|ノルム)「([^」]+)」/g, (_, x) => `\\left\\| ${x} \\right\\|`);
+  result = result.replace(/(?:のるむ|ノルム)\(([^)]+)\)/g, (_, x) => `\\left\\| ${x} \\right\\|`);
+  result = result.replace(/(?:のるむ|ノルム)([^\s(「]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
+
+  // 太字 / ボールド → \mathbf{}
+  result = result.replace(/(?:太字|ぼーるど|ボールド)「([^」]+)」/g, (_, x) => `\\mathbf{${x}}`);
+  result = result.replace(/(?:太字|ぼーるど|ボールド)([a-zA-Z])/g, (_, x) => `\\mathbf{${x}}`);
+
+  // ── 演算子モデル: 括弧を演算子として処理 ──
+  // 「a+b」→ (a+b) (日本語鉤括弧 → 通常括弧、Phase5で自動サイズ化)
+  result = result.replace(/「([^」]+)」/g, (_, x) => `(${x})`);
+  result = result.replace(/『([^』]+)』/g, (_, x) => `[${x}]`);
+  // かっこ...おわり → (...)  
+  result = result.replace(/(?:かっこ|括弧)([^\s]+?)(?:おわり|閉じ|とじ)/g, (_, x) => `(${x})`);
+  // かくかっこ...おわり → [...]
+  result = result.replace(/(?:かくかっこ|角括弧)([^\s]+?)(?:おわり|閉じ|とじ)/g, (_, x) => `[${x}]`);
+  // なみかっこ...おわり → \{...\}
+  result = result.replace(/(?:なみかっこ|波括弧|中括弧)([^\s]+?)(?:おわり|閉じ|とじ)/g, (_, x) => `\\{${x}\\}`);
 
   // [from]から[to]まで せきぶん/積分 → \int_{from}^{to}
   result = result.replace(
@@ -1677,7 +1711,7 @@ export function parseJapanesemath(input: string): string {
     (_, v, n) => `${v}^{${n}}`
   );
 
-  // ── Phase 2: 装飾パターン ──
+  // ── Phase 2: 装飾パターン (単項前置演算子 — 文字単位) ──
   // ※ 正規化済みなのでカタカナ形はひらがなに統一済み
   result = result.replace(/べくとる([a-zA-Z])/g, (_, x) => `\\vec{${x}}`);
   result = result.replace(/はっと([a-zA-Z])/g, (_, x) => `\\hat{${x}}`);
@@ -1685,18 +1719,8 @@ export function parseJapanesemath(input: string): string {
   result = result.replace(/(?:ばー|平均)([a-zA-Z])/g, (_, x) => `\\bar{${x}}`);
   result = result.replace(/(?:だぶるどっと|二階微分)([a-zA-Z])/g, (_, x) => `\\ddot{${x}}`);
   result = result.replace(/どっと([a-zA-Z])/g, (_, x) => `\\dot{${x}}`);
-  // 絶対値: 括弧付きもOK — 絶対値(x-1) → |x-1|
-  result = result.replace(/(?:ぜったいち|絶対値)\(([^)]+)\)/g, (_, x) => `\\left| ${x} \\right|`);
-  result = result.replace(/(?:ぜったいち|絶対値)([^\s(]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
-  result = result.replace(/(?:のるむ)\(([^)]+)\)/g, (_, x) => `\\left\\| ${x} \\right\\|`);
-  result = result.replace(/(?:のるむ)([^\s(]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
-  result = result.replace(/太字([a-zA-Z])/g, (_, x) => `\\mathbf{${x}}`);
-  // 括弧の日本語表現 (丸括弧, 角括弧, 波括弧)
-  result = result.replace(/(?:まるかっこ|丸括弧|括弧)\(([^)]+)\)/g, (_, x) => `\\left(${x}\\right)`);
-  result = result.replace(/(?:かくかっこ|角括弧)\[([^\]]+)\]/g, (_, x) => `\\left[${x}\\right]`);
-  result = result.replace(/(?:なみかっこ|波括弧|中括弧)\{([^}]+)\}/g, (_, x) => `\\left\\{${x}\\right\\}`);
 
-  // ── Phase 3: 演算子・関係子 ──
+  // ── Phase 3: 二項演算子・関係子 ──
   // (カタカナ形は Phase0 でひらがなに正規化済み)
   result = result.replace(/(?:たす|たして|足す|足して|ぷらす|加算|かさん)/g, "+ ");
   result = result.replace(/(?:ひく|ひいて|引く|引いて|まいなす|減算|げんざん)/g, "- ");

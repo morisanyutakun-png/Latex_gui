@@ -27,20 +27,18 @@ import { FORMULA_TEMPLATES, type FormulaTemplate } from "./math-dictionary";
 
 // ── 変換ヒントデータ ──
 const CONVERSION_HINTS = [
-  { input: "a/b", output: "\\frac{a}{b}", label: "分数（/記法）" },
-  { input: "(a+b)/(c+d)", output: "\\frac{a+b}{c+d}", label: "括弧分数" },
-  { input: "2分の1", output: "\\frac{1}{2}", label: "分数（日本語）" },
-  { input: "xの2乗", output: "x^{2}", label: "累乗" },
-  { input: "ルート2", output: "\\sqrt{2}", label: "平方根" },
-  { input: "sin(x)", output: "\\sin\\left(x\\right)", label: "三角関数" },
-  { input: "α (直接入力)", output: "\\alpha", label: "ギリシャ文字" },
+  { input: "a/b", output: "\\frac{a}{b}", label: "二項: 分数" },
+  { input: "ルート「a+b」", output: "\\sqrt{a+b}", label: "単項: ルート" },
+  { input: "絶対値「x-1」", output: "\\left| x-1 \\right|", label: "単項: 絶対値" },
+  { input: "ベクトルa", output: "\\vec{a}", label: "単項: 装飾" },
+  { input: "sin(x)", output: "\\sin\\left(x\\right)", label: "関数認識" },
   { input: "xは0より大きい", output: "x > 0", label: "自然言語" },
-  { input: "R_2分のV", output: "\\frac{V}{R_{2}}", label: "複合分数" },
-  { input: "xで微分", output: "\\frac{d}{dx}", label: "微分" },
-  { input: "0からπまで積分", output: "\\int_{0}^{\\pi}", label: "定積分" },
-  { input: "i=1からnまで総和", output: "\\sum_{i=1}^{n}", label: "総和" },
-  { input: "->", output: "\\to", label: "矢印" },
-  { input: "解の公式", output: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}", label: "公式検索" },
+  { input: "i=1からnまで総和", output: "\\sum_{i=1}^{n}", label: "三項: から〜まで" },
+  { input: "0からπまで積分", output: "\\int_{0}^{\\pi}", label: "三項: から〜まで" },
+  { input: "「a+b」/(c+d)", output: "\\frac{\\left(a+b\\right)}{c+d}", label: "「」= 括弧" },
+  { input: "xの2乗", output: "x^{2}", label: "二項: 累乗" },
+  { input: "2分の1", output: "\\frac{1}{2}", label: "二項: 分数" },
+  { input: "α, →, Σ", output: "\\alpha, \\to, \\Sigma", label: "記号直接入力" },
 ];
 
 // ── よく使う記号（クイックアクセス）── 日本語読みで挿入 ──
@@ -444,7 +442,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             setShowHints(false);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="数式入力: a/b, sin(x), xの2乗, xは0より大きい, →, α …"
+          placeholder="数式入力: a/b, ルート「a+b」, 絶対値x, 0からπまで積分 …"
           className={`w-full pl-8 pr-4 py-2.5 text-sm rounded-xl border-2 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans transition-all ${
             overrideLatex
               ? "border-amber-300 dark:border-amber-700 focus:ring-amber-400/40"
@@ -608,56 +606,67 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       <details className="group mt-1">
         <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
           <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-          入力ルール・構文ガイド
+          演算子モデル・構文ガイド
         </summary>
         <div className="mt-1.5 p-3 rounded-xl bg-muted/30 border border-border/50 space-y-3">
           <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1">
               <p className="text-[9px] font-semibold text-foreground/70 pb-1 border-b border-border/30 flex items-center gap-1">
-                <Hash className="h-3 w-3" /> 基本ルール
+                <Hash className="h-3 w-3" /> 演算子の種類
               </p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
+              <div className="grid grid-cols-1 gap-y-1 text-[10px]">
                 <div className="flex items-center gap-1">
-                  <span className="text-emerald-600 font-medium">スペースなし</span>
-                  <span className="text-muted-foreground/60">= ひとまとまり</span>
+                  <span className="text-emerald-600 font-medium w-20">単項 (1項)</span>
+                  <span className="text-muted-foreground/60">ルートx, 絶対値x, ベクトルa, ハットx</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-amber-600 font-medium">スペースあり</span>
-                  <span className="text-muted-foreground/60">= 項の区切り</span>
+                  <span className="text-blue-600 font-medium w-20">二項 (2項)</span>
+                  <span className="text-muted-foreground/60">a たす b, a/b, 2分の1, xの2乗</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-blue-600 font-medium">_</span>
-                  <span className="text-muted-foreground/60">= 下付き添え字</span>
+                  <span className="text-violet-600 font-medium w-20">三項 (3項)</span>
+                  <span className="text-muted-foreground/60">0<b>から</b>π<b>まで</b>積分, i=1<b>から</b>n<b>まで</b>総和</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-blue-600 font-medium">^</span>
-                  <span className="text-muted-foreground/60">= 上付き</span>
+                  <span className="text-amber-600 font-medium w-20">括弧 「」</span>
+                  <span className="text-muted-foreground/60">「a+b」→ (a+b), ルート「a+b」→ √(a+b)</span>
                 </div>
               </div>
             </div>
 
             <ConversionExamples
-              title="分数"
+              title="単項演算子（前置）"
               examples={[
+                { input: "ルートx", result: "\\sqrt{x}" },
+                { input: "ルート「a+b」", result: "\\sqrt{a+b}", note: "「」でグループ化" },
+                { input: "絶対値「x-1」", result: "\\left| x-1 \\right|" },
+                { input: "ベクトルa", result: "\\vec{a}" },
+              ]}
+            />
+            <ConversionExamples
+              title="二項演算子"
+              examples={[
+                { input: "a/b", result: "\\frac{a}{b}" },
                 { input: "2分の1", result: "\\frac{1}{2}" },
-                { input: "R+R_2分のV", result: "\\frac{V}{R+R_{2}}" },
-                { input: "1+ 2分の3", result: "1+\\frac{3}{2}", note: "スペースで分断" },
+                { input: "xの2乗", result: "x^{2}" },
+                { input: "a たす b", result: "a + b" },
               ]}
             />
             <ConversionExamples
-              title="累乗・根号"
+              title="三項演算子（から〜まで）"
               examples={[
-                { input: "a+bのc乗", result: "(a+b)^{c}" },
-                { input: "ルートa+b", result: "\\sqrt{a+b}" },
-                { input: "ルートa +b", result: "\\sqrt{a}+b", note: "スペースで分断" },
-              ]}
-            />
-            <ConversionExamples
-              title="微積分"
-              examples={[
-                { input: "xで微分", result: "\\frac{d}{dx}" },
-                { input: "0からパイまで積分", result: "\\int_{0}^{\\pi}" },
+                { input: "0からπまで積分", result: "\\int_{0}^{\\pi}" },
                 { input: "i=1からnまで総和", result: "\\sum_{i=1}^{n}" },
+                { input: "xで微分", result: "\\frac{d}{dx}" },
+              ]}
+            />
+            <ConversionExamples
+              title="括弧「」（グループ化演算子）"
+              examples={[
+                { input: "「a+b」", result: "\\left(a+b\\right)", note: "→ 丸括弧" },
+                { input: "『a+b』", result: "\\left[a+b\\right]", note: "→ 角括弧" },
+                { input: "「a+b」/「c+d」", result: "\\frac{a+b}{c+d}", note: "分数時は不要" },
+                { input: "かっこa+bおわり", result: "\\left(a+b\\right)", note: "日本語でもOK" },
               ]}
             />
           </div>
@@ -782,13 +791,13 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
 
       {/* ═══ フッターヒント（LaTeX非表示） ═══ */}
       <div className="text-[9px] text-muted-foreground/50 leading-relaxed mt-1.5 px-1">
-        <span className="text-emerald-600 font-medium">分数</span>: a/b
+        <span className="text-emerald-600 font-medium">単項</span>: ルートx, 絶対値x
         <span className="mx-1.5">|</span>
-        <span className="text-orange-600 font-medium">関数</span>: sin(x)
+        <span className="text-blue-600 font-medium">二項</span>: a/b, 分の
         <span className="mx-1.5">|</span>
-        <span className="text-purple-600 font-medium">自然言語</span>: xは0より大きい
+        <span className="text-purple-600 font-medium">三項</span>: から〜まで積分
         <span className="mx-1.5">|</span>
-        <span className="text-blue-600 font-medium">記号</span>: α, →, Σ
+        <span className="text-amber-600 font-medium">括弧</span>: 「a+b」
       </div>
     </div>
   );
