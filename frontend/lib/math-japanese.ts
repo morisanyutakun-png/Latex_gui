@@ -1434,31 +1434,31 @@ const LATEX_FUNCTIONS = [
  */
 function parseSlashFraction(s: string): string {
   // パターン0: func(args)/func(args) — 関数同士の分数
-  s = s.replace(/([a-zA-Z]+\([^()]+\))\/([a-zA-Z]+\([^()]+\))/g, (_, n, d) =>
+  s = s.replace(/([a-zA-Z]+\([^()]+\))\s*\/\s*([a-zA-Z]+\([^()]+\))/g, (_, n, d) =>
     `\\frac{${n}}{${d}}`
   );
   // パターン0b: func(args)/(group) — 関数呼び出しを分子として扱う
-  s = s.replace(/([a-zA-Z]+\([^()]+\))\/\(([^()]+)\)/g, (_, n, d) =>
+  s = s.replace(/([a-zA-Z]+\([^()]+\))\s*\/\s*\(([^()]+)\)/g, (_, n, d) =>
     `\\frac{${n}}{${d}}`
   );
   // パターン0c: func(args)/term — 関数呼び出しを分子として扱う
-  s = s.replace(/([a-zA-Z]+\([^()]+\))\/([a-zA-Z0-9]+)/g, (_, n, d) =>
+  s = s.replace(/([a-zA-Z]+\([^()]+\))\s*\/\s*([a-zA-Z0-9]+)/g, (_, n, d) =>
     `\\frac{${n}}{${d}}`
   );
   // パターン1: (...)/(...)  — 関数引数ではない括弧のみ (lookbehind for alpha)
-  s = s.replace(/(?<![a-zA-Z])\(([^()]+)\)\/\(([^()]+)\)/g, (_, n, d) =>
+  s = s.replace(/(?<![a-zA-Z])\(([^()]+)\)\s*\/\s*\(([^()]+)\)/g, (_, n, d) =>
     `\\frac{${n}}{${d}}`
   );
   // パターン2: (...)/term — 関数引数ではない
-  s = s.replace(/(?<![a-zA-Z])\(([^()]+)\)\/([a-zA-Z0-9]+)/g, (_, n, d) =>
+  s = s.replace(/(?<![a-zA-Z])\(([^()]+)\)\s*\/\s*([a-zA-Z0-9]+)/g, (_, n, d) =>
     `\\frac{${n}}{${d}}`
   );
   // パターン3: 単項/(...)  — a/(b+c)
-  s = s.replace(/([a-zA-Z0-9]+)\/\(([^()]+)\)/g, (_, n, d) =>
+  s = s.replace(/([a-zA-Z0-9]+)\s*\/\s*\(([^()]+)\)/g, (_, n, d) =>
     `\\frac{${n}}{${d}}`
   );
   // パターン4: 単項/単項 — a/b, 1/2
-  s = s.replace(/([a-zA-Z0-9]+)\/([a-zA-Z0-9]+)/g, (_, n, d) =>
+  s = s.replace(/([a-zA-Z0-9]+)\s*\/\s*([a-zA-Z0-9]+)/g, (_, n, d) =>
     `\\frac{${n}}{${d}}`
   );
   return s;
@@ -1570,6 +1570,22 @@ export function parseJapanesemath(input: string): string {
 
   // ── Phase 1: 構造パターン (長いパターン優先) ──
 
+  // ══ Phase 1a: 括弧演算子 (最優先 — 他の単項演算子より先に処理) ══
+  // 括弧は単項前置演算子: スペースまでの内容を括弧で囲む
+  // ネスト例: ルートかっこa+b → ルート(a+b) → \sqrt{a+b}
+  //           かっこa+b たす かっこc+d → (a+b) + (c+d)
+  // ※ 長いパターン優先 (なみかっこ > かくかっこ > かっこ)
+  result = result.replace(/(?:なみかっこ|波括弧|中括弧)([^\s]+)/g, (_, x) => `\\{${x}\\}`);
+  result = result.replace(/(?:かくかっこ|角括弧)([^\s]+)/g, (_, x) => `[${x}]`);
+  result = result.replace(/(?:かっこ|括弧)([^\s]+)/g, (_, x) => `(${x})`);
+  // ※ かっこ は「スペースまで消費」が原則。分離には空白を使う:
+  //    かっこa+b / かっこc+d → (a+b) / (c+d) → \frac{(a+b)}{(c+d)}
+  // 「」 → () (鉤括弧 → 通常括弧、補助的構文)
+  result = result.replace(/「([^」]+)」/g, (_, x) => `(${x})`);
+  result = result.replace(/『([^』]+)』/g, (_, x) => `[${x}]`);
+
+  // ══ Phase 1b: 二項構造 (分数・累乗) ══
+
   // [denom]ぶんの[numer] / [denom]分の[numer] → \frac{numer}{denom}
   result = result.replace(
     new RegExp(`(${TERM})(?:ぶんの|分の)(${TERM_G})`, "g"),
@@ -1591,49 +1607,32 @@ export function parseJapanesemath(input: string): string {
     (_, n, x) => `\\sqrt[${resolveTerm(n)}]{${resolveTerm(x)}}`
   );
 
-  // ── 演算子モデル: 単項前置演算子 (Unary Prefix) ──
-  // ※ すべての「」消費パターンはbare「」変換より先に実行
+  // ══ Phase 1c: 単項前置演算子 (スペースまで消費) ══
+  // ※ Phase 1a で括弧が () に変換済みなので、ルート(a+b) 等が自然にマッチ
 
   // ルート / 平方根 / 根号 → \sqrt{}
-  result = result.replace(
-    /(?:るーと|平方根|根号|√)「([^」]+)」/g,
-    (_, x) => `\\sqrt{${x}}`
-  );
   result = result.replace(
     /(?:るーと|平方根|根号|√)\(([^)]+)\)/g,
     (_, x) => `\\sqrt{${x}}`
   );
   result = result.replace(
-    /(?:るーと|平方根|根号|√)([^\s(「]+)/g,
+    /(?:るーと|平方根|根号|√)([^\s(]+)/g,
     (_, x) => `\\sqrt{${resolveTerm(x)}}`
   );
 
   // 絶対値 → \left| ... \right|
-  result = result.replace(/(?:ぜったいち|絶対値)「([^」]+)」/g, (_, x) => `\\left| ${x} \\right|`);
   result = result.replace(/(?:ぜったいち|絶対値)\(([^)]+)\)/g, (_, x) => `\\left| ${x} \\right|`);
-  result = result.replace(/(?:ぜったいち|絶対値)([^\s(「]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
+  result = result.replace(/(?:ぜったいち|絶対値)([^\s(]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
 
   // ノルム → \left\| ... \right\|
-  result = result.replace(/(?:のるむ|ノルム)「([^」]+)」/g, (_, x) => `\\left\\| ${x} \\right\\|`);
   result = result.replace(/(?:のるむ|ノルム)\(([^)]+)\)/g, (_, x) => `\\left\\| ${x} \\right\\|`);
-  result = result.replace(/(?:のるむ|ノルム)([^\s(「]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
+  result = result.replace(/(?:のるむ|ノルム)([^\s(]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
 
   // 太字 / ボールド → \mathbf{}
-  result = result.replace(/(?:太字|ぼーるど|ボールド)「([^」]+)」/g, (_, x) => `\\mathbf{${x}}`);
+  result = result.replace(/(?:太字|ぼーるど|ボールド)\(([^)]+)\)/g, (_, x) => `\\mathbf{${x}}`);
   result = result.replace(/(?:太字|ぼーるど|ボールド)([a-zA-Z])/g, (_, x) => `\\mathbf{${x}}`);
 
-  // ── 演算子モデル: 括弧を演算子として処理 ──
-  // 「a+b」→ (a+b) (日本語鉤括弧 → 通常括弧、Phase5で自動サイズ化)
-  result = result.replace(/「([^」]+)」/g, (_, x) => `(${x})`);
-  result = result.replace(/『([^』]+)』/g, (_, x) => `[${x}]`);
-  // かっこ...おわり → (...)  
-  result = result.replace(/(?:かっこ|括弧)([^\s]+?)(?:おわり|閉じ|とじ)/g, (_, x) => `(${x})`);
-  // かくかっこ...おわり → [...]
-  result = result.replace(/(?:かくかっこ|角括弧)([^\s]+?)(?:おわり|閉じ|とじ)/g, (_, x) => `[${x}]`);
-  // なみかっこ...おわり → \{...\}
-  result = result.replace(/(?:なみかっこ|波括弧|中括弧)([^\s]+?)(?:おわり|閉じ|とじ)/g, (_, x) => `\\{${x}\\}`);
-
-  // [from]から[to]まで せきぶん/積分 → \int_{from}^{to}
+  // ══ Phase 1d: 三項演算子 (から〜まで) ══
   result = result.replace(
     /([^\s]+)から([^\s]+)まで(?:せきぶん|積分)/g,
     (_, from, to) => `\\int_{${resolveTerm(from)}}^{${resolveTerm(to)}}`

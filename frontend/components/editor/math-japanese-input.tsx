@@ -28,16 +28,16 @@ import { FORMULA_TEMPLATES, type FormulaTemplate } from "./math-dictionary";
 // ── 変換ヒントデータ ──
 const CONVERSION_HINTS = [
   { input: "a/b", output: "\\frac{a}{b}", label: "二項: 分数" },
-  { input: "ルート「a+b」", output: "\\sqrt{a+b}", label: "単項: ルート" },
-  { input: "絶対値「x-1」", output: "\\left| x-1 \\right|", label: "単項: 絶対値" },
-  { input: "ベクトルa", output: "\\vec{a}", label: "単項: 装飾" },
+  { input: "ルートかっこa+b", output: "\\sqrt{a+b}", label: "単項: ルート+括弧" },
+  { input: "絶対値x", output: "\\left| x \\right|", label: "単項: 絶対値" },
+  { input: "かっこa+b", output: "\\left(a+b\\right)", label: "単項: 括弧" },
   { input: "sin(x)", output: "\\sin\\left(x\\right)", label: "関数認識" },
   { input: "xは0より大きい", output: "x > 0", label: "自然言語" },
   { input: "i=1からnまで総和", output: "\\sum_{i=1}^{n}", label: "三項: から〜まで" },
   { input: "0からπまで積分", output: "\\int_{0}^{\\pi}", label: "三項: から〜まで" },
-  { input: "「a+b」/(c+d)", output: "\\frac{\\left(a+b\\right)}{c+d}", label: "「」= 括弧" },
   { input: "xの2乗", output: "x^{2}", label: "二項: 累乗" },
   { input: "2分の1", output: "\\frac{1}{2}", label: "二項: 分数" },
+  { input: "ベクトルa", output: "\\vec{a}", label: "単項: 装飾" },
   { input: "α, →, Σ", output: "\\alpha, \\to, \\Sigma", label: "記号直接入力" },
 ];
 
@@ -628,18 +628,19 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
                   <span className="text-muted-foreground/60">0<b>から</b>π<b>まで</b>積分, i=1<b>から</b>n<b>まで</b>総和</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-amber-600 font-medium w-20">括弧 「」</span>
-                  <span className="text-muted-foreground/60">「a+b」→ (a+b), ルート「a+b」→ √(a+b)</span>
+                  <span className="text-amber-600 font-medium w-20">括弧 (単項)</span>
+                  <span className="text-muted-foreground/60">かっこa+b → (a+b), スペースなし=ネスト</span>
                 </div>
               </div>
             </div>
 
             <ConversionExamples
-              title="単項演算子（前置）"
+              title="単項演算子（前置・スペースまで消費）"
               examples={[
                 { input: "ルートx", result: "\\sqrt{x}" },
-                { input: "ルート「a+b」", result: "\\sqrt{a+b}", note: "「」でグループ化" },
-                { input: "絶対値「x-1」", result: "\\left| x-1 \\right|" },
+                { input: "ルートかっこa+b", result: "\\sqrt{a+b}", note: "ネスト: スペースなし" },
+                { input: "絶対値かっこx-1", result: "\\left| x-1 \\right|", note: "ネスト" },
+                { input: "かっこa+b", result: "\\left(a+b\\right)", note: "括弧も単項演算子" },
                 { input: "ベクトルa", result: "\\vec{a}" },
               ]}
             />
@@ -661,12 +662,12 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
               ]}
             />
             <ConversionExamples
-              title="括弧「」（グループ化演算子）"
+              title="括弧（単項前置演算子）"
               examples={[
-                { input: "「a+b」", result: "\\left(a+b\\right)", note: "→ 丸括弧" },
-                { input: "『a+b』", result: "\\left[a+b\\right]", note: "→ 角括弧" },
-                { input: "「a+b」/「c+d」", result: "\\frac{a+b}{c+d}", note: "分数時は不要" },
-                { input: "かっこa+bおわり", result: "\\left(a+b\\right)", note: "日本語でもOK" },
+                { input: "かっこa+b", result: "\\left(a+b\\right)", note: "スペースまで消費" },
+                { input: "かくかっこa+b", result: "\\left[a+b\\right]", note: "角括弧" },
+                { input: "「a+b」", result: "\\left(a+b\\right)", note: "鉤括弧でもOK" },
+                { input: "かっこa+b / かっこc+d", result: "\\frac{a+b}{c+d}", note: "空白で分離" },
               ]}
             />
           </div>

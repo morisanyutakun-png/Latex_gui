@@ -395,7 +395,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           {isInMathMode ? (
             <>
               <Sigma className="h-2.5 w-2.5" />
-                <span>数式モード — 日本語で入力: ルート「a+b」, 絶対値x, a/b, から〜まで総和</span>
+                <span>数式モード — 日本語で入力: ルートかっこa+b, 絶対値x, a/b, から〜まで総和</span>
               <span className="ml-auto text-violet-400/60 text-[8px]">⇧⌘M で閉じる</span>
             </>
           ) : (
@@ -500,7 +500,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               )}
               <div className="px-2 py-1 rounded bg-violet-100/60 dark:bg-violet-900/30 text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-2">
                 <Sigma className="h-3 w-3" />
-                <span>日本語で数式入力（例: ルート「a+b」, 絶対値x, 2分の1, から〜まで積分）</span>
+                <span>日本語で数式入力（例: ルートかっこa+b, 絶対値x, 2分の1, から〜まで積分）</span>
                 <span className="ml-auto text-[9px] text-violet-400/60">⇧⌘M で閉じる</span>
               </div>
             </div>
