@@ -321,9 +321,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     const lastWord = lastWordMatch ? lastWordMatch[1] : "";
     const before = mathContent.slice(0, mathContent.length - lastWord.length);
 
-    // LaTeXのシンプルな表記を使用
-    const simplifiedLatex = sugg.latex.replace(/\{[AB]\}/g, "").replace(/\{/g, "").replace(/\}/g, "");
-    const newMathContent = before + simplifiedLatex;
+    // 日本語の読みを挿入（ユーザーにはLaTeXを見せない）
+    const newMathContent = before + sugg.reading;
 
     // テキスト全体を再構成
     const textBefore = content.text.slice(0, ctx.mathStart + 1); // $ を含む
@@ -481,7 +480,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 >
                   <span className="text-muted-foreground w-16 shrink-0 text-[10px]">{sugg.category}</span>
                   <span className="font-medium">{sugg.reading}</span>
-                  <span className="text-muted-foreground ml-auto font-mono text-[10px]">{sugg.latex}</span>
+                  <span className="ml-auto"><MathRenderer latex={sugg.latex} displayMode={false} /></span>
                 </button>
               ))}
             </div>
@@ -572,22 +571,8 @@ function MathBlockEditor({ block }: { block: Block }) {
           {/* 統合入力（日本語 + LaTeX + 辞書検索 + スペース調整） */}
           <JapaneseMathInput
             onApply={handleApply}
-            initialSourceText={content.sourceText || content.latex || ""}
+            initialSourceText={content.sourceText || ""}
           />
-
-          {/* LaTeX コード (上級者向け) */}
-          {content.latex && (
-            <details className="group">
-              <summary className="text-[9px] text-muted-foreground/40 cursor-pointer hover:text-muted-foreground/60 transition-colors select-none">
-                生成されたコード（上級者向け）
-              </summary>
-              <div className="mt-1 px-2 py-1.5 rounded-lg bg-muted/30 border border-border/30">
-                <code className="text-[10px] font-mono text-muted-foreground break-all select-all">
-                  {content.latex}
-                </code>
-              </div>
-            </details>
-          )}
         </div>
       )}
     </div>

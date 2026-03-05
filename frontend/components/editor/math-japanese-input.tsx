@@ -16,16 +16,16 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, BookOpen, ChevronRight, Lightbulb, ArrowRight, Clock, Star, Keyboard, Zap, X, Hash } from "lucide-react";
+import { Search, BookOpen, ChevronRight, ChevronDown, Lightbulb, ArrowRight, Clock, Star, Keyboard, Zap, X, Hash } from "lucide-react";
 import { FORMULA_TEMPLATES, type FormulaTemplate } from "./math-dictionary";
 
 // ══════════════════════════════════════════
-// 統合数式入力コンポーネント v2
+// 統合数式入力コンポーネント v3
+// ─ LaTeX を完全に隠蔽、日本語のみで数式を書ける体験
 // ─ 辞書 + 予測変換 + 公式検索 を 1つの入力欄に統合
-// ─ 人間工学的に設計: 初学者に直感的、上級者に高速
 // ══════════════════════════════════════════
 
-// ── 変換ヒントデータ (「こう入力→この数式」のマッピング) ──
+// ── 変換ヒントデータ ──
 const CONVERSION_HINTS = [
   { input: "2分の1", output: "\\frac{1}{2}", label: "分数" },
   { input: "xの2乗", output: "x^{2}", label: "累乗" },
@@ -41,24 +41,24 @@ const CONVERSION_HINTS = [
   { input: "解の公式", output: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}", label: "公式検索" },
 ];
 
-// ── よく使う記号（クイックアクセス） ──
+// ── よく使う記号（クイックアクセス）── 日本語読みで挿入 ──
 const QUICK_SYMBOLS = [
-  { label: "α", latex: "\\alpha" },
-  { label: "β", latex: "\\beta" },
-  { label: "θ", latex: "\\theta" },
-  { label: "π", latex: "\\pi" },
-  { label: "Σ", latex: "\\sum" },
-  { label: "∫", latex: "\\int" },
-  { label: "√", latex: "\\sqrt{}" },
-  { label: "∞", latex: "\\infty" },
-  { label: "→", latex: "\\to" },
-  { label: "×", latex: "\\times" },
-  { label: "≤", latex: "\\leq" },
-  { label: "≥", latex: "\\geq" },
-  { label: "≠", latex: "\\neq" },
-  { label: "±", latex: "\\pm" },
-  { label: "∂", latex: "\\partial" },
-  { label: "∇", latex: "\\nabla" },
+  { label: "α", reading: "アルファ", desc: "アルファ" },
+  { label: "β", reading: "ベータ", desc: "ベータ" },
+  { label: "θ", reading: "シータ", desc: "シータ" },
+  { label: "π", reading: "パイ", desc: "パイ" },
+  { label: "Σ", reading: "シグマ", desc: "総和記号" },
+  { label: "∫", reading: "積分", desc: "積分記号" },
+  { label: "√", reading: "ルート", desc: "平方根" },
+  { label: "∞", reading: "無限大", desc: "無限大" },
+  { label: "→", reading: "右矢印", desc: "右矢印" },
+  { label: "×", reading: "かける", desc: "掛け算" },
+  { label: "≤", reading: "小なりイコール", desc: "以下" },
+  { label: "≥", reading: "大なりイコール", desc: "以上" },
+  { label: "≠", reading: "ノットイコール", desc: "等しくない" },
+  { label: "±", reading: "プラスマイナス", desc: "プラスマイナス" },
+  { label: "∂", reading: "偏微分", desc: "偏微分" },
+  { label: "∇", reading: "ナブラ", desc: "ナブラ" },
 ];
 
 // ── カテゴリアイコンマッピング ──
@@ -143,15 +143,13 @@ function addToHistory(latex: string, display: string) {
 export function JapaneseMathInput({ onApply, initialSourceText = "", className = "" }: JapaneseMathInputProps) {
   const [inputText, setInputText] = useState(initialSourceText);
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [showBrowser, setShowBrowser] = useState(false);
   const [browserCategory, setBrowserCategory] = useState("すべて");
   const [spacings, setSpacings] = useState<string[]>([]);
   const [overrideLatex, setOverrideLatex] = useState<string | null>(null);
   const [showHints, setShowHints] = useState(!initialSourceText);
-  const [inputMode, setInputMode] = useState<"unified" | "browse">("unified");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // ── リアルタイム変換結果 ──
+  // ── リアルタイム変換結果（内部のみ、ユーザには見せない） ──
   const baseLatex = useMemo(() => {
     if (overrideLatex) return overrideLatex;
     if (inputText.trim()) return parseJapanesemath(inputText);
@@ -252,7 +250,6 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       const normJp = normalizeForMatch(f.japanese);
       if (f.label.toLowerCase().includes(q)) score = 70;
       else if (normJp.includes(normQ)) score = 65;
-      else if (f.latex.toLowerCase().includes(q)) score = 25;
       else if (f.category.toLowerCase().includes(q)) score = 15;
 
       if (score > 0) {
@@ -283,6 +280,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
         setInputText(words.join(" ") + " ");
         setOverrideLatex(null);
       } else {
+        // 公式テンプレート: 日本語名を入力欄に表示し、内部でLaTeXを保持
         setInputText(s.display);
         setOverrideLatex(s.latex);
       }
@@ -315,9 +313,6 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       e.preventDefault();
       handleApply();
     }
-    if (e.key === "Escape") {
-      setShowBrowser(false);
-    }
   };
 
   // ── Auto-resize ──
@@ -328,77 +323,39 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
     }
   }, [inputText]);
 
-  // ── ブラウザ用カテゴリ ──
-  const allCategories = useMemo(() => {
-    const cats = new Set<string>();
-    for (const e of MATH_DICTIONARY) cats.add(e.category);
-    for (const f of FORMULA_TEMPLATES) cats.add(f.category);
-    return ["すべて", "よく使う", ...Array.from(cats)];
-  }, []);
-
-  // ── ブラウザ用フィルタ ──
+  // ── ブラウザ用カテゴリグループ ──
   type BrowserItem = { kind: "dict"; entry: MathDictEntry } | { kind: "formula"; entry: FormulaTemplate };
 
-  const browserItems = useMemo((): BrowserItem[] => {
-    const filterText = inputMode === "browse" ? inputText.trim() : "";
+  const groupedBrowserItems = useMemo(() => {
+    const allItems: BrowserItem[] = [
+      ...MATH_DICTIONARY.map((e) => ({ kind: "dict" as const, entry: e })),
+      ...FORMULA_TEMPLATES.map((f) => ({ kind: "formula" as const, entry: f })),
+    ];
 
-    if (browserCategory === "よく使う") {
-      const history = getHistory();
-      const items: BrowserItem[] = [];
-      for (const h of history) {
-        const dictEntry = MATH_DICTIONARY.find(e => e.latex === h.latex);
-        if (dictEntry) {
-          items.push({ kind: "dict", entry: dictEntry });
-        } else {
-          const formulaEntry = FORMULA_TEMPLATES.find(f => f.latex === h.latex);
-          if (formulaEntry) {
-            items.push({ kind: "formula", entry: formulaEntry });
-          }
-        }
-      }
-      return items;
+    const groups = new Map<string, BrowserItem[]>();
+    for (const item of allItems) {
+      const cat = item.kind === "dict" ? item.entry.category : item.entry.category;
+      if (!groups.has(cat)) groups.set(cat, []);
+      groups.get(cat)!.push(item);
     }
 
-    const dictItems: BrowserItem[] = MATH_DICTIONARY.map((e) => ({ kind: "dict" as const, entry: e }));
-    const formulaItems: BrowserItem[] = FORMULA_TEMPLATES.map((f) => ({ kind: "formula" as const, entry: f }));
-    let items = [...dictItems, ...formulaItems];
+    return Array.from(groups.entries()).map(([category, items]) => ({ category, items }));
+  }, []);
 
+  // ── フィルタ済みブラウザ用カテゴリグループ ──
+  const filteredGroups = useMemo(() => {
+    const filterText = inputText.trim();
+    if (!filterText || !browserCategory) return groupedBrowserItems;
+
+    // browserCategoryが「すべて」以外ならカテゴリでフィルタ
+    let groups = groupedBrowserItems;
     if (browserCategory !== "すべて") {
-      items = items.filter((item) =>
-        item.kind === "dict" ? item.entry.category === browserCategory : item.entry.category === browserCategory
-      );
+      groups = groups.filter(g => g.category === browserCategory);
     }
+    return groups;
+  }, [groupedBrowserItems, browserCategory, inputText]);
 
-    if (filterText) {
-      const qq = filterText.toLowerCase();
-      const normQQ = normalizeForMatch(filterText);
-      items = items.filter((item) => {
-        if (item.kind === "dict") {
-          const e = item.entry;
-          const normR = normalizeForMatch(e.reading);
-          return (
-            normR.includes(normQQ) ||
-            e.description.toLowerCase().includes(qq) ||
-            e.latex.toLowerCase().includes(qq) ||
-            e.category.toLowerCase().includes(qq) ||
-            e.aliases.some((a) => normalizeForMatch(a).includes(normQQ))
-          );
-        } else {
-          const f = item.entry;
-          return (
-            f.label.toLowerCase().includes(qq) ||
-            f.japanese.toLowerCase().includes(qq) ||
-            normalizeForMatch(f.japanese).includes(normQQ) ||
-            f.latex.toLowerCase().includes(qq) ||
-            f.category.toLowerCase().includes(qq)
-          );
-        }
-      });
-    }
-    return items;
-  }, [browserCategory, inputText, inputMode]);
-
-  // ── 辞書アイテム挿入 ──
+  // ── 辞書アイテム挿入 → 日本語名を入力欄に表示 ──
   const handleBrowserInsert = useCallback((item: BrowserItem) => {
     let latex: string;
     let displayName: string;
@@ -410,7 +367,8 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       displayName = entry.reading;
     } else {
       latex = item.entry.latex;
-      displayName = item.entry.label;
+      // 公式テンプレートは日本語名を入力欄に表示
+      displayName = item.entry.japanese || item.entry.label;
     }
     setInputText(displayName);
     setOverrideLatex(latex);
@@ -418,9 +376,9 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
-  // ── クイック記号挿入 ──
-  const insertQuickSymbol = useCallback((latex: string) => {
-    const newText = inputText ? inputText + " " + latex : latex;
+  // ── クイック記号挿入 → 日本語読みで挿入 ──
+  const insertQuickSymbol = useCallback((reading: string) => {
+    const newText = inputText ? inputText + " " + reading : reading;
     setInputText(newText);
     setOverrideLatex(null);
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -453,7 +411,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
-                    <code className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 truncate">{hint.input}</code>
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400 truncate">{hint.input}</span>
                     <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
                   </div>
                   <span className="text-[8px] text-muted-foreground/60">{hint.label}</span>
@@ -467,36 +425,10 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
         </div>
       )}
 
-      {/* ═══ 統合入力バー ═══ */}
+      {/* ═══ 入力バー ═══ */}
       <div className="relative">
         <div className="absolute left-2.5 top-2.5 flex items-center gap-1 pointer-events-none z-10">
           <Search className="h-3.5 w-3.5 text-emerald-500/70" />
-        </div>
-
-        {/* モード切替タブ */}
-        <div className="absolute right-2 top-1.5 flex items-center gap-0.5 z-10">
-          <button
-            onClick={() => { setInputMode("unified"); setShowBrowser(false); }}
-            className={`px-1.5 py-0.5 rounded text-[8px] font-medium transition-colors ${
-              inputMode === "unified"
-                ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
-                : "text-muted-foreground/50 hover:text-muted-foreground"
-            }`}
-            title="入力モード: 日本語/LaTeX入力 + 予測変換"
-          >
-            <Keyboard className="h-2.5 w-2.5 inline mr-0.5" />入力
-          </button>
-          <button
-            onClick={() => { setInputMode("browse"); setShowBrowser(true); }}
-            className={`px-1.5 py-0.5 rounded text-[8px] font-medium transition-colors ${
-              inputMode === "browse"
-                ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-                : "text-muted-foreground/50 hover:text-muted-foreground"
-            }`}
-            title="検索モード: 辞書 + 公式を検索・一覧"
-          >
-            <BookOpen className="h-2.5 w-2.5 inline mr-0.5" />辞書
-          </button>
         </div>
 
         <textarea
@@ -509,26 +441,17 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             setShowHints(false);
           }}
           onKeyDown={handleKeyDown}
-          onFocus={() => {
-            if (inputMode === "browse") setShowBrowser(true);
-          }}
-          placeholder={
-            inputMode === "unified"
-              ? "日本語で数式入力: 2分の1  |  LaTeX: \\frac{1}{2}  |  検索: 解の公式"
-              : "公式・記号を検索… (解の公式, sin, ∫, 行列…)"
-          }
-          className={`w-full pl-8 pr-20 py-2.5 text-sm rounded-xl border-2 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans transition-all ${
+          placeholder="日本語で数式入力: 2分の1、ルート2、アルファ、解の公式 …"
+          className={`w-full pl-8 pr-4 py-2.5 text-sm rounded-xl border-2 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans transition-all ${
             overrideLatex
               ? "border-amber-300 dark:border-amber-700 focus:ring-amber-400/40"
-              : inputMode === "browse"
-              ? "border-blue-200 dark:border-blue-800 focus:ring-blue-400/40"
               : "border-emerald-200 dark:border-emerald-800 focus:ring-emerald-400/40"
           }`}
           rows={1}
         />
 
         {/* ═══ 統合ドロップダウン候補 ═══ */}
-        {suggestions.length > 0 && inputMode === "unified" && (
+        {suggestions.length > 0 && (
           <div className="absolute z-50 mt-1 w-full bg-background border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
             {/* リアルタイム変換プレビュー */}
             {currentLatex && !overrideLatex && (
@@ -536,7 +459,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 shrink-0">
                     <Zap className="h-3 w-3 text-violet-500" />
-                    <span className="text-[9px] text-violet-500 font-medium">リアルタイム変換</span>
+                    <span className="text-[9px] text-violet-500 font-medium">変換プレビュー</span>
                   </div>
                   <div className="flex-1 flex justify-center overflow-auto py-0.5">
                     <MathRenderer latex={currentLatex} displayMode={false} className="text-base" />
@@ -583,7 +506,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
                       <span className="text-[9px] text-muted-foreground/60">{s.category}</span>
                       {s.inputHint && (
                         <span className="text-[8px] text-emerald-500/60">
-                          入力: {s.inputHint}
+                          入力例: {s.inputHint}
                         </span>
                       )}
                     </div>
@@ -609,14 +532,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       {/* ═══ ライブプレビュー ═══ */}
       {currentLatex && (
         <div className="flex items-center gap-2 px-3 py-2.5 mt-1.5 rounded-xl bg-gradient-to-r from-violet-50/60 to-fuchsia-50/30 dark:from-violet-950/20 dark:to-fuchsia-950/10 border border-violet-200/50 dark:border-violet-800/40">
-          <div className="flex flex-col gap-0.5 shrink-0">
-            <span className="text-[9px] text-violet-500 font-semibold">プレビュー</span>
-            {overrideLatex && (
-              <span className="px-1 py-0 rounded text-[7px] bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
-                辞書選択
-              </span>
-            )}
-          </div>
+          <span className="text-[9px] text-violet-500 font-semibold shrink-0">プレビュー</span>
           <div className="flex-1 flex justify-center overflow-auto py-1">
             <MathRenderer latex={currentLatex} displayMode={false} className="text-lg" />
           </div>
@@ -624,9 +540,9 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             {spacings.length > 0 && (
               <button
                 onClick={() => setSpacings([])}
-                className="text-[8px] text-muted-foreground/50 hover:text-foreground transition-colors"
+                className="text-[8px] text-muted-foreground/50 hover:text-foreground transition-colors px-1"
               >
-                SP×
+                間隔リセット
               </button>
             )}
             <button
@@ -647,14 +563,14 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  onClick={() => insertQuickSymbol(sym.latex)}
-                  className="px-1.5 py-0.5 rounded-md text-[11px] border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all whitespace-nowrap font-mono"
+                  onClick={() => insertQuickSymbol(sym.reading)}
+                  className="px-1.5 py-0.5 rounded-md text-[11px] border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all whitespace-nowrap"
                 >
                   {sym.label}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-[10px]">
-                <code>{sym.latex}</code>
+                {sym.desc}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -679,27 +595,13 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             <Lightbulb className="h-3 w-3 inline mr-0.5" />入力ヒント
           </button>
         )}
-
-        <button
-          onClick={() => setShowBrowser(!showBrowser)}
-          className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-colors ${
-            showBrowser
-              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-          }`}
-        >
-          <BookOpen className="h-3 w-3 inline mr-0.5" />
-          公式・辞書一覧
-          <span className={`inline-block ml-0.5 text-[8px] transition-transform ${showBrowser ? "rotate-180" : ""}`}>▼</span>
-        </button>
-
         <span className="text-[9px] text-muted-foreground/40 ml-auto flex items-center gap-1">
           <kbd className="px-1 rounded bg-muted font-mono text-[8px]">Enter</kbd>
           <span>で反映</span>
         </span>
       </div>
 
-      {/* ═══ 構文ガイド ═══ */}
+      {/* ═══ 入力ルール（折りたたみ） ═══ */}
       <details className="group mt-1">
         <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
           <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
@@ -739,7 +641,6 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
                 { input: "1+ 2分の3", result: "1+\\frac{3}{2}", note: "スペースで分断" },
               ]}
             />
-
             <ConversionExamples
               title="累乗・根号"
               examples={[
@@ -748,7 +649,6 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
                 { input: "ルートa +b", result: "\\sqrt{a}+b", note: "スペースで分断" },
               ]}
             />
-
             <ConversionExamples
               title="微積分"
               examples={[
@@ -761,7 +661,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
         </div>
       </details>
 
-      {/* ═══ スペース調整 ═══ */}
+      {/* ═══ スペース調整（折りたたみ） ═══ */}
       <details className="group mt-0.5">
         <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
           <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
@@ -775,22 +675,20 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
         </div>
       </details>
 
-      {/* ═══ 統合辞書・公式ブラウザ ═══ */}
-      {showBrowser && (
-        <div className="mt-1.5 border-2 border-blue-200/60 dark:border-blue-800/40 rounded-xl overflow-hidden bg-background shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="px-3 py-2 bg-gradient-to-r from-blue-50/80 to-transparent dark:from-blue-950/20 border-b border-border/30 flex items-center gap-2">
-            <BookOpen className="h-3.5 w-3.5 text-blue-500" />
-            <span className="text-[11px] font-semibold text-foreground/80">公式・記号辞書</span>
-            <span className="text-[9px] text-muted-foreground/60 ml-1">
-              {browserItems.length}件
-              {inputText.trim() && inputMode === "browse" && " (検索中)"}
-            </span>
-            <span className="text-[8px] text-muted-foreground/40 ml-auto">クリックで入力欄に設定</span>
-          </div>
+      {/* ═══ 公式・記号辞書一覧（折りたたみ） ═══ */}
+      <details className="group mt-0.5">
+        <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
+          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+          <BookOpen className="h-3 w-3" />
+          公式・記号辞書一覧
+          <span className="text-[9px] text-muted-foreground/40 ml-1">クリックで入力</span>
+        </summary>
 
-          <div className="px-2 py-1.5 overflow-x-auto border-b border-border/30 scrollbar-none">
+        <div className="mt-1.5 rounded-xl border border-blue-200/60 dark:border-blue-800/40 overflow-hidden bg-background">
+          {/* カテゴリフィルタ */}
+          <div className="px-2 py-1.5 overflow-x-auto border-b border-border/30 scrollbar-none bg-gradient-to-r from-blue-50/50 to-transparent dark:from-blue-950/10">
             <div className="flex gap-1 min-w-max">
-              {allCategories.map((cat) => (
+              {["すべて", ...groupedBrowserItems.map(g => g.category)].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setBrowserCategory(cat)}
@@ -800,9 +698,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
                       : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                   }`}
                 >
-                  {cat === "よく使う" && <Clock className="h-2.5 w-2.5" />}
-                  {cat === "すべて" && <Star className="h-2.5 w-2.5" />}
-                  {CATEGORY_ICONS[cat] && cat !== "よく使う" && cat !== "すべて" && (
+                  {CATEGORY_ICONS[cat] && (
                     <span className="text-[8px] opacity-60">{CATEGORY_ICONS[cat]}</span>
                   )}
                   {cat}
@@ -811,73 +707,85 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             </div>
           </div>
 
-          <ScrollArea className="h-56">
-            <div className="p-1.5 space-y-0.5">
-              {browserItems.map((item, i) => {
-                const isFormula = item.kind === "formula";
-                const displayLatex = isFormula
-                  ? item.entry.latex
-                  : item.entry.latex.replace(/\{[AB]\}/g, "").replace(/\{N\}/g, "");
-                const title = isFormula ? item.entry.label : item.entry.reading;
-                const entry = item.entry;
-                const subtitle = isFormula ? (entry as FormulaTemplate).japanese : (entry as MathDictEntry).description;
+          {/* カテゴリ別折りたたみ一覧 */}
+          <ScrollArea className="max-h-[400px]">
+            <div className="p-1.5">
+              {filteredGroups.map(({ category, items }) => (
+                <details key={category} className="group/cat mb-1">
+                  <summary className="flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors select-none">
+                    <ChevronRight className="h-3 w-3 text-muted-foreground/60 transition-transform group-open/cat:rotate-90 shrink-0" />
+                    <span className="text-[8px] opacity-50">{CATEGORY_ICONS[category] || "📐"}</span>
+                    <span className="text-[11px] font-semibold text-foreground/80">{category}</span>
+                    <span className="text-[9px] text-muted-foreground/40 ml-auto">{items.length}件</span>
+                  </summary>
 
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handleBrowserInsert(item)}
-                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-blue-50/60 dark:hover:bg-blue-950/20 active:bg-blue-100/80 dark:active:bg-blue-900/30 transition-colors group text-left"
-                  >
-                    <div className="w-16 shrink-0 flex justify-center overflow-hidden bg-muted/20 rounded-md py-0.5">
-                      <MathRenderer
-                        latex={displayLatex}
-                        displayMode={false}
-                        className={isFormula ? "scale-[0.45] origin-center" : "scale-[0.65] origin-center"}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-medium truncate">{title}</span>
-                        {isFormula && (
-                          <span className="px-1 py-0 rounded text-[7px] bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0">
-                            公式
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[9px] text-muted-foreground/60 truncate block">{subtitle}</span>
-                      {!isFormula && (entry as MathDictEntry).example && (
-                        <span className="text-[8px] text-emerald-500/60">
-                          例: {(entry as MathDictEntry).example!.input}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[8px] font-mono text-muted-foreground/30 group-hover:text-muted-foreground/70 truncate max-w-[80px] shrink-0 transition-colors">
-                      {displayLatex.length > 25 ? displayLatex.slice(0, 25) + "…" : displayLatex}
-                    </span>
-                  </button>
-                );
-              })}
-              {browserItems.length === 0 && (
+                  <div className="ml-2 pl-3 border-l-2 border-blue-100 dark:border-blue-900/30 space-y-0.5 pb-1.5">
+                    {items.map((item, i) => {
+                      const isFormula = item.kind === "formula";
+                      const displayLatex = isFormula
+                        ? item.entry.latex
+                        : item.entry.latex.replace(/\{[AB]\}/g, "").replace(/\{N\}/g, "");
+                      const title = isFormula ? item.entry.label : item.entry.reading;
+                      const subtitle = isFormula
+                        ? (item.entry as FormulaTemplate).japanese
+                        : (item.entry as MathDictEntry).description;
+
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => handleBrowserInsert(item)}
+                          className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-blue-50/60 dark:hover:bg-blue-950/20 active:bg-blue-100/80 dark:active:bg-blue-900/30 transition-colors text-left group/item"
+                        >
+                          <div className="w-14 shrink-0 flex justify-center overflow-hidden bg-muted/20 rounded-md py-0.5">
+                            <MathRenderer
+                              latex={displayLatex}
+                              displayMode={false}
+                              className={isFormula ? "scale-[0.4] origin-center" : "scale-[0.6] origin-center"}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-medium truncate">{title}</span>
+                              {isFormula && (
+                                <span className="px-1 py-0 rounded text-[7px] bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0">
+                                  公式
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[9px] text-muted-foreground/60 truncate block">{subtitle}</span>
+                            {!isFormula && (item.entry as MathDictEntry).example && (
+                              <span className="text-[8px] text-emerald-500/60">
+                                入力例: {(item.entry as MathDictEntry).example!.input}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </details>
+              ))}
+
+              {filteredGroups.length === 0 && (
                 <div className="py-8 text-center space-y-1">
                   <Search className="h-5 w-5 text-muted-foreground/30 mx-auto" />
                   <p className="text-xs text-muted-foreground/40">該当する数式が見つかりません</p>
-                  <p className="text-[10px] text-muted-foreground/30">検索ワードを変えてみてください</p>
                 </div>
               )}
             </div>
           </ScrollArea>
         </div>
-      )}
+      </details>
 
-      {/* ═══ フッターヒント ═══ */}
+      {/* ═══ フッターヒント（LaTeX非表示） ═══ */}
       <div className="text-[9px] text-muted-foreground/50 leading-relaxed mt-1.5 px-1">
-        <span className="text-emerald-600 font-medium">日本語</span>:「2分の1」→½
-        <span className="mx-1">|</span>
-        <span className="text-blue-600 font-medium">LaTeX</span>: {`\\frac{1}{2}`}
-        <span className="mx-1">|</span>
+        <span className="text-emerald-600 font-medium">日本語入力</span>:「2分の1」→½
+        <span className="mx-1.5">|</span>
         <span className="text-orange-600 font-medium">算術</span>: x^2+1
-        <span className="mx-1">|</span>
-        <span className="text-purple-600 font-medium">検索</span>: 解の公式
+        <span className="mx-1.5">|</span>
+        <span className="text-purple-600 font-medium">公式検索</span>: 解の公式
+        <span className="mx-1.5">|</span>
+        <span className="text-blue-600 font-medium">記号</span>: アルファ→α
       </div>
     </div>
   );
@@ -897,9 +805,9 @@ function ConversionExamples({ title, examples }: {
       <div className="space-y-1">
         {examples.map((ex, i) => (
           <div key={i} className="flex items-center gap-2 text-[10px]">
-            <code className="px-1.5 py-0.5 rounded bg-background border border-border/50 font-mono text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-[9px]">
+            <span className="px-1.5 py-0.5 rounded bg-background border border-border/50 text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-[9px]">
               {ex.input}
-            </code>
+            </span>
             <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
             <div className="w-24 shrink-0 flex justify-center overflow-hidden">
               <MathRenderer latex={ex.result} displayMode={false} className="scale-[0.55] origin-center" />
@@ -945,7 +853,6 @@ export function SpacingControl({ onInsert, className = "" }: SpacingControlProps
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">
                 <p className="font-medium">{preset.description}</p>
-                <p className="font-mono text-muted-foreground text-[10px]">{preset.latex}</p>
               </TooltipContent>
             </Tooltip>
           ))}
@@ -962,7 +869,7 @@ export function SpacingControl({ onInsert, className = "" }: SpacingControlProps
           onChange={(e) => setCustomPt(Number(e.target.value))}
           className="flex-1 h-1.5 accent-primary"
         />
-        <span className="text-[10px] font-mono w-10 text-right">{customPt}pt</span>
+        <span className="text-[10px] w-10 text-right">{customPt}pt</span>
         <button
           onClick={() => onInsert(`\\hspace{${customPt}pt}`)}
           className="text-[10px] px-2 py-1 rounded bg-primary/10 hover:bg-primary/20 text-primary font-medium transition-colors"
