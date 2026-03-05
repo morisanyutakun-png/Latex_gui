@@ -353,7 +353,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedSuggIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Tab" || e.key === "Enter") {
+    } else if (e.key === " " || e.key === "Enter") {
+      // スペースキーで候補を確定（IME風操作）
       if (showSuggestions && suggestions[selectedSuggIdx]) {
         e.preventDefault();
         insertSuggestion(suggestions[selectedSuggIdx]);

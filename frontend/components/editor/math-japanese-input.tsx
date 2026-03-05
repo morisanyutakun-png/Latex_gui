@@ -290,10 +290,11 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
     [suggestions, inputText]
   );
 
-  // ── キーボード操作 ──
+  // ── キーボード操作（IME風：スペースで変換確定） ──
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (suggestions.length > 0) {
-      if (e.key === "Tab") {
+      if (e.key === " ") {
+        // スペースキーで候補を確定（日本語IME風）
         e.preventDefault();
         acceptSuggestion(selectedIdx);
         return;
@@ -513,7 +514,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
                   </div>
                   {i === selectedIdx && (
                     <kbd className="text-[8px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono shrink-0">
-                      Tab
+                      Space
                     </kbd>
                   )}
                 </button>
@@ -521,8 +522,8 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             </ScrollArea>
 
             <div className="px-3 py-1.5 bg-muted/30 border-t text-[9px] text-muted-foreground flex items-center gap-3">
-              <span><kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> 選択</span>
-              <span><kbd className="px-1 rounded bg-muted font-mono">↑↓</kbd> 移動</span>
+              <span><kbd className="px-1 rounded bg-muted font-mono">Space</kbd> 変換</span>
+              <span><kbd className="px-1 rounded bg-muted font-mono">↑↓</kbd> 候補移動</span>
               <span><kbd className="px-1 rounded bg-muted font-mono">Enter</kbd> 反映</span>
             </div>
           </div>
