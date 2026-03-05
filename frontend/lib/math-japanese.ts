@@ -1355,6 +1355,26 @@ function containsJapanese(s: string): boolean {
 }
 
 /**
+ * LaTeXコマンドを壊さない安全な文字列置換
+ * 
+ * 問題: Phase 1-3 で生成された \sum, \sin, \cos 等のLaTeXコマンド内の
+ * "sum", "sin", "cos" をPhase 4 の辞書aliasが誤マッチして破壊する。
+ * 例: \sum_{i=1}^{n} 中の "sum" → \\sum _{i=1}^{n} (壊れたLaTeX)
+ *
+ * 解決: バックスラッシュ直後のマッチをスキップ。
+ * Latin alias は単語境界も考慮して部分文字列マッチを防止。
+ */
+function safeTokenReplace(text: string, token: string, replacement: string): string {
+  if (!text.includes(token)) return text;
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const isLatin = /^[a-zA-Z0-9]+$/.test(token);
+  const pattern = isLatin
+    ? `(?<!\\\\|[a-zA-Z])${escaped}(?![a-zA-Z])`
+    : `(?<!\\\\)${escaped}`;
+  return text.replace(new RegExp(pattern, 'g'), replacement);
+}
+
+/**
  * 純粋な算術式かどうかを判定 (2+4, 3*5, x=2 など)
  * 日本語文字が含まれていなければ算術式とみなす
  */
@@ -1363,25 +1383,174 @@ function isPureArithmetic(s: string): boolean {
   return !containsJapanese(s);
 }
 
+/**
+ * Unicode数学記号 → LaTeX変換マップ
+ */
+const UNICODE_TO_LATEX: [RegExp, string][] = [
+  [/Σ/g, "\\Sigma"],
+  [/Π/g, "\\Pi"],
+  [/∫/g, "\\int"],
+  [/∞/g, "\\infty"],
+  [/α/g, "\\alpha"], [/β/g, "\\beta"], [/γ/g, "\\gamma"], [/δ/g, "\\delta"],
+  [/ε/g, "\\epsilon"], [/ζ/g, "\\zeta"], [/η/g, "\\eta"], [/θ/g, "\\theta"],
+  [/ι/g, "\\iota"], [/κ/g, "\\kappa"], [/λ/g, "\\lambda"], [/μ/g, "\\mu"],
+  [/ν/g, "\\nu"], [/ξ/g, "\\xi"], [/π/g, "\\pi"], [/ρ/g, "\\rho"],
+  [/σ/g, "\\sigma"], [/τ/g, "\\tau"], [/υ/g, "\\upsilon"], [/φ/g, "\\phi"],
+  [/χ/g, "\\chi"], [/ψ/g, "\\psi"], [/ω/g, "\\omega"],
+  [/Γ/g, "\\Gamma"], [/Δ/g, "\\Delta"], [/Θ/g, "\\Theta"],
+  [/Λ/g, "\\Lambda"], [/Φ/g, "\\Phi"], [/Ψ/g, "\\Psi"], [/Ω/g, "\\Omega"],
+  [/≤/g, "\\leq"], [/≥/g, "\\geq"], [/≠/g, "\\neq"], [/≈/g, "\\approx"],
+  [/±/g, "\\pm"], [/∓/g, "\\mp"], [/×/g, "\\times"], [/÷/g, "\\div"],
+  [/·/g, "\\cdot"], [/∂/g, "\\partial"], [/∇/g, "\\nabla"],
+  [/∀/g, "\\forall"], [/∃/g, "\\exists"], [/∅/g, "\\emptyset"],
+  [/∈/g, "\\in"], [/∉/g, "\\notin"], [/⊂/g, "\\subset"], [/⊃/g, "\\supset"],
+  [/∪/g, "\\cup"], [/∩/g, "\\cap"], [/⊕/g, "\\oplus"], [/⊗/g, "\\otimes"],
+  [/⇒/g, "\\Rightarrow"], [/⇔/g, "\\Leftrightarrow"],
+  [/→/g, "\\to"], [/←/g, "\\leftarrow"], [/↦/g, "\\mapsto"],
+  [/⊥/g, "\\perp"], [/∥/g, "\\parallel"],
+  [/∴/g, "\\therefore"], [/∵/g, "\\because"],
+  [/…/g, "\\cdots"], [/℃/g, "^{\\circ}\\text{C}"],
+  [/ℏ/g, "\\hbar"], [/ℝ/g, "\\mathbb{R}"], [/ℤ/g, "\\mathbb{Z}"],
+  [/ℕ/g, "\\mathbb{N}"], [/ℚ/g, "\\mathbb{Q}"], [/ℂ/g, "\\mathbb{C}"],
+];
+
+/**
+ * 既知の数学関数名（LaTeX \func 形式にすべきもの）
+ */
+const LATEX_FUNCTIONS = [
+  "sin", "cos", "tan", "cot", "sec", "csc",
+  "arcsin", "arccos", "arctan",
+  "sinh", "cosh", "tanh",
+  "log", "ln", "exp",
+  "lim", "max", "min", "sup", "inf",
+  "det", "dim", "ker", "deg", "gcd",
+  "arg", "mod",
+];
+
+/**
+ * スラッシュ分数のバランス括弧マッチ
+ * "(a+b)/(c+d)" → "\frac{a+b}{c+d}" を正しく処理
+ */
+function parseSlashFraction(s: string): string {
+  // パターン1: (...)/(...)  — 括弧で囲まれた分子/分母
+  s = s.replace(/\(([^()]+)\)\/\(([^()]+)\)/g, (_, n, d) =>
+    `\\frac{${n}}{${d}}`
+  );
+  // パターン2: (...)/ に単項が続く — (a+b)/c
+  s = s.replace(/\(([^()]+)\)\/([a-zA-Z0-9]+)/g, (_, n, d) =>
+    `\\frac{${n}}{${d}}`
+  );
+  // パターン3: 単項/(...)  — a/(b+c)
+  s = s.replace(/([a-zA-Z0-9]+)\/\(([^()]+)\)/g, (_, n, d) =>
+    `\\frac{${n}}{${d}}`
+  );
+  // パターン4: 単項/単項 — a/b, 1/2
+  s = s.replace(/([a-zA-Z0-9]+)\/([a-zA-Z0-9]+)/g, (_, n, d) =>
+    `\\frac{${n}}{${d}}`
+  );
+  return s;
+}
+
+/**
+ * 関数名を LaTeX コマンドに変換
+ * sin(x) → \sin(x), log(x) → \log(x)
+ */
+function convertFunctionNames(s: string): string {
+  for (const fn of LATEX_FUNCTIONS) {
+    // すでに \sin のようになっていたらスキップ
+    const pattern = new RegExp(`(?<!\\\\)\\b${fn}\\b`, "g");
+    s = s.replace(pattern, `\\${fn}`);
+  }
+  return s;
+}
+
+/**
+ * 括弧を LaTeX の自動サイズ括弧に変換
+ * (x) → \left(x\right), [x] → \left[x\right]
+ * ただし空括弧や関数引数の場合は通常括弧のまま
+ */
+function convertBrackets(s: string): string {
+  // \frac{}{} 内の括弧はスキップ（ネストが複雑になるため）
+
+  // (...)  → \left( ... \right)  — 中身がある場合のみ
+  // 関数直後の括弧も含めて自動サイズに
+  s = s.replace(/\(([^()]+)\)/g, (match, inner) => {
+    // すでに \left( を含む場合はスキップ
+    if (match.includes("\\left")) return match;
+    // \frac の直後の {}{} は変換しない
+    return `\\left(${inner}\\right)`;
+  });
+
+  // [...]  → \left[ ... \right]
+  s = s.replace(/\[([^\[\]]+)\]/g, (match, inner) => {
+    if (match.includes("\\left")) return match;
+    return `\\left[${inner}\\right]`;
+  });
+
+  return s;
+}
+
+/**
+ * 矢印記号の変換（→, ←, ⇒, ⇔ は UNICODE_TO_LATEX で処理済み）
+ * テキスト矢印: "->" → \to, "=>" → \Rightarrow
+ */
+function convertArrows(s: string): string {
+  s = s.replace(/<->/g, "\\leftrightarrow ");
+  s = s.replace(/<=>/g, "\\Leftrightarrow ");
+  s = s.replace(/=>/g, "\\Rightarrow ");
+  // -> は \to に（ただし --> は \longrightarrow）
+  s = s.replace(/-->/g, "\\longrightarrow ");
+  s = s.replace(/->/g, "\\to ");
+  return s;
+}
+
+/**
+ * 算術式の高度化処理
+ * LaTeX記法を含まない式にも関数認識・括弧・分数等を適用
+ */
+function enhanceArithmetic(s: string): string {
+  s = zenkakuToHankaku(s);
+  // Unicode記号変換
+  for (const [re, latex] of UNICODE_TO_LATEX) {
+    s = s.replace(re, latex);
+  }
+  // 矢印テキスト変換
+  s = convertArrows(s);
+  // スラッシュ分数変換（括弧分数 → \frac）
+  s = parseSlashFraction(s);
+  // 関数名変換
+  s = convertFunctionNames(s);
+  // 添え字正規化: x_2 → x_{2},  x^2 → x^{2}
+  s = s.replace(/([a-zA-Z])_([a-zA-Z0-9])(?=[^a-zA-Z0-9{]|$)/g, (_, v, n) => `${v}_{${n}}`);
+  s = s.replace(/([a-zA-Z])\^([a-zA-Z0-9])(?=[^a-zA-Z0-9{]|$)/g, (_, v, n) => `${v}^{${n}}`);
+  // 括弧自動サイズ
+  s = convertBrackets(s);
+  return s;
+}
+
 export function parseJapanesemath(input: string): string {
   let result = input.trim();
   if (!result) return "";
 
-  // ── Phase -1: LaTeX / 算術式のパススルー ──
-  // 入力がすでにLaTeX記法や純粋な算術式の場合、そのまま返す
-  // ただし日本語文字が含まれている場合は日本語パーサーを通す
-  // （例: "R_2分のV" は _ があるが「分の」を処理すべき）
+  // ── Phase -1: LaTeX パススルー ──
+  // すでに完全なLaTeX (\frac, \int 等) で日本語を含まないならそのまま
   if (containsLatexNotation(result) && !containsJapanese(result)) {
-    // 全角→半角のみ適用してそのまま返す
-    return zenkakuToHankaku(result);
+    return enhanceArithmetic(result);
   }
+  // 純粋な算術式 (日本語なし) は高度化処理のみ適用
   if (isPureArithmetic(result)) {
-    // 全角→半角のみ適用してそのまま返す
-    return zenkakuToHankaku(result);
+    return enhanceArithmetic(result);
   }
 
   // ── Phase 0: 正規化 (全角→半角, カタカナ→ひらがな) ──
   result = normalizeForParse(result);
+
+  // ── Phase 0.5: Unicode数学記号 → LaTeX ──
+  for (const [re, latex] of UNICODE_TO_LATEX) {
+    result = result.replace(re, latex);
+  }
+  // テキスト矢印変換
+  result = convertArrows(result);
 
   // ── Phase 1: 構造パターン (長いパターン優先) ──
 
@@ -1391,9 +1560,12 @@ export function parseJapanesemath(input: string): string {
     (_, denom, numer) => `\\frac{${resolveTerm(numer)}}{${resolveTerm(denom)}}`
   );
 
+  // スラッシュ分数（日本語テキスト内でも動作）
+  result = parseSlashFraction(result);
+
   // [base]の[n]じょう / [base]の[n]乗 → base^{n}
   result = result.replace(
-    new RegExp(`(${VAR})の(${NUM_SEQ}|[a-zA-Z])(?:じょう|乗)`, "g"),
+    new RegExp(`(${VAR}|\\([^)]+\\))の(${NUM_SEQ}|[a-zA-Z])(?:じょう|乗)`, "g"),
     (_, base, exp) => `${resolveTerm(base)}^{${resolveTerm(exp)}}`
   );
 
@@ -1404,8 +1576,13 @@ export function parseJapanesemath(input: string): string {
   );
 
   // るーと[x] / 平方根[x] / 根号[x] → \sqrt{x}
+  // 括弧付きも処理: ルート(a+b) → \sqrt{a+b}
   result = result.replace(
-    /(?:るーと|平方根|根号|√)([^\s]+)/g,
+    /(?:るーと|平方根|根号|√)\(([^)]+)\)/g,
+    (_, x) => `\\sqrt{${x}}`
+  );
+  result = result.replace(
+    /(?:るーと|平方根|根号|√)([^\s(]+)/g,
     (_, x) => `\\sqrt{${resolveTerm(x)}}`
   );
 
@@ -1450,6 +1627,21 @@ export function parseJapanesemath(input: string): string {
     (_, x) => `\\frac{\\partial}{\\partial ${x}}`
   );
 
+  // ── Phase 1.3: 自然言語パターン ──
+  // xは0より大きい → x > 0
+  result = result.replace(/([a-zA-Z])は([^\s]+)より大きい/g, (_, v, n) => `${v} > ${resolveTerm(n)}`);
+  result = result.replace(/([a-zA-Z])は([^\s]+)より小さい/g, (_, v, n) => `${v} < ${resolveTerm(n)}`);
+  result = result.replace(/([a-zA-Z])は([^\s]+)以上/g, (_, v, n) => `${v} \\geq ${resolveTerm(n)}`);
+  result = result.replace(/([a-zA-Z])は([^\s]+)以下/g, (_, v, n) => `${v} \\leq ${resolveTerm(n)}`);
+  // fはxの関数 → f(x)
+  result = result.replace(/([a-zA-Z])は([a-zA-Z])の関数/g, (_, f, x) => `${f}(${x})`);
+  // aかつb → a \land b, aまたはb → a \lor b
+  result = result.replace(/かつ/g, "\\land ");
+  result = result.replace(/(?:または|もしくは)/g, "\\lor ");
+  // 「ゆえに」「したがって」
+  result = result.replace(/(?:ゆえに|故に)/g, "\\therefore ");
+  result = result.replace(/(?:なぜなら|なぜならば)/g, "\\because ");
+
   // ── Phase 1.5: 添え字・上付き（日本語表現 + LaTeX _/^ 記法保持） ──
   // [var]の添え字[n] / [var]のそえじ[n] → var_{n}
   result = result.replace(
@@ -1463,13 +1655,12 @@ export function parseJapanesemath(input: string): string {
   );
 
   // LaTeX _/^ 記法の正規化: R_2 → R_{2}, x^2 → x^{2}
-  // 中括弧なしの単一文字の添え字・上付きを中括弧付きに正規化
   result = result.replace(
-    /([a-zA-Z])_([a-zA-Z0-9])(\b|(?=[^a-zA-Z0-9{]))/g,
+    /([a-zA-Z])_([a-zA-Z0-9])(?=[^a-zA-Z0-9{]|$)/g,
     (_, v, n) => `${v}_{${n}}`
   );
   result = result.replace(
-    /([a-zA-Z])\^([a-zA-Z0-9])(\b|(?=[^a-zA-Z0-9{]))/g,
+    /([a-zA-Z])\^([a-zA-Z0-9])(?=[^a-zA-Z0-9{]|$)/g,
     (_, v, n) => `${v}^{${n}}`
   );
 
@@ -1481,65 +1672,59 @@ export function parseJapanesemath(input: string): string {
   result = result.replace(/(?:ばー|平均)([a-zA-Z])/g, (_, x) => `\\bar{${x}}`);
   result = result.replace(/(?:だぶるどっと|二階微分)([a-zA-Z])/g, (_, x) => `\\ddot{${x}}`);
   result = result.replace(/どっと([a-zA-Z])/g, (_, x) => `\\dot{${x}}`);
-  result = result.replace(/(?:ぜったいち|絶対値)([^\s]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
-  result = result.replace(/(?:のるむ)([^\s]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
+  // 絶対値: 括弧付きもOK — 絶対値(x-1) → |x-1|
+  result = result.replace(/(?:ぜったいち|絶対値)\(([^)]+)\)/g, (_, x) => `\\left| ${x} \\right|`);
+  result = result.replace(/(?:ぜったいち|絶対値)([^\s(]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
+  result = result.replace(/(?:のるむ)\(([^)]+)\)/g, (_, x) => `\\left\\| ${x} \\right\\|`);
+  result = result.replace(/(?:のるむ)([^\s(]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
   result = result.replace(/太字([a-zA-Z])/g, (_, x) => `\\mathbf{${x}}`);
+  // 括弧の日本語表現 (丸括弧, 角括弧, 波括弧)
+  result = result.replace(/(?:まるかっこ|丸括弧|括弧)\(([^)]+)\)/g, (_, x) => `\\left(${x}\\right)`);
+  result = result.replace(/(?:かくかっこ|角括弧)\[([^\]]+)\]/g, (_, x) => `\\left[${x}\\right]`);
+  result = result.replace(/(?:なみかっこ|波括弧|中括弧)\{([^}]+)\}/g, (_, x) => `\\left\\{${x}\\right\\}`);
 
   // ── Phase 3: 演算子・関係子 ──
-  // 各概念について ひらがな | 漢字 | 漢字活用形 をカバー
   // (カタカナ形は Phase0 でひらがなに正規化済み)
-
-  // 加算: たす | たして | 足す | 足して | ぷらす | 加算 | かさん
   result = result.replace(/(?:たす|たして|足す|足して|ぷらす|加算|かさん)/g, "+ ");
-  // 減算: ひく | ひいて | 引く | 引いて | まいなす | 減算 | げんざん
   result = result.replace(/(?:ひく|ひいて|引く|引いて|まいなす|減算|げんざん)/g, "- ");
-  // 乗算: かける | かけて | 掛ける | 掛けて | × | 乗算 | じょうざん
-  result = result.replace(/(?:かける|かけて|掛ける|掛けて|×|乗算|じょうざん)/g, "\\times ");
-  // 除算: わる | わって | 割る | 割って | ÷ | 除算 | じょざん
-  result = result.replace(/(?:わる|わって|割る|割って|÷|除算|じょざん)/g, "\\div ");
-  // 等号: いこーる | 等しい | ひとしい
+  result = result.replace(/(?:かける|かけて|掛ける|掛けて|乗算|じょうざん)/g, "\\times ");
+  result = result.replace(/(?:わる|わって|割る|割って|除算|じょざん)/g, "\\div ");
   result = result.replace(/(?:いこーる|等しい|ひとしい)/g, "= ");
-  // 不等号: のっといこーる | 等しくない | ひとしくない
   result = result.replace(/(?:のっといこーる|等しくない|ひとしくない)/g, "\\neq ");
-  // 以下: いか | 以下
   result = result.replace(/(?:いか(?!ら)|以下)/g, "\\leq ");
-  // 以上: いじょう | 以上
   result = result.replace(/(?:いじょう|以上)/g, "\\geq ");
-  // 未満: みまん | 未満
   result = result.replace(/(?:みまん|未満)/g, "< ");
-  // ならば
   result = result.replace(/ならば/g, "\\Rightarrow ");
-  // 同値: どうち | 同値
   result = result.replace(/(?:どうち|同値)/g, "\\Leftrightarrow ");
 
   // ── Phase 4: 辞書引き (残りの記号・関数) ──
-  // 正規化済み入力に対して、辞書のreading/aliasesを正規化比較
-  // binary/unary もプレースホルダーを除去して記号部分のみ挿入
   for (const entry of MATH_DICTIONARY) {
-    // すべてのkindを処理対象にする
     const normReading = normalizeForMatch(entry.reading);
-    // binary/unary の場合、プレースホルダー {A}, {B}, {N} を除去して記号のみにする
     const entryLatex = (entry.kind === "binary" || entry.kind === "unary")
       ? entry.latex.replace(/\{[A-Z]\}/g, "").replace(/_\s*\^/g, "").trim()
       : entry.latex;
-    // Reading でマッチ (正規化済みの入力にはひらがな形がある)
     if (normReading.length > 1 && result.includes(normReading)) {
-      result = result.split(normReading).join(entryLatex + " ");
+      result = safeTokenReplace(result, normReading, entryLatex + " ");
     }
-    // Aliases でマッチ
     for (const alias of entry.aliases) {
       const normAlias = normalizeForMatch(alias);
       if (normAlias.length > 1 && result.includes(normAlias)) {
-        result = result.split(normAlias).join(entryLatex + " ");
+        result = safeTokenReplace(result, normAlias, entryLatex + " ");
       }
-      // 漢字形そのままでもマッチ (正規化で変わらない文字列)
       if (alias.length > 1 && alias !== normAlias && result.includes(alias)) {
-        result = result.split(alias).join(entryLatex + " ");
+        result = safeTokenReplace(result, alias, entryLatex + " ");
       }
     }
   }
 
+  // ── Phase 4.5: 関数名認識 ──
+  // Phase 4 の辞書引き後、残った sin/cos/log 等のベア関数名を \sin 等に変換
+  result = convertFunctionNames(result);
+
   // ── Phase 5: 後処理 ──
+  // 括弧の自動サイズ化
+  result = convertBrackets(result);
+  // 冗長なスペース整理
   result = result.replace(/ +/g, " ").trim();
 
   return result;
