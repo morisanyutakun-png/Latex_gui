@@ -27,17 +27,19 @@ import { FORMULA_TEMPLATES, type FormulaTemplate } from "./math-dictionary";
 
 // ── 変換ヒントデータ ──
 const CONVERSION_HINTS = [
-  { input: "2分の1", output: "\\frac{1}{2}", label: "分数" },
+  { input: "a/b", output: "\\frac{a}{b}", label: "分数（/記法）" },
+  { input: "(a+b)/(c+d)", output: "\\frac{a+b}{c+d}", label: "括弧分数" },
+  { input: "2分の1", output: "\\frac{1}{2}", label: "分数（日本語）" },
   { input: "xの2乗", output: "x^{2}", label: "累乗" },
   { input: "ルート2", output: "\\sqrt{2}", label: "平方根" },
-  { input: "アルファ", output: "\\alpha", label: "ギリシャ文字" },
-  { input: "a たす b", output: "a + b", label: "加算" },
-  { input: "3乗根8", output: "\\sqrt[3]{8}", label: "n乗根" },
+  { input: "sin(x)", output: "\\sin\\left(x\\right)", label: "三角関数" },
+  { input: "α (直接入力)", output: "\\alpha", label: "ギリシャ文字" },
+  { input: "xは0より大きい", output: "x > 0", label: "自然言語" },
   { input: "R_2分のV", output: "\\frac{V}{R_{2}}", label: "複合分数" },
-  { input: "ベクトルa", output: "\\vec{a}", label: "ベクトル" },
   { input: "xで微分", output: "\\frac{d}{dx}", label: "微分" },
-  { input: "0からパイまで積分", output: "\\int_{0}^{\\pi}", label: "定積分" },
+  { input: "0からπまで積分", output: "\\int_{0}^{\\pi}", label: "定積分" },
   { input: "i=1からnまで総和", output: "\\sum_{i=1}^{n}", label: "総和" },
+  { input: "->", output: "\\to", label: "矢印" },
   { input: "解の公式", output: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}", label: "公式検索" },
 ];
 
@@ -442,7 +444,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             setShowHints(false);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="日本語で数式入力: 2分の1、ルート2、アルファ、解の公式 …"
+          placeholder="数式入力: a/b, sin(x), xの2乗, xは0より大きい, →, α …"
           className={`w-full pl-8 pr-4 py-2.5 text-sm rounded-xl border-2 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans transition-all ${
             overrideLatex
               ? "border-amber-300 dark:border-amber-700 focus:ring-amber-400/40"
@@ -780,13 +782,13 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
 
       {/* ═══ フッターヒント（LaTeX非表示） ═══ */}
       <div className="text-[9px] text-muted-foreground/50 leading-relaxed mt-1.5 px-1">
-        <span className="text-emerald-600 font-medium">日本語入力</span>:「2分の1」→½
+        <span className="text-emerald-600 font-medium">分数</span>: a/b
         <span className="mx-1.5">|</span>
-        <span className="text-orange-600 font-medium">算術</span>: x^2+1
+        <span className="text-orange-600 font-medium">関数</span>: sin(x)
         <span className="mx-1.5">|</span>
-        <span className="text-purple-600 font-medium">公式検索</span>: 解の公式
+        <span className="text-purple-600 font-medium">自然言語</span>: xは0より大きい
         <span className="mx-1.5">|</span>
-        <span className="text-blue-600 font-medium">記号</span>: アルファ→α
+        <span className="text-blue-600 font-medium">記号</span>: α, →, Σ
       </div>
     </div>
   );
