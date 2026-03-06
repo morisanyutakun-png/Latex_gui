@@ -592,28 +592,30 @@ function MathBlockEditor({ block }: { block: Block }) {
 
       {/* 入力欄 */}
       {isEditing && (
-        <div className={`border rounded-xl p-3 bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
-          {/* インライン書き方ガイド（入力の直上） */}
+        <>
+          {/* 独立書き方ガイド（入力欄の上、独立領域） */}
           {showGuide ? (
             <MathWritingGuide
               onTryExample={handleTryExample}
               onClose={() => setShowGuide(false)}
-              className="mb-2"
+              className="mb-1"
             />
           ) : (
             <button
               onClick={() => setShowGuide(true)}
-              className="mb-2 px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1"
+              className="mb-1 px-2 py-0.5 rounded-lg text-[9px] text-muted-foreground/50 hover:text-foreground hover:bg-muted/40 transition-colors flex items-center gap-1"
             >
-              <Sigma className="h-3 w-3" />書き方ガイドを表示
+              <Sigma className="h-2.5 w-2.5" />ガイド
             </button>
           )}
-          <JapaneseMathInput
-            ref={mathInputRef}
-            onApply={handleApply}
-            initialSourceText={content.sourceText || ""}
-          />
-        </div>
+          <div className={`border rounded-xl p-3 bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
+            <JapaneseMathInput
+              ref={mathInputRef}
+              onApply={handleApply}
+              initialSourceText={content.sourceText || ""}
+            />
+          </div>
+        </>
       )}
     </div>
   );

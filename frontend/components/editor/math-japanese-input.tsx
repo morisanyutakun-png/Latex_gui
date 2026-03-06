@@ -730,81 +730,228 @@ export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMat
 });
 
 // ══════════════════════════════════════════
-// ガイドカード（ウルトラコンパクト — インライン表示用）
+// 書き方ガイド — ビジュアル構造マップ（独立パネル）
 // ══════════════════════════════════════════
+//
+// 設計方針:
+//   ① 4つの演算子パターンを1画面で同時表示（タブ切替なし＝認知コスト0）
+//   ② 色×形で構造を即座に識別（言語に頼らない視覚伝達）
+//   ③ 例はクリック可能（体験で学習）
+//   ④ 入力欄と独立した領域に配置（被りなし）
 
-const GUIDE_COLORS = {
-  emerald: {
-    bg: "bg-emerald-50/80 dark:bg-emerald-950/20",
-    border: "border-emerald-200/50 dark:border-emerald-800/40",
-    badge: "bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200",
-    number: "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
-    tab: "data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-700 dark:data-[state=active]:bg-emerald-900/40 dark:data-[state=active]:text-emerald-400",
-    example: "hover:bg-emerald-100/80 dark:hover:bg-emerald-900/30",
-    input: "text-emerald-700 dark:text-emerald-400",
-    try: "text-emerald-500/0 group-hover/ex:text-emerald-500/80",
-  },
-  blue: {
-    bg: "bg-blue-50/80 dark:bg-blue-950/20",
-    border: "border-blue-200/50 dark:border-blue-800/40",
-    badge: "bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200",
-    number: "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400",
-    tab: "data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:text-blue-400",
-    example: "hover:bg-blue-100/80 dark:hover:bg-blue-900/30",
-    input: "text-blue-700 dark:text-blue-400",
-    try: "text-blue-500/0 group-hover/ex:text-blue-500/80",
-  },
-  violet: {
-    bg: "bg-violet-50/80 dark:bg-violet-950/20",
-    border: "border-violet-200/50 dark:border-violet-800/40",
-    badge: "bg-violet-200 dark:bg-violet-800 text-violet-800 dark:text-violet-200",
-    number: "bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400",
-    tab: "data-[state=active]:bg-violet-100 data-[state=active]:text-violet-700 dark:data-[state=active]:bg-violet-900/40 dark:data-[state=active]:text-violet-400",
-    example: "hover:bg-violet-100/80 dark:hover:bg-violet-900/30",
-    input: "text-violet-700 dark:text-violet-400",
-    try: "text-violet-500/0 group-hover/ex:text-violet-500/80",
-  },
-  amber: {
-    bg: "bg-amber-50/80 dark:bg-amber-950/20",
-    border: "border-amber-200/50 dark:border-amber-800/40",
-    badge: "bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200",
-    number: "bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400",
-    tab: "data-[state=active]:bg-amber-100 data-[state=active]:text-amber-700 dark:data-[state=active]:bg-amber-900/40 dark:data-[state=active]:text-amber-400",
-    example: "hover:bg-amber-100/80 dark:hover:bg-amber-900/30",
-    input: "text-amber-700 dark:text-amber-400",
-    try: "text-amber-500/0 group-hover/ex:text-amber-500/80",
-  },
-} as const;
+interface MathWritingGuideProps {
+  onTryExample?: (input: string) => void;
+  onClose?: () => void;
+  className?: string;
+}
 
-function GuideCard({ color, examples, onTryExample }: {
-  color: keyof typeof GUIDE_COLORS;
-  examples: { input: string; latex: string }[];
-  onTryExample: (input: string) => void;
+/** 1つのパターンセル */
+function PatternCell({ color, label, pattern, example, onTry }: {
+  color: string;         // tailwind color name (emerald, blue, violet, amber)
+  label: string;         // "1項" etc
+  pattern: React.ReactNode;
+  example: { input: string; latex: string };
+  onTry: (input: string) => void;
 }) {
-  const c = GUIDE_COLORS[color];
+  const colorMap: Record<string, { label: string; bg: string; patBg: string; exHover: string; input: string; tryText: string }> = {
+    emerald: {
+      label: "bg-emerald-500 text-white",
+      bg: "bg-emerald-50/60 dark:bg-emerald-950/15 border-emerald-200/40 dark:border-emerald-800/30",
+      patBg: "bg-white/80 dark:bg-black/10",
+      exHover: "hover:bg-emerald-100/70 dark:hover:bg-emerald-900/25",
+      input: "text-emerald-700 dark:text-emerald-400",
+      tryText: "text-emerald-500/0 group-hover/ex:text-emerald-500",
+    },
+    blue: {
+      label: "bg-blue-500 text-white",
+      bg: "bg-blue-50/60 dark:bg-blue-950/15 border-blue-200/40 dark:border-blue-800/30",
+      patBg: "bg-white/80 dark:bg-black/10",
+      exHover: "hover:bg-blue-100/70 dark:hover:bg-blue-900/25",
+      input: "text-blue-700 dark:text-blue-400",
+      tryText: "text-blue-500/0 group-hover/ex:text-blue-500",
+    },
+    violet: {
+      label: "bg-violet-500 text-white",
+      bg: "bg-violet-50/60 dark:bg-violet-950/15 border-violet-200/40 dark:border-violet-800/30",
+      patBg: "bg-white/80 dark:bg-black/10",
+      exHover: "hover:bg-violet-100/70 dark:hover:bg-violet-900/25",
+      input: "text-violet-700 dark:text-violet-400",
+      tryText: "text-violet-500/0 group-hover/ex:text-violet-500",
+    },
+    amber: {
+      label: "bg-amber-500 text-white",
+      bg: "bg-amber-50/60 dark:bg-amber-950/15 border-amber-200/40 dark:border-amber-800/30",
+      patBg: "bg-white/80 dark:bg-black/10",
+      exHover: "hover:bg-amber-100/70 dark:hover:bg-amber-900/25",
+      input: "text-amber-700 dark:text-amber-400",
+      tryText: "text-amber-500/0 group-hover/ex:text-amber-500",
+    },
+  };
+  const c = colorMap[color] ?? colorMap.emerald;
+
   return (
-    <div className="space-y-0.5">
-      {examples.map((ex, i) => (
-        <button
-          key={i}
-          onClick={() => onTryExample(ex.input)}
-          className={`w-full flex items-center gap-1.5 px-2 py-[3px] rounded transition-colors group/ex ${c.example}`}
-        >
-          <span className={`text-[9px] font-mono font-medium ${c.input} shrink-0`}>{ex.input}</span>
-          <ArrowRight className="h-2 w-2 text-muted-foreground/20 shrink-0" />
-          <div className="flex-1 flex justify-end overflow-hidden">
-            <MathRenderer latex={ex.latex} displayMode={false} className="scale-[0.5] origin-right" />
-          </div>
-          <span className={`text-[7px] font-medium transition-all ${c.try} shrink-0`}>試す</span>
-        </button>
-      ))}
+    <div className={`rounded-lg border ${c.bg} overflow-hidden`}>
+      {/* ラベル + パターン図 */}
+      <div className="flex items-center gap-1.5 px-2 py-1">
+        <span className={`text-[7px] font-bold px-1 py-px rounded ${c.label} shrink-0 leading-tight`}>{label}</span>
+        <div className={`flex-1 flex items-center justify-center rounded px-1.5 py-0.5 ${c.patBg}`}>
+          {pattern}
+        </div>
+      </div>
+      {/* 例（クリックで入力） */}
+      <button
+        onClick={() => onTry(example.input)}
+        className={`w-full flex items-center gap-1 px-2 py-[2px] border-t border-black/[0.03] dark:border-white/[0.03] transition-colors group/ex ${c.exHover}`}
+      >
+        <span className={`text-[8px] font-mono font-medium ${c.input} shrink-0`}>{example.input}</span>
+        <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/20 shrink-0" />
+        <div className="flex-1 flex justify-end overflow-hidden">
+          <MathRenderer latex={example.latex} displayMode={false} className="scale-[0.45] origin-right" />
+        </div>
+        <span className={`text-[6px] font-medium transition-all ${c.tryText} shrink-0`}>試す</span>
+      </button>
     </div>
   );
 }
 
-// ══════════════════════════════════════════
-// スペーシングGUIコントロール
-// ══════════════════════════════════════════
+export function MathWritingGuide({ onTryExample, onClose, className = "" }: MathWritingGuideProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  const handleTry = (input: string) => {
+    onTryExample?.(input);
+  };
+
+  return (
+    <div className={`rounded-xl border border-border/30 bg-muted/10 overflow-hidden ${className}`}>
+      {/* ── ヘッダー: ミニワークフロー + 閉じる ── */}
+      <div className="flex items-center justify-between px-2.5 py-[3px] border-b border-border/15">
+        <div className="flex items-center gap-1.5 text-[7px] text-muted-foreground/60">
+          <span className="font-semibold text-foreground/50">書き方</span>
+          <span className="text-muted-foreground/30">|</span>
+          <span>日本語入力</span>
+          <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/25" />
+          <kbd className="px-0.5 rounded bg-muted/50 text-[6px] font-mono border border-border/20">Space</kbd>
+          <span className="text-[6px] text-muted-foreground/30">変換</span>
+          <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/25" />
+          <kbd className="px-0.5 rounded bg-muted/50 text-[6px] font-mono border border-border/20">Enter</kbd>
+          <span className="text-[6px] text-muted-foreground/30">確定</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-[7px] text-muted-foreground/40 hover:text-foreground/60 transition-colors px-1"
+          >
+            {expanded ? "簡略" : "詳細"}
+          </button>
+          {onClose && (
+            <button onClick={onClose} className="p-0.5 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/50 transition-colors">
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── 4パターン一覧（2×2 グリッド） ── */}
+      <div className="grid grid-cols-4 gap-1 p-1.5">
+        <PatternCell
+          color="emerald"
+          label="1項"
+          pattern={
+            <div className="flex items-center gap-1">
+              <span className="px-1 rounded bg-emerald-200/80 dark:bg-emerald-800/60 text-[7px] font-bold text-emerald-700 dark:text-emerald-300">操作</span>
+              <span className="text-[7px] text-emerald-500/60 dark:text-emerald-400/50 border-b border-dashed border-emerald-400/40">対象</span>
+            </div>
+          }
+          example={{ input: "ルートx", latex: "\\sqrt{x}" }}
+          onTry={handleTry}
+        />
+        <PatternCell
+          color="blue"
+          label="2項"
+          pattern={
+            <div className="flex items-center gap-0.5">
+              <span className="text-[7px] text-blue-500/60 dark:text-blue-400/50 border-b border-dashed border-blue-400/40">A</span>
+              <span className="px-1 rounded bg-blue-200/80 dark:bg-blue-800/60 text-[7px] font-bold text-blue-700 dark:text-blue-300">操作</span>
+              <span className="text-[7px] text-blue-500/60 dark:text-blue-400/50 border-b border-dashed border-blue-400/40">B</span>
+            </div>
+          }
+          example={{ input: "2分の1", latex: "\\frac{1}{2}" }}
+          onTry={handleTry}
+        />
+        <PatternCell
+          color="violet"
+          label="3項"
+          pattern={
+            <div className="flex items-center gap-0.5">
+              <span className="text-[7px] text-violet-500/60 border-b border-dashed border-violet-400/40">A</span>
+              <span className="text-[6px] text-violet-400 font-bold">→</span>
+              <span className="text-[7px] text-violet-500/60 border-b border-dashed border-violet-400/40">B</span>
+              <span className="px-0.5 rounded bg-violet-200/80 dark:bg-violet-800/60 text-[7px] font-bold text-violet-700 dark:text-violet-300">操作</span>
+            </div>
+          }
+          example={{ input: "0からπまで積分", latex: "\\int_{0}^{\\pi}" }}
+          onTry={handleTry}
+        />
+        <PatternCell
+          color="amber"
+          label="括弧"
+          pattern={
+            <div className="flex items-center gap-0.5">
+              <span className="px-0.5 rounded bg-amber-200/80 dark:bg-amber-800/60 text-[7px] font-bold text-amber-700 dark:text-amber-300">かっこ</span>
+              <span className="text-[8px] text-amber-400/70 font-bold">(</span>
+              <span className="text-[7px] text-amber-500/60 border-b border-dashed border-amber-400/40">内容</span>
+              <span className="text-[8px] text-amber-400/70 font-bold">)</span>
+            </div>
+          }
+          example={{ input: "かっこa+b", latex: "\\left(a+b\\right)" }}
+          onTry={handleTry}
+        />
+      </div>
+
+      {/* ── 展開時: ネスト＆追加例 ── */}
+      {expanded && (
+        <div className="px-2 pb-1.5 pt-0.5 border-t border-border/10 space-y-1">
+          {/* ネストルール */}
+          <div className="flex items-center gap-1.5 px-1 py-0.5 rounded bg-muted/20 text-[7px] text-muted-foreground/60">
+            <Lightbulb className="h-2.5 w-2.5 text-amber-400/60 shrink-0" />
+            <span><strong className="text-foreground/70">スペース＝ネスト区切り</strong>: 「ルート かっこa+b」→ √(a+b)　全角・半角どちらもOK</span>
+          </div>
+          {/* 追加例グリッド */}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-0">
+            {[
+              { input: "ルート かっこa+b", latex: "\\sqrt{\\left(a+b\\right)}", color: "emerald" },
+              { input: "xの2乗", latex: "x^{2}", color: "blue" },
+              { input: "絶対値x", latex: "\\left| x \\right|", color: "emerald" },
+              { input: "i=1からnまで総和", latex: "\\sum_{i=1}^{n}", color: "violet" },
+              { input: "ベクトルa", latex: "\\vec{a}", color: "emerald" },
+              { input: "かくかっこx", latex: "\\left[x\\right]", color: "amber" },
+            ].map((ex, i) => {
+              const colorStyles: Record<string, string> = {
+                emerald: "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20",
+                blue: "text-blue-700 dark:text-blue-400 hover:bg-blue-50/70 dark:hover:bg-blue-950/20",
+                violet: "text-violet-700 dark:text-violet-400 hover:bg-violet-50/70 dark:hover:bg-violet-950/20",
+                amber: "text-amber-700 dark:text-amber-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/20",
+              };
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleTry(ex.input)}
+                  className={`flex items-center gap-1 px-1 py-[2px] rounded transition-colors group/ex ${colorStyles[ex.color] ?? ""}`}
+                >
+                  <span className="text-[8px] font-mono font-medium shrink-0">{ex.input}</span>
+                  <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/15 shrink-0" />
+                  <div className="flex-1 flex justify-end overflow-hidden">
+                    <MathRenderer latex={ex.latex} displayMode={false} className="scale-[0.45] origin-right" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface SpacingControlProps {
   onInsert: (latex: string) => void;
@@ -868,118 +1015,6 @@ export function SpacingControl({ onInsert, className = "" }: SpacingControlProps
         <span className="ml-3 text-[9px] text-muted-foreground">
           ← {customPt}pt のスペース
         </span>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════
-// インライン書き方ガイド（タブ切替・コンパクト）
-// ══════════════════════════════════════════
-
-interface MathWritingGuideProps {
-  onTryExample?: (input: string) => void;
-  onClose?: () => void;
-  className?: string;
-}
-
-type GuideTab = "unary" | "binary" | "ternary" | "bracket";
-
-const GUIDE_TABS: { key: GuideTab; label: string; color: keyof typeof GUIDE_COLORS }[] = [
-  { key: "unary",   label: "1項",  color: "emerald" },
-  { key: "binary",  label: "2項",  color: "blue"    },
-  { key: "ternary", label: "3項",  color: "violet"  },
-  { key: "bracket", label: "括弧", color: "amber"   },
-];
-
-const GUIDE_EXAMPLES: Record<GuideTab, { input: string; latex: string; hint?: string }[]> = {
-  unary: [
-    { input: "ルートx",     latex: "\\sqrt{x}",              hint: "操作+対象" },
-    { input: "ルート a+b",  latex: "\\sqrt{a+b}",            hint: "スペースで区切り" },
-    { input: "ルート かっこa+b", latex: "\\sqrt{\\left(a+b\\right)}", hint: "ネスト" },
-    { input: "絶対値x",     latex: "\\left| x \\right|" },
-    { input: "ベクトルa",   latex: "\\vec{a}" },
-  ],
-  binary: [
-    { input: "a/b",       latex: "\\frac{a}{b}",  hint: "分数" },
-    { input: "2分の1",     latex: "\\frac{1}{2}",  hint: "日本語" },
-    { input: "xの2乗",     latex: "x^{2}",         hint: "累乗" },
-  ],
-  ternary: [
-    { input: "0からπまで積分",    latex: "\\int_{0}^{\\pi}",  hint: "AからBまで操作" },
-    { input: "i=1からnまで総和",  latex: "\\sum_{i=1}^{n}" },
-  ],
-  bracket: [
-    { input: "かっこa+b",        latex: "\\left(a+b\\right)",             hint: "丸括弧" },
-    { input: "かくかっこx",       latex: "\\left[x\\right]",              hint: "角括弧" },
-    { input: "ルートかっこa+b",    latex: "\\sqrt{\\left(a+b\\right)}",   hint: "ネスト例" },
-  ],
-};
-
-export function MathWritingGuide({ onTryExample, onClose, className = "" }: MathWritingGuideProps) {
-  const [activeTab, setActiveTab] = useState<GuideTab>("unary");
-
-  const handleTry = (input: string) => {
-    onTryExample?.(input);
-  };
-
-  const activeColor = GUIDE_TABS.find(t => t.key === activeTab)!.color;
-
-  return (
-    <div className={`rounded-lg border border-border/40 bg-muted/20 overflow-hidden ${className}`}>
-      {/* ── ヘッダー行: ワークフロー + タブ + 閉じる ── */}
-      <div className="flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-muted/40 to-transparent border-b border-border/20">
-        {/* ワークフロー */}
-        <div className="flex items-center gap-0.5 text-[7px] text-muted-foreground/50 shrink-0">
-          <span>日本語</span>
-          <ArrowRight className="h-1.5 w-1.5" />
-          <kbd className="px-0.5 rounded bg-muted/60 text-[6px] font-mono">Space</kbd>
-          <ArrowRight className="h-1.5 w-1.5" />
-          <kbd className="px-0.5 rounded bg-muted/60 text-[6px] font-mono">Enter</kbd>
-        </div>
-
-        {/* 区切り */}
-        <div className="w-px h-3 bg-border/30 mx-0.5" />
-
-        {/* タブ */}
-        <div className="flex items-center gap-0.5 flex-1">
-          {GUIDE_TABS.map((tab) => {
-            const c = GUIDE_COLORS[tab.color];
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-1.5 py-0.5 rounded text-[8px] font-medium transition-all ${
-                  isActive
-                    ? `${c.badge} shadow-sm`
-                    : "text-muted-foreground/50 hover:text-foreground/70 hover:bg-muted/50"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 閉じる */}
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="p-0.5 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
-          >
-            <X className="h-2.5 w-2.5" />
-          </button>
-        )}
-      </div>
-
-      {/* ── コンテンツ ── */}
-      <div className="px-1.5 py-1">
-        <GuideCard
-          color={activeColor}
-          examples={GUIDE_EXAMPLES[activeTab]}
-          onTryExample={handleTry}
-        />
       </div>
     </div>
   );
