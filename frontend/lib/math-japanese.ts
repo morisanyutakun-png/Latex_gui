@@ -1572,13 +1572,15 @@ export function parseJapanesemath(input: string): string {
 
   // ══ Phase 1a: 括弧演算子 (最優先 — 他の単項演算子より先に処理) ══
   // 括弧は単項前置演算子: スペースまでの内容を括弧で囲む
-  // ネスト例: ルートかっこa+b → ルート(a+b) → \sqrt{a+b}
+  // ネスト例: ルート かっこa+b → ルート (a+b) → \sqrt{(a+b)}
+  //           ルートa+b → \sqrt{a+b}
   //           かっこa+b たす かっこc+d → (a+b) + (c+d)
+  // ※ スペース (全角・半角) がネストの区切り。演算子と引数の間にスペース1つ許容。
   // ※ 長いパターン優先 (なみかっこ > かくかっこ > かっこ)
-  result = result.replace(/(?:なみかっこ|波括弧|中括弧)([^\s]+)/g, (_, x) => `\\{${x}\\}`);
-  result = result.replace(/(?:かくかっこ|角括弧)([^\s]+)/g, (_, x) => `[${x}]`);
-  result = result.replace(/(?:かっこ|括弧)([^\s]+)/g, (_, x) => `(${x})`);
-  // ※ かっこ は「スペースまで消費」が原則。分離には空白を使う:
+  result = result.replace(/(?:なみかっこ|波括弧|中括弧)\s?([^\s]+)/g, (_, x) => `\\{${x}\\}`);
+  result = result.replace(/(?:かくかっこ|角括弧)\s?([^\s]+)/g, (_, x) => `[${x}]`);
+  result = result.replace(/(?:かっこ|括弧)\s?([^\s]+)/g, (_, x) => `(${x})`);
+  // ※ かっこ は「次のスペースまで消費」が原則。分離にはスペースを使う:
   //    かっこa+b / かっこc+d → (a+b) / (c+d) → \frac{(a+b)}{(c+d)}
   // 「」 → () (鉤括弧 → 通常括弧、補助的構文)
   result = result.replace(/「([^」]+)」/g, (_, x) => `(${x})`);
@@ -1608,29 +1610,36 @@ export function parseJapanesemath(input: string): string {
   );
 
   // ══ Phase 1c: 単項前置演算子 (スペースまで消費) ══
-  // ※ Phase 1a で括弧が () に変換済みなので、ルート(a+b) 等が自然にマッチ
+  // ※ Phase 1a で括弧が () に変換済み。ルート等は括弧を保持する。
+  // ※ 演算子と引数の間にスペース1つ許容 (ネスト区切り):
+  //    ルートa+b   → \sqrt{a+b}
+  //    ルート a+b   → \sqrt{a+b}
+  //    ルートかっこa+b → \sqrt{(a+b)}  ← 括弧が見える
+  //    ルート かっこa+b → \sqrt{(a+b)}  ← スペースでネスト
 
   // ルート / 平方根 / 根号 → \sqrt{}
+  // 括弧付き: 括弧を保持 (かっこが()に変換済み)
   result = result.replace(
-    /(?:るーと|平方根|根号|√)\(([^)]+)\)/g,
-    (_, x) => `\\sqrt{${x}}`
+    /(?:るーと|平方根|根号|√)\s?\(([^)]+)\)/g,
+    (_, x) => `\\sqrt{(${x})}`
   );
+  // 括弧なし: スペースまで消費
   result = result.replace(
-    /(?:るーと|平方根|根号|√)([^\s(]+)/g,
+    /(?:るーと|平方根|根号|√)\s?([^\s(]+)/g,
     (_, x) => `\\sqrt{${resolveTerm(x)}}`
   );
 
   // 絶対値 → \left| ... \right|
-  result = result.replace(/(?:ぜったいち|絶対値)\(([^)]+)\)/g, (_, x) => `\\left| ${x} \\right|`);
-  result = result.replace(/(?:ぜったいち|絶対値)([^\s(]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
+  result = result.replace(/(?:ぜったいち|絶対値)\s?\(([^)]+)\)/g, (_, x) => `\\left| (${x}) \\right|`);
+  result = result.replace(/(?:ぜったいち|絶対値)\s?([^\s(]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
 
   // ノルム → \left\| ... \right\|
-  result = result.replace(/(?:のるむ|ノルム)\(([^)]+)\)/g, (_, x) => `\\left\\| ${x} \\right\\|`);
-  result = result.replace(/(?:のるむ|ノルム)([^\s(]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
+  result = result.replace(/(?:のるむ|ノルム)\s?\(([^)]+)\)/g, (_, x) => `\\left\\| (${x}) \\right\\|`);
+  result = result.replace(/(?:のるむ|ノルム)\s?([^\s(]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
 
   // 太字 / ボールド → \mathbf{}
-  result = result.replace(/(?:太字|ぼーるど|ボールド)\(([^)]+)\)/g, (_, x) => `\\mathbf{${x}}`);
-  result = result.replace(/(?:太字|ぼーるど|ボールド)([a-zA-Z])/g, (_, x) => `\\mathbf{${x}}`);
+  result = result.replace(/(?:太字|ぼーるど|ボールド)\s?\(([^)]+)\)/g, (_, x) => `\\mathbf{${x}}`);
+  result = result.replace(/(?:太字|ぼーるど|ボールド)\s?([a-zA-Z])/g, (_, x) => `\\mathbf{${x}}`);
 
   // ══ Phase 1d: 三項演算子 (から〜まで) ══
   result = result.replace(
