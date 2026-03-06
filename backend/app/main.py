@@ -49,6 +49,12 @@ async def _startup_warmup():
     logger.info("Background TeX warmup triggered")
 
 
+@app.get("/")
+async def root_health():
+    """ルートヘルスチェック (Koyeb等のデフォルトヘルスチェック用)"""
+    return {"status": "ok"}
+
+
 @app.get("/api/health")
 async def health_check():
     """ヘルスチェック + メモリ使用量レポート"""

@@ -120,4 +120,5 @@ WORKDIR /app
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# CMD を空にして entrypoint.sh 内で PORT 環境変数を動的に使用
+CMD []
