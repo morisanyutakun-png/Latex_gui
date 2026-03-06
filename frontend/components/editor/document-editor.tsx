@@ -593,7 +593,14 @@ function MathBlockEditor({ block }: { block: Block }) {
       {/* 入力欄 */}
       {isEditing && (
         <div className={`border rounded-xl p-3 bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
-          {!showGuide && (
+          {/* インライン書き方ガイド（入力の直上） */}
+          {showGuide ? (
+            <MathWritingGuide
+              onTryExample={handleTryExample}
+              onClose={() => setShowGuide(false)}
+              className="mb-2"
+            />
+          ) : (
             <button
               onClick={() => setShowGuide(true)}
               className="mb-2 px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1"
@@ -607,14 +614,6 @@ function MathBlockEditor({ block }: { block: Block }) {
             initialSourceText={content.sourceText || ""}
           />
         </div>
-      )}
-
-      {/* フローティング書き方ガイド（ドラッグ可能、画面左上） */}
-      {isEditing && showGuide && (
-        <MathWritingGuide
-          onTryExample={handleTryExample}
-          onClose={() => setShowGuide(false)}
-        />
       )}
     </div>
   );
