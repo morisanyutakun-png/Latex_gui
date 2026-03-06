@@ -788,35 +788,33 @@ function GuideCard({ color, number, title, subtitle, diagram, examples, onTryExa
 }) {
   const c = GUIDE_COLORS[color];
   return (
-    <div className={`p-3 rounded-xl ${c.bg} border ${c.border} space-y-2.5 transition-all`}>
+    <div className={`p-2 rounded-xl ${c.bg} border ${c.border} space-y-1.5 transition-all`}>
       {/* ヘッダー */}
-      <div className="flex items-center gap-2">
-        <span className={`h-5 w-5 rounded-md text-[10px] font-bold flex items-center justify-center ${c.number}`}>{number}</span>
-        <div>
-          <span className={`text-xs font-bold ${c.badge} px-1.5 py-0.5 rounded-md`}>{title}</span>
-          <p className={`text-[9px] mt-0.5 ${c.subtitle}`}>{subtitle}</p>
-        </div>
+      <div className="flex items-center gap-1.5">
+        <span className={`h-4 w-4 rounded text-[9px] font-bold flex items-center justify-center ${c.number}`}>{number}</span>
+        <span className={`text-[10px] font-bold ${c.badge} px-1.5 py-0.5 rounded`}>{title}</span>
+        <span className={`text-[8px] ${c.subtitle}`}>{subtitle}</span>
       </div>
 
-      {/* 構造図 — 大きく表示 */}
-      <div className="flex justify-center py-2.5 px-2 rounded-xl bg-white/70 dark:bg-black/15 border border-black/5 dark:border-white/5">
+      {/* 構造図 */}
+      <div className="flex justify-center py-1.5 px-2 rounded-lg bg-white/70 dark:bg-black/15 border border-black/5 dark:border-white/5">
         {diagram}
       </div>
 
       {/* 例 — クリックで試せる */}
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {examples.map((ex, i) => (
           <button
             key={i}
             onClick={() => onTryExample(ex.input)}
-            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors group/ex ${c.example}`}
+            className={`w-full flex items-center gap-1.5 px-1.5 py-1 rounded-lg transition-colors group/ex ${c.example}`}
           >
-            <span className={`text-[10px] font-mono font-medium ${c.input} shrink-0`}>{ex.input}</span>
-            <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/25 shrink-0" />
+            <span className={`text-[9px] font-mono font-medium ${c.input} shrink-0`}>{ex.input}</span>
+            <ArrowRight className="h-2 w-2 text-muted-foreground/20 shrink-0" />
             <div className="flex-1 flex justify-end overflow-hidden">
-              <MathRenderer latex={ex.latex} displayMode={false} className="scale-[0.6] origin-right" />
+              <MathRenderer latex={ex.latex} displayMode={false} className="scale-[0.55] origin-right" />
             </div>
-            <span className={`text-[8px] font-medium transition-all ${c.try} shrink-0`}>試す</span>
+            <span className={`text-[7px] font-medium transition-all ${c.try} shrink-0`}>試す</span>
           </button>
         ))}
       </div>
@@ -906,42 +904,57 @@ interface MathWritingGuideProps {
 }
 
 export function MathWritingGuide({ onTryExample, onClose, className = "" }: MathWritingGuideProps) {
-  const [pos, setPos] = useState({ x: 16, y: 72 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef({ x: 16, y: 72 });
+  const dragRef = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
+  const [, forceRender] = useState(0);
 
-  // ── ドラッグ開始 ──
+  // ── ドラッグ開始（useRef で高速追従） ──
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // ヘッダー部分でのみドラッグ開始（ボタンは除外）
     if ((e.target as HTMLElement).closest('button')) return;
     e.preventDefault();
-    setIsDragging(true);
-    setDragOffset({
-      x: e.clientX - pos.x,
-      y: e.clientY - pos.y,
-    });
-  }, [pos]);
+    dragRef.current = {
+      isDragging: true,
+      offsetX: e.clientX - posRef.current.x,
+      offsetY: e.clientY - posRef.current.y,
+    };
+    if (panelRef.current) panelRef.current.style.cursor = 'grabbing';
+  }, []);
 
-  // ── ドラッグ中・終了 ──
+  // ── requestAnimationFrame ベースの滑らかドラッグ ──
   useEffect(() => {
-    if (!isDragging) return;
+    let rafId = 0;
 
     const handleMouseMove = (e: MouseEvent) => {
-      setPos({
-        x: Math.max(0, Math.min(window.innerWidth - 300, e.clientX - dragOffset.x)),
-        y: Math.max(0, Math.min(window.innerHeight - 100, e.clientY - dragOffset.y)),
+      if (!dragRef.current.isDragging) return;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const newX = Math.max(0, Math.min(window.innerWidth - 310, e.clientX - dragRef.current.offsetX));
+        const newY = Math.max(0, Math.min(window.innerHeight - 100, e.clientY - dragRef.current.offsetY));
+        posRef.current = { x: newX, y: newY };
+        if (panelRef.current) {
+          panelRef.current.style.left = `${newX}px`;
+          panelRef.current.style.top = `${newY}px`;
+        }
       });
     };
-    const handleMouseUp = () => setIsDragging(false);
 
-    window.addEventListener('mousemove', handleMouseMove);
+    const handleMouseUp = () => {
+      if (!dragRef.current.isDragging) return;
+      dragRef.current.isDragging = false;
+      cancelAnimationFrame(rafId);
+      if (panelRef.current) panelRef.current.style.cursor = '';
+      forceRender((n) => n + 1);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     window.addEventListener('mouseup', handleMouseUp);
     return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragOffset]);
+  }, []);
 
   const handleTry = (input: string) => {
     onTryExample?.(input);
@@ -952,71 +965,57 @@ export function MathWritingGuide({ onTryExample, onClose, className = "" }: Math
       ref={panelRef}
       style={{
         position: 'fixed',
-        left: pos.x,
-        top: pos.y,
+        left: posRef.current.x,
+        top: posRef.current.y,
         zIndex: 9999,
-        width: 300,
-        maxHeight: 'calc(100vh - 100px)',
+        width: 290,
+        willChange: 'left, top',
       }}
-      className={`rounded-2xl border border-border/60 bg-background shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-3 duration-200 ${className}`}
+      className={`rounded-2xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-3 duration-200 ${className}`}
     >
       {/* ── ドラッグハンドル付きヘッダー ── */}
       <div
         onMouseDown={handleMouseDown}
-        className={`flex items-center justify-between px-3 py-2 bg-gradient-to-r from-emerald-50/90 via-blue-50/50 to-violet-50/40 dark:from-emerald-950/30 dark:via-blue-950/20 dark:to-violet-950/15 border-b border-border/30 select-none ${
-          isDragging ? 'cursor-grabbing' : 'cursor-grab'
-        }`}
+        className="flex items-center justify-between px-2.5 py-1.5 bg-gradient-to-r from-emerald-50/90 via-blue-50/50 to-violet-50/40 dark:from-emerald-950/30 dark:via-blue-950/20 dark:to-violet-950/15 border-b border-border/30 select-none cursor-grab"
       >
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col gap-[2px] mr-1 opacity-40">
-            <div className="flex gap-[2px]"><span className="w-1 h-1 rounded-full bg-current" /><span className="w-1 h-1 rounded-full bg-current" /></div>
+        <div className="flex items-center gap-1.5">
+          <div className="flex flex-col gap-[2px] opacity-30">
             <div className="flex gap-[2px]"><span className="w-1 h-1 rounded-full bg-current" /><span className="w-1 h-1 rounded-full bg-current" /></div>
             <div className="flex gap-[2px]"><span className="w-1 h-1 rounded-full bg-current" /><span className="w-1 h-1 rounded-full bg-current" /></div>
           </div>
-          <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-emerald-400 to-violet-500 flex items-center justify-center shadow-sm">
-            <Sigma className="h-3.5 w-3.5 text-white" />
+          <div className="h-5 w-5 rounded-md bg-gradient-to-br from-emerald-400 to-violet-500 flex items-center justify-center">
+            <Sigma className="h-3 w-3 text-white" />
           </div>
-          <div>
-            <h3 className="text-[11px] font-bold text-foreground leading-tight">日本語で数式を書こう</h3>
-            <p className="text-[8px] text-muted-foreground leading-tight">ドラッグして好きな場所に移動</p>
-          </div>
+          <h3 className="text-[10px] font-bold text-foreground">数式ガイド</h3>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/60 transition-colors"
-            title="ガイドを閉じる"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-
-      {/* ── ワークフロー ── */}
-      <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-muted/20 border-b border-border/20">
         <div className="flex items-center gap-1">
-          <span className="h-4 w-4 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-[8px] font-bold flex items-center justify-center">1</span>
-          <span className="text-[9px] font-medium text-foreground/70">日本語入力</span>
-        </div>
-        <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/30" />
-        <div className="flex items-center gap-1">
-          <span className="h-4 w-4 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[8px] font-bold flex items-center justify-center">2</span>
-          <span className="text-[9px] font-medium text-foreground/70">
-            <kbd className="px-0.5 py-0 rounded bg-muted text-[7px] font-mono">Space</kbd> 変換
-          </span>
-        </div>
-        <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/30" />
-        <div className="flex items-center gap-1">
-          <span className="h-4 w-4 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 text-[8px] font-bold flex items-center justify-center">3</span>
-          <span className="text-[9px] font-medium text-foreground/70">
-            <kbd className="px-0.5 py-0 rounded bg-muted text-[7px] font-mono">Enter</kbd> 反映
-          </span>
+          <span className="text-[7px] text-muted-foreground/40">ドラッグ移動</span>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground hover:bg-muted/60 transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── 4つの演算カード ── */}
-      <ScrollArea className="max-h-[calc(100vh-300px)]">
-        <div className="grid grid-cols-1 gap-2 p-2.5">
+      {/* ── ワークフロー（1行コンパクト） ── */}
+      <div className="flex items-center justify-center gap-1 px-2 py-1 bg-muted/15 border-b border-border/15 text-[8px]">
+        <span className="h-3.5 w-3.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-[7px] font-bold flex items-center justify-center">1</span>
+        <span className="text-foreground/60">日本語</span>
+        <ArrowRight className="h-2 w-2 text-muted-foreground/25" />
+        <span className="h-3.5 w-3.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[7px] font-bold flex items-center justify-center">2</span>
+        <kbd className="px-0.5 rounded bg-muted text-[6px] font-mono">Space</kbd>
+        <ArrowRight className="h-2 w-2 text-muted-foreground/25" />
+        <span className="h-3.5 w-3.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 text-[7px] font-bold flex items-center justify-center">3</span>
+        <kbd className="px-0.5 rounded bg-muted text-[6px] font-mono">Enter</kbd>
+      </div>
+
+      {/* ── 4つのルール（スクロール可能・コンパクト） ── */}
+      <ScrollArea className="h-[320px]">
+        <div className="space-y-1.5 p-2">
           <GuideCard
             color="emerald"
             number={1}
@@ -1094,25 +1093,25 @@ export function MathWritingGuide({ onTryExample, onClose, className = "" }: Math
             ]}
             onTryExample={handleTry}
           />
-        </div>
 
-        {/* ── その他ヒント ── */}
-        <div className="px-3 pb-2.5 flex items-center gap-2 flex-wrap">
-          <span className="text-[9px] text-muted-foreground/60 font-medium">その他:</span>
-          {[
-            { input: "sin(x)", label: "関数" },
-            { input: "α", label: "記号" },
-            { input: "xは0より大きい", label: "自然言語" },
-          ].map((item, i) => (
-            <button
-              key={i}
-              onClick={() => handleTry(item.input)}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9px] bg-muted/40 hover:bg-muted/80 text-foreground/70 transition-colors"
-            >
-              <span className="font-medium">{item.input}</span>
-              <span className="text-muted-foreground/40 text-[7px]">({item.label})</span>
-            </button>
-          ))}
+          {/* ── その他ヒント ── */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            <span className="text-[8px] text-muted-foreground/50">他:</span>
+            {[
+              { input: "sin(x)", label: "関数" },
+              { input: "α", label: "記号" },
+              { input: "xは0より大きい", label: "自然言語" },
+            ].map((item, i) => (
+              <button
+                key={i}
+                onClick={() => handleTry(item.input)}
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] bg-muted/40 hover:bg-muted/80 text-foreground/60 transition-colors"
+              >
+                <span className="font-medium">{item.input}</span>
+                <span className="text-muted-foreground/30 text-[6px]">{item.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </ScrollArea>
     </div>
