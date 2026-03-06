@@ -590,39 +590,31 @@ function MathBlockEditor({ block }: { block: Block }) {
         ) : null}
       </div>
 
-      {/* 入力欄 — ガイドと並列レイアウト */}
+      {/* 入力欄 */}
       {isEditing && (
-        <div className={`border rounded-xl bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
-          <div className="flex gap-0">
-            {/* 左: 書き方ガイド（独立パネル、デフォルト表示） */}
-            {showGuide && (
-              <div className="w-[280px] shrink-0 border-r border-border/40">
-                <MathWritingGuide
-                  onTryExample={handleTryExample}
-                  onClose={() => setShowGuide(false)}
-                  className="rounded-none border-0 shadow-none h-full"
-                />
-              </div>
-            )}
-
-            {/* 右: 入力エリア */}
-            <div className="flex-1 min-w-0 p-3">
-              {!showGuide && (
-                <button
-                  onClick={() => setShowGuide(true)}
-                  className="mb-2 px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1"
-                >
-                  <Sigma className="h-3 w-3" />書き方ガイドを表示
-                </button>
-              )}
-              <JapaneseMathInput
-                ref={mathInputRef}
-                onApply={handleApply}
-                initialSourceText={content.sourceText || ""}
-              />
-            </div>
-          </div>
+        <div className={`border rounded-xl p-3 bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
+          {!showGuide && (
+            <button
+              onClick={() => setShowGuide(true)}
+              className="mb-2 px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1"
+            >
+              <Sigma className="h-3 w-3" />書き方ガイドを表示
+            </button>
+          )}
+          <JapaneseMathInput
+            ref={mathInputRef}
+            onApply={handleApply}
+            initialSourceText={content.sourceText || ""}
+          />
         </div>
+      )}
+
+      {/* フローティング書き方ガイド（ドラッグ可能、画面左上） */}
+      {isEditing && showGuide && (
+        <MathWritingGuide
+          onTryExample={handleTryExample}
+          onClose={() => setShowGuide(false)}
+        />
       )}
     </div>
   );

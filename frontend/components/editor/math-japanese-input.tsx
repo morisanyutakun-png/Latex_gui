@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
+import ReactDOM from "react-dom";
 import { MathRenderer } from "./math-editor";
 import {
   parseJapanesemath,
@@ -895,7 +896,7 @@ export function SpacingControl({ onInsert, className = "" }: SpacingControlProps
 }
 
 // ══════════════════════════════════════════
-// 独立書き方ガイドパネル（MathBlockEditor の横に表示）
+// 独立書き方ガイドパネル（ドラッグ可能フローティング）
 // ══════════════════════════════════════════
 
 interface MathWritingGuideProps {
@@ -905,21 +906,79 @@ interface MathWritingGuideProps {
 }
 
 export function MathWritingGuide({ onTryExample, onClose, className = "" }: MathWritingGuideProps) {
+  const [pos, setPos] = useState({ x: 16, y: 72 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // ── ドラッグ開始 ──
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // ヘッダー部分でのみドラッグ開始（ボタンは除外）
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - pos.x,
+      y: e.clientY - pos.y,
+    });
+  }, [pos]);
+
+  // ── ドラッグ中・終了 ──
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 300, e.clientX - dragOffset.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 100, e.clientY - dragOffset.y)),
+      });
+    };
+    const handleMouseUp = () => setIsDragging(false);
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset]);
+
   const handleTry = (input: string) => {
     onTryExample?.(input);
   };
 
-  return (
-    <div className={`rounded-2xl border border-border/60 bg-gradient-to-b from-background to-muted/10 overflow-hidden shadow-sm ${className}`}>
-      {/* ── ヘッダー ── */}
-      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-emerald-50/90 via-blue-50/50 to-violet-50/40 dark:from-emerald-950/30 dark:via-blue-950/20 dark:to-violet-950/15 border-b border-border/30">
+  const guideContent = (
+    <div
+      ref={panelRef}
+      style={{
+        position: 'fixed',
+        left: pos.x,
+        top: pos.y,
+        zIndex: 9999,
+        width: 300,
+        maxHeight: 'calc(100vh - 100px)',
+      }}
+      className={`rounded-2xl border border-border/60 bg-background shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-3 duration-200 ${className}`}
+    >
+      {/* ── ドラッグハンドル付きヘッダー ── */}
+      <div
+        onMouseDown={handleMouseDown}
+        className={`flex items-center justify-between px-3 py-2 bg-gradient-to-r from-emerald-50/90 via-blue-50/50 to-violet-50/40 dark:from-emerald-950/30 dark:via-blue-950/20 dark:to-violet-950/15 border-b border-border/30 select-none ${
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+      >
         <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-[2px] mr-1 opacity-40">
+            <div className="flex gap-[2px]"><span className="w-1 h-1 rounded-full bg-current" /><span className="w-1 h-1 rounded-full bg-current" /></div>
+            <div className="flex gap-[2px]"><span className="w-1 h-1 rounded-full bg-current" /><span className="w-1 h-1 rounded-full bg-current" /></div>
+            <div className="flex gap-[2px]"><span className="w-1 h-1 rounded-full bg-current" /><span className="w-1 h-1 rounded-full bg-current" /></div>
+          </div>
           <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-emerald-400 to-violet-500 flex items-center justify-center shadow-sm">
             <Sigma className="h-3.5 w-3.5 text-white" />
           </div>
           <div>
             <h3 className="text-[11px] font-bold text-foreground leading-tight">日本語で数式を書こう</h3>
-            <p className="text-[8px] text-muted-foreground leading-tight">LaTeX不要 — 4つのルールで全ての数式が書けます</p>
+            <p className="text-[8px] text-muted-foreground leading-tight">ドラッグして好きな場所に移動</p>
           </div>
         </div>
         {onClose && (
@@ -1058,6 +1117,10 @@ export function MathWritingGuide({ onTryExample, onClose, className = "" }: Math
       </ScrollArea>
     </div>
   );
+
+  // ポータルで body 直下にレンダリング（画面最上位レイヤー）
+  if (typeof document === 'undefined') return null;
+  return ReactDOM.createPortal(guideContent, document.body);
 }
 
 // ══════════════════════════════════════════
