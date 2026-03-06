@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
 import { MathRenderer } from "./math-editor";
 import {
   parseJapanesemath,
@@ -117,6 +117,12 @@ interface JapaneseMathInputProps {
   className?: string;
 }
 
+/** 外部からJapaneseMathInputを操作するためのハンドル */
+export interface JapaneseMathInputHandle {
+  setInput: (text: string) => void;
+  focus: () => void;
+}
+
 /** 統合候補の型 */
 interface UnifiedSuggestion {
   type: "parse" | "dict" | "formula";
@@ -151,7 +157,7 @@ function addToHistory(latex: string, display: string) {
   } catch { /* ignore */ }
 }
 
-export function JapaneseMathInput({ onApply, initialSourceText = "", className = "" }: JapaneseMathInputProps) {
+export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMathInputProps>(function JapaneseMathInput({ onApply, initialSourceText = "", className = "" }, ref) {
   const [inputText, setInputText] = useState(initialSourceText);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [browserCategory, setBrowserCategory] = useState("すべて");
@@ -159,6 +165,17 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
   const [overrideLatex, setOverrideLatex] = useState<string | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── 外部から操作できるハンドル ──
+  useImperativeHandle(ref, () => ({
+    setInput: (text: string) => {
+      setInputText(text);
+      setOverrideLatex(null);
+    },
+    focus: () => {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+  }));
 
   // ── リアルタイム変換結果（内部のみ、ユーザには見せない） ──
   const baseLatex = useMemo(() => {
@@ -571,16 +588,6 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             <X className="h-3 w-3 inline mr-0.5" />クリア
           </button>
         )}
-        <button
-          onClick={() => setShowGuide(!showGuide)}
-          className={`px-2 py-1 rounded-lg text-[10px] transition-colors flex items-center gap-1 ${
-            showGuide
-              ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-          }`}
-        >
-          <BookOpen className="h-3 w-3" />{showGuide ? "ガイドを閉じる" : "書き方ガイド"}
-        </button>
         <span className="text-[9px] text-muted-foreground/40 ml-auto flex items-center gap-1">
           <kbd className="px-1 rounded bg-muted font-mono text-[8px]">Space</kbd>
           <span>変換</span>
@@ -588,178 +595,6 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
           <span>反映</span>
         </span>
       </div>
-
-      {/* ═══ 書き方ガイド（折りたたみパネル — 入力の下に配置） ═══ */}
-      {showGuide && (
-        <div className="mt-2 rounded-2xl border border-border/60 bg-gradient-to-b from-background to-muted/10 overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
-          {/* ── ヘッダー ── */}
-          <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-emerald-50/90 via-blue-50/50 to-violet-50/40 dark:from-emerald-950/30 dark:via-blue-950/20 dark:to-violet-950/15 border-b border-border/30">
-            <div className="flex items-center gap-3">
-              <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-emerald-400 to-violet-500 flex items-center justify-center shadow-sm">
-                <Sigma className="h-4 w-4 text-white" />
-              </div>
-              <div>
-                <h3 className="text-[12px] font-bold text-foreground">日本語で数式を書こう</h3>
-                <p className="text-[9px] text-muted-foreground">LaTeX不要 — 4つのルールで全ての数式が書けます</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowGuide(false)}
-              className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/60 transition-colors"
-              title="ガイドを閉じる"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          {/* ── ワークフロー ── */}
-          <div className="flex items-center justify-center gap-2 px-4 py-2 bg-muted/20 border-b border-border/20">
-            <div className="flex items-center gap-1.5">
-              <span className="h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold flex items-center justify-center">1</span>
-              <span className="text-[11px] font-medium text-foreground/70">日本語で入力</span>
-            </div>
-            <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
-            <div className="flex items-center gap-1.5">
-              <span className="h-5 w-5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] font-bold flex items-center justify-center">2</span>
-              <span className="text-[11px] font-medium text-foreground/70">
-                <kbd className="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Space</kbd> で変換
-              </span>
-            </div>
-            <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
-            <div className="flex items-center gap-1.5">
-              <span className="h-5 w-5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 text-[10px] font-bold flex items-center justify-center">3</span>
-              <span className="text-[11px] font-medium text-foreground/70">
-                <kbd className="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Enter</kbd> で反映
-              </span>
-            </div>
-          </div>
-
-          {/* ── 4つの演算カード ── */}
-          <div className="grid grid-cols-2 gap-3 p-3">
-            <GuideCard
-              color="emerald"
-              number={1}
-              title="1項演算子"
-              subtitle="操作名を書いて直後に対象を置く"
-              diagram={
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-lg bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold shadow-sm">操作</span>
-                  <ArrowRight className="h-3.5 w-3.5 text-emerald-400" />
-                  <span className="px-2.5 py-1 rounded-lg border-2 border-dashed border-emerald-300 dark:border-emerald-700 text-xs text-emerald-700 dark:text-emerald-300">対象</span>
-                </div>
-              }
-              examples={[
-                { input: "ルートx", latex: "\\sqrt{x}" },
-                { input: "絶対値x", latex: "\\left| x \\right|" },
-                { input: "ベクトルa", latex: "\\vec{a}" },
-              ]}
-              onTryExample={(input) => {
-                setInputText(input);
-                setOverrideLatex(null);
-                setShowGuide(false);
-                requestAnimationFrame(() => inputRef.current?.focus());
-              }}
-            />
-            <GuideCard
-              color="blue"
-              number={2}
-              title="2項演算子"
-              subtitle="A と B の間に操作を書く"
-              diagram={
-                <div className="flex items-center gap-1.5">
-                  <span className="px-2 py-1 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-700 text-xs text-blue-700 dark:text-blue-300">A</span>
-                  <span className="px-2.5 py-1 rounded-lg bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs font-bold shadow-sm">操作</span>
-                  <span className="px-2 py-1 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-700 text-xs text-blue-700 dark:text-blue-300">B</span>
-                </div>
-              }
-              examples={[
-                { input: "a/b", latex: "\\frac{a}{b}" },
-                { input: "2分の1", latex: "\\frac{1}{2}" },
-                { input: "xの2乗", latex: "x^{2}" },
-              ]}
-              onTryExample={(input) => {
-                setInputText(input);
-                setOverrideLatex(null);
-                setShowGuide(false);
-                requestAnimationFrame(() => inputRef.current?.focus());
-              }}
-            />
-            <GuideCard
-              color="violet"
-              number={3}
-              title="3項演算子"
-              subtitle="「から」「まで」で範囲指定"
-              diagram={
-                <div className="flex items-center gap-1">
-                  <span className="px-1.5 py-1 rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-700 text-xs text-violet-700 dark:text-violet-300">A</span>
-                  <span className="text-[10px] text-violet-500 font-bold">から</span>
-                  <span className="px-1.5 py-1 rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-700 text-xs text-violet-700 dark:text-violet-300">B</span>
-                  <span className="text-[10px] text-violet-500 font-bold">まで</span>
-                  <span className="px-2 py-1 rounded-lg bg-violet-200 dark:bg-violet-800 text-violet-800 dark:text-violet-200 text-xs font-bold shadow-sm">操作</span>
-                </div>
-              }
-              examples={[
-                { input: "0からπまで積分", latex: "\\int_{0}^{\\pi}" },
-                { input: "i=1からnまで総和", latex: "\\sum_{i=1}^{n}" },
-              ]}
-              onTryExample={(input) => {
-                setInputText(input);
-                setOverrideLatex(null);
-                setShowGuide(false);
-                requestAnimationFrame(() => inputRef.current?.focus());
-              }}
-            />
-            <GuideCard
-              color="amber"
-              number={4}
-              title="括弧"
-              subtitle="スペースなし=ネスト結合"
-              diagram={
-                <div className="flex items-center gap-1">
-                  <span className="px-2 py-1 rounded-lg bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold shadow-sm">かっこ</span>
-                  <span className="text-amber-400 text-base font-bold">(</span>
-                  <span className="px-2 py-1 rounded-lg border-2 border-dashed border-amber-300 dark:border-amber-700 text-xs text-amber-700 dark:text-amber-300">内容</span>
-                  <span className="text-amber-400 text-base font-bold">)</span>
-                </div>
-              }
-              examples={[
-                { input: "かっこa+b", latex: "\\left(a+b\\right)" },
-                { input: "ルートかっこa+b", latex: "\\sqrt{a+b}" },
-              ]}
-              onTryExample={(input) => {
-                setInputText(input);
-                setOverrideLatex(null);
-                setShowGuide(false);
-                requestAnimationFrame(() => inputRef.current?.focus());
-              }}
-            />
-          </div>
-
-          {/* ── 追加ヒント ── */}
-          <div className="px-4 pb-3 flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] text-muted-foreground/60 font-medium">その他:</span>
-            {[
-              { input: "sin(x)", label: "関数" },
-              { input: "α", label: "記号" },
-              { input: "xは0より大きい", label: "自然言語" },
-            ].map((item, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  setInputText(item.input);
-                  setOverrideLatex(null);
-                  setShowGuide(false);
-                  requestAnimationFrame(() => inputRef.current?.focus());
-                }}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] bg-muted/40 hover:bg-muted/80 text-foreground/70 transition-colors"
-              >
-                <span className="font-medium">{item.input}</span>
-                <span className="text-muted-foreground/40">({item.label})</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ═══ スペース調整（折りたたみ） ═══ */}
       <details className="group mt-0.5">
@@ -878,23 +713,21 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
       </details>
 
       {/* ═══ フッター（コンパクトルールリマインダー） ═══ */}
-      {!showGuide && (
-        <div className="flex items-center gap-1.5 mt-1.5 px-1 flex-wrap">
-          {[
-            { dot: "bg-emerald-400", badge: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300", text: "ルートx" },
-            { dot: "bg-blue-400", badge: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300", text: "a/b" },
-            { dot: "bg-violet-400", badge: "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300", text: "から〜まで" },
-            { dot: "bg-amber-400", badge: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300", text: "かっこa+b" },
-          ].map((pill, i) => (
-            <span key={i} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-medium ${pill.badge}`}>
-              <span className={`w-1 h-1 rounded-full ${pill.dot}`} />{pill.text}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="flex items-center gap-1.5 mt-1.5 px-1 flex-wrap">
+        {[
+          { dot: "bg-emerald-400", badge: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300", text: "ルートx" },
+          { dot: "bg-blue-400", badge: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300", text: "a/b" },
+          { dot: "bg-violet-400", badge: "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300", text: "から〜まで" },
+          { dot: "bg-amber-400", badge: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300", text: "かっこa+b" },
+        ].map((pill, i) => (
+          <span key={i} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-medium ${pill.badge}`}>
+            <span className={`w-1 h-1 rounded-full ${pill.dot}`} />{pill.text}
+          </span>
+        ))}
+      </div>
     </div>
   );
-}
+});
 
 // ══════════════════════════════════════════
 // ガイドカードコンポーネント（インタラクティブ）
@@ -1057,6 +890,172 @@ export function SpacingControl({ onInsert, className = "" }: SpacingControlProps
           ← {customPt}pt のスペース
         </span>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// 独立書き方ガイドパネル（MathBlockEditor の横に表示）
+// ══════════════════════════════════════════
+
+interface MathWritingGuideProps {
+  onTryExample?: (input: string) => void;
+  onClose?: () => void;
+  className?: string;
+}
+
+export function MathWritingGuide({ onTryExample, onClose, className = "" }: MathWritingGuideProps) {
+  const handleTry = (input: string) => {
+    onTryExample?.(input);
+  };
+
+  return (
+    <div className={`rounded-2xl border border-border/60 bg-gradient-to-b from-background to-muted/10 overflow-hidden shadow-sm ${className}`}>
+      {/* ── ヘッダー ── */}
+      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-emerald-50/90 via-blue-50/50 to-violet-50/40 dark:from-emerald-950/30 dark:via-blue-950/20 dark:to-violet-950/15 border-b border-border/30">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-emerald-400 to-violet-500 flex items-center justify-center shadow-sm">
+            <Sigma className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-[11px] font-bold text-foreground leading-tight">日本語で数式を書こう</h3>
+            <p className="text-[8px] text-muted-foreground leading-tight">LaTeX不要 — 4つのルールで全ての数式が書けます</p>
+          </div>
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/60 transition-colors"
+            title="ガイドを閉じる"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      {/* ── ワークフロー ── */}
+      <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-muted/20 border-b border-border/20">
+        <div className="flex items-center gap-1">
+          <span className="h-4 w-4 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 text-[8px] font-bold flex items-center justify-center">1</span>
+          <span className="text-[9px] font-medium text-foreground/70">日本語入力</span>
+        </div>
+        <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/30" />
+        <div className="flex items-center gap-1">
+          <span className="h-4 w-4 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[8px] font-bold flex items-center justify-center">2</span>
+          <span className="text-[9px] font-medium text-foreground/70">
+            <kbd className="px-0.5 py-0 rounded bg-muted text-[7px] font-mono">Space</kbd> 変換
+          </span>
+        </div>
+        <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/30" />
+        <div className="flex items-center gap-1">
+          <span className="h-4 w-4 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 text-[8px] font-bold flex items-center justify-center">3</span>
+          <span className="text-[9px] font-medium text-foreground/70">
+            <kbd className="px-0.5 py-0 rounded bg-muted text-[7px] font-mono">Enter</kbd> 反映
+          </span>
+        </div>
+      </div>
+
+      {/* ── 4つの演算カード ── */}
+      <ScrollArea className="max-h-[calc(100vh-300px)]">
+        <div className="grid grid-cols-1 gap-2 p-2.5">
+          <GuideCard
+            color="emerald"
+            number={1}
+            title="1項演算子"
+            subtitle="操作名+対象"
+            diagram={
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-lg bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 text-[10px] font-bold shadow-sm">操作</span>
+                <ArrowRight className="h-3 w-3 text-emerald-400" />
+                <span className="px-2 py-0.5 rounded-lg border-2 border-dashed border-emerald-300 dark:border-emerald-700 text-[10px] text-emerald-700 dark:text-emerald-300">対象</span>
+              </div>
+            }
+            examples={[
+              { input: "ルートx", latex: "\\sqrt{x}" },
+              { input: "絶対値x", latex: "\\left| x \\right|" },
+              { input: "ベクトルa", latex: "\\vec{a}" },
+            ]}
+            onTryExample={handleTry}
+          />
+          <GuideCard
+            color="blue"
+            number={2}
+            title="2項演算子"
+            subtitle="A 操作 B"
+            diagram={
+              <div className="flex items-center gap-1.5">
+                <span className="px-1.5 py-0.5 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-700 text-[10px] text-blue-700 dark:text-blue-300">A</span>
+                <span className="px-2 py-0.5 rounded-lg bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-[10px] font-bold shadow-sm">操作</span>
+                <span className="px-1.5 py-0.5 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-700 text-[10px] text-blue-700 dark:text-blue-300">B</span>
+              </div>
+            }
+            examples={[
+              { input: "a/b", latex: "\\frac{a}{b}" },
+              { input: "2分の1", latex: "\\frac{1}{2}" },
+              { input: "xの2乗", latex: "x^{2}" },
+            ]}
+            onTryExample={handleTry}
+          />
+          <GuideCard
+            color="violet"
+            number={3}
+            title="3項演算子"
+            subtitle="AからBまで操作"
+            diagram={
+              <div className="flex items-center gap-1">
+                <span className="px-1 py-0.5 rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-700 text-[10px] text-violet-700 dark:text-violet-300">A</span>
+                <span className="text-[8px] text-violet-500 font-bold">から</span>
+                <span className="px-1 py-0.5 rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-700 text-[10px] text-violet-700 dark:text-violet-300">B</span>
+                <span className="text-[8px] text-violet-500 font-bold">まで</span>
+                <span className="px-1.5 py-0.5 rounded-lg bg-violet-200 dark:bg-violet-800 text-violet-800 dark:text-violet-200 text-[10px] font-bold shadow-sm">操作</span>
+              </div>
+            }
+            examples={[
+              { input: "0からπまで積分", latex: "\\int_{0}^{\\pi}" },
+              { input: "i=1からnまで総和", latex: "\\sum_{i=1}^{n}" },
+            ]}
+            onTryExample={handleTry}
+          />
+          <GuideCard
+            color="amber"
+            number={4}
+            title="括弧"
+            subtitle="スペースなし=ネスト"
+            diagram={
+              <div className="flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded-lg bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-[10px] font-bold shadow-sm">かっこ</span>
+                <span className="text-amber-400 text-sm font-bold">(</span>
+                <span className="px-1.5 py-0.5 rounded-lg border-2 border-dashed border-amber-300 dark:border-amber-700 text-[10px] text-amber-700 dark:text-amber-300">内容</span>
+                <span className="text-amber-400 text-sm font-bold">)</span>
+              </div>
+            }
+            examples={[
+              { input: "かっこa+b", latex: "\\left(a+b\\right)" },
+              { input: "ルートかっこa+b", latex: "\\sqrt{a+b}" },
+            ]}
+            onTryExample={handleTry}
+          />
+        </div>
+
+        {/* ── その他ヒント ── */}
+        <div className="px-3 pb-2.5 flex items-center gap-2 flex-wrap">
+          <span className="text-[9px] text-muted-foreground/60 font-medium">その他:</span>
+          {[
+            { input: "sin(x)", label: "関数" },
+            { input: "α", label: "記号" },
+            { input: "xは0より大きい", label: "自然言語" },
+          ].map((item, i) => (
+            <button
+              key={i}
+              onClick={() => handleTry(item.input)}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9px] bg-muted/40 hover:bg-muted/80 text-foreground/70 transition-colors"
+            >
+              <span className="font-medium">{item.input}</span>
+              <span className="text-muted-foreground/40 text-[7px]">({item.label})</span>
+            </button>
+          ))}
+        </div>
+      </ScrollArea>
     </div>
   );
 }

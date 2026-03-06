@@ -5,7 +5,7 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
-import { JapaneseMathInput } from "./math-japanese-input";
+import { JapaneseMathInput, MathWritingGuide, type JapaneseMathInputHandle } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { parseInlineText, getInlineMathContext, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
@@ -551,10 +551,17 @@ function MathBlockEditor({ block }: { block: Block }) {
   const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
+  const [showGuide, setShowGuide] = useState(true);
+  const mathInputRef = useRef<JapaneseMathInputHandle>(null);
 
   const handleApply = useCallback((latex: string, sourceText: string) => {
     updateContent(block.id, { latex, sourceText });
   }, [block.id, updateContent]);
+
+  const handleTryExample = useCallback((input: string) => {
+    mathInputRef.current?.setInput(input);
+    mathInputRef.current?.focus();
+  }, []);
 
   return (
     <div className="space-y-0">
@@ -583,13 +590,38 @@ function MathBlockEditor({ block }: { block: Block }) {
         ) : null}
       </div>
 
-      {/* 入力欄 — プレビュー直下（隙間なし） */}
+      {/* 入力欄 — ガイドと並列レイアウト */}
       {isEditing && (
-        <div className={`border rounded-xl p-3 bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
-          <JapaneseMathInput
-            onApply={handleApply}
-            initialSourceText={content.sourceText || ""}
-          />
+        <div className={`border rounded-xl bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-0">
+            {/* 左: 書き方ガイド（独立パネル、デフォルト表示） */}
+            {showGuide && (
+              <div className="w-[280px] shrink-0 border-r border-border/40">
+                <MathWritingGuide
+                  onTryExample={handleTryExample}
+                  onClose={() => setShowGuide(false)}
+                  className="rounded-none border-0 shadow-none h-full"
+                />
+              </div>
+            )}
+
+            {/* 右: 入力エリア */}
+            <div className="flex-1 min-w-0 p-3">
+              {!showGuide && (
+                <button
+                  onClick={() => setShowGuide(true)}
+                  className="mb-2 px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1"
+                >
+                  <Sigma className="h-3 w-3" />書き方ガイドを表示
+                </button>
+              )}
+              <JapaneseMathInput
+                ref={mathInputRef}
+                onApply={handleApply}
+                initialSourceText={content.sourceText || ""}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>
