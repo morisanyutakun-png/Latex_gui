@@ -565,22 +565,27 @@ function MathBlockEditor({ block }: { block: Block }) {
             ? isEditing
               ? "latex-display-math border-b border-violet-200/50 dark:border-violet-800/50 pb-2 mb-0"
               : "latex-display-math"
-            : "flex justify-center py-3 px-4 bg-violet-50/50 dark:bg-violet-950/20 rounded-t-lg"
+            : isEditing
+            ? ""
+            : "flex justify-center py-6 px-4 bg-gradient-to-r from-violet-50/60 to-emerald-50/30 dark:from-violet-950/20 dark:to-emerald-950/10 rounded-xl border-2 border-dashed border-violet-200/50 dark:border-violet-800/40"
         }`}
       >
         {content.latex ? (
           <MathRenderer latex={content.latex} displayMode={content.displayMode} />
-        ) : (
-          <span className="text-muted-foreground/40 text-sm italic flex items-center gap-2">
-            <Sigma className="h-4 w-4" />
-            ダブルクリックして数式を入力
-          </span>
-        )}
+        ) : !isEditing ? (
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Sigma className="h-5 w-5 text-violet-400/60" />
+              <span className="text-muted-foreground/50 text-sm font-medium">数式ブロック</span>
+            </div>
+            <span className="text-muted-foreground/30 text-xs">ダブルクリックして日本語で数式を入力</span>
+          </div>
+        ) : null}
       </div>
 
       {/* 入力欄 — プレビュー直下（隙間なし） */}
       {isEditing && (
-        <div className="border rounded-b-xl border-t-0 p-2 bg-background shadow-sm" onClick={(e) => e.stopPropagation()}>
+        <div className={`border rounded-xl p-3 bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
           <JapaneseMathInput
             onApply={handleApply}
             initialSourceText={content.sourceText || ""}
@@ -865,12 +870,24 @@ export function DocumentEditor() {
               </React.Fragment>
             ))}
 
-            {/* Empty state */}
+            {/* Empty state — 初心者フレンドリー */}
             {document.blocks.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="text-4xl">📝</div>
-                <p className="text-muted-foreground/40 text-sm">ブロックを追加して始めましょう</p>
+              <div className="flex flex-col items-center justify-center py-16 gap-5">
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-100 to-emerald-100 dark:from-violet-900/30 dark:to-emerald-900/30 flex items-center justify-center">
+                  <span className="text-3xl">📝</span>
+                </div>
+                <div className="text-center space-y-1.5">
+                  <p className="text-foreground/60 text-sm font-medium">文書を作成しましょう</p>
+                  <p className="text-muted-foreground/40 text-xs max-w-[240px]">
+                    下のボタンからブロックを追加。見出し・本文・数式・表など自由に組み合わせられます
+                  </p>
+                </div>
                 <InsertMenu index={0} variant="button" />
+                <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground/30">
+                  <span className="flex items-center gap-1">📄 見出し・本文</span>
+                  <span className="flex items-center gap-1">∑ 数式（日本語入力）</span>
+                  <span className="flex items-center gap-1">📊 表・画像</span>
+                </div>
               </div>
             )}
           </div>
