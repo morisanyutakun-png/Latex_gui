@@ -25,20 +25,29 @@ import { FORMULA_TEMPLATES, type FormulaTemplate } from "./math-dictionary";
 // ─ 辞書 + 予測変換 + 公式検索 を 1つの入力欄に統合
 // ══════════════════════════════════════════
 
-// ── 変換ヒントデータ ──
-const CONVERSION_HINTS = [
-  { input: "a/b", output: "\\frac{a}{b}", label: "二項: 分数" },
-  { input: "ルートかっこa+b", output: "\\sqrt{a+b}", label: "単項: ルート+括弧" },
-  { input: "絶対値x", output: "\\left| x \\right|", label: "単項: 絶対値" },
-  { input: "かっこa+b", output: "\\left(a+b\\right)", label: "単項: 括弧" },
-  { input: "sin(x)", output: "\\sin\\left(x\\right)", label: "関数認識" },
-  { input: "xは0より大きい", output: "x > 0", label: "自然言語" },
-  { input: "i=1からnまで総和", output: "\\sum_{i=1}^{n}", label: "三項: から〜まで" },
-  { input: "0からπまで積分", output: "\\int_{0}^{\\pi}", label: "三項: から〜まで" },
-  { input: "xの2乗", output: "x^{2}", label: "二項: 累乗" },
-  { input: "2分の1", output: "\\frac{1}{2}", label: "二項: 分数" },
-  { input: "ベクトルa", output: "\\vec{a}", label: "単項: 装飾" },
-  { input: "α, →, Σ", output: "\\alpha, \\to, \\Sigma", label: "記号直接入力" },
+// ── 変換ヒントデータ（演算子種類で色分け） ──
+type OperatorKind = "unary" | "binary" | "ternary" | "bracket" | "other";
+const HINT_KIND_STYLES: Record<OperatorKind, { label: string; badge: string; dot: string }> = {
+  unary:   { label: "1項", badge: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-400" },
+  binary:  { label: "2項", badge: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300", dot: "bg-blue-400" },
+  ternary: { label: "3項", badge: "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300", dot: "bg-violet-400" },
+  bracket: { label: "括弧", badge: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300", dot: "bg-amber-400" },
+  other:   { label: "他", badge: "bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300", dot: "bg-gray-400" },
+};
+
+const CONVERSION_HINTS: { input: string; output: string; kind: OperatorKind; desc: string }[] = [
+  { input: "ルートx", output: "\\sqrt{x}", kind: "unary", desc: "操作+対象" },
+  { input: "絶対値x", output: "\\left| x \\right|", kind: "unary", desc: "操作+対象" },
+  { input: "ベクトルa", output: "\\vec{a}", kind: "unary", desc: "操作+対象" },
+  { input: "a/b", output: "\\frac{a}{b}", kind: "binary", desc: "A 操作 B" },
+  { input: "2分の1", output: "\\frac{1}{2}", kind: "binary", desc: "A 操作 B" },
+  { input: "xの2乗", output: "x^{2}", kind: "binary", desc: "A 操作 B" },
+  { input: "0からπまで積分", output: "\\int_{0}^{\\pi}", kind: "ternary", desc: "AからBまで操作" },
+  { input: "i=1からnまで総和", output: "\\sum_{i=1}^{n}", kind: "ternary", desc: "AからBまで操作" },
+  { input: "かっこa+b", output: "\\left(a+b\\right)", kind: "bracket", desc: "かっこ+内容" },
+  { input: "ルートかっこa+b", output: "\\sqrt{a+b}", kind: "bracket", desc: "ネスト結合" },
+  { input: "sin(x)", output: "\\sin\\left(x\\right)", kind: "other", desc: "関数認識" },
+  { input: "α, →, Σ", output: "\\alpha, \\to, \\Sigma", kind: "other", desc: "記号直接入力" },
 ];
 
 // ── よく使う記号（クイックアクセス）── 日本語読みで挿入 ──
@@ -118,6 +127,8 @@ interface UnifiedSuggestion {
   reading?: string;
   score: number;
   inputHint?: string;
+  /** 辞書のkindに基づく演算子種類（ビジュアルドット用） */
+  opKind?: OperatorKind;
 }
 
 // ── 使用履歴管理 ──
@@ -237,6 +248,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
           category: entry.category,
           score,
           inputHint: entry.example?.input,
+          opKind: entry.kind === "unary" ? "unary" : entry.kind === "binary" ? "binary" : undefined,
         });
       }
     }
@@ -389,7 +401,7 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
     <div className={`space-y-0 ${className}`}>
       {/* ═══ 変換ヒント（初回表示 or 空入力時） ═══ */}
       {showHints && !inputText && (
-        <div className="mb-2 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 bg-gradient-to-b from-emerald-50/50 to-transparent dark:from-emerald-950/20 dark:to-transparent overflow-hidden">
+        <div className="mb-2 rounded-xl border border-border/50 bg-gradient-to-b from-slate-50/80 to-transparent dark:from-slate-950/20 dark:to-transparent overflow-hidden">
           <button
             onClick={() => setShowHints(false)}
             className="w-full flex items-center gap-2 px-3 py-2 text-left"
@@ -399,29 +411,36 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
             <X className="h-3 w-3 text-muted-foreground/40 ml-auto hover:text-foreground" />
           </button>
           <div className="px-2 pb-2 grid grid-cols-2 gap-1">
-            {CONVERSION_HINTS.slice(0, 8).map((hint, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  setInputText(hint.input);
-                  setOverrideLatex(null);
-                  setShowHints(false);
-                  requestAnimationFrame(() => inputRef.current?.focus());
-                }}
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-emerald-100/60 dark:hover:bg-emerald-900/20 transition-colors text-left group"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400 truncate">{hint.input}</span>
-                    <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
+            {CONVERSION_HINTS.slice(0, 10).map((hint, i) => {
+              const kindStyle = HINT_KIND_STYLES[hint.kind];
+              return (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setInputText(hint.input);
+                    setOverrideLatex(null);
+                    setShowHints(false);
+                    requestAnimationFrame(() => inputRef.current?.focus());
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-muted/60 transition-colors text-left group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${kindStyle.dot}`} />
+                      <span className="text-[10px] text-foreground/80 truncate">{hint.input}</span>
+                      <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/30 shrink-0" />
+                    </div>
+                    <div className="flex items-center gap-1 mt-0.5 ml-2.5">
+                      <span className={`px-1 py-0 rounded text-[7px] font-medium ${kindStyle.badge}`}>{kindStyle.label}</span>
+                      <span className="text-[8px] text-muted-foreground/50">{hint.desc}</span>
+                    </div>
                   </div>
-                  <span className="text-[8px] text-muted-foreground/60">{hint.label}</span>
-                </div>
-                <div className="w-12 shrink-0 flex justify-center overflow-hidden">
-                  <MathRenderer latex={hint.output} displayMode={false} className="scale-[0.5] origin-center" />
-                </div>
-              </button>
-            ))}
+                  <div className="w-12 shrink-0 flex justify-center overflow-hidden">
+                    <MathRenderer latex={hint.output} displayMode={false} className="scale-[0.5] origin-center" />
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -492,7 +511,15 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
+                      {s.opKind && (
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${HINT_KIND_STYLES[s.opKind].dot}`} />
+                      )}
                       <span className="text-xs font-medium truncate">{s.display}</span>
+                      {s.opKind && (
+                        <span className={`px-1 py-0 rounded text-[7px] shrink-0 ${HINT_KIND_STYLES[s.opKind].badge}`}>
+                          {HINT_KIND_STYLES[s.opKind].label}
+                        </span>
+                      )}
                       <span className={`px-1 py-0 rounded text-[7px] shrink-0 ${
                         s.type === "parse"
                           ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
@@ -602,73 +629,89 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
         </span>
       </div>
 
-      {/* ═══ 入力ルール（折りたたみ） ═══ */}
+      {/* ═══ 演算規則ビジュアルガイド（折りたたみ） ═══ */}
       <details className="group mt-1">
         <summary className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none rounded-lg hover:bg-muted/50">
           <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-          演算子モデル・構文ガイド
+          <Hash className="h-3 w-3" />
+          演算規則ガイド
         </summary>
-        <div className="mt-1.5 p-3 rounded-xl bg-muted/30 border border-border/50 space-y-3">
-          <div className="grid grid-cols-1 gap-3">
-            <div className="space-y-1">
-              <p className="text-[9px] font-semibold text-foreground/70 pb-1 border-b border-border/30 flex items-center gap-1">
-                <Hash className="h-3 w-3" /> 演算子の種類
-              </p>
-              <div className="grid grid-cols-1 gap-y-1 text-[10px]">
+        <div className="mt-1.5 rounded-xl border border-border/50 overflow-hidden">
+          {/* ── 4つの演算カード ── */}
+          <div className="grid grid-cols-2 gap-0">
+            <OperatorCard
+              color="emerald"
+              title="1項演算子"
+              subtitle="操作 + 対象"
+              diagram={
                 <div className="flex items-center gap-1">
-                  <span className="text-emerald-600 font-medium w-20">単項 (1項)</span>
-                  <span className="text-muted-foreground/60">ルートx, 絶対値x, ベクトルa, ハットx</span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 text-[10px] font-bold">操作</span>
+                  <ArrowRight className="h-2.5 w-2.5 text-emerald-400" />
+                  <span className="px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 text-[10px] text-emerald-700 dark:text-emerald-300">A</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-blue-600 font-medium w-20">二項 (2項)</span>
-                  <span className="text-muted-foreground/60">a たす b, a/b, 2分の1, xの2乗</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-violet-600 font-medium w-20">三項 (3項)</span>
-                  <span className="text-muted-foreground/60">0<b>から</b>π<b>まで</b>積分, i=1<b>から</b>n<b>まで</b>総和</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-amber-600 font-medium w-20">括弧 (単項)</span>
-                  <span className="text-muted-foreground/60">かっこa+b → (a+b), スペースなし=ネスト</span>
-                </div>
-              </div>
-            </div>
-
-            <ConversionExamples
-              title="単項演算子（前置・スペースまで消費）"
+              }
               examples={[
-                { input: "ルートx", result: "\\sqrt{x}" },
-                { input: "ルートかっこa+b", result: "\\sqrt{a+b}", note: "ネスト: スペースなし" },
-                { input: "絶対値かっこx-1", result: "\\left| x-1 \\right|", note: "ネスト" },
-                { input: "かっこa+b", result: "\\left(a+b\\right)", note: "括弧も単項演算子" },
-                { input: "ベクトルa", result: "\\vec{a}" },
+                { input: "ルートx", latex: "\\sqrt{x}" },
+                { input: "絶対値x", latex: "\\left| x \\right|" },
+                { input: "ベクトルa", latex: "\\vec{a}" },
               ]}
+              tip="操作名の直後に対象を書く"
             />
-            <ConversionExamples
-              title="二項演算子"
+            <OperatorCard
+              color="blue"
+              title="2項演算子"
+              subtitle="A 操作 B"
+              diagram={
+                <div className="flex items-center gap-1">
+                  <span className="px-1.5 py-0.5 rounded border border-blue-300 dark:border-blue-700 text-[10px] text-blue-700 dark:text-blue-300">A</span>
+                  <span className="px-1.5 py-0.5 rounded bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-[10px] font-bold">操作</span>
+                  <span className="px-1.5 py-0.5 rounded border border-blue-300 dark:border-blue-700 text-[10px] text-blue-700 dark:text-blue-300">B</span>
+                </div>
+              }
               examples={[
-                { input: "a/b", result: "\\frac{a}{b}" },
-                { input: "2分の1", result: "\\frac{1}{2}" },
-                { input: "xの2乗", result: "x^{2}" },
-                { input: "a たす b", result: "a + b" },
+                { input: "a/b", latex: "\\frac{a}{b}" },
+                { input: "2分の1", latex: "\\frac{1}{2}" },
+                { input: "xの2乗", latex: "x^{2}" },
               ]}
+              tip="A と B の間に操作を書く"
             />
-            <ConversionExamples
-              title="三項演算子（から〜まで）"
+            <OperatorCard
+              color="violet"
+              title="3項演算子"
+              subtitle="AからBまで操作"
+              diagram={
+                <div className="flex items-center gap-0.5">
+                  <span className="px-1 py-0.5 rounded border border-violet-300 dark:border-violet-700 text-[10px] text-violet-700 dark:text-violet-300">A</span>
+                  <span className="text-[9px] text-violet-500 font-bold">から</span>
+                  <span className="px-1 py-0.5 rounded border border-violet-300 dark:border-violet-700 text-[10px] text-violet-700 dark:text-violet-300">B</span>
+                  <span className="text-[9px] text-violet-500 font-bold">まで</span>
+                  <span className="px-1 py-0.5 rounded bg-violet-200 dark:bg-violet-800 text-violet-800 dark:text-violet-200 text-[10px] font-bold">操作</span>
+                </div>
+              }
               examples={[
-                { input: "0からπまで積分", result: "\\int_{0}^{\\pi}" },
-                { input: "i=1からnまで総和", result: "\\sum_{i=1}^{n}" },
-                { input: "xで微分", result: "\\frac{d}{dx}" },
+                { input: "0からπまで積分", latex: "\\int_{0}^{\\pi}" },
+                { input: "i=1からnまで総和", latex: "\\sum_{i=1}^{n}" },
               ]}
+              tip="「から」「まで」で範囲を指定"
             />
-            <ConversionExamples
-              title="括弧（単項前置演算子）"
+            <OperatorCard
+              color="amber"
+              title="括弧"
+              subtitle="かっこ + 内容"
+              diagram={
+                <div className="flex items-center gap-0.5">
+                  <span className="px-1 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-[10px] font-bold">かっこ</span>
+                  <span className="text-amber-400 text-sm font-bold">(</span>
+                  <span className="px-1 py-0.5 rounded border border-amber-300 dark:border-amber-700 text-[10px] text-amber-700 dark:text-amber-300">内容</span>
+                  <span className="text-amber-400 text-sm font-bold">)</span>
+                </div>
+              }
               examples={[
-                { input: "かっこa+b", result: "\\left(a+b\\right)", note: "スペースまで消費" },
-                { input: "かくかっこa+b", result: "\\left[a+b\\right]", note: "角括弧" },
-                { input: "「a+b」", result: "\\left(a+b\\right)", note: "鉤括弧でもOK" },
-                { input: "かっこa+b / かっこc+d", result: "\\frac{a+b}{c+d}", note: "空白で分離" },
+                { input: "かっこa+b", latex: "\\left(a+b\\right)" },
+                { input: "「a+b」", latex: "\\left(a+b\\right)" },
+                { input: "ルートかっこa+b", latex: "\\sqrt{a+b}" },
               ]}
+              tip="スペースなし=ネスト結合"
             />
           </div>
         </div>
@@ -790,47 +833,101 @@ export function JapaneseMathInput({ onApply, initialSourceText = "", className =
         </div>
       </details>
 
-      {/* ═══ フッターヒント（LaTeX非表示） ═══ */}
-      <div className="text-[9px] text-muted-foreground/50 leading-relaxed mt-1.5 px-1">
-        <span className="text-emerald-600 font-medium">単項</span>: ルートx, 絶対値x
-        <span className="mx-1.5">|</span>
-        <span className="text-blue-600 font-medium">二項</span>: a/b, 分の
-        <span className="mx-1.5">|</span>
-        <span className="text-purple-600 font-medium">三項</span>: から〜まで積分
-        <span className="mx-1.5">|</span>
-        <span className="text-amber-600 font-medium">括弧</span>: 「a+b」
+      {/* ═══ フッターヒント（演算規則ピル） ═══ */}
+      <div className="flex items-center gap-1.5 mt-1.5 px-1 flex-wrap">
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-medium bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+          <span className="w-1 h-1 rounded-full bg-emerald-400" />1項: ルートx
+        </span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-medium bg-blue-100/80 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+          <span className="w-1 h-1 rounded-full bg-blue-400" />2項: a/b
+        </span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-medium bg-violet-100/80 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+          <span className="w-1 h-1 rounded-full bg-violet-400" />3項: から〜まで
+        </span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-medium bg-amber-100/80 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+          <span className="w-1 h-1 rounded-full bg-amber-400" />括弧: 「a+b」
+        </span>
       </div>
     </div>
   );
 }
 
 // ══════════════════════════════════════════
-// 変換例コンポーネント
+// 演算子カードコンポーネント
 // ══════════════════════════════════════════
 
-function ConversionExamples({ title, examples }: {
+const OPERATOR_COLORS = {
+  emerald: {
+    bg: "bg-emerald-50/80 dark:bg-emerald-950/20",
+    border: "border-emerald-200/60 dark:border-emerald-800/40",
+    title: "text-emerald-700 dark:text-emerald-300",
+    badge: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
+    tip: "text-emerald-600/60 dark:text-emerald-400/60",
+    input: "text-emerald-700 dark:text-emerald-400",
+  },
+  blue: {
+    bg: "bg-blue-50/80 dark:bg-blue-950/20",
+    border: "border-blue-200/60 dark:border-blue-800/40",
+    title: "text-blue-700 dark:text-blue-300",
+    badge: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+    tip: "text-blue-600/60 dark:text-blue-400/60",
+    input: "text-blue-700 dark:text-blue-400",
+  },
+  violet: {
+    bg: "bg-violet-50/80 dark:bg-violet-950/20",
+    border: "border-violet-200/60 dark:border-violet-800/40",
+    title: "text-violet-700 dark:text-violet-300",
+    badge: "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300",
+    tip: "text-violet-600/60 dark:text-violet-400/60",
+    input: "text-violet-700 dark:text-violet-400",
+  },
+  amber: {
+    bg: "bg-amber-50/80 dark:bg-amber-950/20",
+    border: "border-amber-200/60 dark:border-amber-800/40",
+    title: "text-amber-700 dark:text-amber-300",
+    badge: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
+    tip: "text-amber-600/60 dark:text-amber-400/60",
+    input: "text-amber-700 dark:text-amber-400",
+  },
+} as const;
+
+function OperatorCard({ color, title, subtitle, diagram, examples, tip }: {
+  color: keyof typeof OPERATOR_COLORS;
   title: string;
-  examples: { input: string; result: string; note?: string }[];
+  subtitle: string;
+  diagram: React.ReactNode;
+  examples: { input: string; latex: string }[];
+  tip: string;
 }) {
+  const c = OPERATOR_COLORS[color];
   return (
-    <div className="space-y-1">
-      <p className="text-[9px] font-semibold text-foreground/60 pb-0.5 border-b border-border/20">{title}</p>
+    <div className={`p-2.5 ${c.bg} border ${c.border} space-y-2`}>
+      {/* ヘッダー */}
+      <div className="flex items-center gap-1.5">
+        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${c.badge}`}>{title}</span>
+        <span className="text-[9px] text-muted-foreground/60">{subtitle}</span>
+      </div>
+
+      {/* 構造図 */}
+      <div className="flex justify-center py-1.5 px-1 rounded-lg bg-white/60 dark:bg-black/10 border border-black/5 dark:border-white/5">
+        {diagram}
+      </div>
+
+      {/* 例 */}
       <div className="space-y-1">
         {examples.map((ex, i) => (
-          <div key={i} className="flex items-center gap-2 text-[10px]">
-            <span className="px-1.5 py-0.5 rounded bg-background border border-border/50 text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-[9px]">
-              {ex.input}
-            </span>
-            <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
-            <div className="w-24 shrink-0 flex justify-center overflow-hidden">
-              <MathRenderer latex={ex.result} displayMode={false} className="scale-[0.55] origin-center" />
+          <div key={i} className="flex items-center gap-1.5">
+            <span className={`text-[9px] font-medium ${c.input} shrink-0`}>{ex.input}</span>
+            <ArrowRight className="h-2 w-2 text-muted-foreground/30 shrink-0" />
+            <div className="flex-1 flex justify-end overflow-hidden">
+              <MathRenderer latex={ex.latex} displayMode={false} className="scale-[0.55] origin-right" />
             </div>
-            {ex.note && (
-              <span className="text-muted-foreground/50 text-[8px]">{ex.note}</span>
-            )}
           </div>
         ))}
       </div>
+
+      {/* ヒント */}
+      <p className={`text-[8px] ${c.tip} italic`}>{tip}</p>
     </div>
   );
 }

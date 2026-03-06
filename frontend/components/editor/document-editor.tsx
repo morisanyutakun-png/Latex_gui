@@ -387,15 +387,22 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     }`}>
       {/* モードインジケーター */}
       {isEditing && (
-        <div className={`flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-medium rounded-t-lg transition-all ${
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-medium rounded-t-lg transition-all ${
           isInMathMode
-            ? "bg-violet-100/80 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400"
+            ? "bg-gradient-to-r from-violet-100/90 to-fuchsia-50/50 dark:from-violet-900/40 dark:to-fuchsia-950/20 text-violet-600 dark:text-violet-400"
             : "bg-blue-50/50 dark:bg-blue-950/20 text-blue-500/60 dark:text-blue-400/40"
         }`}>
           {isInMathMode ? (
             <>
-              <Sigma className="h-2.5 w-2.5" />
-                <span>数式モード — 日本語で入力: ルートかっこa+b, 絶対値x, a/b, から〜まで総和</span>
+              <Sigma className="h-3 w-3" />
+              <span className="font-bold text-[10px]">数式モード</span>
+              <span className="mx-1 text-violet-300">|</span>
+              <div className="flex items-center gap-1">
+                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[7px] bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">1項</span>
+                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[7px] bg-blue-100/80 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">2項</span>
+                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[7px] bg-violet-100/80 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">3項</span>
+                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[7px] bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">括弧</span>
+              </div>
               <span className="ml-auto text-violet-400/60 text-[8px]">⇧⌘M で閉じる</span>
             </>
           ) : (
@@ -470,16 +477,16 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 
           {/* 候補ドロップダウン（$の中で入力中に表示） */}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute z-50 left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-50 left-0 right-0 mt-1 bg-popover border rounded-xl shadow-xl max-h-48 overflow-y-auto">
               {suggestions.map((sugg, i) => (
                 <button
                   key={i}
-                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-3 transition-colors ${
+                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2.5 transition-colors ${
                     i === selectedSuggIdx ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
                   }`}
                   onMouseDown={(e) => { e.preventDefault(); insertSuggestion(sugg); }}
                 >
-                  <span className="text-muted-foreground w-16 shrink-0 text-[10px]">{sugg.category}</span>
+                  <span className="text-muted-foreground w-14 shrink-0 text-[10px]">{sugg.category}</span>
                   <span className="font-medium">{sugg.reading}</span>
                   <span className="ml-auto"><MathRenderer latex={sugg.latex} displayMode={false} /></span>
                 </button>
@@ -491,17 +498,20 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           {isInMathMode && mathCtx && (
             <div className="mx-2 mb-1 space-y-1">
               {mathCtx.mathContent && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-50/50 dark:bg-violet-950/20 border border-violet-200/50 dark:border-violet-800/50">
-                  <span className="text-[9px] text-violet-400 font-medium shrink-0">プレビュー</span>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-violet-50/60 to-fuchsia-50/30 dark:from-violet-950/20 dark:to-fuchsia-950/10 border border-violet-200/50 dark:border-violet-800/50">
+                  <span className="text-[9px] text-violet-500 font-semibold shrink-0">プレビュー</span>
                   <div className="flex-1 flex justify-center overflow-auto">
                     <MathRenderer latex={parseJapanesemath(mathCtx.mathContent)} displayMode={false} />
                   </div>
                 </div>
               )}
-              <div className="px-2 py-1 rounded bg-violet-100/60 dark:bg-violet-900/30 text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-2">
-                <Sigma className="h-3 w-3" />
-                <span>日本語で数式入力（例: ルートかっこa+b, 絶対値x, 2分の1, から〜まで積分）</span>
-                <span className="ml-auto text-[9px] text-violet-400/60">⇧⌘M で閉じる</span>
+              <div className="px-2 py-1.5 rounded-lg bg-violet-50/40 dark:bg-violet-900/20 text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-1.5 flex-wrap">
+                <Sigma className="h-3 w-3 shrink-0" />
+                <span className="shrink-0">入力例:</span>
+                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[9px]">ルートx</span>
+                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-blue-100/80 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px]">a/b</span>
+                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-violet-100/80 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-[9px]">から〜まで</span>
+                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-[9px]">かっこa+b</span>
               </div>
             </div>
           )}
