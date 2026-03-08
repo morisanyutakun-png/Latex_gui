@@ -28,6 +28,9 @@ import {
   Sparkles,
   Zap,
   Shield,
+  Factory,
+  Code2,
+  Lock,
 } from "lucide-react";
 
 /* ── Premium icon mapping ── */
@@ -262,7 +265,7 @@ export function TemplateGallery() {
             <p className="text-muted-foreground text-[17px] sm:text-[19px] leading-relaxed max-w-2xl mx-auto mb-10 font-light">
               Word感覚の直感的な操作で、LaTeX品質のPDFを生成。
               <br className="hidden sm:block" />
-              数式・回路図・グラフ・化学式まで、すべてをカバー。
+              数式・回路図・グラフ・化学式、そして一括量産まで。
             </p>
 
             {/* CTA buttons */}
@@ -307,9 +310,9 @@ export function TemplateGallery() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
               { value: "5+", label: "テンプレート" },
-              { value: "LaTeX", label: "組版エンジン" },
+              { value: "60+", label: "対応パッケージ" },
               { value: "∞", label: "数式サポート" },
-              { value: "1-Click", label: "PDF出力" },
+              { value: "CSV→ZIP", label: "一括量産" },
             ].map((stat) => (
               <div key={stat.label}>
                 <p className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-b from-foreground to-foreground/60 bg-clip-text text-transparent">
@@ -542,8 +545,8 @@ export function TemplateGallery() {
               },
               {
                 icon: <Shield className="h-5 w-5" strokeWidth={1.5} />,
-                title: "プロの組版品質",
-                desc: "LaTeXエンジンが自動でカーニング・ハイフネーションを最適化",
+                title: "セキュアな実行環境",
+                desc: "サンドボックス内でLaTeXをコンパイル。パッケージ許可リストで安全性を確保",
                 gradient: "from-amber-500 to-orange-500",
               },
               {
@@ -551,6 +554,30 @@ export function TemplateGallery() {
                 title: "即座にPDF出力",
                 desc: "ブラウザで編集→ワンクリックで高品質PDFをダウンロード",
                 gradient: "from-emerald-500 to-teal-500",
+              },
+              {
+                icon: <Factory className="h-5 w-5" strokeWidth={1.5} />,
+                title: "教材工場",
+                desc: "テンプレート × CSV変数で、数十〜数百のPDFを一括量産",
+                gradient: "from-orange-500 to-red-500",
+              },
+              {
+                icon: <Code2 className="h-5 w-5" strokeWidth={1.5} />,
+                title: "上級者モード",
+                desc: "LaTeXプリアンブルやカスタムコマンドを直接編集できるフック機能",
+                gradient: "from-purple-500 to-pink-500",
+              },
+              {
+                icon: <Zap className="h-5 w-5" strokeWidth={1.5} />,
+                title: "高速キャッシュ",
+                desc: "コンパイル結果をキャッシュして同一ドキュメントの再生成を瞬時に",
+                gradient: "from-yellow-500 to-amber-500",
+              },
+              {
+                icon: <Lock className="h-5 w-5" strokeWidth={1.5} />,
+                title: "監査ログ",
+                desc: "全操作を構造化ログとして記録。セキュリティとトレーサビリティを確保",
+                gradient: "from-slate-500 to-zinc-500",
               },
             ].map((f) => (
               <div

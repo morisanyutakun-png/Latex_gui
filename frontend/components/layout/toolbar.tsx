@@ -34,7 +34,6 @@ import {
   GitBranch,
   FlaskConical,
   BarChart3,
-  Factory,
 } from "lucide-react";
 import { BatchProducer } from "@/components/editor/batch-producer";
 
@@ -320,7 +319,8 @@ export function Toolbar() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Separator orientation="vertical" className="mx-1 h-5" />
+      {/* 右寄せスペーサー */}
+      <div className="flex-1" />
 
       {/* 教材工場 (バッチ生成) */}
       <BatchProducer />
