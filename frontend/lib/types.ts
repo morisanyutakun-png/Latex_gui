@@ -227,6 +227,24 @@ export interface DocumentSettings {
   documentClass: LaTeXDocumentClass;
 }
 
+// ──── Advanced Mode (上級者モード) ────
+
+export interface AdvancedHooks {
+  enabled: boolean;
+  customPreamble: string;
+  preDocument: string;
+  postDocument: string;
+  customCommands: string[];
+}
+
+export const DEFAULT_ADVANCED_HOOKS: AdvancedHooks = {
+  enabled: false,
+  customPreamble: "",
+  preDocument: "",
+  postDocument: "",
+  customCommands: [],
+};
+
 // ──── Document ────
 
 export interface DocumentMetadata {
@@ -240,6 +258,25 @@ export interface DocumentModel {
   metadata: DocumentMetadata;
   settings: DocumentSettings;
   blocks: Block[];
+  advanced?: AdvancedHooks;
+}
+
+// ──── Batch (量産) Types ────
+
+export interface BatchRequest {
+  template: DocumentModel;
+  variablesCsv?: string;
+  variablesJson?: string;
+  filenameTemplate: string;
+  maxRows: number;
+}
+
+export interface BatchResultItem {
+  index: number;
+  filename: string;
+  success: boolean;
+  error?: string;
+  timeMs?: number;
 }
 
 // ──── Defaults ────

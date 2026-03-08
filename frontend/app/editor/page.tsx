@@ -3,6 +3,7 @@
 import { AppHeader } from "@/components/layout/app-header";
 import { Toolbar } from "@/components/layout/toolbar";
 import { DocumentEditor } from "@/components/editor/document-editor";
+import { AdvancedModePanel } from "@/components/editor/advanced-mode";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useDocumentStore } from "@/store/document-store";
@@ -44,7 +45,15 @@ export default function EditorPage() {
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background">
       <AppHeader />
       <Toolbar />
-      <DocumentEditor />
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto">
+          <DocumentEditor />
+        </div>
+        {/* サイドバー: 上級者モード */}
+        <div className="w-80 border-l border-border/30 overflow-y-auto bg-background p-3 hidden lg:block">
+          <AdvancedModePanel />
+        </div>
+      </div>
     </div>
   );
 }

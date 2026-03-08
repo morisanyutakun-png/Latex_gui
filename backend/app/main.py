@@ -1,14 +1,28 @@
 """FastAPI メインアプリケーション (512MB最適化版 v5)"""
 import os
+import json
 import logging
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
 
-from .models import DocumentModel, ErrorResponse
+from .models import DocumentModel, ErrorResponse, BatchRequest, BatchResponse, BatchResultItem
 from .pdf_service import compile_pdf, generate_latex, PDFGenerationError
 from .preview_service import preview_block_svg
+from .security import (
+    validate_document_security, validate_input_size,
+    SecurityViolation, ALLOWED_PACKAGES, ALLOWED_TIKZ_LIBRARIES,
+)
+from .cache_service import get_cache_stats, clear_all_caches
+from .audit import (
+    AuditMiddleware, AuditEvent, log_audit,
+    log_security_event, get_recent_audit_logs,
+)
+from .batch_service import (
+    detect_placeholders, generate_batch_pdfs,
+    create_batch_zip, parse_csv_variables, parse_json_variables,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,6 +53,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── 監査ログミドルウェア ──
+app.add_middleware(AuditMiddleware)
 
 
 # ── サーバー起動時にバックグラウンド・ウォームアップを開始 ──
@@ -332,3 +349,152 @@ async def generate_pdf(doc: DocumentModel):
             "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}",
         },
     )
+
+
+# ═══ バッチ生成 (教材工場) エンドポイント ═══
+
+@app.post("/api/batch/detect-variables")
+async def detect_variables(doc: DocumentModel):
+    """テンプレート内の {{variables}} プレースホルダーを検出"""
+    try:
+        placeholders = detect_placeholders(doc)
+        return {"success": True, "variables": placeholders}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={
+            "success": False,
+            "message": f"変数検出に失敗: {str(e)}",
+        })
+
+
+@app.post("/api/batch/generate")
+async def batch_generate_pdfs(req: BatchRequest):
+    """テンプレート × 変数データで複数PDFを量産→ZIPで返却"""
+    # 変数データのパース
+    variable_rows = []
+    try:
+        if req.variables_csv:
+            variable_rows = parse_csv_variables(req.variables_csv)
+        elif req.variables_json:
+            variable_rows = parse_json_variables(req.variables_json)
+        else:
+            raise HTTPException(status_code=400, detail={
+                "success": False,
+                "message": "variables_csv または variables_json が必要です",
+            })
+    except (ValueError, json.JSONDecodeError) as e:
+        raise HTTPException(status_code=400, detail={
+            "success": False,
+            "message": f"変数データのパースに失敗: {str(e)}",
+        })
+
+    if not variable_rows:
+        raise HTTPException(status_code=400, detail={
+            "success": False,
+            "message": "変数データが空です",
+        })
+
+    log_audit(AuditEvent.COMPILE_BATCH, details={
+        "row_count": len(variable_rows),
+        "template": req.template.template,
+    })
+
+    try:
+        batch_result = await generate_batch_pdfs(
+            req.template,
+            variable_rows,
+            filename_template=req.filename_template,
+            max_rows=req.max_rows,
+        )
+    except Exception as e:
+        logger.exception("Batch generation failed")
+        raise HTTPException(status_code=500, detail={
+            "success": False,
+            "message": f"バッチ生成に失敗: {str(e)}",
+        })
+
+    # ZIP 生成して返却
+    if batch_result.success_count == 0:
+        errors = [r.get("error", "") for r in batch_result.results if not r["success"]]
+        raise HTTPException(status_code=422, detail={
+            "success": False,
+            "message": "全てのPDF生成に失敗しました",
+            "errors": errors[:10],
+        })
+
+    zip_bytes = create_batch_zip(batch_result)
+
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="batch_output.zip"',
+            "X-Batch-Total": str(len(variable_rows)),
+            "X-Batch-Success": str(batch_result.success_count),
+            "X-Batch-Errors": str(batch_result.error_count),
+            "X-Batch-Time-Ms": str(round(batch_result.total_time_ms)),
+        },
+    )
+
+
+@app.post("/api/batch/preview")
+async def batch_preview(req: BatchRequest):
+    """バッチ生成のプレビュー（最初の1行だけLaTeXソースを返す）"""
+    variable_rows = []
+    try:
+        if req.variables_csv:
+            variable_rows = parse_csv_variables(req.variables_csv)
+        elif req.variables_json:
+            variable_rows = parse_json_variables(req.variables_json)
+    except Exception:
+        pass
+
+    if not variable_rows:
+        return {"success": True, "latex": generate_latex(req.template), "variables": {}}
+
+    from .batch_service import apply_variables
+    first_row = variable_rows[0]
+    doc = apply_variables(req.template, {**first_row, "_index": "1"})
+    latex_source = generate_latex(doc)
+    return {
+        "success": True,
+        "latex": latex_source,
+        "variables": first_row,
+        "total_rows": len(variable_rows),
+    }
+
+
+# ═══ キャッシュ管理 エンドポイント ═══
+
+@app.get("/api/cache/stats")
+async def cache_stats():
+    """キャッシュ統計情報"""
+    return {"success": True, "stats": get_cache_stats()}
+
+
+@app.post("/api/cache/clear")
+async def cache_clear():
+    """全キャッシュクリア"""
+    clear_all_caches()
+    log_audit(AuditEvent.CACHE_CLEAR)
+    return {"success": True, "message": "キャッシュをクリアしました"}
+
+
+# ═══ セキュリティ情報 エンドポイント ═══
+
+@app.get("/api/security/allowed-packages")
+async def get_allowed_packages():
+    """許可されたパッケージ一覧"""
+    return {
+        "success": True,
+        "packages": sorted(ALLOWED_PACKAGES),
+        "tikz_libraries": sorted(ALLOWED_TIKZ_LIBRARIES),
+    }
+
+
+# ═══ 監査ログ エンドポイント ═══
+
+@app.get("/api/audit/logs")
+async def audit_logs(limit: int = 100):
+    """最近の監査ログを取得"""
+    logs = get_recent_audit_logs(limit=min(limit, 500))
+    return {"success": True, "logs": logs, "count": len(logs)}

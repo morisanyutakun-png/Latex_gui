@@ -1,4 +1,4 @@
-import { DocumentModel } from "./types";
+import { DocumentModel, BatchRequest } from "./types";
 
 /**
  * API ベース URL
@@ -105,4 +105,77 @@ export async function previewBlockSVG(
   }
   const data = await res.json();
   return data.svg;
+}
+
+// ═══ バッチ生成 (教材工場) API ═══
+
+export async function detectVariables(doc: DocumentModel): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/batch/detect-variables`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(doc),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error("変数検出に失敗しました");
+  const data = await res.json();
+  return data.variables;
+}
+
+export async function batchGeneratePDFs(req: BatchRequest): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/batch/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    signal: AbortSignal.timeout(300000), // 5分
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    const message = err?.detail?.message || `バッチ生成に失敗 (HTTP ${res.status})`;
+    throw new Error(message);
+  }
+  return await res.blob();
+}
+
+export async function batchPreview(req: BatchRequest): Promise<{
+  latex: string;
+  variables: Record<string, string>;
+  totalRows: number;
+}> {
+  const res = await fetch(`${API_BASE}/api/batch/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) throw new Error("バッチプレビューに失敗しました");
+  const data = await res.json();
+  return { latex: data.latex, variables: data.variables || {}, totalRows: data.total_rows || 0 };
+}
+
+// ═══ キャッシュ管理 API ═══
+
+export async function getCacheStats(): Promise<Record<string, unknown>> {
+  const res = await fetch(`${API_BASE}/api/cache/stats`, { signal: AbortSignal.timeout(5000) });
+  if (!res.ok) throw new Error("キャッシュ統計の取得に失敗");
+  const data = await res.json();
+  return data.stats;
+}
+
+export async function clearCache(): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/cache/clear`, { method: "POST" });
+  if (!res.ok) throw new Error("キャッシュクリアに失敗");
+}
+
+// ═══ セキュリティ情報 API ═══
+
+export async function getAllowedPackages(): Promise<{
+  packages: string[];
+  tikzLibraries: string[];
+}> {
+  const res = await fetch(`${API_BASE}/api/security/allowed-packages`, {
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) throw new Error("パッケージ情報の取得に失敗");
+  const data = await res.json();
+  return { packages: data.packages, tikzLibraries: data.tikz_libraries };
 }

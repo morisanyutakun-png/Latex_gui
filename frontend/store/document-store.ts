@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, createBlock } from "@/lib/types";
+import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, createBlock } from "@/lib/types";
 
 interface DocumentState {
   document: DocumentModel | null;
@@ -20,6 +20,10 @@ interface DocumentState {
   moveBlock: (blockId: string, direction: "up" | "down") => void;
   updateBlockContent: (blockId: string, updates: Partial<BlockContent>) => void;
   updateBlockStyle: (blockId: string, updates: Partial<BlockStyle>) => void;
+
+  // Advanced Mode (上級者モード)
+  updateAdvanced: (updates: Partial<AdvancedHooks>) => void;
+  toggleAdvancedMode: () => void;
 
   // Undo/Redo
   _pushHistory: () => void;
@@ -131,6 +135,21 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       b.id === blockId ? { ...b, style: { ...b.style, ...updates } } : b,
     );
     set({ document: { ...document, blocks } });
+  },
+
+  updateAdvanced: (updates) => {
+    const { document, _pushHistory } = get();
+    if (!document) return;
+    _pushHistory();
+    const current = document.advanced || { enabled: false, customPreamble: "", preDocument: "", postDocument: "", customCommands: [] };
+    set({ document: { ...document, advanced: { ...current, ...updates } } });
+  },
+
+  toggleAdvancedMode: () => {
+    const { document } = get();
+    if (!document) return;
+    const current = document.advanced || { enabled: false, customPreamble: "", preDocument: "", postDocument: "", customCommands: [] };
+    set({ document: { ...document, advanced: { ...current, enabled: !current.enabled } } });
   },
 
   undo: () => {

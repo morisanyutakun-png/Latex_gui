@@ -175,6 +175,17 @@ class Metadata(CamelModel):
     date: Optional[str] = None
 
 
+# --------------- Advanced Mode (上級者モード) ---------------
+
+class AdvancedHooks(CamelModel):
+    """上級者モード: LaTeX 部分カスタマイズ用フック"""
+    enabled: bool = False
+    custom_preamble: str = ""          # \usepackage, \newcommand 等
+    pre_document: str = ""             # \begin{document} 直後
+    post_document: str = ""            # \end{document} 直前
+    custom_commands: list[str] = Field(default_factory=list)  # ["\\newcommand{...}{...}", ...]
+
+
 # --------------- Document ---------------
 
 class DocumentModel(CamelModel):
@@ -182,6 +193,37 @@ class DocumentModel(CamelModel):
     metadata: Metadata = Field(default_factory=Metadata)
     settings: DocumentSettings = Field(default_factory=DocumentSettings)
     blocks: list[Block] = Field(default_factory=list)
+    advanced: AdvancedHooks = Field(default_factory=AdvancedHooks)
+
+
+# --------------- Batch (量産) Models ---------------
+
+class BatchRequest(CamelModel):
+    """テンプレート × 変数 バッチ生成リクエスト"""
+    template: DocumentModel
+    variables_csv: Optional[str] = None    # CSV テキスト (ヘッダー付き)
+    variables_json: Optional[str] = None   # JSON 配列テキスト
+    filename_template: str = "{{_index}}_document"
+    max_rows: int = Field(default=50, ge=1, le=200)
+
+
+class BatchResultItem(CamelModel):
+    """バッチ生成結果の1行"""
+    index: int
+    filename: str
+    success: bool
+    error: Optional[str] = None
+    time_ms: Optional[float] = None
+
+
+class BatchResponse(CamelModel):
+    """バッチ生成結果レスポンス"""
+    success: bool
+    total: int
+    success_count: int
+    error_count: int
+    total_time_ms: float
+    results: list[BatchResultItem] = Field(default_factory=list)
 
 
 # --------------- API Response ---------------

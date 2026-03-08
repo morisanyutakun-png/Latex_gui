@@ -28,6 +28,15 @@ from .tex_env import (
     TEX_ENV, LUALATEX_CMD, LUALATEX_AVAILABLE,
     wait_for_warmup, is_lualatex_cache_warm,
 )
+from .security import (
+    validate_document_security, validate_input_size,
+    SecurityViolation, get_compile_args,
+)
+from .cache_service import (
+    get_cached_pdf, store_cached_pdf,
+    get_cached_aux, store_aux_files,
+)
+from .audit import log_compile_event, log_security_event, AuditEvent
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +91,49 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     512MB環境でのメモリ管理:
     - コンパイル前にGCでPython側のメモリを解放
     - コンパイル後もGCでPDFバイト以外を解放
+    
+    セキュリティ:
+    - サンドボックスコンパイル (--no-shell-escape)
+    - 入力サイズ制限
+    - 危険コマンド検出
+    
+    キャッシュ:
+    - ドキュメントハッシュによるPDFキャッシュ
+    - .aux ファイル再利用による差分高速化
     """
     t0 = time.monotonic()
+
+    # ── セキュリティ検査 ──
+    advanced_mode = getattr(doc, 'advanced', None) and doc.advanced.enabled
+    
+    # 入力サイズ制限
+    size_error = validate_input_size(doc.blocks)
+    if size_error:
+        raise PDFGenerationError(size_error)
+    
+    # 危険コマンド検査
+    violations = validate_document_security(doc.blocks, advanced_mode=advanced_mode)
+    if violations:
+        log_security_event(violations, action="blocked")
+        raise PDFGenerationError(
+            f"セキュリティポリシー違反: {'; '.join(violations[:3])}",
+            detail=str(violations)
+        )
+
+    # ── PDFキャッシュチェック ──
+    doc_dict = doc.model_dump(by_alias=False)
+    cached_pdf = get_cached_pdf(doc_dict)
+    if cached_pdf:
+        elapsed = time.monotonic() - t0
+        log_compile_event(
+            AuditEvent.COMPILE_PDF,
+            template=doc.template,
+            block_count=len(doc.blocks),
+            compile_time_ms=elapsed * 1000,
+            cache_hit=True,
+            pdf_size=len(cached_pdf),
+        )
+        return cached_pdf
 
     # GCでPython側のメモリを事前解放
     gc.collect()
@@ -109,10 +159,30 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
         elapsed = time.monotonic() - t0
         logger.info(f"[compile] PDF generated with lualatex ({elapsed:.1f}s)")
         _log_memory("post-compile")
+        
+        # キャッシュに保存
+        store_cached_pdf(doc_dict, pdf)
+        
+        # 監査ログ
+        log_compile_event(
+            AuditEvent.COMPILE_PDF,
+            template=doc.template,
+            block_count=len(doc.blocks),
+            compile_time_ms=elapsed * 1000,
+            cache_hit=False,
+            pdf_size=len(pdf),
+        )
+        
         return pdf
     except PDFGenerationError:
         raise
     except Exception as e:
+        log_compile_event(
+            AuditEvent.COMPILE_PDF,
+            template=doc.template,
+            block_count=len(doc.blocks),
+            error=str(e),
+        )
         raise PDFGenerationError(
             f"PDF生成中に予期しないエラーが発生しました: {e}",
             detail=str(e),
@@ -130,14 +200,11 @@ def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
         tex_path.write_text(latex_source, encoding="utf-8")
         logger.info("Compiling with lualatex...")
 
-        cmd_args = [
+        cmd_args = get_compile_args(
             LUALATEX_CMD,
-            "-interaction=nonstopmode",
-            "-halt-on-error",
-            "-file-line-error",
-            "-output-directory", str(tmpdir),
+            str(tmpdir),
             str(tex_path),
-        ]
+        )
 
         try:
             result = subprocess.run(

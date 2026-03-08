@@ -34,7 +34,9 @@ import {
   GitBranch,
   FlaskConical,
   BarChart3,
+  Factory,
 } from "lucide-react";
+import { BatchProducer } from "@/components/editor/batch-producer";
 
 const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
   heading: Heading,
@@ -317,6 +319,11 @@ export function Toolbar() {
 
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Separator orientation="vertical" className="mx-1 h-5" />
+
+      {/* 教材工場 (バッチ生成) */}
+      <BatchProducer />
     </div>
   );
 }

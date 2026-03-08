@@ -14,6 +14,9 @@ import shutil
 from pathlib import Path
 
 from .tex_env import TEX_ENV, LUALATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD
+from .security import sanitize_code_field, SecurityViolation, get_compile_args
+from .cache_service import get_cached_svg, store_cached_svg
+from .audit import log_compile_event, log_security_event, AuditEvent
 import shutil
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,19 @@ def preview_block_svg(code: str, block_type: str, caption: str = "") -> str:
     if not code.strip():
         return ""
 
+    # セキュリティ検査
+    try:
+        sanitize_code_field(code, block_type)
+    except SecurityViolation as e:
+        log_security_event(e.violations, block_type=block_type, action="blocked")
+        raise RuntimeError(f"セキュリティポリシー違反: {e.message}")
+
+    # ディスクベースキャッシュチェック
+    cached = get_cached_svg(code, block_type)
+    if cached:
+        return cached
+
+    # インメモリキャッシュチェック (後方互換)
     cache_key = _get_cache_key(code, block_type)
     if cache_key in _svg_cache:
         return _svg_cache[cache_key]
@@ -43,9 +59,9 @@ def preview_block_svg(code: str, block_type: str, caption: str = "") -> str:
     latex_source = _wrap_block_latex(code, block_type)
     svg = _compile_to_svg(latex_source)
 
-    # Cache the result
+    # ディスク + インメモリ両方にキャッシュ
+    store_cached_svg(code, block_type, svg)
     if len(_svg_cache) >= MAX_CACHE:
-        # Remove oldest entry
         oldest = next(iter(_svg_cache))
         del _svg_cache[oldest]
     _svg_cache[cache_key] = svg
@@ -113,15 +129,13 @@ def _compile_to_svg(latex_source: str) -> str:
 
         # Step 1: Compile LaTeX → PDF (lualatex)
         try:
+            cmd_args = get_compile_args(
+                LUALATEX_CMD,
+                str(tmpdir),
+                str(tex_path),
+            )
             result = subprocess.run(
-                [
-                    LUALATEX_CMD,
-                    "-interaction=nonstopmode",
-                    "-halt-on-error",
-                    "-file-line-error",
-                    "-output-directory", str(tmpdir),
-                    str(tex_path),
-                ],
+                cmd_args,
                 capture_output=True,
                 text=True,
                 timeout=15,

@@ -22,6 +22,7 @@ from ..models import (
 )
 from ..utils.latex_utils import escape_latex, text_to_latex_paragraphs
 from ..tex_env import DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT
+from ..security import validate_custom_preamble, sanitize_code_field, ALLOWED_PACKAGES
 import os
 import re
 import logging
@@ -210,6 +211,32 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     lines.append("\\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}")
     lines.append("")
 
+    # ──── 上級者モード: カスタムプリアンブル ────
+    advanced = getattr(doc, 'advanced', None)
+    if advanced and advanced.enabled:
+        # セキュリティ検証
+        if advanced.custom_preamble.strip():
+            violations = validate_custom_preamble(advanced.custom_preamble)
+            if violations:
+                logger.warning(f"Custom preamble violations: {violations}")
+                lines.append("% WARNING: カスタムプリアンブルにセキュリティ違反があります")
+            else:
+                lines.append("% ── カスタムプリアンブル (上級者モード) ──")
+                lines.append(advanced.custom_preamble)
+                lines.append("")
+        
+        # カスタムコマンド
+        if advanced.custom_commands:
+            lines.append("% ── カスタムコマンド (上級者モード) ──")
+            for cmd in advanced.custom_commands:
+                # \newcommand, \renewcommand, \DeclareMathOperator のみ許可
+                cmd_stripped = cmd.strip()
+                if re.match(r'^\\(re)?newcommand|^\\Declare', cmd_stripped):
+                    lines.append(cmd_stripped)
+                else:
+                    lines.append(f"% BLOCKED: {cmd_stripped[:60]}")
+            lines.append("")
+
     # ──── Title ────
     if meta.title:
         lines.append(f"\\title{{{escape_latex(meta.title)}}}")
@@ -225,6 +252,14 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     lines.append("\\begin{document}")
     if meta.title:
         lines.append("\\maketitle")
+    
+    # 上級者モード: pre_document フック
+    if advanced and advanced.enabled and advanced.pre_document.strip():
+        pre_violations = validate_custom_preamble(advanced.pre_document)
+        if not pre_violations:
+            lines.append("% ── pre-document hook ──")
+            lines.append(advanced.pre_document)
+    
     lines.append("")
 
     # ──── Blocks ────
@@ -233,6 +268,13 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
         if latex:
             lines.append(latex)
             lines.append("")
+
+    # 上級者モード: post_document フック
+    if advanced and advanced.enabled and advanced.post_document.strip():
+        post_violations = validate_custom_preamble(advanced.post_document)
+        if not post_violations:
+            lines.append("% ── post-document hook ──")
+            lines.append(advanced.post_document)
 
     lines.append("\\end{document}")
     return "\n".join(lines)
