@@ -1,0 +1,18 @@
+# ── Docker ビルド用 (backend/Dockerfile, context = .) ──
+# frontend は不要
+frontend/
+# Git / IDE
+.git
+.gitignore
+.vscode
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+# その他
+*.md
+backend/sample_data/
+node_modules/
+.next/

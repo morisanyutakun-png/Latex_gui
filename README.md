@@ -253,8 +253,9 @@ docker compose up --build
 3. 「Create App」→ **必ず「Docker」を選択**（Buildpackでは TeX Live が正しくインストールされません）
 4. GitHub リポジトリを接続し、以下を設定:
    - **Dockerfile path:** `backend/Dockerfile`
-   - **Build context:** `backend/`
+   - **Build context:** `.`（リポジトリルート）
    - **Port:** `8000`
+   > Build contextを `backend/` にする場合は、Docker build-arg に `SRC_PREFIX=` (空文字) を設定してください
 5. **インスタンスタイプ:** Nano ($2.7/月) 以上、メモリ 512MB+
    - lualatex はメモリを多く使うため、256MB インスタンスではタイムアウトします
 6. 環境変数を設定（Koyeb 管理画面 → Environment Variables）:

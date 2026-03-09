@@ -50,7 +50,11 @@ RUN fc-cache -fv \
 # - lualatex のフォントキャッシュを完全に構築
 # - LuaTeX の内部キャッシュ (luaotfload DB) をウォーム
 # 3回コンパイルして安定したキャッシュを確保
-COPY backend/tests/smoke_full.tex /tmp/smoke_full.tex
+#
+# NOTE: ビルドコンテキストが . (リポジトリルート) の場合は backend/ プレフィクス付き、
+#       backend/ の場合はプレフィクスなし。両方に対応するため ARG で切替可能。
+ARG SRC_PREFIX=backend/
+COPY ${SRC_PREFIX}tests/smoke_full.tex /tmp/smoke_full.tex
 WORKDIR /tmp
 RUN echo "=== Smoke test 1/3 (cold — building all caches) ===" \
     && lualatex -interaction=nonstopmode -halt-on-error smoke_full.tex \
@@ -75,12 +79,12 @@ ENV MAX_CONCURRENT_COMPILES=1 \
 WORKDIR /app
 
 # ──── 7. Python 依存 ────
-COPY backend/requirements.txt /app/requirements.txt
+COPY ${SRC_PREFIX}requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ──── 8. アプリケーションコード ────
-COPY backend/app/ /app/app/
-COPY backend/entrypoint.sh /app/entrypoint.sh
+COPY ${SRC_PREFIX}app/ /app/app/
+COPY ${SRC_PREFIX}entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # ──── 9. non-root ユーザー + キャッシュ共有 ────
@@ -108,7 +112,7 @@ RUN mkdir -p /home/appuser/texmf-var /home/appuser/texmf-config \
 USER appuser
 
 # ──── 10. appuser 環境でフォントキャッシュ構築 ────
-COPY backend/tests/warmup.tex /tmp/warmup.tex
+COPY ${SRC_PREFIX}tests/warmup.tex /tmp/warmup.tex
 WORKDIR /tmp
 RUN luaotfload-tool --update 2>/dev/null || true
 RUN lualatex -interaction=nonstopmode -halt-on-error warmup.tex \

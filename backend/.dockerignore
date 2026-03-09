@@ -6,6 +6,5 @@ venv
 .env
 .git
 .gitignore
-tests/
 sample_data/
 *.md
