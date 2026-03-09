@@ -267,39 +267,39 @@ export function BatchProducer({ embedded = false }: { embedded?: boolean }) {
           </div>
         </div>
 
-        {/* ── パイプライン図 ── */}
-        <div className="flex items-center justify-center gap-1 py-2 px-2 rounded-lg bg-gradient-to-r from-amber-50/50 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/20 border border-amber-200/30 dark:border-amber-800/30">
-          <div className="flex items-center gap-1 text-[8px]">
-            <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">テンプレ</span>
-            <span className="text-muted-foreground/40">×</span>
-            <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium">CSV変数</span>
-            <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40" />
-            <span className="px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">LaTeX</span>
-            <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40" />
-            <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold">PDF ×N</span>
-          </div>
-        </div>
-
-        {/* ── ステップインジケーター (コンパクト) ── */}
-        <div className="flex items-center gap-1 px-1">
-          {steps.map((s, i) => (
-            <React.Fragment key={i}>
-              {i > 0 && <div className={`h-px flex-1 ${s.done ? "bg-emerald-400" : "bg-border/40"}`} />}
+        {/* ── 3ステップガイド (常に表示) ── */}
+        <div className="rounded-xl border border-border/30 overflow-hidden">
+          {steps.map((s, i) => {
+            const isActive = i === step;
+            const isDone = s.done;
+            return (
               <button
+                key={i}
                 onClick={() => setStep(i)}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
-                  i === step
-                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                    : s.done
-                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
-                    : "text-muted-foreground/50"
-                }`}
+                className={`
+                  w-full flex items-center gap-2.5 px-3 py-2 text-[11px] transition-all border-b last:border-b-0 border-border/20
+                  ${isActive
+                    ? "bg-primary/5 text-foreground"
+                    : isDone
+                    ? "bg-emerald-50/50 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-400"
+                    : "text-muted-foreground/50 hover:bg-muted/30"
+                  }
+                `}
               >
-                {s.done ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : s.icon}
-                <span className="hidden sm:inline">{s.label}</span>
+                <div className={`h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-bold ${
+                  isDone
+                    ? "bg-emerald-500 text-white"
+                    : isActive
+                    ? "bg-amber-500 text-white"
+                    : "bg-muted text-muted-foreground/50"
+                }`}>
+                  {isDone ? <CheckCircle2 className="h-3 w-3" /> : i + 1}
+                </div>
+                <span className={`font-medium ${isActive ? "font-semibold" : ""}`}>{s.label}</span>
+                {isActive && <ArrowRight className="h-3 w-3 ml-auto text-muted-foreground/40" />}
               </button>
-            </React.Fragment>
-          ))}
+            );
+          })}
         </div>
 
         {/* ── 完了画面 ── */}
@@ -322,73 +322,88 @@ export function BatchProducer({ embedded = false }: { embedded?: boolean }) {
         {/* ── Step 0: 変数検出 ── */}
         {!showComplete && step === 0 && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Search className="h-3.5 w-3.5 text-blue-500" />
-                <span className="text-[11px] font-semibold">テンプレート変数</span>
-              </div>
-              <button
-                onClick={handleDetectVariables}
-                disabled={isDetecting}
-                className="text-[10px] px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200/50 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 transition-colors disabled:opacity-50"
-              >
-                {isDetecting ? "検出中..." : "再検出"}
-              </button>
-            </div>
-
             {variables.length > 0 ? (
-              <div className="p-2.5 rounded-lg bg-card border border-border/50">
+              <div className="p-3 rounded-xl bg-card border border-border/50">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                  <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">{variables.length} 個検出</span>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">{variables.length} 個の変数を検出</span>
+                  <button
+                    onClick={handleDetectVariables}
+                    disabled={isDetecting}
+                    className="ml-auto text-[9px] px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
+                  >
+                    {isDetecting ? "..." : "再検出"}
+                  </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {variables.map((v) => <VariableBadge key={v} name={v} />)}
                 </div>
               </div>
-            ) : !isDetecting ? (
-              <div className="p-2.5 rounded-lg bg-muted/50 border border-border/30 text-[10px] text-muted-foreground">
-                <p>テキストに <code className="px-1 bg-muted rounded text-[9px]">{"{{変数名}}"}</code> を追加してください</p>
+            ) : isDetecting ? (
+              <div className="flex items-center justify-center gap-2 py-6">
+                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                <span className="text-[11px] text-muted-foreground">変数を検出中...</span>
               </div>
-            ) : null}
-
-            <div className="p-2.5 rounded-lg bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-800/30">
-              <p className="text-[10px] font-semibold text-blue-800 dark:text-blue-300 mb-1.5 flex items-center gap-1">
-                <Sparkles className="h-3 w-3" /> ヒント
-              </p>
-              <ul className="text-[9px] text-blue-700/80 dark:text-blue-300/70 space-y-1 list-none">
-                <li>• テキスト/見出し/表に <code className="px-0.5 bg-blue-100/80 dark:bg-blue-900/50 rounded">{"{{名前}}"}</code></li>
-                <li>• 数式にも <code className="px-0.5 bg-blue-100/80 dark:bg-blue-900/50 rounded">{"f(x) = {{係数}}x^2"}</code></li>
-              </ul>
-            </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/15 border border-amber-200/40 dark:border-amber-800/20">
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium mb-2">変数プレースホルダーを追加してください</p>
+                <div className="space-y-1.5 text-[10px] text-amber-700/80 dark:text-amber-300/60">
+                  <p>テキストブロックに <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 rounded font-mono text-[9px]">{"{{名前}}"}</code> のように記述します</p>
+                  <p>例: 「<code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 rounded font-mono text-[9px]">{"{{生徒名}}"}</code> さんの成績表」</p>
+                </div>
+                <button
+                  onClick={handleDetectVariables}
+                  className="mt-2.5 w-full py-1.5 text-[11px] font-medium rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors"
+                >
+                  再検出する
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* ── Step 1: CSVデータ ── */}
         {!showComplete && step === 1 && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" />
-                <span className="text-[11px] font-semibold">変数データ</span>
-              </div>
-              <div className="flex gap-1.5">
-                <input ref={fileInputRef} type="file" accept=".csv,.tsv,.txt" onChange={handleFileUpload} className="hidden" />
-                <button onClick={() => fileInputRef.current?.click()} className="text-[10px] px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 transition-colors">
-                  <Upload className="h-3 w-3 inline mr-0.5" /> CSV
+            {/* 操作ボタン群 */}
+            <div className="flex items-center gap-2">
+              <input ref={fileInputRef} type="file" accept=".csv,.tsv,.txt" onChange={handleFileUpload} className="hidden" />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-700/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                CSVファイル読込
+              </button>
+              {variables.length > 0 && !csvText.trim() && (
+                <button
+                  onClick={() => setCsvText(variables.join(",") + "\n")}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-700/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  ヘッダ自動生成
                 </button>
-              </div>
+              )}
             </div>
-            <textarea
-              value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
-              placeholder={`${variables.length > 0 ? variables.join(",") : "名前,クラス,点数"}\n太郎,A組,95\n花子,B組,88`}
-              className="w-full h-32 px-3 py-2 text-[11px] font-mono bg-muted/20 border border-border/50 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/30"
-              spellCheck={false}
-            />
-            <p className="text-[9px] text-muted-foreground flex items-center gap-1">
-              <Info className="h-2.5 w-2.5" />
-              1行目=ヘッダー、2行目以降=各PDFのデータ（{dataRowCount}行）
+
+            {/* CSV エディタ (コンパクト) */}
+            <div className="rounded-xl border border-border/50 overflow-hidden">
+              <div className="flex items-center justify-between px-2.5 py-1.5 bg-muted/30 border-b border-border/30">
+                <span className="text-[10px] font-medium text-muted-foreground">CSVデータ</span>
+                <span className="text-[9px] text-muted-foreground">{dataRowCount} 行</span>
+              </div>
+              <textarea
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                placeholder={`${variables.length > 0 ? variables.join(",") : "名前,クラス"}\n太郎,A組\n花子,B組`}
+                className="w-full h-28 px-2.5 py-2 text-[10px] font-mono bg-background resize-none focus:outline-none placeholder:text-muted-foreground/30"
+                spellCheck={false}
+              />
+            </div>
+
+            <p className="text-[9px] text-muted-foreground flex items-center gap-1 px-0.5">
+              <Info className="h-2.5 w-2.5 flex-shrink-0" />
+              1行目がヘッダー（変数名）、2行目以降が各PDFのデータ
             </p>
           </div>
         )}
@@ -396,36 +411,41 @@ export function BatchProducer({ embedded = false }: { embedded?: boolean }) {
         {/* ── Step 2: 設定 & 生成 ── */}
         {!showComplete && step === 2 && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            <div className="flex items-center gap-2">
-              <Settings2 className="h-3.5 w-3.5 text-orange-500" />
-              <span className="text-[11px] font-semibold">出力設定</span>
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-medium text-foreground/80">ファイル名</label>
+            {/* ファイル名設定 */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-medium text-foreground/70">ファイル名パターン</label>
               <input
                 type="text"
                 value={filenameTemplate}
                 onChange={(e) => setFilenameTemplate(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-[11px] font-mono bg-muted/30 border border-border/50 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/20"
+                className="w-full px-2.5 py-1.5 text-[11px] font-mono bg-muted/20 border border-border/40 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500/30 transition-all"
                 placeholder="{{_index}}_{{名前}}"
               />
+              <p className="text-[8px] text-muted-foreground/60"><code className="bg-muted px-0.5 rounded">{"{{_index}}"}</code> = 連番</p>
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-medium text-foreground/80">最大行数</label>
+
+            {/* 最大行数 (スライダー風) */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-medium text-foreground/70">最大生成数</label>
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">{maxRows} 件</span>
+              </div>
               <input
-                type="number"
+                type="range"
                 value={maxRows}
-                onChange={(e) => setMaxRows(Math.max(1, Math.min(200, parseInt(e.target.value) || 50)))}
-                min={1} max={200}
-                className="w-full px-2.5 py-1.5 text-[11px] bg-muted/30 border border-border/50 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/20"
+                onChange={(e) => setMaxRows(parseInt(e.target.value))}
+                min={1} max={200} step={1}
+                className="w-full h-1.5 accent-amber-500"
               />
             </div>
-            <div className="p-2.5 rounded-lg bg-gradient-to-r from-amber-50/60 to-orange-50/60 dark:from-amber-950/20 dark:to-orange-950/20 border border-amber-200/40 dark:border-amber-700/30">
+
+            {/* 生成サマリー */}
+            <div className="p-3 rounded-xl bg-gradient-to-br from-amber-50/80 to-orange-50/80 dark:from-amber-950/20 dark:to-orange-950/20 border border-amber-200/50 dark:border-amber-700/30">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
                   <Package className="h-3.5 w-3.5" /> 生成予定
                 </span>
-                <span className="text-sm font-bold text-amber-700 dark:text-amber-300">
+                <span className="text-base font-bold text-amber-700 dark:text-amber-300">
                   {Math.min(dataRowCount, maxRows)} 件
                 </span>
               </div>
@@ -449,40 +469,49 @@ export function BatchProducer({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
 
-        {/* ── ナビゲーションボタン ── */}
+        {/* ── アクションボタン ── */}
         {!showComplete && (
-          <div className="flex items-center justify-between pt-2 border-t border-border/20">
-            <div>
-              {step > 0 && (
-                <button onClick={() => setStep(step - 1)} disabled={isGenerating}
-                  className="px-3 py-1.5 text-[11px] rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50">
-                  戻る
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {step === 2 && (
-                <button onClick={handlePreview} disabled={!csvText.trim() || isGenerating}
-                  className="flex items-center gap-1 px-3 py-1.5 text-[11px] rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50">
-                  <Eye className="h-3 w-3" /> プレビュー
-                </button>
-              )}
-              {step < 2 ? (
-                <button onClick={() => setStep(step + 1)} disabled={step === 0 && variables.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-foreground text-background hover:opacity-90 transition-all disabled:opacity-40">
-                  次へ <ArrowRight className="h-3 w-3" />
-                </button>
-              ) : (
-                <button onClick={handleGenerate} disabled={!csvText.trim() || isGenerating}
-                  className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 transition-all disabled:opacity-50">
+          <div className="space-y-2 pt-1">
+            {step < 2 ? (
+              <button
+                onClick={() => setStep(step + 1)}
+                disabled={step === 0 && variables.length === 0}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-[12px] font-semibold rounded-xl bg-foreground text-background hover:opacity-90 transition-all disabled:opacity-40"
+              >
+                次のステップへ <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <div className="space-y-1.5">
+                <button
+                  onClick={handleGenerate}
+                  disabled={!csvText.trim() || isGenerating}
+                  className="w-full flex items-center justify-center gap-2 py-3 text-[12px] font-bold rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 transition-all disabled:opacity-50"
+                >
                   {isGenerating ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 量産中...</>
+                    <><Loader2 className="h-4 w-4 animate-spin" /> 量産中...</>
                   ) : (
-                    <><Download className="h-3.5 w-3.5" /> 一括生成</>
+                    <><Download className="h-4 w-4" /> PDF一括生成 ({Math.min(dataRowCount, maxRows)}件)</>
                   )}
                 </button>
-              )}
-            </div>
+                <button
+                  onClick={handlePreview}
+                  disabled={!csvText.trim() || isGenerating}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  <Eye className="h-3 w-3" /> 1件目プレビュー
+                </button>
+              </div>
+            )}
+
+            {step > 0 && (
+              <button
+                onClick={() => setStep(step - 1)}
+                disabled={isGenerating}
+                className="w-full py-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                ← 前のステップ
+              </button>
+            )}
           </div>
         )}
       </div>

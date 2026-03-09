@@ -81,37 +81,41 @@ export default function EditorPage() {
       <Toolbar />
 
       {/* ═══ パイプラインステータスバー ═══ */}
-      <div className="flex items-center justify-center gap-0 px-4 py-1.5 border-b border-border/20 bg-gradient-to-r from-emerald-50/40 via-violet-50/30 to-amber-50/40 dark:from-emerald-950/10 dark:via-violet-950/10 dark:to-amber-950/10">
-        <PipelineStep
-          icon={<Pen className="h-3 w-3" />}
-          label="GUI入力"
-          sublabel="日本語 / ブロック"
-          color="emerald"
-          active={true}
-        />
-        <PipelineArrow />
+      <div className="flex items-center justify-center gap-0 px-4 py-1.5 border-b border-border/20 bg-gradient-to-r from-blue-50/40 via-emerald-50/30 to-amber-50/40 dark:from-blue-950/10 dark:via-emerald-950/10 dark:to-amber-950/10">
         <PipelineStep
           icon={<Layers className="h-3 w-3" />}
-          label="テンプレート"
+          label="テンプレート選択"
           sublabel={templateLabel}
           color="blue"
           active={true}
+          step={1}
+        />
+        <PipelineArrow />
+        <PipelineStep
+          icon={<Pen className="h-3 w-3" />}
+          label="GUI入力"
+          sublabel={`${document.blocks.length} ブロック編集中`}
+          color="emerald"
+          active={true}
+          step={2}
         />
         <PipelineArrow />
         <PipelineStep
           icon={<FileText className="h-3 w-3" />}
-          label="LaTeX"
-          sublabel={`${document.blocks.length} ブロック`}
+          label="LaTeX生成"
+          sublabel="自動変換"
           color="violet"
           active={document.blocks.length > 0}
+          step={3}
         />
         <PipelineArrow />
         <PipelineStep
           icon={<Download className="h-3 w-3" />}
-          label="PDF"
-          sublabel="ヘッダーから出力"
+          label="PDF出力"
+          sublabel="ヘッダーから実行"
           color="amber"
           active={false}
+          step={4}
         />
       </div>
 
@@ -167,11 +171,11 @@ export default function EditorPage() {
           className={`
             border-l border-border/20 overflow-hidden bg-background/95 backdrop-blur-sm
             transition-all duration-300 ease-out flex-shrink-0 flex flex-col
-            ${sidebarOpen ? "w-80 opacity-100" : "w-0 opacity-0"}
+            ${sidebarOpen ? "w-[22rem] opacity-100" : "w-0 opacity-0"}
           `}
         >
           {sidebarOpen && (
-            <div className="animate-in fade-in duration-200 min-w-[19rem] flex flex-col h-full">
+            <div className="animate-in fade-in duration-200 min-w-[21rem] flex flex-col h-full">
               {/* ── タブヘッダー ── */}
               <div className="flex border-b border-border/30 bg-muted/20 flex-shrink-0">
                 <button
@@ -204,7 +208,7 @@ export default function EditorPage() {
               </div>
 
               {/* ── タブコンテンツ ── */}
-              <div className="flex-1 overflow-y-auto p-3">
+              <div className="flex-1 overflow-y-auto p-4">
                 {activeTab === "advanced" && <AdvancedModePanel />}
                 {activeTab === "batch" && <BatchProducer embedded />}
               </div>
@@ -217,12 +221,13 @@ export default function EditorPage() {
 }
 
 /* ── パイプラインステップ ── */
-function PipelineStep({ icon, label, sublabel, color, active }: {
+function PipelineStep({ icon, label, sublabel, color, active, step }: {
   icon: React.ReactNode;
   label: string;
   sublabel: string;
   color: "emerald" | "blue" | "violet" | "amber";
   active: boolean;
+  step: number;
 }) {
   const colors = {
     emerald: active
@@ -239,8 +244,18 @@ function PipelineStep({ icon, label, sublabel, color, active }: {
       : "bg-muted/30 text-muted-foreground/50 border-border/30",
   };
 
+  const stepColors = {
+    emerald: active ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground/50",
+    blue: active ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground/50",
+    violet: active ? "bg-violet-600 text-white" : "bg-muted text-muted-foreground/50",
+    amber: active ? "bg-amber-600 text-white" : "bg-muted text-muted-foreground/50",
+  };
+
   return (
     <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-medium transition-all ${colors[color]}`}>
+      <span className={`h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold ${stepColors[color]}`}>
+        {step}
+      </span>
       {icon}
       <div className="flex flex-col leading-none">
         <span className="font-semibold text-[10px]">{label}</span>
