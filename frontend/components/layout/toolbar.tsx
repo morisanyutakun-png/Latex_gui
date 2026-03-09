@@ -34,8 +34,8 @@ import {
   GitBranch,
   FlaskConical,
   BarChart3,
+  Layers,
 } from "lucide-react";
-import { BatchProducer } from "@/components/editor/batch-producer";
 
 const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
   heading: Heading,
@@ -322,8 +322,34 @@ export function Toolbar() {
       {/* 右寄せスペーサー */}
       <div className="flex-1" />
 
-      {/* 教材工場 (バッチ生成) */}
-      <BatchProducer />
+      {/* テンプレート種別インジケーター */}
+      <TemplateIndicator />
+    </div>
+  );
+}
+
+/* ── テンプレート種別表示 ── */
+function TemplateIndicator() {
+  const docClass = useDocumentStore((s) => s.document?.settings.documentClass);
+  const blockCount = useDocumentStore((s) => s.document?.blocks.length ?? 0);
+  if (!docClass) return null;
+
+  const classLabel: Record<string, string> = {
+    article: "論文/レポート",
+    report: "報告書",
+    book: "書籍",
+    beamer: "スライド",
+    letter: "手紙",
+    jlreq: "日本語文書",
+    ltjsarticle: "LuaLaTeX",
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-muted/30 border border-border/20 text-[10px] text-muted-foreground">
+      <Layers className="h-3 w-3 text-blue-500" />
+      <span className="font-medium">{classLabel[docClass] ?? docClass}</span>
+      <span className="text-muted-foreground/40">|</span>
+      <span>{blockCount} ブロック</span>
     </div>
   );
 }

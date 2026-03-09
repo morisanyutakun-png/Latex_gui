@@ -712,18 +712,23 @@ export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMat
         </div>
       </details>
 
-      {/* ═══ フッター（コンパクトルールリマインダー） ═══ */}
-      <div className="flex items-center gap-1.5 mt-1.5 px-1 flex-wrap">
-        {[
-          { dot: "bg-emerald-400", badge: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300", text: "ルートx" },
-          { dot: "bg-blue-400", badge: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300", text: "a/b" },
-          { dot: "bg-violet-400", badge: "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300", text: "から〜まで" },
-          { dot: "bg-amber-400", badge: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300", text: "かっこa+b" },
-        ].map((pill, i) => (
-          <span key={i} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-medium ${pill.badge}`}>
-            <span className={`w-1 h-1 rounded-full ${pill.dot}`} />{pill.text}
-          </span>
-        ))}
+      {/* ═══ フッター — 構造ルールダッシュボード ═══ */}
+      <div className="mt-1.5 px-1.5 py-1.5 rounded-lg bg-gradient-to-r from-muted/20 to-muted/10 border border-border/15">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[7px] font-bold text-muted-foreground/40 uppercase tracking-wider shrink-0">規則:</span>
+          {[
+            { dot: "bg-emerald-400", badge: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200/40 dark:border-emerald-800/30", text: "操作+対象", example: "ルートx" },
+            { dot: "bg-blue-400", badge: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200/40 dark:border-blue-800/30", text: "A操作B", example: "a/b" },
+            { dot: "bg-violet-400", badge: "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 border-violet-200/40 dark:border-violet-800/30", text: "AからBまで", example: "0〜π積分" },
+            { dot: "bg-amber-400", badge: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200/40 dark:border-amber-800/30", text: "かっこ+内容", example: "かっこa+b" },
+          ].map((pill, i) => (
+            <span key={i} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[7px] font-medium border ${pill.badge}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${pill.dot} shrink-0`} />
+              <span className="font-semibold">{pill.text}</span>
+              <span className="text-muted-foreground/40 font-normal">例:{pill.example}</span>
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -823,23 +828,26 @@ export function MathWritingGuide({ onTryExample, onClose, className = "" }: Math
 
   return (
     <div className={`rounded-xl border border-border/30 bg-muted/10 overflow-hidden ${className}`}>
-      {/* ── ヘッダー: ミニワークフロー + 閉じる ── */}
-      <div className="flex items-center justify-between px-2.5 py-[3px] border-b border-border/15">
-        <div className="flex items-center gap-1.5 text-[7px] text-muted-foreground/60">
-          <span className="font-semibold text-foreground/50">書き方</span>
-          <span className="text-muted-foreground/30">|</span>
-          <span>日本語入力</span>
-          <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/25" />
-          <kbd className="px-0.5 rounded bg-muted/50 text-[6px] font-mono border border-border/20">Space</kbd>
-          <span className="text-[6px] text-muted-foreground/30">変換</span>
-          <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/25" />
-          <kbd className="px-0.5 rounded bg-muted/50 text-[6px] font-mono border border-border/20">Enter</kbd>
-          <span className="text-[6px] text-muted-foreground/30">確定</span>
+      {/* ── ヘッダー: パイプライン図 ── */}
+      <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-border/15 bg-gradient-to-r from-emerald-50/30 via-violet-50/20 to-amber-50/30 dark:from-emerald-950/10 dark:via-violet-950/10 dark:to-amber-950/10">
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold text-[8px] text-foreground/60 bg-background/80 px-1.5 py-0.5 rounded border border-border/20">数式ルール</span>
+          <div className="flex items-center gap-0.5 text-[7px] text-muted-foreground/50">
+            <span className="px-1 py-0 rounded bg-emerald-100/60 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 font-medium">日本語入力</span>
+            <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/25" />
+            <kbd className="px-0.5 rounded bg-muted/50 text-[6px] font-mono border border-border/20">Space</kbd>
+            <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/25" />
+            <span className="px-1 py-0 rounded bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 font-medium">LaTeX変換</span>
+            <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/25" />
+            <kbd className="px-0.5 rounded bg-muted/50 text-[6px] font-mono border border-border/20">Enter</kbd>
+            <ArrowRight className="h-1.5 w-1.5 text-muted-foreground/25" />
+            <span className="px-1 py-0 rounded bg-amber-100/60 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 font-medium">反映</span>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-[7px] text-muted-foreground/40 hover:text-foreground/60 transition-colors px-1"
+            className="text-[7px] text-muted-foreground/40 hover:text-foreground/60 transition-colors px-1 py-0.5 rounded hover:bg-muted/40"
           >
             {expanded ? "簡略" : "詳細"}
           </button>
@@ -851,71 +859,128 @@ export function MathWritingGuide({ onTryExample, onClose, className = "" }: Math
         </div>
       </div>
 
-      {/* ── 4パターン一覧（2×2 グリッド） ── */}
-      <div className="grid grid-cols-4 gap-1 p-1.5">
-        <PatternCell
-          color="emerald"
-          label="1項"
-          pattern={
-            <div className="flex items-center gap-1">
-              <span className="px-1 rounded bg-emerald-200/80 dark:bg-emerald-800/60 text-[7px] font-bold text-emerald-700 dark:text-emerald-300">操作</span>
-              <span className="text-[7px] text-emerald-500/60 dark:text-emerald-400/50 border-b border-dashed border-emerald-400/40">対象</span>
-            </div>
-          }
-          example={{ input: "ルートx", latex: "\\sqrt{x}" }}
-          onTry={handleTry}
-        />
-        <PatternCell
-          color="blue"
-          label="2項"
-          pattern={
-            <div className="flex items-center gap-0.5">
-              <span className="text-[7px] text-blue-500/60 dark:text-blue-400/50 border-b border-dashed border-blue-400/40">A</span>
-              <span className="px-1 rounded bg-blue-200/80 dark:bg-blue-800/60 text-[7px] font-bold text-blue-700 dark:text-blue-300">操作</span>
-              <span className="text-[7px] text-blue-500/60 dark:text-blue-400/50 border-b border-dashed border-blue-400/40">B</span>
-            </div>
-          }
-          example={{ input: "2分の1", latex: "\\frac{1}{2}" }}
-          onTry={handleTry}
-        />
-        <PatternCell
-          color="violet"
-          label="3項"
-          pattern={
-            <div className="flex items-center gap-0.5">
-              <span className="text-[7px] text-violet-500/60 border-b border-dashed border-violet-400/40">A</span>
-              <span className="text-[6px] text-violet-400 font-bold">→</span>
-              <span className="text-[7px] text-violet-500/60 border-b border-dashed border-violet-400/40">B</span>
-              <span className="px-0.5 rounded bg-violet-200/80 dark:bg-violet-800/60 text-[7px] font-bold text-violet-700 dark:text-violet-300">操作</span>
-            </div>
-          }
-          example={{ input: "0からπまで積分", latex: "\\int_{0}^{\\pi}" }}
-          onTry={handleTry}
-        />
-        <PatternCell
-          color="amber"
-          label="括弧"
-          pattern={
-            <div className="flex items-center gap-0.5">
-              <span className="px-0.5 rounded bg-amber-200/80 dark:bg-amber-800/60 text-[7px] font-bold text-amber-700 dark:text-amber-300">かっこ</span>
-              <span className="text-[8px] text-amber-400/70 font-bold">(</span>
-              <span className="text-[7px] text-amber-500/60 border-b border-dashed border-amber-400/40">内容</span>
-              <span className="text-[8px] text-amber-400/70 font-bold">)</span>
-            </div>
-          }
-          example={{ input: "かっこa+b", latex: "\\left(a+b\\right)" }}
-          onTry={handleTry}
-        />
+      {/* ── 厳密ルール4パターン (2×2 グリッド → 4列) ── */}
+      <div className="p-1.5">
+        {/* ルール概要 —「構造ルール」を視覚的に提示 */}
+        <div className="flex items-center gap-1 mb-1 px-1">
+          <Hash className="h-2.5 w-2.5 text-muted-foreground/40" />
+          <span className="text-[7px] font-bold text-foreground/50 tracking-wider uppercase">構造パターン — 全ての数式はこの4型に従う</span>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1">
+          <PatternCell
+            color="emerald"
+            label="1項 (単項)"
+            pattern={
+              <div className="flex items-center gap-1">
+                <span className="px-1 rounded bg-emerald-200/80 dark:bg-emerald-800/60 text-[7px] font-bold text-emerald-700 dark:text-emerald-300">操作</span>
+                <span className="text-[7px] text-emerald-500/60 dark:text-emerald-400/50 border-b border-dashed border-emerald-400/40">対象</span>
+              </div>
+            }
+            example={{ input: "ルートx", latex: "\\sqrt{x}" }}
+            onTry={handleTry}
+          />
+          <PatternCell
+            color="blue"
+            label="2項 (二項)"
+            pattern={
+              <div className="flex items-center gap-0.5">
+                <span className="text-[7px] text-blue-500/60 dark:text-blue-400/50 border-b border-dashed border-blue-400/40">A</span>
+                <span className="px-1 rounded bg-blue-200/80 dark:bg-blue-800/60 text-[7px] font-bold text-blue-700 dark:text-blue-300">操作</span>
+                <span className="text-[7px] text-blue-500/60 dark:text-blue-400/50 border-b border-dashed border-blue-400/40">B</span>
+              </div>
+            }
+            example={{ input: "2分の1", latex: "\\frac{1}{2}" }}
+            onTry={handleTry}
+          />
+          <PatternCell
+            color="violet"
+            label="3項 (三項)"
+            pattern={
+              <div className="flex items-center gap-0.5">
+                <span className="text-[7px] text-violet-500/60 border-b border-dashed border-violet-400/40">A</span>
+                <span className="text-[6px] text-violet-400 font-bold">→</span>
+                <span className="text-[7px] text-violet-500/60 border-b border-dashed border-violet-400/40">B</span>
+                <span className="px-0.5 rounded bg-violet-200/80 dark:bg-violet-800/60 text-[7px] font-bold text-violet-700 dark:text-violet-300">操作</span>
+              </div>
+            }
+            example={{ input: "0からπまで積分", latex: "\\int_{0}^{\\pi}" }}
+            onTry={handleTry}
+          />
+          <PatternCell
+            color="amber"
+            label="括弧 (包含)"
+            pattern={
+              <div className="flex items-center gap-0.5">
+                <span className="px-0.5 rounded bg-amber-200/80 dark:bg-amber-800/60 text-[7px] font-bold text-amber-700 dark:text-amber-300">かっこ</span>
+                <span className="text-[8px] text-amber-400/70 font-bold">(</span>
+                <span className="text-[7px] text-amber-500/60 border-b border-dashed border-amber-400/40">内容</span>
+                <span className="text-[8px] text-amber-400/70 font-bold">)</span>
+              </div>
+            }
+            example={{ input: "かっこa+b", latex: "\\left(a+b\\right)" }}
+            onTry={handleTry}
+          />
+        </div>
       </div>
 
-      {/* ── 展開時: ネスト＆追加例 ── */}
+      {/* ── 展開時: 厳密ルール詳細 + ネスト + 追加例 ── */}
       {expanded && (
-        <div className="px-2 pb-1.5 pt-0.5 border-t border-border/10 space-y-1">
-          {/* ネストルール */}
-          <div className="flex items-center gap-1.5 px-1 py-0.5 rounded bg-muted/20 text-[7px] text-muted-foreground/60">
-            <Lightbulb className="h-2.5 w-2.5 text-amber-400/60 shrink-0" />
-            <span><strong className="text-foreground/70">スペース＝ネスト区切り</strong>: 「ルート かっこa+b」→ √(a+b)　全角・半角どちらもOK</span>
+        <div className="px-2 pb-2 pt-1 border-t border-border/10 space-y-2">
+          {/* ルール: LaTeXの強み */}
+          <div className="p-2 rounded-lg bg-gradient-to-r from-blue-50/50 to-violet-50/50 dark:from-blue-950/15 dark:to-violet-950/15 border border-blue-200/30 dark:border-blue-800/30">
+            <div className="flex items-center gap-1 mb-1.5">
+              <Lightbulb className="h-2.5 w-2.5 text-blue-400" />
+              <span className="text-[8px] font-bold text-blue-700 dark:text-blue-300">LaTeX の 3 つの強み</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="text-[7px] text-blue-600/80 dark:text-blue-400/70 space-y-0.5">
+                <span className="font-bold block">① テンプレート固定</span>
+                <span className="block text-muted-foreground/60">書式のブレが起きない</span>
+              </div>
+              <div className="text-[7px] text-violet-600/80 dark:text-violet-400/70 space-y-0.5">
+                <span className="font-bold block">② 数式の美しさ</span>
+                <span className="block text-muted-foreground/60">厳密な組版規則</span>
+              </div>
+              <div className="text-[7px] text-emerald-600/80 dark:text-emerald-400/70 space-y-0.5">
+                <span className="font-bold block">③ 長文の堅牢性</span>
+                <span className="block text-muted-foreground/60">何ページでも崩れない</span>
+              </div>
+            </div>
           </div>
+
+          {/* ネストルール */}
+          <div className="flex items-center gap-1.5 px-1.5 py-1 rounded bg-muted/20 text-[7px] text-muted-foreground/60">
+            <Lightbulb className="h-2.5 w-2.5 text-amber-400/60 shrink-0" />
+            <span><strong className="text-foreground/70">ネスト規則</strong>: スペースで区切ると入れ子になる「ルート かっこa+b」→ √(a+b)</span>
+          </div>
+
+          {/* 厳密な構造マップ */}
+          <div className="p-2 rounded-lg bg-muted/15 border border-border/15">
+            <div className="flex items-center gap-1 mb-1.5">
+              <Hash className="h-2.5 w-2.5 text-muted-foreground/40" />
+              <span className="text-[8px] font-bold text-foreground/50">各型の演算子一覧</span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[7px]">
+              <div className="space-y-0.5">
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">■ 1項型 (操作+対象):</span>
+                <span className="text-muted-foreground/70 block">ルート, 絶対値, ベクトル, ハット, バー, チルダ, 太字, 斜体</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="font-bold text-blue-600 dark:text-blue-400">■ 2項型 (A操作B):</span>
+                <span className="text-muted-foreground/70 block">分の(/), の乗(^), の添字(_), の上, の下</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="font-bold text-violet-600 dark:text-violet-400">■ 3項型 (AからBまで操作):</span>
+                <span className="text-muted-foreground/70 block">積分, 総和, 総乗, 極限</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="font-bold text-amber-600 dark:text-amber-400">■ 括弧型 (かっこ+内容):</span>
+                <span className="text-muted-foreground/70 block">かっこ, かくかっこ, なみかっこ, 絶対値</span>
+              </div>
+            </div>
+          </div>
+
           {/* 追加例グリッド */}
           <div className="grid grid-cols-2 gap-x-2 gap-y-0">
             {[

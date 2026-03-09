@@ -586,6 +586,14 @@ function MathBlockEditor({ block }: { block: Block }) {
               <span className="text-muted-foreground/50 text-sm font-medium">数式ブロック</span>
             </div>
             <span className="text-muted-foreground/30 text-xs">ダブルクリックして日本語で数式を入力</span>
+            {/* パイプラインミニ図 */}
+            <div className="flex items-center gap-1 text-[8px] text-muted-foreground/30 mt-1">
+              <span className="px-1 py-0.5 rounded bg-emerald-100/40 dark:bg-emerald-900/10">日本語入力</span>
+              <span>→</span>
+              <span className="px-1 py-0.5 rounded bg-violet-100/40 dark:bg-violet-900/10">LaTeX変換</span>
+              <span>→</span>
+              <span className="px-1 py-0.5 rounded bg-blue-100/40 dark:bg-blue-900/10">美しい数式</span>
+            </div>
           </div>
         ) : null}
       </div>
@@ -605,7 +613,7 @@ function MathBlockEditor({ block }: { block: Block }) {
               onClick={() => setShowGuide(true)}
               className="mb-1 px-2 py-0.5 rounded-lg text-[9px] text-muted-foreground/50 hover:text-foreground hover:bg-muted/40 transition-colors flex items-center gap-1"
             >
-              <Sigma className="h-2.5 w-2.5" />ガイド
+              <Sigma className="h-2.5 w-2.5" />ルール表示
             </button>
           )}
           <div className={`border rounded-xl p-3 bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
@@ -895,7 +903,7 @@ export function DocumentEditor() {
               </React.Fragment>
             ))}
 
-            {/* Empty state — 初心者フレンドリー */}
+            {/* Empty state — パイプライン可視化 */}
             {document.blocks.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 gap-5">
                 <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-100 to-emerald-100 dark:from-violet-900/30 dark:to-emerald-900/30 flex items-center justify-center">
@@ -903,10 +911,38 @@ export function DocumentEditor() {
                 </div>
                 <div className="text-center space-y-1.5">
                   <p className="text-foreground/60 text-sm font-medium">文書を作成しましょう</p>
-                  <p className="text-muted-foreground/40 text-xs max-w-[240px]">
-                    下のボタンからブロックを追加。見出し・本文・数式・表など自由に組み合わせられます
+                  <p className="text-muted-foreground/40 text-xs max-w-[280px]">
+                    ブロックを追加して日本語で入力。テンプレートが美しいLaTeXに自動変換し、PDFを生成します
                   </p>
                 </div>
+
+                {/* パイプライン図 */}
+                <div className="flex items-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-50/50 via-violet-50/40 to-amber-50/50 dark:from-emerald-950/10 dark:via-violet-950/10 dark:to-amber-950/10 border border-border/20">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-lg">✍️</span>
+                    <span className="text-[8px] font-medium text-emerald-600 dark:text-emerald-400">GUI入力</span>
+                    <span className="text-[7px] text-muted-foreground/40">日本語OK</span>
+                  </div>
+                  <span className="text-muted-foreground/30">→</span>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-lg">📋</span>
+                    <span className="text-[8px] font-medium text-blue-600 dark:text-blue-400">テンプレート</span>
+                    <span className="text-[7px] text-muted-foreground/40">書式固定</span>
+                  </div>
+                  <span className="text-muted-foreground/30">→</span>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-lg">🔧</span>
+                    <span className="text-[8px] font-medium text-violet-600 dark:text-violet-400">LaTeX</span>
+                    <span className="text-[7px] text-muted-foreground/40">自動生成</span>
+                  </div>
+                  <span className="text-muted-foreground/30">→</span>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-lg">📄</span>
+                    <span className="text-[8px] font-medium text-amber-600 dark:text-amber-400">PDF</span>
+                    <span className="text-[7px] text-muted-foreground/40">美しい出力</span>
+                  </div>
+                </div>
+
                 <InsertMenu index={0} variant="button" />
                 <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground/30">
                   <span className="flex items-center gap-1">📄 見出し・本文</span>
