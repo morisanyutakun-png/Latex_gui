@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, DocumentPatch, createBlock } from "@/lib/types";
+import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, DocumentPatch, createBlock, createDefaultDocument } from "@/lib/types";
 
 interface DocumentState {
   document: DocumentModel | null;
@@ -9,6 +9,7 @@ interface DocumentState {
   // Document management
   setDocument: (doc: DocumentModel) => void;
   clearDocument: () => void;
+  initBlankDocument: () => void;
   updateMetadata: (updates: Partial<DocumentMetadata>) => void;
   updateSettings: (updates: Partial<DocumentSettings>) => void;
 
@@ -48,6 +49,11 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   setDocument: (doc) => set({ document: doc, past: [], future: [] }),
   clearDocument: () => set({ document: null, past: [], future: [] }),
+  initBlankDocument: () => {
+    const { document } = get();
+    if (document) return; // already have a document
+    set({ document: createDefaultDocument("blank", []), past: [], future: [] });
+  },
 
   updateMetadata: (updates) => {
     const { document } = get();

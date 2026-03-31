@@ -26,6 +26,7 @@ from .batch_service import (
 )
 from .ai_service import chat as ai_chat
 from .omr_service import analyze_image as omr_analyze_image
+from .materials_service import search_materials, get_all_subjects, get_all_levels
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -589,3 +590,34 @@ async def omr_analyze_endpoint(
             status_code=500,
             detail={"message": "画像解析中にエラーが発生しました。"},
         )
+
+
+# ═══ 教材データベース エンドポイント ═══
+
+class MaterialsSearchRequest(pydantic.BaseModel):
+    query: str = ""
+    subject: str = ""
+    level: str = ""
+    limit: int = 5
+
+
+@app.post("/api/materials/search")
+async def materials_search(req: MaterialsSearchRequest):
+    """教材DBから問題・トピックを検索"""
+    results = search_materials(
+        query=req.query,
+        subject=req.subject,
+        level=req.level,
+        limit=min(req.limit, 20),
+    )
+    return {"success": True, "results": results, "total": len(results)}
+
+
+@app.get("/api/materials/meta")
+async def materials_meta():
+    """利用可能な科目・学年レベル一覧"""
+    return {
+        "success": True,
+        "subjects": get_all_subjects(),
+        "levels": get_all_levels(),
+    }
