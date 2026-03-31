@@ -3,57 +3,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
-import { DOCUMENT_CLASSES, LaTeXDocumentClass } from "@/lib/types";
-import {
-  TEMPLATES,
-  createFromTemplate,
-  type TemplateDefinition,
-} from "@/lib/templates";
+import { createDefaultDocument } from "@/lib/types";
 import { loadFromLocalStorage } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   ArrowRight,
-  FileCheck,
   ChevronRight,
   Cpu,
   Download,
-  Layers,
-  Pen,
   Sigma,
-  BookOpen,
-  BarChart3,
-  Presentation,
-  Send,
   FileText,
-  Sparkles,
   Zap,
   Shield,
   Factory,
   Code2,
   Lock,
+  Bot,
+  BookOpen,
 } from "lucide-react";
 
-/* ── Premium icon mapping ── */
-const TEMPLATE_ICON: Record<string, React.ReactNode> = {
-  article: <Sigma className="h-7 w-7" strokeWidth={1.5} />,
-  report: <BarChart3 className="h-7 w-7" strokeWidth={1.5} />,
-  book: <BookOpen className="h-7 w-7" strokeWidth={1.5} />,
-  beamer: <Presentation className="h-7 w-7" strokeWidth={1.5} />,
-  letter: <Send className="h-7 w-7" strokeWidth={1.5} />,
-};
-
-/* ── Gradient configs per template ── */
-const TEMPLATE_GRADIENT: Record<string, string> = {
-  article:
-    "from-blue-600 via-blue-500 to-cyan-400 dark:from-blue-700 dark:via-blue-600 dark:to-cyan-500",
-  report:
-    "from-slate-700 via-slate-500 to-gray-400 dark:from-slate-800 dark:via-slate-600 dark:to-gray-500",
-  book: "from-amber-600 via-orange-500 to-yellow-400 dark:from-amber-700 dark:via-orange-600 dark:to-yellow-500",
-  beamer:
-    "from-violet-600 via-purple-500 to-fuchsia-400 dark:from-violet-700 dark:via-purple-600 dark:to-fuchsia-500",
-  letter:
-    "from-emerald-600 via-green-500 to-teal-400 dark:from-emerald-700 dark:via-green-600 dark:to-teal-500",
-};
 
 /* ── Stripe-style scrolling LaTeX formulas ── */
 const SCROLL_FORMULAS = [
@@ -165,28 +133,18 @@ function useFadeIn() {
 export function TemplateGallery() {
   const router = useRouter();
   const setDocument = useDocumentStore((s) => s.setDocument);
-  const [view, setView] = useState<"templates" | "classes">("templates");
-  const [selectedClass, setSelectedClass] =
-    useState<LaTeXDocumentClass>("article");
   const [heroLoaded, setHeroLoaded] = useState(false);
 
   const featuresFade = useFadeIn();
-  const templatesFade = useFadeIn();
+  const ctaFade = useFadeIn();
 
   useEffect(() => {
     const timer = setTimeout(() => setHeroLoaded(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
-  const handleTemplateStart = (tmpl: TemplateDefinition, blank: boolean) => {
-    const doc = createFromTemplate(tmpl.id, blank);
-    setDocument(doc);
-    router.push("/editor");
-  };
-
-  const handleBlankStart = () => {
-    const doc = createFromTemplate("blank");
-    doc.settings.documentClass = selectedClass;
+  const handleStart = () => {
+    const doc = createDefaultDocument("blank", []);
     setDocument(doc);
     router.push("/editor");
   };
@@ -201,7 +159,6 @@ export function TemplateGallery() {
 
   const saved =
     typeof window !== "undefined" ? loadFromLocalStorage() : null;
-  const contentTemplates = TEMPLATES.filter((t) => t.id !== "blank");
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
@@ -271,13 +228,10 @@ export function TemplateGallery() {
             {/* CTA buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
               <button
-                onClick={() => {
-                  const el = document.getElementById("templates-section");
-                  el?.scrollIntoView({ behavior: "smooth" });
-                }}
+                onClick={handleStart}
                 className="group flex items-center gap-3 px-8 py-4 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
               >
-                テンプレートを選ぶ
+                今すぐ始める
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
 
@@ -309,7 +263,7 @@ export function TemplateGallery() {
         <div className="max-w-5xl mx-auto px-6 py-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { value: "5+", label: "テンプレート" },
+              { value: "AI", label: "自律エージェント" },
               { value: "60+", label: "対応パッケージ" },
               { value: "∞", label: "数式サポート" },
               { value: "CSV→ZIP", label: "一括量産" },
@@ -327,181 +281,46 @@ export function TemplateGallery() {
         </div>
       </section>
 
-      {/* ━━ Templates Section ━━ */}
-      <section id="templates-section" className="relative py-24">
-        {/* Subtle section background */}
+      {/* ━━ Start Section ━━ */}
+      <section id="start-section" className="relative py-24">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,hsl(var(--primary)/0.03),transparent_70%)]" />
 
         <div
-          ref={templatesFade.ref}
-          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${templatesFade.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
+          ref={ctaFade.ref}
+          className={`relative max-w-2xl mx-auto px-6 text-center transition-all duration-1000 ${ctaFade.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
         >
-          {/* Section header */}
-          <div className="text-center mb-16">
-            <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
-              Templates
-            </p>
-            <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
-              用途に合わせて、すぐスタート
-            </h2>
-            <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
-              プロが設計したテンプレートから選ぶだけ。白紙からも作成できます。
-            </p>
+          <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
+            Start
+          </p>
+          <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-5">
+            AIと一緒に、今すぐ作り始めよう
+          </h2>
+          <p className="text-muted-foreground text-[15px] mb-10 max-w-lg mx-auto leading-relaxed">
+            空白のキャンバスからスタート。右パネルの AI エージェントに「数学プリントを作って」と話しかけるだけで、文書が自動で完成します。
+          </p>
+
+          {/* Feature pills */}
+          <div className="flex flex-wrap justify-center gap-2 mb-12">
+            {[
+              { icon: <Bot className="h-3 w-3" />, label: "AIエージェント搭載" },
+              { icon: <BookOpen className="h-3 w-3" />, label: "教材DB参照" },
+              { icon: <Sigma className="h-3 w-3" />, label: "LaTeX数式" },
+              { icon: <FileText className="h-3 w-3" />, label: "PDF出力" },
+            ].map((p) => (
+              <span key={p.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.06] text-[12px] text-muted-foreground">
+                {p.icon}
+                {p.label}
+              </span>
+            ))}
           </div>
 
-          {/* ━━ Tab Switcher (pill) ━━ */}
-          <div className="flex justify-center mb-14">
-            <div className="inline-flex p-1 rounded-full bg-foreground/[0.04] dark:bg-white/[0.06] border border-foreground/[0.06]">
-              {(
-                [
-                  [
-                    "templates",
-                    "テンプレート",
-                    <Layers key="t" className="h-3.5 w-3.5" />,
-                  ],
-                  [
-                    "classes",
-                    "白紙から作成",
-                    <Pen key="c" className="h-3.5 w-3.5" />,
-                  ],
-                ] as const
-              ).map(([key, label, icon]) => (
-                <button
-                  key={key}
-                  onClick={() => setView(key as "templates" | "classes")}
-                  className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[13px] font-medium transition-all duration-300 ${
-                    view === key
-                      ? "bg-foreground text-background shadow-lg"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {icon}
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ━━ Template Cards ━━ */}
-          {view === "templates" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {contentTemplates.map((tmpl, idx) => (
-                <div
-                  key={tmpl.id}
-                  className="group relative flex flex-col rounded-[20px] border border-foreground/[0.06] bg-card/80 backdrop-blur-xl overflow-hidden transition-all duration-500 hover:shadow-2xl hover:shadow-primary/[0.08] hover:-translate-y-1.5 hover:border-foreground/[0.12]"
-                  style={{ animationDelay: `${idx * 100}ms` }}
-                >
-                  {/* ── Gradient header ── */}
-                  <div
-                    className={`relative h-44 bg-gradient-to-br ${
-                      TEMPLATE_GRADIENT[tmpl.id] || tmpl.gradient
-                    } flex items-center justify-center overflow-hidden`}
-                  >
-                    {/* Decorative shapes */}
-                    <div className="absolute top-4 right-8 w-32 h-32 rounded-full bg-white/[0.07] blur-3xl" />
-                    <div className="absolute -bottom-6 -left-6 w-40 h-24 rounded-full bg-black/[0.04] blur-3xl" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-white/[0.03] blur-3xl" />
-
-                    {/* Icon pill */}
-                    <div className="relative z-10 h-16 w-16 rounded-2xl bg-white/[0.15] backdrop-blur-xl flex items-center justify-center text-white border border-white/[0.15] shadow-2xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-700 ease-out">
-                      {TEMPLATE_ICON[tmpl.id] || (
-                        <FileText className="h-7 w-7" strokeWidth={1.5} />
-                      )}
-                    </div>
-
-                    {/* Class badge */}
-                    <span className="absolute top-3.5 left-3.5 text-[10px] font-mono font-medium text-white/50 bg-white/[0.08] backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/[0.08]">
-                      {tmpl.documentClass}
-                    </span>
-                  </div>
-
-                  {/* ── Body ── */}
-                  <div className="flex-1 p-7 space-y-3">
-                    <h3 className="text-[16px] font-semibold tracking-tight">
-                      {tmpl.name}
-                    </h3>
-                    <p className="text-[13px] text-muted-foreground leading-relaxed">
-                      {tmpl.description}
-                    </p>
-                  </div>
-
-                  {/* ── Actions ── */}
-                  <div className="px-7 pb-7 pt-0 flex gap-3">
-                    <button
-                      onClick={() => handleTemplateStart(tmpl, false)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-foreground text-background text-[13px] font-semibold hover:opacity-90 active:scale-[0.97] transition-all duration-200 shadow-lg shadow-foreground/5"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      サンプル付き
-                    </button>
-                    <button
-                      onClick={() => handleTemplateStart(tmpl, true)}
-                      className="flex items-center justify-center px-5 py-3.5 rounded-xl border border-foreground/[0.08] text-[13px] font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/[0.03] hover:border-foreground/[0.15] active:scale-[0.97] transition-all duration-200"
-                    >
-                      構成のみ
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ━━ Blank Document View ━━ */}
-          {view === "classes" && (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-14">
-                {DOCUMENT_CLASSES.map((cls) => (
-                  <button
-                    key={cls.id}
-                    onClick={() => setSelectedClass(cls.id)}
-                    className={`group relative flex flex-col items-start p-7 rounded-[20px] border-2 transition-all duration-300 text-left ${
-                      selectedClass === cls.id
-                        ? "border-primary bg-primary/[0.03] shadow-xl shadow-primary/[0.06]"
-                        : "border-foreground/[0.06] bg-card/80 backdrop-blur-xl hover:border-foreground/[0.12] hover:shadow-lg"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="text-xl">{cls.icon}</span>
-                      <span className="text-[11px] font-medium text-muted-foreground">
-                        {cls.name}
-                      </span>
-                    </div>
-                    <h3 className="text-sm font-semibold mb-1.5">
-                      {cls.japanese}
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      {cls.description}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {cls.features.slice(0, 3).map((f) => (
-                        <span
-                          key={f}
-                          className="inline-block px-2 py-0.5 rounded-md text-[9px] bg-foreground/[0.04] text-muted-foreground font-medium"
-                        >
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                    {selectedClass === cls.id && (
-                      <div className="absolute top-5 right-5">
-                        <FileCheck className="h-4.5 w-4.5 text-primary" />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex justify-center">
-                <button
-                  onClick={handleBlankStart}
-                  className="group flex items-center gap-3 px-10 py-4.5 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
-                >
-                  白紙から始める
-                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
-                </button>
-              </div>
-            </>
-          )}
+          <button
+            onClick={handleStart}
+            className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+          >
+            エディタを開く
+            <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+          </button>
         </div>
       </section>
 
@@ -532,28 +351,28 @@ export function TemplateGallery() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               {
-                icon: <Cpu className="h-5 w-5" strokeWidth={1.5} />,
-                title: "自動パッケージ検出",
-                desc: "コンポーネントに応じて必要なLaTeXパッケージを自動でロード",
-                gradient: "from-blue-500 to-cyan-500",
+                icon: <Bot className="h-5 w-5" strokeWidth={1.5} />,
+                title: "AI エージェント",
+                desc: "「問題を5つ追加して」と話すだけ。Claude が文書を自動生成・編集",
+                gradient: "from-violet-500 to-fuchsia-500",
+              },
+              {
+                icon: <BookOpen className="h-5 w-5" strokeWidth={1.5} />,
+                title: "教材データベース",
+                desc: "数学・理科・英語など豊富な問題集から検索してAIに参照させられる",
+                gradient: "from-emerald-500 to-teal-500",
               },
               {
                 icon: <Sigma className="h-5 w-5" strokeWidth={1.5} />,
                 title: "数式 & 回路図",
                 desc: "amsmath・circuitikz・pgfplotsをGUIだけで操作可能",
-                gradient: "from-violet-500 to-purple-500",
-              },
-              {
-                icon: <Shield className="h-5 w-5" strokeWidth={1.5} />,
-                title: "セキュアな実行環境",
-                desc: "サンドボックス内でLaTeXをコンパイル。パッケージ許可リストで安全性を確保",
-                gradient: "from-amber-500 to-orange-500",
+                gradient: "from-blue-500 to-cyan-500",
               },
               {
                 icon: <Download className="h-5 w-5" strokeWidth={1.5} />,
                 title: "即座にPDF出力",
                 desc: "ブラウザで編集→ワンクリックで高品質PDFをダウンロード",
-                gradient: "from-emerald-500 to-teal-500",
+                gradient: "from-amber-500 to-orange-500",
               },
               {
                 icon: <Factory className="h-5 w-5" strokeWidth={1.5} />,
@@ -568,15 +387,15 @@ export function TemplateGallery() {
                 gradient: "from-purple-500 to-pink-500",
               },
               {
-                icon: <Zap className="h-5 w-5" strokeWidth={1.5} />,
-                title: "高速キャッシュ",
-                desc: "コンパイル結果をキャッシュして同一ドキュメントの再生成を瞬時に",
+                icon: <Cpu className="h-5 w-5" strokeWidth={1.5} />,
+                title: "自動パッケージ検出",
+                desc: "コンポーネントに応じて必要なLaTeXパッケージを自動でロード",
                 gradient: "from-yellow-500 to-amber-500",
               },
               {
-                icon: <Lock className="h-5 w-5" strokeWidth={1.5} />,
-                title: "監査ログ",
-                desc: "全操作を構造化ログとして記録。セキュリティとトレーサビリティを確保",
+                icon: <Shield className="h-5 w-5" strokeWidth={1.5} />,
+                title: "セキュアな実行環境",
+                desc: "サンドボックス内でLaTeXをコンパイル。パッケージ許可リストで安全性を確保",
                 gradient: "from-slate-500 to-zinc-500",
               },
             ].map((f) => (
@@ -606,16 +425,13 @@ export function TemplateGallery() {
             さぁ、始めましょう
           </h2>
           <p className="text-muted-foreground text-[15px] mb-10 max-w-md mx-auto">
-            テンプレートを選んで、あなただけの美しい文書を作成してください。
+            AI エージェントと話すだけで、プロ品質の文書が完成します。
           </p>
           <button
-            onClick={() => {
-              const el = document.getElementById("templates-section");
-              el?.scrollIntoView({ behavior: "smooth" });
-            }}
-            className="group inline-flex items-center gap-3 px-10 py-4.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+            onClick={handleStart}
+            className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
           >
-            テンプレートを見る
+            エディタを開く
             <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
           </button>
         </div>

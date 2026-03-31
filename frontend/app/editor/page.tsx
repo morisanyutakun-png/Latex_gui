@@ -10,12 +10,12 @@ import { LaTeXSourceViewer } from "@/components/editor/latex-source-viewer";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useDocumentStore } from "@/store/document-store";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Code2,
   Factory,
   PanelRightClose,
-  PanelRightOpen,
   Bot,
   FileCode2,
 } from "lucide-react";
@@ -27,19 +27,21 @@ export default function EditorPage() {
   useAutosave();
 
   const document = useDocumentStore((s) => s.document);
-  const initBlank = useDocumentStore((s) => s.initBlankDocument);
   const advancedEnabled = useDocumentStore(
     (s) => s.document?.advanced?.enabled ?? false
   );
+  const router = useRouter();
 
   // AI panel open by default
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
 
-  // Auto-create blank document if none
+  // Redirect to home if no document loaded
   useEffect(() => {
-    initBlank();
-  }, [initBlank]);
+    if (!document) {
+      router.push("/");
+    }
+  }, [document, router]);
 
   // Warm up backend (Koyeb cold start)
   useEffect(() => {
