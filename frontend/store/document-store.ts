@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, createBlock } from "@/lib/types";
+import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, DocumentPatch, createBlock } from "@/lib/types";
 
 interface DocumentState {
   document: DocumentModel | null;
@@ -20,6 +20,12 @@ interface DocumentState {
   moveBlock: (blockId: string, direction: "up" | "down") => void;
   updateBlockContent: (blockId: string, updates: Partial<BlockContent>) => void;
   updateBlockStyle: (blockId: string, updates: Partial<BlockStyle>) => void;
+
+  // Block type conversion (slash command palette — history-tracked)
+  convertBlock: (blockId: string, content: BlockContent) => void;
+
+  // AI Document Patches
+  applyPatch: (patch: DocumentPatch) => void;
 
   // Advanced Mode (上級者モード)
   updateAdvanced: (updates: Partial<AdvancedHooks>) => void;
@@ -134,6 +140,61 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     const blocks = document.blocks.map((b) =>
       b.id === blockId ? { ...b, style: { ...b.style, ...updates } } : b,
     );
+    set({ document: { ...document, blocks } });
+  },
+
+  convertBlock: (blockId, content) => {
+    const { document, _pushHistory } = get();
+    if (!document) return;
+    _pushHistory();
+    const blocks = document.blocks.map((b) =>
+      b.id === blockId ? { ...b, content } : b
+    );
+    set({ document: { ...document, blocks } });
+  },
+
+  applyPatch: (patch) => {
+    const { document, _pushHistory } = get();
+    if (!document) return;
+    _pushHistory();
+
+    let blocks = [...document.blocks];
+
+    for (const op of patch.ops) {
+      if (op.op === "add_block") {
+        const newBlock = { ...op.block, id: op.block.id || crypto.randomUUID() };
+        if (op.afterId === null) {
+          blocks = [newBlock, ...blocks];
+        } else {
+          const idx = blocks.findIndex((b) => b.id === op.afterId);
+          if (idx === -1) {
+            blocks = [...blocks, newBlock];
+          } else {
+            const copy = [...blocks];
+            copy.splice(idx + 1, 0, newBlock);
+            blocks = copy;
+          }
+        }
+      } else if (op.op === "update_block") {
+        blocks = blocks.map((b) => {
+          if (b.id !== op.blockId) return b;
+          return {
+            ...b,
+            content: op.content ? { ...b.content, ...op.content } as BlockContent : b.content,
+            style: op.style ? { ...b.style, ...op.style } : b.style,
+          };
+        });
+      } else if (op.op === "delete_block") {
+        blocks = blocks.filter((b) => b.id !== op.blockId);
+      } else if (op.op === "reorder") {
+        const blockMap = new Map(blocks.map((b) => [b.id, b]));
+        const reordered = op.blockIds.map((id) => blockMap.get(id)).filter((b): b is Block => !!b);
+        const mentioned = new Set(op.blockIds);
+        const remainder = blocks.filter((b) => !mentioned.has(b.id));
+        blocks = [...reordered, ...remainder];
+      }
+    }
+
     set({ document: { ...document, blocks } });
   },
 

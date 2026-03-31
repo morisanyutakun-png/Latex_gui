@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
+import { Block, BlockType, BLOCK_TYPES, createBlock } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
 import { JapaneseMathInput, MathWritingGuide, type JapaneseMathInputHandle } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
@@ -262,9 +262,17 @@ function HeadingBlockEditor({ block }: { block: Block }) {
   );
 }
 
+// Block type palette items for / command
+const PALETTE_ITEMS = BLOCK_TYPES.filter((t) =>
+  !["circuit", "diagram", "chemistry", "chart"].includes(t.type)
+).concat(BLOCK_TYPES.filter((t) => ["circuit", "diagram", "chemistry", "chart"].includes(t.type)));
+
 function ParagraphBlockEditor({ block }: { block: Block }) {
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const { editingBlockId } = useUIStore();
+  const addBlock = useDocumentStore((s) => s.addBlock);
+  const convertBlock = useDocumentStore((s) => s.convertBlock);
+  const document = useDocumentStore((s) => s.document);
+  const { editingBlockId, setEditingBlock } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "paragraph" }>;
   const isEditing = editingBlockId === block.id;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -272,6 +280,36 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const [suggestions, setSuggestions] = useState<JapaneseSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggIdx, setSelectedSuggIdx] = useState(0);
+
+  // Slash command palette state
+  const [showPalette, setShowPalette] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const [paletteIdx, setPaletteIdx] = useState(0);
+
+  const filteredPalette = paletteQuery
+    ? PALETTE_ITEMS.filter((t) =>
+        t.name.includes(paletteQuery) ||
+        t.type.includes(paletteQuery) ||
+        t.description.includes(paletteQuery)
+      )
+    : PALETTE_ITEMS;
+
+  const handleSelectPaletteItem = useCallback((type: BlockType) => {
+    setShowPalette(false);
+    setPaletteQuery("");
+    if (type === "paragraph") return; // already a paragraph, nothing to do
+    const blocks = document?.blocks ?? [];
+    const idx = blocks.findIndex((b) => b.id === block.id);
+    if (content.text === "" || content.text === "/") {
+      // Current block is empty — convert in-place (history-tracked via convertBlock)
+      convertBlock(block.id, createBlock(type).content);
+      setTimeout(() => setEditingBlock(block.id), 50);
+    } else {
+      // Paragraph has content — insert a new block of the selected type after it
+      const newId = addBlock(type, idx + 1);
+      setTimeout(() => setEditingBlock(newId), 50);
+    }
+  }, [block.id, content.text, document, addBlock, convertBlock, setEditingBlock]);
 
   // インライン数式コンテキスト検出
   const mathCtx = getInlineMathContext(content.text, cursorPos);
@@ -290,6 +328,20 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     updateContent(block.id, { text });
     setCursorPos(pos);
 
+    // Slash command palette: trigger when "/" typed in a paragraph
+    if (text.startsWith("/")) {
+      const query = text.slice(1);
+      setShowPalette(true);
+      setPaletteQuery(query);
+      setPaletteIdx(0); // always reset index when query changes
+      setShowSuggestions(false);
+      return;
+    } else if (showPalette) {
+      setShowPalette(false);
+      setPaletteQuery("");
+      setPaletteIdx(0);
+    }
+
     // $の中にいるなら候補を表示
     const ctx = getInlineMathContext(text, pos);
     if (ctx && ctx.inMath && ctx.mathContent.length > 0) {
@@ -301,7 +353,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       setShowSuggestions(false);
       setSuggestions([]);
     }
-  }, [block.id, updateContent]);
+  }, [block.id, updateContent, showPalette]);
 
   // カーソル移動追跡
   const handleSelect = useCallback(() => {
@@ -346,6 +398,29 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 
   // 候補のキーボード操作
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Slash command palette navigation
+    if (showPalette && filteredPalette.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setPaletteIdx((i) => Math.min(i + 1, filteredPalette.length - 1));
+        return;
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setPaletteIdx((i) => Math.max(i - 1, 0));
+        return;
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const item = filteredPalette[paletteIdx];
+        if (item) handleSelectPaletteItem(item.type);
+        return;
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setShowPalette(false);
+        updateContent(block.id, { text: "" });
+        return;
+      }
+    }
+
     if (!showSuggestions || suggestions.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -362,7 +437,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
     }
-  }, [showSuggestions, suggestions, selectedSuggIdx, insertSuggestion]);
+  }, [showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, showSuggestions, suggestions, selectedSuggIdx, insertSuggestion, block.id, updateContent]);
 
   // インラインプレビュー（テキスト+数式が混在）— $$を非表示にしてレンダリング
   const segments = parseInlineText(content.text);
@@ -474,6 +549,27 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             style={baseStyle}
             rows={1}
           />
+
+          {/* スラッシュコマンドパレット */}
+          {showPalette && filteredPalette.length > 0 && (
+            <div className="absolute z-50 left-0 right-0 mt-1 bg-popover border rounded-xl shadow-xl max-h-52 overflow-y-auto">
+              <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-b">
+                ブロックを選択 (↑↓ で移動、Enter で確定、Esc でキャンセル)
+              </div>
+              {filteredPalette.slice(0, 10).map((item, i) => (
+                <button
+                  key={item.type}
+                  className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 transition-colors ${
+                    i === paletteIdx ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
+                  }`}
+                  onMouseDown={(e) => { e.preventDefault(); handleSelectPaletteItem(item.type); }}
+                >
+                  <span className={`shrink-0 text-[10px] font-medium ${item.color}`}>{item.name}</span>
+                  <span className="text-muted-foreground text-[10px]">{item.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* 候補ドロップダウン（$の中で入力中に表示） */}
           {showSuggestions && suggestions.length > 0 && (

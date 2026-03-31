@@ -352,6 +352,26 @@ export function createBlock(type: BlockType, overrides?: Partial<BlockStyle>): B
   };
 }
 
+// ──── AI Chat & Document Patch Types ────
+
+export type PatchOp =
+  | { op: "add_block"; afterId: string | null; block: Block }
+  | { op: "update_block"; blockId: string; content?: Partial<BlockContent>; style?: Partial<BlockStyle> }
+  | { op: "delete_block"; blockId: string }
+  | { op: "reorder"; blockIds: string[] };
+
+export interface DocumentPatch {
+  ops: PatchOp[];
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  patches?: DocumentPatch | null;
+  appliedAt?: number;
+}
+
 export function createDefaultDocument(template: string, blocks: Block[]): DocumentModel {
   return {
     template,

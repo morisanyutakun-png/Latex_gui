@@ -5,6 +5,8 @@ import { Toolbar } from "@/components/layout/toolbar";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { AdvancedModePanel } from "@/components/editor/advanced-mode";
 import { BatchProducer } from "@/components/editor/batch-producer";
+import { AIChatPanel } from "@/components/editor/ai-chat-panel";
+import { LaTeXSourceViewer } from "@/components/editor/latex-source-viewer";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useDocumentStore } from "@/store/document-store";
@@ -21,9 +23,11 @@ import {
   Download,
   Sparkles,
   BookOpen,
+  Bot,
+  FileCode2,
 } from "lucide-react";
 
-type SidebarTab = "advanced" | "batch";
+type SidebarTab = "advanced" | "batch" | "ai" | "latex";
 
 export default function EditorPage() {
   useKeyboardShortcuts();
@@ -142,6 +146,15 @@ export default function EditorPage() {
           {!sidebarOpen && (
             <>
               <button
+                onClick={() => { setSidebarOpen(true); setActiveTab("ai"); }}
+                className="h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200
+                  border border-violet-200 dark:border-violet-800 bg-background/90 backdrop-blur-sm shadow-sm
+                  hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                title="AI アシスタント"
+              >
+                <Bot className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+              </button>
+              <button
                 onClick={() => { setSidebarOpen(true); setActiveTab("advanced"); }}
                 className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200
                   border bg-background/90 backdrop-blur-sm shadow-sm
@@ -162,6 +175,15 @@ export default function EditorPage() {
               >
                 <Factory className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
               </button>
+              <button
+                onClick={() => { setSidebarOpen(true); setActiveTab("latex"); }}
+                className="h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200
+                  border border-slate-200 dark:border-slate-700 bg-background/90 backdrop-blur-sm shadow-sm
+                  hover:bg-slate-50 dark:hover:bg-slate-900"
+                title="LaTeXソース"
+              >
+                <FileCode2 className="h-3.5 w-3.5 text-slate-500" />
+              </button>
             </>
           )}
         </div>
@@ -177,17 +199,28 @@ export default function EditorPage() {
           {sidebarOpen && (
             <div className="animate-in fade-in duration-200 min-w-[21rem] flex flex-col h-full">
               {/* ── タブヘッダー ── */}
-              <div className="flex border-b border-border/30 bg-muted/20 flex-shrink-0">
+              <div className="flex border-b border-border/30 bg-muted/20 flex-shrink-0 overflow-x-auto">
+                <button
+                  onClick={() => setActiveTab("ai")}
+                  className={`flex-1 min-w-fit flex items-center justify-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-all whitespace-nowrap
+                    ${activeTab === "ai"
+                      ? "text-violet-700 dark:text-violet-300 border-b-2 border-violet-500 bg-violet-50/50 dark:bg-violet-950/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    }`}
+                >
+                  <Bot className="h-3 w-3" />
+                  AI
+                </button>
                 <button
                   onClick={() => setActiveTab("advanced")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-[11px] font-medium transition-all
+                  className={`flex-1 min-w-fit flex items-center justify-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-all whitespace-nowrap
                     ${activeTab === "advanced"
                       ? "text-purple-700 dark:text-purple-300 border-b-2 border-purple-500 bg-purple-50/50 dark:bg-purple-950/20"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     }`}
                 >
                   <Code2 className="h-3 w-3" />
-                  上級者モード
+                  上級者
                   {advancedEnabled && (
                     <span className="px-1 py-0 text-[7px] bg-purple-600 text-white rounded-full">
                       ON
@@ -196,21 +229,34 @@ export default function EditorPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("batch")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-[11px] font-medium transition-all
+                  className={`flex-1 min-w-fit flex items-center justify-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-all whitespace-nowrap
                     ${activeTab === "batch"
                       ? "text-amber-700 dark:text-amber-300 border-b-2 border-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     }`}
                 >
                   <Factory className="h-3 w-3" />
-                  教材工場
+                  工場
+                </button>
+                <button
+                  onClick={() => setActiveTab("latex")}
+                  className={`flex-1 min-w-fit flex items-center justify-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-all whitespace-nowrap
+                    ${activeTab === "latex"
+                      ? "text-slate-700 dark:text-slate-300 border-b-2 border-slate-500 bg-slate-50/50 dark:bg-slate-900/50"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    }`}
+                >
+                  <FileCode2 className="h-3 w-3" />
+                  LaTeX
                 </button>
               </div>
 
               {/* ── タブコンテンツ ── */}
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className={`flex-1 min-h-0 ${activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto p-4"}`}>
+                {activeTab === "ai" && <AIChatPanel />}
                 {activeTab === "advanced" && <AdvancedModePanel />}
                 {activeTab === "batch" && <BatchProducer embedded />}
+                {activeTab === "latex" && <LaTeXSourceViewer />}
               </div>
             </div>
           )}

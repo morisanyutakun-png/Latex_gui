@@ -3,7 +3,8 @@ import os
 import json
 import logging
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+import pydantic
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
 
@@ -23,6 +24,8 @@ from .batch_service import (
     detect_placeholders, generate_batch_pdfs,
     create_batch_zip, parse_csv_variables, parse_json_variables,
 )
+from .ai_service import chat as ai_chat
+from .omr_service import analyze_image as omr_analyze_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -498,3 +501,91 @@ async def audit_logs(limit: int = 100):
     """最近の監査ログを取得"""
     logs = get_recent_audit_logs(limit=min(limit, 500))
     return {"success": True, "logs": logs, "count": len(logs)}
+
+
+# ═══ AI チャット エンドポイント ═══
+
+class ChatRequest(pydantic.BaseModel):
+    messages: list[dict] = []
+    document: dict = {}
+    requestPatches: bool = True
+
+
+@app.post("/api/ai/chat")
+async def ai_chat_endpoint(request: ChatRequest):
+    """AIチャット — 文書コンテキストを使ったClaudeとの会話"""
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "code": "MISSING_API_KEY",
+            },
+        )
+
+    if not request.messages:
+        raise HTTPException(status_code=400, detail={"message": "messages が空です"})
+
+    try:
+        result = await ai_chat(request.messages, request.document)
+        return {"success": True, **result}
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail={"message": str(e)})
+    except Exception as e:
+        logger.error("AI chat error: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "AIの応答取得中にエラーが発生しました。しばらくしてから再試行してください。"},
+        )
+
+
+# ═══ OMR エンドポイント ═══
+
+@app.post("/api/omr/analyze")
+async def omr_analyze_endpoint(
+    image: UploadFile = File(...),
+    document: str = Form("{}"),
+    hint: str = Form(""),
+):
+    """OMR解析 — 画像から文書ブロックを抽出"""
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "OMR機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "code": "MISSING_API_KEY",
+            },
+        )
+
+    image_bytes = await image.read()
+    max_size = 5 * 1024 * 1024  # 5MB
+    if len(image_bytes) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "画像サイズは5MB以下にしてください"},
+        )
+
+    media_type = image.content_type or "image/jpeg"
+    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    if media_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "JPEG, PNG, GIF, WEBP のみ対応しています"},
+        )
+
+    try:
+        doc_dict = json.loads(document) if document else {}
+    except json.JSONDecodeError:
+        doc_dict = {}
+
+    try:
+        result = await omr_analyze_image(image_bytes, media_type, doc_dict, hint)
+        return {"success": True, **result}
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail={"message": str(e)})
+    except Exception as e:
+        logger.error("OMR analyze error: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "画像解析中にエラーが発生しました。"},
+        )

@@ -1,4 +1,4 @@
-import { DocumentModel, BatchRequest } from "./types";
+import { DocumentModel, BatchRequest, ChatMessage, DocumentPatch } from "./types";
 
 /**
  * API ベース URL
@@ -150,6 +150,75 @@ export async function batchPreview(req: BatchRequest): Promise<{
   if (!res.ok) throw new Error("バッチプレビューに失敗しました");
   const data = await res.json();
   return { latex: data.latex, variables: data.variables || {}, totalRows: data.total_rows || 0 };
+}
+
+// ═══ AI チャット API ═══
+
+export interface AIChatResponse {
+  message: string;
+  patches: DocumentPatch | null;
+  usage: { inputTokens: number; outputTokens: number };
+}
+
+export async function sendAIMessage(
+  messages: Pick<ChatMessage, "role" | "content">[],
+  doc: DocumentModel,
+): Promise<AIChatResponse> {
+  const res = await fetch(`${API_BASE}/api/ai/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, document: doc, requestPatches: true }),
+    signal: AbortSignal.timeout(60000),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    const msg = err?.detail?.message || err?.detail || `AIの応答取得に失敗しました (HTTP ${res.status})`;
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  return {
+    message: data.message || "",
+    patches: data.patches || null,
+    usage: data.usage || { inputTokens: 0, outputTokens: 0 },
+  };
+}
+
+// ═══ OMR 解析 API ═══
+
+export interface OMRAnalyzeResponse {
+  description: string;
+  patches: DocumentPatch | null;
+}
+
+export async function analyzeImageOMR(
+  imageFile: File,
+  doc: DocumentModel,
+  hint: string = "",
+): Promise<OMRAnalyzeResponse> {
+  const formData = new FormData();
+  formData.append("image", imageFile);
+  formData.append("document", JSON.stringify(doc));
+  formData.append("hint", hint);
+
+  const res = await fetch(`${API_BASE}/api/omr/analyze`, {
+    method: "POST",
+    body: formData,
+    signal: AbortSignal.timeout(90000),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    const msg = err?.detail?.message || err?.detail || `OMR解析に失敗しました (HTTP ${res.status})`;
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  return {
+    description: data.description || "",
+    patches: data.patches || null,
+  };
 }
 
 // ═══ キャッシュ管理 API ═══
