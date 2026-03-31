@@ -2,6 +2,7 @@
 
 import { AppHeader } from "@/components/layout/app-header";
 import { Toolbar } from "@/components/layout/toolbar";
+import { StatusBar } from "@/components/layout/status-bar";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { AdvancedModePanel } from "@/components/editor/advanced-mode";
 import { BatchProducer } from "@/components/editor/batch-producer";
@@ -59,11 +60,11 @@ export default function EditorPage() {
   if (!document) return null;
 
   return (
-    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background">
+    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background overflow-hidden">
       <AppHeader />
       <Toolbar />
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden relative min-h-0">
         {/* Main editor */}
         <div className="flex-1 overflow-auto">
           <DocumentEditor />
@@ -185,6 +186,7 @@ export default function EditorPage() {
           )}
         </div>
       </div>
+      <StatusBar />
     </div>
   );
 }

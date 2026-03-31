@@ -1,59 +1,43 @@
 "use client";
 
+/**
+ * ContextualToolbar — VS Code style floating toolbar.
+ * Appears as a slim bar only when a block is selected.
+ * No Word-like ribbon. Just contextual actions.
+ */
+
 import React from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
-import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
-  Bold,
-  Italic,
-  Underline,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Plus,
-  Heading,
-  Type,
-  Sigma,
-  List as ListIcon,
-  Table,
-  ImageIcon,
-  Minus,
-  Code,
-  Quote,
-  ListOrdered,
-  ChevronDown,
-  Zap,
-  GitBranch,
-  FlaskConical,
-  BarChart3,
-  Layers,
+  Bold, Italic, Underline,
+  AlignLeft, AlignCenter, AlignRight,
+  Plus, ChevronDown,
+  Heading, Type, Sigma, List as ListIcon, Table, ImageIcon,
+  Minus, Code, Quote, ListOrdered, Zap, GitBranch, FlaskConical, BarChart3,
 } from "lucide-react";
 
 const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
-  heading: Heading,
-  paragraph: Type,
-  math: Sigma,
-  list: ListIcon,
-  table: Table,
-  image: ImageIcon,
-  divider: Minus,
-  code: Code,
-  quote: Quote,
-  circuit: Zap,
-  diagram: GitBranch,
-  chemistry: FlaskConical,
-  chart: BarChart3,
+  heading: Heading, paragraph: Type, math: Sigma, list: ListIcon,
+  table: Table, image: ImageIcon, divider: Minus, code: Code, quote: Quote,
+  circuit: Zap, diagram: GitBranch, chemistry: FlaskConical, chart: BarChart3,
 };
 
-// Helper: get the currently selected block
+const BLOCK_CATEGORIES = [
+  { label: "基本", types: ["heading", "paragraph", "list", "table", "divider"] as BlockType[] },
+  { label: "理工系", types: ["math", "circuit", "diagram", "chemistry", "chart"] as BlockType[] },
+  { label: "メディア", types: ["image", "code", "quote"] as BlockType[] },
+];
+
 function useSelectedBlock(): Block | null {
   const selectedBlockId = useUIStore((s) => s.selectedBlockId);
   const blocks = useDocumentStore((s) => s.document?.blocks);
@@ -61,74 +45,39 @@ function useSelectedBlock(): Block | null {
   return blocks.find((b) => b.id === selectedBlockId) || null;
 }
 
-// ──── Toolbar Button ────
-function ToolbarButton({
-  active,
-  onClick,
-  children,
-  title,
-  disabled,
+function Btn({
+  active, onClick, children, title, disabled,
 }: {
-  active?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  title?: string;
-  disabled?: boolean;
+  active?: boolean; onClick: () => void; children: React.ReactNode;
+  title?: string; disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-xs transition-colors
-        ${active ? "bg-primary/10 text-primary" : "text-foreground/60 hover:bg-muted hover:text-foreground"}
-        ${disabled ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}
-      `}
+      className={`inline-flex items-center justify-center h-6 w-6 rounded text-xs transition-colors
+        ${active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}
+        ${disabled ? "opacity-25 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
     >
       {children}
     </button>
   );
 }
 
-// ──── Toolbar Select ────
-function ToolbarSelect({
-  value,
-  onChange,
-  options,
-  className = "w-20",
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  className?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      className={`h-7 rounded-md border border-border/50 bg-transparent text-xs px-1.5 
-        text-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/30
-        disabled:opacity-30 disabled:cursor-not-allowed ${className}`}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  );
+function Divider() {
+  return <div className="w-px h-4 bg-border/50 mx-0.5" />;
 }
 
 export function Toolbar() {
   const block = useSelectedBlock();
   const { updateBlockStyle, updateBlockContent, addBlock } = useDocumentStore();
   const { selectBlock, setEditingBlock } = useUIStore();
-  const hasBlock = !!block;
 
   const style = block?.style || {};
+  const hasBlock = !!block;
 
-  const toggleStyle = (key: "bold" | "italic" | "underline") => {
+  const toggle = (key: "bold" | "italic" | "underline") => {
     if (!block) return;
     updateBlockStyle(block.id, { [key]: !style[key] });
   };
@@ -153,203 +102,164 @@ export function Toolbar() {
     }
   };
 
-  // Heading level
   const headingContent = block?.content.type === "heading" ? (block.content as { level: number }) : null;
-
-  // List style
   const listContent = block?.content.type === "list" ? (block.content as { style: string }) : null;
 
   return (
-    <div className="flex items-center gap-1 px-4 py-1.5 border-b border-border/30 glass flex-wrap">
-      {/* Font Family */}
-      <ToolbarSelect
-        value={style.fontFamily || "sans"}
-        onChange={(v) => block && updateBlockStyle(block.id, { fontFamily: v as "serif" | "sans" })}
-        options={[
-          { value: "sans", label: "ゴシック" },
-          { value: "serif", label: "明朝体" },
-        ]}
-        className="w-[4.5rem]"
-        disabled={!hasBlock}
-      />
-
-      {/* Font Size */}
-      <ToolbarSelect
-        value={String(style.fontSize || 11)}
-        onChange={(v) => block && updateBlockStyle(block.id, { fontSize: parseInt(v) })}
-        options={[
-          { value: "9", label: "9" },
-          { value: "10", label: "10" },
-          { value: "11", label: "11" },
-          { value: "12", label: "12" },
-          { value: "14", label: "14" },
-          { value: "16", label: "16" },
-          { value: "18", label: "18" },
-          { value: "24", label: "24" },
-        ]}
-        className="w-12"
-        disabled={!hasBlock}
-      />
-
-      <Separator orientation="vertical" className="mx-1 h-5" />
-
-      {/* Bold / Italic / Underline */}
-      <ToolbarButton active={style.bold} onClick={() => toggleStyle("bold")} title="太字 (Ctrl+B)" disabled={!hasBlock}>
-        <Bold className="h-3.5 w-3.5" />
-      </ToolbarButton>
-      <ToolbarButton active={style.italic} onClick={() => toggleStyle("italic")} title="斜体 (Ctrl+I)" disabled={!hasBlock}>
-        <Italic className="h-3.5 w-3.5" />
-      </ToolbarButton>
-      <ToolbarButton active={style.underline} onClick={() => toggleStyle("underline")} title="下線 (Ctrl+U)" disabled={!hasBlock}>
-        <Underline className="h-3.5 w-3.5" />
-      </ToolbarButton>
-
-      <Separator orientation="vertical" className="mx-1 h-5" />
-
-      {/* Text Color */}
-      <div className="relative" title="文字色">
-        <input
-          type="color"
-          value={style.textColor || "#000000"}
-          onChange={(e) => block && updateBlockStyle(block.id, { textColor: e.target.value })}
-          className="absolute inset-0 opacity-0 cursor-pointer w-7 h-7"
-          disabled={!hasBlock}
-        />
-        <div className={`h-7 w-7 rounded-md flex items-center justify-center ${!hasBlock ? "opacity-30" : "hover:bg-muted cursor-pointer"}`}>
-          <div className="flex flex-col items-center gap-0">
-            <span className="text-xs font-bold leading-none" style={{ color: style.textColor || undefined }}>A</span>
-            <div className="h-0.5 w-3.5 rounded-full" style={{ backgroundColor: style.textColor || "currentColor" }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Background Color */}
-      <div className="relative" title="背景色">
-        <input
-          type="color"
-          value={style.backgroundColor || "#ffffff"}
-          onChange={(e) => block && updateBlockStyle(block.id, { backgroundColor: e.target.value })}
-          className="absolute inset-0 opacity-0 cursor-pointer w-7 h-7"
-          disabled={!hasBlock}
-        />
-        <div className={`h-7 w-7 rounded-md flex items-center justify-center ${!hasBlock ? "opacity-30" : "hover:bg-muted cursor-pointer"}`}>
-          <div className="h-4 w-4 rounded border border-border/50" style={{ backgroundColor: style.backgroundColor || "#ffffff" }} />
-        </div>
-      </div>
-
-      <Separator orientation="vertical" className="mx-1 h-5" />
-
-      {/* Alignment */}
-      <ToolbarButton active={style.textAlign === "left" || !style.textAlign} onClick={() => setAlign("left")} title="左揃え" disabled={!hasBlock}>
-        <AlignLeft className="h-3.5 w-3.5" />
-      </ToolbarButton>
-      <ToolbarButton active={style.textAlign === "center"} onClick={() => setAlign("center")} title="中央揃え" disabled={!hasBlock}>
-        <AlignCenter className="h-3.5 w-3.5" />
-      </ToolbarButton>
-      <ToolbarButton active={style.textAlign === "right"} onClick={() => setAlign("right")} title="右揃え" disabled={!hasBlock}>
-        <AlignRight className="h-3.5 w-3.5" />
-      </ToolbarButton>
-
-      <Separator orientation="vertical" className="mx-1 h-5" />
-
-      {/* Heading Level (visible when heading selected) */}
-      {headingContent && (
-        <>
-          <ToolbarSelect
-            value={String(headingContent.level)}
-            onChange={(v) => block && updateBlockContent(block.id, { level: parseInt(v) as 1 | 2 | 3 })}
-            options={[
-              { value: "1", label: "H1" },
-              { value: "2", label: "H2" },
-              { value: "3", label: "H3" },
-            ]}
-            className="w-14"
-          />
-          <Separator orientation="vertical" className="mx-1 h-5" />
-        </>
-      )}
-
-      {/* List Style (visible when list selected) */}
-      {listContent && (
-        <>
-          <ToolbarButton
-            active={listContent.style === "bullet"}
-            onClick={() => block && updateBlockContent(block.id, { style: "bullet" })}
-            title="箇条書き"
-          >
-            <ListIcon className="h-3.5 w-3.5" />
-          </ToolbarButton>
-          <ToolbarButton
-            active={listContent.style === "numbered"}
-            onClick={() => block && updateBlockContent(block.id, { style: "numbered" })}
-            title="番号付きリスト"
-          >
-            <ListOrdered className="h-3.5 w-3.5" />
-          </ToolbarButton>
-          <Separator orientation="vertical" className="mx-1 h-5" />
-        </>
-      )}
-
-      {/* Insert Block Menu */}
+    <div className="flex items-center gap-0.5 px-3 h-8 border-b border-border/30 bg-background/80 backdrop-blur-sm shrink-0">
+      {/* Insert block — always visible */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-xs text-foreground/60 hover:bg-muted hover:text-foreground transition-colors">
-            <Plus className="h-3.5 w-3.5" />
+          <button className="inline-flex items-center gap-1 h-6 px-2 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors font-medium">
+            <Plus className="h-3 w-3" />
             挿入
-            <ChevronDown className="h-3 w-3" />
+            <ChevronDown className="h-2.5 w-2.5 opacity-60" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-60 p-1.5 rounded-xl">
-          <div className="grid grid-cols-3 gap-1">
-            {BLOCK_TYPES.map((info) => {
-              const Icon = BLOCK_ICONS[info.type];
-              return (
-                <DropdownMenuItem
-                  key={info.type}
-                  onClick={() => handleInsertBlock(info.type)}
-                  className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg cursor-pointer"
-                >
-                  <Icon className={`h-4 w-4 ${info.color}`} />
-                  <span className="text-[10px] font-medium">{info.name}</span>
-                </DropdownMenuItem>
-              );
-            })}
-          </div>
-
+        <DropdownMenuContent align="start" className="w-56 p-1.5 rounded-xl shadow-xl">
+          {BLOCK_CATEGORIES.map((cat, ci) => (
+            <React.Fragment key={cat.label}>
+              {ci > 0 && <DropdownMenuSeparator className="my-1" />}
+              <DropdownMenuLabel className="text-[9px] text-muted-foreground/50 font-medium px-2 py-0.5 uppercase tracking-wider">
+                {cat.label}
+              </DropdownMenuLabel>
+              <div className="grid grid-cols-3 gap-0.5">
+                {cat.types.map((type) => {
+                  const info = BLOCK_TYPES.find((t) => t.type === type);
+                  if (!info) return null;
+                  const Icon = BLOCK_ICONS[info.type];
+                  return (
+                    <DropdownMenuItem
+                      key={info.type}
+                      onClick={() => handleInsertBlock(info.type)}
+                      className="flex flex-col items-center gap-1 px-1 py-2 rounded-lg cursor-pointer text-center focus:bg-primary/5"
+                    >
+                      <Icon className={`h-3.5 w-3.5 ${info.color}`} />
+                      <span className="text-[9px] font-medium leading-none">{info.name}</span>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </div>
+            </React.Fragment>
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* 右寄せスペーサー */}
+      {/* Contextual controls — only when block selected */}
+      {hasBlock && (
+        <>
+          <Divider />
+
+          {/* Font family */}
+          <select
+            value={style.fontFamily || "sans"}
+            onChange={(e) => block && updateBlockStyle(block.id, { fontFamily: e.target.value as "serif" | "sans" })}
+            className="h-6 px-1.5 rounded border border-border/40 bg-transparent text-[11px] text-muted-foreground hover:text-foreground focus:outline-none focus:border-primary/40 cursor-pointer transition-colors"
+          >
+            <option value="sans">ゴシック</option>
+            <option value="serif">明朝体</option>
+          </select>
+
+          {/* Font size */}
+          <select
+            value={String(style.fontSize || 11)}
+            onChange={(e) => block && updateBlockStyle(block.id, { fontSize: parseInt(e.target.value) })}
+            className="h-6 w-10 px-1 rounded border border-border/40 bg-transparent text-[11px] text-muted-foreground hover:text-foreground focus:outline-none focus:border-primary/40 cursor-pointer transition-colors"
+          >
+            {[9,10,11,12,14,16,18,24].map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+
+          <Divider />
+
+          {/* B I U */}
+          <Btn active={style.bold} onClick={() => toggle("bold")} title="太字 (Ctrl+B)">
+            <Bold className="h-3 w-3" />
+          </Btn>
+          <Btn active={style.italic} onClick={() => toggle("italic")} title="斜体">
+            <Italic className="h-3 w-3" />
+          </Btn>
+          <Btn active={style.underline} onClick={() => toggle("underline")} title="下線">
+            <Underline className="h-3 w-3" />
+          </Btn>
+
+          <Divider />
+
+          {/* Alignment */}
+          <Btn active={!style.textAlign || style.textAlign === "left"} onClick={() => setAlign("left")} title="左揃え">
+            <AlignLeft className="h-3 w-3" />
+          </Btn>
+          <Btn active={style.textAlign === "center"} onClick={() => setAlign("center")} title="中央揃え">
+            <AlignCenter className="h-3 w-3" />
+          </Btn>
+          <Btn active={style.textAlign === "right"} onClick={() => setAlign("right")} title="右揃え">
+            <AlignRight className="h-3 w-3" />
+          </Btn>
+
+          {/* Heading level */}
+          {headingContent && (
+            <>
+              <Divider />
+              <select
+                value={String(headingContent.level)}
+                onChange={(e) => block && updateBlockContent(block.id, { level: parseInt(e.target.value) as 1 | 2 | 3 })}
+                className="h-6 w-12 px-1 rounded border border-border/40 bg-transparent text-[11px] text-muted-foreground hover:text-foreground focus:outline-none focus:border-primary/40 cursor-pointer"
+              >
+                <option value="1">H1</option>
+                <option value="2">H2</option>
+                <option value="3">H3</option>
+              </select>
+            </>
+          )}
+
+          {/* List style */}
+          {listContent && (
+            <>
+              <Divider />
+              <Btn active={listContent.style === "bullet"} onClick={() => block && updateBlockContent(block.id, { style: "bullet" })} title="箇条書き">
+                <ListIcon className="h-3 w-3" />
+              </Btn>
+              <Btn active={listContent.style === "numbered"} onClick={() => block && updateBlockContent(block.id, { style: "numbered" })} title="番号付き">
+                <ListOrdered className="h-3 w-3" />
+              </Btn>
+            </>
+          )}
+
+          {/* Text / bg color */}
+          <Divider />
+          <div className="relative h-6 w-6" title="文字色">
+            <input
+              type="color"
+              value={style.textColor || "#000000"}
+              onChange={(e) => block && updateBlockStyle(block.id, { textColor: e.target.value })}
+              className="absolute inset-0 opacity-0 cursor-pointer w-6 h-6"
+            />
+            <div className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted/60 transition-colors">
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[10px] font-bold leading-none" style={{ color: style.textColor || undefined }}>A</span>
+                <div className="h-0.5 w-3 rounded-full" style={{ backgroundColor: style.textColor || "currentColor" }} />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Slash hint */}
+      {!hasBlock && (
+        <span className="ml-2 text-[11px] text-muted-foreground/40 select-none font-mono">
+          / でブロック挿入 · Shift+クリックで複数選択
+        </span>
+      )}
+
       <div className="flex-1" />
 
-      {/* テンプレート種別インジケーター */}
-      <TemplateIndicator />
-    </div>
-  );
-}
-
-/* ── テンプレート種別表示 ── */
-function TemplateIndicator() {
-  const docClass = useDocumentStore((s) => s.document?.settings.documentClass);
-  const blockCount = useDocumentStore((s) => s.document?.blocks.length ?? 0);
-  if (!docClass) return null;
-
-  const classLabel: Record<string, string> = {
-    article: "論文/レポート",
-    report: "報告書",
-    book: "書籍",
-    beamer: "スライド",
-    letter: "手紙",
-    jlreq: "日本語文書",
-    ltjsarticle: "LuaLaTeX",
-  };
-
-  return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-muted/30 border border-border/20 text-[10px] text-muted-foreground">
-      <Layers className="h-3 w-3 text-blue-500" />
-      <span className="font-medium">{classLabel[docClass] ?? docClass}</span>
-      <span className="text-muted-foreground/40">|</span>
-      <span>{blockCount} ブロック</span>
+      {/* Block type indicator */}
+      {hasBlock && block && (
+        <span className="text-[10px] text-muted-foreground/40 font-mono px-2 select-none">
+          {block.content.type}
+        </span>
+      )}
     </div>
   );
 }

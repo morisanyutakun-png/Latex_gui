@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
-  GripVertical,
   Trash2,
   Copy,
   ChevronUp,
@@ -132,73 +131,98 @@ function InsertMenu({ index, variant = "line" }: { index: number; variant?: "lin
   );
 }
 
-// ──── Block Wrapper ────
+// ──── Block Wrapper — VS Code style ────
 function BlockWrapper({
   block,
+  index,
   children,
 }: {
   block: Block;
+  index: number;
   children: React.ReactNode;
 }) {
   const { selectedBlockId, selectBlock, setEditingBlock } = useUIStore();
   const { deleteBlock, duplicateBlock, moveBlock } = useDocumentStore();
   const isSelected = selectedBlockId === block.id;
 
+  const Icon = BLOCK_ICONS[block.content.type as BlockType] || Type;
+
   return (
     <div
-      className={`group/block relative transition-all duration-150`}
-      onClick={(e) => {
-        e.stopPropagation();
-        selectBlock(block.id);
-      }}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        setEditingBlock(block.id);
-      }}
+      className={`group/block relative flex items-stretch transition-colors duration-100 rounded-sm
+        ${isSelected
+          ? "bg-primary/[0.04] dark:bg-primary/[0.06]"
+          : "hover:bg-muted/30 dark:hover:bg-white/[0.02]"
+        }`}
+      onClick={(e) => { e.stopPropagation(); selectBlock(block.id); }}
+      onDoubleClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
     >
-      {/* Left actions — only on hover */}
+      {/* Left gutter — VS Code line number style */}
+      <div
+        className={`w-10 shrink-0 flex flex-col items-center pt-[5px] pb-1 gap-0.5 select-none cursor-default
+          border-r border-transparent transition-colors
+          ${isSelected ? "border-primary/30" : "group-hover/block:border-border/20"}`}
+      >
+        {/* Block type icon */}
+        <Icon
+          className={`h-3 w-3 transition-colors ${
+            isSelected ? "text-primary/60" : "text-muted-foreground/20 group-hover/block:text-muted-foreground/40"
+          }`}
+        />
+        {/* Line number */}
+        <span className={`text-[8px] font-mono tabular-nums leading-none transition-colors ${
+          isSelected ? "text-primary/40" : "text-muted-foreground/15 group-hover/block:text-muted-foreground/30"
+        }`}>
+          {index + 1}
+        </span>
+      </div>
+
+      {/* Left active indicator */}
       {isSelected && (
-        <div className="absolute -left-10 top-0 bottom-0 flex flex-col items-center gap-0.5 pt-1 opacity-0 group-hover/block:opacity-100 transition-opacity">
-          <button className="p-0.5 rounded text-muted-foreground/40 hover:text-muted-foreground cursor-grab">
-            <GripVertical className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
-            onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
-            title="上へ"
-          >
-            <ChevronUp className="h-3 w-3" />
-          </button>
-          <button
-            className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
-            onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
-            title="下へ"
-          >
-            <ChevronDown className="h-3 w-3" />
-          </button>
-          <button
-            className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground"
-            onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
-            title="複製"
-          >
-            <Copy className="h-3 w-3" />
-          </button>
-          <button
-            className="p-0.5 rounded text-destructive/40 hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              deleteBlock(block.id);
-              selectBlock(null);
-            }}
-            title="削除"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
+        <div className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-primary/60" />
       )}
 
       {/* Block content */}
-      <div className="py-1 px-1">{children}</div>
+      <div className="flex-1 min-w-0 py-1 px-3">
+        {children}
+      </div>
+
+      {/* Right hover actions — appear on hover like VS Code's inline actions */}
+      <div className={`absolute right-1 top-1 flex items-center gap-0.5 transition-opacity
+        ${isSelected ? "opacity-100" : "opacity-0 group-hover/block:opacity-100"}`}>
+        <button
+          className="p-1 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+          onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
+          title="上へ (Alt+↑)"
+        >
+          <ChevronUp className="h-2.5 w-2.5" />
+        </button>
+        <button
+          className="p-1 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+          onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
+          title="下へ (Alt+↓)"
+        >
+          <ChevronDown className="h-2.5 w-2.5" />
+        </button>
+        <button
+          className="p-1 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+          onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
+          title="複製"
+        >
+          <Copy className="h-2.5 w-2.5" />
+        </button>
+        <button
+          className="p-1 rounded text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            deleteBlock(block.id);
+            selectBlock(null);
+          }}
+          title="削除 (Del)"
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -965,95 +989,106 @@ function BlockEditor({ block }: { block: Block }) {
 // ──── Main Document Editor ────
 export function DocumentEditor() {
   const document = useDocumentStore((s) => s.document);
+  const addBlock = useDocumentStore((s) => s.addBlock);
   const selectBlock = useUIStore((s) => s.selectBlock);
+  const setEditingBlock = useUIStore((s) => s.setEditingBlock);
   const zoom = useUIStore((s) => s.zoom);
 
   if (!document) return null;
 
-  const pageWidthMm = 210;
-  const marginLeftMm = document.settings.margins.left;
-  const marginRightMm = document.settings.margins.right;
-  const contentWidthMm = pageWidthMm - marginLeftMm - marginRightMm;
+  const handleQuickAdd = (type: BlockType) => {
+    const id = addBlock(type, document.blocks.length);
+    if (id) {
+      selectBlock(id);
+      if (type !== "divider") setEditingBlock(id);
+    }
+  };
 
   return (
     <div
-      className="flex-1 overflow-auto bg-muted/30"
+      className="flex-1 overflow-auto bg-background"
       onClick={() => selectBlock(null)}
+      style={{ fontSize: `${zoom * 100}%` }}
     >
-      <div className="flex justify-center py-8 px-4">
-        {/* A4 Page */}
-        <div
-          className="document-page bg-white dark:bg-white rounded shadow-2xl shadow-black/10 relative"
-          style={{
-            width: `${pageWidthMm * zoom * 3.78}px`, // mm → px conversion at ~96dpi
-            minHeight: `${297 * zoom * 3.78}px`,
-            padding: `${document.settings.margins.top * zoom * 3.78}px ${marginRightMm * zoom * 3.78}px ${document.settings.margins.bottom * zoom * 3.78}px ${marginLeftMm * zoom * 3.78}px`,
-          }}
-        >
-          <div className="relative" style={{ maxWidth: `${contentWidthMm * zoom * 3.78}px` }}>
-            {document.blocks.map((block) => (
+      <div className="max-w-3xl mx-auto py-6 px-0">
+
+        {/* Empty state — VS Code welcome style */}
+        {document.blocks.length === 0 && (
+          <div className="px-10 py-10 space-y-7">
+            <div className="font-mono text-sm space-y-1">
+              <p className="text-muted-foreground/25 text-xs">{"// かんたんPDFメーカー — AIドキュメントビルダー"}</p>
+              <p className="text-muted-foreground/50 text-xs">
+                <span className="text-primary/60">const</span>{" "}
+                <span className="text-foreground/70">document</span>{" "}
+                <span className="text-muted-foreground/40">=</span>{" "}
+                <span className="text-primary/50">new</span>{" "}
+                <span className="text-foreground/60">Document</span>
+                <span className="text-muted-foreground/40">{"()"}</span>
+                <span className="animate-pulse text-primary/60 ml-0.5">▊</span>
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 max-w-lg">
+              <div className="flex items-start gap-3 p-4 rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/40 dark:bg-violet-950/10">
+                <div className="h-8 w-8 rounded bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-violet-600 dark:text-violet-400 font-mono text-[11px] font-bold">AI</span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground/80">右のAIエージェントに話しかける</p>
+                  <p className="text-xs text-muted-foreground/50">「数学プリントを作って」「見出しと本文を3つ追加して」</p>
+                  <p className="text-[10px] font-mono text-violet-500/60 mt-1">→ 右パネル <span className="text-violet-500">▸ agent</span> から入力</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg border border-border/30 bg-muted/20">
+                <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-muted-foreground font-mono text-sm font-bold">/</span>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground/80">テキスト入力後に <code className="text-xs bg-muted px-1 rounded font-mono">/</code> でブロック変換</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {(["paragraph", "heading", "math", "list", "table"] as BlockType[]).map((t) => {
+                      const info = BLOCK_TYPES.find((b) => b.type === t);
+                      if (!info) return null;
+                      return (
+                        <button
+                          key={t}
+                          onClick={(e) => { e.stopPropagation(); handleQuickAdd(t); }}
+                          className="flex items-center gap-1 px-2 py-1 rounded border border-border/40 bg-background/60 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-colors font-mono"
+                        >
+                          <span className={info.color}>{info.name}</span>
+                        </button>
+                      );
+                    })}
+                    <InsertMenu index={0} variant="button" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p className="font-mono text-[10px] text-muted-foreground/25">
+              <kbd className="px-1 py-0.5 rounded border border-border/20">Ctrl+Z</kbd> 元に戻す{" · "}
+              <kbd className="px-1 py-0.5 rounded border border-border/20">Ctrl+S</kbd> 保存{" · "}
+              <kbd className="px-1 py-0.5 rounded border border-border/20">/</kbd> コマンドパレット
+            </p>
+          </div>
+        )}
+
+        {/* Blocks */}
+        {document.blocks.length > 0 && (
+          <div className="pb-32">
+            {document.blocks.map((block, idx) => (
               <React.Fragment key={block.id}>
-                <BlockWrapper block={block}>
+                <InsertMenu index={idx} variant="line" />
+                <BlockWrapper block={block} index={idx}>
                   <BlockEditor block={block} />
                 </BlockWrapper>
               </React.Fragment>
             ))}
-
-            {/* Empty state — パイプライン可視化 */}
-            {document.blocks.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 gap-5">
-                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-100 to-emerald-100 dark:from-violet-900/30 dark:to-emerald-900/30 flex items-center justify-center">
-                  <span className="text-3xl">📝</span>
-                </div>
-                <div className="text-center space-y-1.5">
-                  <p className="text-foreground/60 text-sm font-medium">文書を作成しましょう</p>
-                  <p className="text-muted-foreground/40 text-xs max-w-[280px]">
-                    ブロックを追加して日本語で入力。テンプレートが美しいLaTeXに自動変換し、PDFを生成します
-                  </p>
-                </div>
-
-                {/* パイプライン図 */}
-                <div className="flex items-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-50/50 via-violet-50/40 to-amber-50/50 dark:from-emerald-950/10 dark:via-violet-950/10 dark:to-amber-950/10 border border-border/20">
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-lg">✍️</span>
-                    <span className="text-[8px] font-medium text-emerald-600 dark:text-emerald-400">GUI入力</span>
-                    <span className="text-[7px] text-muted-foreground/40">日本語OK</span>
-                  </div>
-                  <span className="text-muted-foreground/30">→</span>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-lg">📋</span>
-                    <span className="text-[8px] font-medium text-blue-600 dark:text-blue-400">テンプレート</span>
-                    <span className="text-[7px] text-muted-foreground/40">書式固定</span>
-                  </div>
-                  <span className="text-muted-foreground/30">→</span>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-lg">🔧</span>
-                    <span className="text-[8px] font-medium text-violet-600 dark:text-violet-400">LaTeX</span>
-                    <span className="text-[7px] text-muted-foreground/40">自動生成</span>
-                  </div>
-                  <span className="text-muted-foreground/30">→</span>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-lg">📄</span>
-                    <span className="text-[8px] font-medium text-amber-600 dark:text-amber-400">PDF</span>
-                    <span className="text-[7px] text-muted-foreground/40">美しい出力</span>
-                  </div>
-                </div>
-
-                <InsertMenu index={0} variant="button" />
-                <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground/30">
-                  <span className="flex items-center gap-1">📄 見出し・本文</span>
-                  <span className="flex items-center gap-1">∑ 数式（日本語入力）</span>
-                  <span className="flex items-center gap-1">📊 表・画像</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Floating add button — below the page */}
-        {document.blocks.length > 0 && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-            <InsertMenu index={document.blocks.length} variant="button" />
+            <InsertMenu index={document.blocks.length} variant="line" />
+            <div className="flex justify-start pl-10 mt-6">
+              <InsertMenu index={document.blocks.length} variant="button" />
+            </div>
           </div>
         )}
       </div>

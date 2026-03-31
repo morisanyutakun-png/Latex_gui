@@ -6,9 +6,6 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { generatePDF } from "@/lib/api";
 import { saveToLocalStorage, downloadAsJSON, loadFromJSONFile } from "@/lib/storage";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   ArrowLeft,
@@ -17,8 +14,6 @@ import {
   Save,
   Undo2,
   Redo2,
-  ZoomIn,
-  ZoomOut,
   FileDown,
   Loader2,
 } from "lucide-react";
@@ -26,8 +21,8 @@ import { toast } from "sonner";
 
 export function AppHeader() {
   const router = useRouter();
-  const { document: doc, updateMetadata, undo, redo } = useDocumentStore();
-  const { isGenerating, setGenerating, zoom, setZoom } = useUIStore();
+  const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
+  const { isGenerating, setGenerating } = useUIStore();
 
   if (!doc) return null;
 
@@ -38,7 +33,7 @@ export function AppHeader() {
 
   const handleExportJSON = () => {
     downloadAsJSON(doc, `${doc.metadata.title || "document"}.json`);
-    toast.success("JSONファイルをダウンロードしました");
+    toast.success("JSONエクスポート完了");
   };
 
   const handleImportJSON = () => {
@@ -51,9 +46,9 @@ export function AppHeader() {
       try {
         const loaded = await loadFromJSONFile(file);
         useDocumentStore.getState().setDocument(loaded);
-        toast.success("ファイルを読み込みました");
+        toast.success("読み込みました");
       } catch {
-        toast.error("ファイルの読み込みに失敗しました");
+        toast.error("読み込み失敗");
       }
     };
     input.click();
@@ -71,17 +66,13 @@ export function AppHeader() {
       a.click();
       window.document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("PDFを生成しました");
+      toast.success("PDF生成完了");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "不明なエラー";
-      console.error("PDF生成エラー:", message);
-      if (message.includes("接続できません") || message.includes("リクエストに失敗") || message.includes("起動中")) {
-        toast.error(message, {
-          duration: 10000,
-          description: "数秒待ってからもう一度お試しください",
-        });
+      if (message.includes("接続できません") || message.includes("起動中")) {
+        toast.error(message, { duration: 10000, description: "数秒待ってから再試行してください" });
       } else {
-        toast.error(`PDF生成に失敗: ${message}`, { duration: 8000 });
+        toast.error(`PDF生成失敗: ${message}`, { duration: 8000 });
       }
     } finally {
       setGenerating(false);
@@ -89,92 +80,93 @@ export function AppHeader() {
   };
 
   return (
-    <header className="flex items-center gap-2 px-4 h-12 border-b border-border/30 glass sticky top-0 z-40">
+    <header className="flex items-center gap-1.5 px-3 h-10 border-b border-border/40 bg-background/95 backdrop-blur-sm sticky top-0 z-40 shrink-0">
       {/* Back */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 rounded-xl hover:bg-secondary/60 transition-colors"
+      <button
         onClick={() => router.push("/")}
-        title="ホームに戻る"
+        className="flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+        title="ホームへ"
       >
-        <ArrowLeft className="h-4 w-4" />
-      </Button>
+        <ArrowLeft className="h-3.5 w-3.5" />
+      </button>
 
-      {/* Logo */}
-      <div className="h-6 w-6 rounded-[7px] bg-foreground flex items-center justify-center mr-0.5">
-        <span className="text-background text-[9px] font-bold tracking-tighter leading-none">Lx</span>
+      {/* Logo pill */}
+      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/40 border border-border/30">
+        <span className="text-[9px] font-bold tracking-tighter text-primary/80 font-mono">Lx</span>
       </div>
 
-      {/* Title */}
-      <Input
+      {/* Title — monospace feel */}
+      <input
         value={doc.metadata.title}
         onChange={(e) => updateMetadata({ title: e.target.value })}
-        className="h-7 w-48 text-sm font-medium border-transparent hover:border-border/50 focus:border-primary/40 bg-transparent rounded-lg"
+        className="h-6 px-2 text-[13px] font-medium bg-transparent border border-transparent hover:border-border/40 focus:border-primary/40 focus:outline-none rounded text-foreground/80 w-44 transition-colors"
         placeholder="無題のドキュメント"
       />
 
-      <Separator orientation="vertical" className="mx-1.5 h-4 opacity-30" />
-
       {/* Undo / Redo */}
-      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={undo} title="元に戻す (Ctrl+Z)">
-        <Undo2 className="h-3.5 w-3.5" />
-      </Button>
-      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={redo} title="やり直し (Ctrl+Y)">
-        <Redo2 className="h-3.5 w-3.5" />
-      </Button>
-
-      <Separator orientation="vertical" className="mx-1.5 h-4 opacity-30" />
-
-      {/* Zoom */}
-      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setZoom(Math.max(0.5, zoom - 0.1))} title="縮小">
-        <ZoomOut className="h-3.5 w-3.5" />
-      </Button>
-      <span className="text-[10px] text-muted-foreground w-8 text-center select-none tabular-nums">
-        {Math.round(zoom * 100)}%
-      </span>
-      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setZoom(Math.min(2, zoom + 0.1))} title="拡大">
-        <ZoomIn className="h-3.5 w-3.5" />
-      </Button>
+      <div className="flex items-center gap-0.5 ml-1">
+        <button
+          onClick={undo}
+          disabled={past.length === 0}
+          className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          title="元に戻す (Ctrl+Z)"
+        >
+          <Undo2 className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={redo}
+          disabled={future.length === 0}
+          className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          title="やり直し (Ctrl+Y)"
+        >
+          <Redo2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       {/* Spacer */}
       <div className="flex-1" />
 
       {/* File actions */}
       <div className="flex items-center gap-0.5">
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={handleSave} title="保存 (Ctrl+S)">
+        <button
+          onClick={handleSave}
+          className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          title="保存 (Ctrl+S)"
+        >
           <Save className="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={handleExportJSON} title="JSONエクスポート">
+        </button>
+        <button
+          onClick={handleExportJSON}
+          className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          title="JSONエクスポート"
+        >
           <FileDown className="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={handleImportJSON} title="JSONインポート">
+        </button>
+        <button
+          onClick={handleImportJSON}
+          className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          title="JSONインポート"
+        >
           <FileUp className="h-3.5 w-3.5" />
-        </Button>
+        </button>
       </div>
 
-      <Separator orientation="vertical" className="mx-1.5 h-4 opacity-30" />
+      <div className="w-px h-4 bg-border/40 mx-1" />
 
       <ThemeToggle />
 
-      {/* PDF Export button — Apple premium dark */}
-      <Button
+      {/* PDF button */}
+      <button
         onClick={handleGeneratePDF}
         disabled={isGenerating}
-        className="h-8 px-5 rounded-full bg-foreground hover:opacity-90 text-background text-xs font-semibold gap-1.5 shadow-sm hover:shadow-lg active:scale-[0.97] transition-all duration-150 ml-1.5"
+        className="flex items-center gap-1.5 h-7 px-3.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97] ml-1"
       >
         {isGenerating ? (
-          <>
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            生成中…
-          </>
+          <><Loader2 className="h-3 w-3 animate-spin" />生成中…</>
         ) : (
-          <>
-            <Download className="h-3.5 w-3.5" />
-            PDF出力
-          </>
+          <><Download className="h-3 w-3" />PDF</>
         )}
-      </Button>
+      </button>
     </header>
   );
 }
