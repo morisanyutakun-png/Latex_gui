@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 function describeOp(op: PatchOp): { icon: string; label: string; color: string } {
   switch (op.op) {
     case "add_block": {
-      const c = op.block.content as Record<string, unknown>;
+      const c = op.block.content as unknown as Record<string, unknown>;
       const btype = c.type as string;
       const typeNames: Record<string, string> = {
         heading: "見出し", paragraph: "テキスト", math: "数式", list: "リスト",
