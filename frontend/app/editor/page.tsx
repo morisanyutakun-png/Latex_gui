@@ -13,43 +13,45 @@ import { useAutosave } from "@/hooks/use-autosave";
 import { useDocumentStore } from "@/store/document-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  Code2,
-  Factory,
-  PanelRightClose,
-  Bot,
-  FileCode2,
-} from "lucide-react";
+import { Code2, Factory, Bot, FileCode2, X } from "lucide-react";
 
 type SidebarTab = "ai" | "advanced" | "batch" | "latex";
+
+interface TabMeta {
+  label: string;
+  icon: React.ElementType;
+  activeColor: string;
+  indicatorColor: string;
+}
+
+const TAB_META: Record<SidebarTab, TabMeta> = {
+  ai:       { label: "AI AGENT",       icon: Bot,      activeColor: "text-violet-500 dark:text-violet-400", indicatorColor: "bg-violet-500" },
+  advanced: { label: "ADVANCED",       icon: Code2,    activeColor: "text-purple-500 dark:text-purple-400", indicatorColor: "bg-purple-500" },
+  batch:    { label: "BATCH PRODUCER", icon: Factory,  activeColor: "text-amber-500 dark:text-amber-400",   indicatorColor: "bg-amber-500"  },
+  latex:    { label: "LATEX SOURCE",   icon: FileCode2,activeColor: "text-slate-500 dark:text-slate-400",   indicatorColor: "bg-slate-400"  },
+};
+
+const TAB_ORDER: SidebarTab[] = ["ai", "advanced", "batch", "latex"];
 
 export default function EditorPage() {
   useKeyboardShortcuts();
   useAutosave();
 
   const document = useDocumentStore((s) => s.document);
-  const advancedEnabled = useDocumentStore(
-    (s) => s.document?.advanced?.enabled ?? false
-  );
+  const advancedEnabled = useDocumentStore((s) => s.document?.advanced?.enabled ?? false);
   const router = useRouter();
 
-  // AI panel open by default
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
 
-  // Redirect to home if no document loaded
   useEffect(() => {
-    if (!document) {
-      router.push("/");
-    }
+    if (!document) router.push("/");
   }, [document, router]);
 
-  // Warm up backend (Koyeb cold start)
   useEffect(() => {
     fetch("/api/health", { signal: AbortSignal.timeout(15000) }).catch(() => {});
   }, []);
 
-  // Auto-open Advanced tab when advanced mode is toggled on
   useEffect(() => {
     if (advancedEnabled) {
       setSidebarOpen(true);
@@ -59,133 +61,106 @@ export default function EditorPage() {
 
   if (!document) return null;
 
+  const handleActivityClick = (tab: SidebarTab) => {
+    if (sidebarOpen && activeTab === tab) {
+      setSidebarOpen(false);
+    } else {
+      setSidebarOpen(true);
+      setActiveTab(tab);
+    }
+  };
+
+  const activeMeta = TAB_META[activeTab];
+
   return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background overflow-hidden">
       <AppHeader />
       <Toolbar />
 
-      <div className="flex flex-1 overflow-hidden relative min-h-0">
-        {/* Main editor */}
-        <div className="flex-1 overflow-auto">
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* ── Main editor ── */}
+        <div className="flex-1 overflow-auto min-w-0">
           <DocumentEditor />
         </div>
 
-        {/* ── Sidebar toggle button (when closed) ── */}
-        {!sidebarOpen && (
-          <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5">
-            <button
-              onClick={() => { setSidebarOpen(true); setActiveTab("ai"); }}
-              className="h-8 w-8 rounded-lg flex items-center justify-center transition-all
-                border border-violet-200 dark:border-violet-800 bg-background/90 backdrop-blur-sm shadow-sm
-                hover:bg-violet-50 dark:hover:bg-violet-950/30"
-              title="AIエージェントを開く"
-            >
-              <Bot className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-            </button>
-            <button
-              onClick={() => { setSidebarOpen(true); setActiveTab("advanced"); }}
-              className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all
-                border bg-background/90 backdrop-blur-sm shadow-sm
-                ${advancedEnabled
-                  ? "border-purple-300 dark:border-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-                  : "border-border/30 hover:bg-muted hover:border-border/60"}`}
-              title="上級者モード"
-            >
-              <Code2 className={`h-3.5 w-3.5 ${advancedEnabled ? "text-purple-500" : "text-muted-foreground"}`} />
-            </button>
-            <button
-              onClick={() => { setSidebarOpen(true); setActiveTab("batch"); }}
-              className="h-8 w-8 rounded-lg flex items-center justify-center transition-all
-                border border-amber-200 dark:border-amber-800 bg-background/90 backdrop-blur-sm shadow-sm
-                hover:bg-amber-50 dark:hover:bg-amber-950/30"
-              title="教材工場"
-            >
-              <Factory className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-            </button>
-            <button
-              onClick={() => { setSidebarOpen(true); setActiveTab("latex"); }}
-              className="h-8 w-8 rounded-lg flex items-center justify-center transition-all
-                border border-slate-200 dark:border-slate-700 bg-background/90 backdrop-blur-sm shadow-sm
-                hover:bg-slate-50 dark:hover:bg-slate-900"
-              title="LaTeXソース"
-            >
-              <FileCode2 className="h-3.5 w-3.5 text-slate-500" />
-            </button>
-          </div>
-        )}
-
-        {/* ── Right sidebar panel ── */}
+        {/* ── Panel content ── */}
         <div
           className={`
             border-l border-border/20 overflow-hidden bg-background/95 backdrop-blur-sm
-            transition-all duration-300 ease-out flex-shrink-0 flex flex-col
-            ${sidebarOpen ? "w-[26rem] opacity-100" : "w-0 opacity-0"}
+            flex-shrink-0 flex flex-col transition-all duration-200 ease-out
+            ${sidebarOpen ? "w-96" : "w-0"}
           `}
         >
           {sidebarOpen && (
-            <div className="animate-in fade-in duration-200 min-w-[25rem] flex flex-col h-full">
-              {/* Tab header */}
-              <div className="flex items-center border-b border-border/30 bg-muted/20 flex-shrink-0">
-                <button
-                  onClick={() => setActiveTab("ai")}
-                  className={`flex-1 flex items-center justify-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-all whitespace-nowrap
-                    ${activeTab === "ai"
-                      ? "text-violet-700 dark:text-violet-300 border-b-2 border-violet-500 bg-violet-50/50 dark:bg-violet-950/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
-                >
-                  <Bot className="h-3 w-3" />
-                  AIエージェント
-                </button>
-                <button
-                  onClick={() => setActiveTab("advanced")}
-                  className={`flex items-center justify-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-all whitespace-nowrap
-                    ${activeTab === "advanced"
-                      ? "text-purple-700 dark:text-purple-300 border-b-2 border-purple-500 bg-purple-50/50 dark:bg-purple-950/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
-                >
-                  <Code2 className="h-3 w-3" />
-                  {advancedEnabled && (
-                    <span className="px-1 py-0 text-[7px] bg-purple-600 text-white rounded-full">ON</span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab("batch")}
-                  className={`flex items-center justify-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-all whitespace-nowrap
-                    ${activeTab === "batch"
-                      ? "text-amber-700 dark:text-amber-300 border-b-2 border-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
-                >
-                  <Factory className="h-3 w-3" />
-                </button>
-                <button
-                  onClick={() => setActiveTab("latex")}
-                  className={`flex items-center justify-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-all whitespace-nowrap
-                    ${activeTab === "latex"
-                      ? "text-slate-700 dark:text-slate-300 border-b-2 border-slate-500 bg-slate-50/50 dark:bg-slate-900/50"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
-                >
-                  <FileCode2 className="h-3 w-3" />
-                </button>
+            <div className="w-96 h-full flex flex-col animate-in fade-in duration-150">
+              {/* Panel title bar */}
+              <div className="flex items-center px-3 h-9 border-b border-border/20 bg-muted/10 shrink-0 select-none">
+                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest flex-1">
+                  {activeMeta.label}
+                </span>
+                {activeTab === "advanced" && advancedEnabled && (
+                  <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-purple-600 text-white rounded-full font-bold tracking-wide">
+                    ON
+                  </span>
+                )}
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="px-2 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
+                  className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
                   title="パネルを閉じる"
                 >
-                  <PanelRightClose className="h-3.5 w-3.5" />
+                  <X className="h-3 w-3" />
                 </button>
               </div>
 
-              {/* Tab content */}
-              <div className={`flex-1 min-h-0 ${activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto p-4"}`}>
-                {activeTab === "ai" && <AIChatPanel />}
+              {/* Panel body */}
+              <div
+                className={`flex-1 min-h-0 ${
+                  activeTab === "ai" || activeTab === "latex"
+                    ? "overflow-hidden flex flex-col"
+                    : "overflow-y-auto p-4"
+                }`}
+              >
+                {activeTab === "ai"       && <AIChatPanel />}
                 {activeTab === "advanced" && <AdvancedModePanel />}
-                {activeTab === "batch" && <BatchProducer embedded />}
-                {activeTab === "latex" && <LaTeXSourceViewer />}
+                {activeTab === "batch"    && <BatchProducer embedded />}
+                {activeTab === "latex"    && <LaTeXSourceViewer />}
               </div>
             </div>
           )}
         </div>
+
+        {/* ── Activity bar — VS Code-style right-side icon strip ── */}
+        <div className="w-10 flex flex-col items-center pt-1 pb-2 border-l border-border/20 bg-background/70 shrink-0">
+          {TAB_ORDER.map((tab) => {
+            const meta = TAB_META[tab];
+            const Icon = meta.icon;
+            const isActive = sidebarOpen && activeTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => handleActivityClick(tab)}
+                title={meta.label}
+                className={`relative h-10 w-full flex items-center justify-center transition-all ${
+                  isActive
+                    ? `${meta.activeColor} bg-muted/30`
+                    : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
+                }`}
+              >
+                {/* Active indicator — left edge of activity bar (facing the panel) */}
+                {isActive && (
+                  <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full ${meta.indicatorColor} opacity-80`} />
+                )}
+                <Icon className="h-4 w-4" />
+                {/* Advanced mode dot */}
+                {tab === "advanced" && advancedEnabled && (
+                  <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-purple-500" />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
       <StatusBar />
     </div>
   );

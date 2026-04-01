@@ -159,7 +159,7 @@ function BlockWrapper({
     >
       {/* Left gutter — VS Code line number style */}
       <div
-        className={`w-10 shrink-0 flex flex-col items-center pt-[5px] pb-1 gap-0.5 select-none cursor-default
+        className={`w-8 shrink-0 flex flex-col items-center pt-[5px] pb-1 gap-0.5 select-none cursor-default
           border-r border-transparent transition-colors
           ${isSelected ? "border-primary/30" : "group-hover/block:border-border/20"}`}
       >
@@ -484,36 +484,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         ? "bg-blue-50/30 dark:bg-blue-950/10"
         : ""
     }`}>
-      {/* モードインジケーター */}
-      {isEditing && (
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-medium rounded-t-lg transition-all ${
-          isInMathMode
-            ? "bg-gradient-to-r from-violet-100/90 to-fuchsia-50/50 dark:from-violet-900/40 dark:to-fuchsia-950/20 text-violet-600 dark:text-violet-400"
-            : "bg-blue-50/50 dark:bg-blue-950/20 text-blue-500/60 dark:text-blue-400/40"
-        }`}>
-          {isInMathMode ? (
-            <>
-              <Sigma className="h-3 w-3" />
-              <span className="font-bold text-[10px]">数式モード</span>
-              <span className="mx-1 text-violet-300">|</span>
-              <div className="flex items-center gap-1">
-                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[7px] bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">1項</span>
-                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[7px] bg-blue-100/80 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">2項</span>
-                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[7px] bg-violet-100/80 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">3項</span>
-                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[7px] bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">括弧</span>
-              </div>
-              <span className="ml-auto text-violet-400/60 text-[8px]">⇧⌘M で閉じる</span>
-            </>
-          ) : (
-            <>
-              <Type className="h-2.5 w-2.5" />
-              <span>テキストモード</span>
-              <span className="ml-auto text-muted-foreground/40">⇧⌘M で数式モード</span>
-            </>
-          )}
-        </div>
-      )}
-
       {/* テキスト入力エリア（編集時のみ表示） */}
       {isEditing && (
         <>
@@ -614,24 +584,12 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             </div>
           )}
 
-          {/* インライン数式ヒント + ライブプレビュー（数式モード中） */}
-          {isInMathMode && mathCtx && (
-            <div className="mx-2 mb-1 space-y-1">
-              {mathCtx.mathContent && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-violet-50/60 to-fuchsia-50/30 dark:from-violet-950/20 dark:to-fuchsia-950/10 border border-violet-200/50 dark:border-violet-800/50">
-                  <span className="text-[9px] text-violet-500 font-semibold shrink-0">プレビュー</span>
-                  <div className="flex-1 flex justify-center overflow-auto">
-                    <MathRenderer latex={parseJapanesemath(mathCtx.mathContent)} displayMode={false} />
-                  </div>
-                </div>
-              )}
-              <div className="px-2 py-1.5 rounded-lg bg-violet-50/40 dark:bg-violet-900/20 text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-1.5 flex-wrap">
-                <Sigma className="h-3 w-3 shrink-0" />
-                <span className="shrink-0">入力例:</span>
-                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[9px]">ルートx</span>
-                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-blue-100/80 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px]">a/b</span>
-                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-violet-100/80 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-[9px]">から〜まで</span>
-                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-[9px]">かっこa+b</span>
+          {/* 数式ライブプレビュー */}
+          {isInMathMode && mathCtx && mathCtx.mathContent && (
+            <div className="mx-2 mb-1.5 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-violet-50/40 dark:bg-violet-950/15 border border-violet-200/30 dark:border-violet-800/30">
+              <span className="text-[8px] font-mono text-violet-400/70 shrink-0">∑</span>
+              <div className="flex-1 flex justify-start overflow-hidden">
+                <MathRenderer latex={parseJapanesemath(mathCtx.mathContent)} displayMode={false} />
               </div>
             </div>
           )}
@@ -757,7 +715,7 @@ function ListBlockEditor({ block }: { block: Block }) {
     <div className="latex-list">
       {content.items.map((item, i) => (
         <div key={i} className="flex items-start gap-2">
-          <span className="text-sm mt-0.5 w-5 text-right shrink-0 select-none" style={{ color: '#1a1a2e' }}>
+          <span className="text-sm mt-0.5 w-5 text-right shrink-0 select-none text-foreground/70">
             {content.style === "numbered" ? `${i + 1}.` : "•"}
           </span>
           <input
@@ -1012,64 +970,47 @@ export function DocumentEditor() {
     >
       <div className="max-w-3xl mx-auto py-6 px-0">
 
-        {/* Empty state — VS Code welcome style */}
+        {/* Empty state */}
         {document.blocks.length === 0 && (
-          <div className="px-10 py-10 space-y-7">
-            <div className="font-mono text-sm space-y-1">
-              <p className="text-muted-foreground/25 text-xs">{"// かんたんPDFメーカー — AIドキュメントビルダー"}</p>
-              <p className="text-muted-foreground/50 text-xs">
-                <span className="text-primary/60">const</span>{" "}
-                <span className="text-foreground/70">document</span>{" "}
-                <span className="text-muted-foreground/40">=</span>{" "}
-                <span className="text-primary/50">new</span>{" "}
-                <span className="text-foreground/60">Document</span>
-                <span className="text-muted-foreground/40">{"()"}</span>
-                <span className="animate-pulse text-primary/60 ml-0.5">▊</span>
-              </p>
+          <div className="px-12 py-16 flex flex-col items-start gap-8 select-none">
+            <div>
+              <p className="text-[11px] font-mono text-muted-foreground/20 mb-2">{"// document.blocks.length === 0"}</p>
+              <h2 className="text-2xl font-light text-foreground/30 tracking-tight">何を作りますか？</h2>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 max-w-lg">
-              <div className="flex items-start gap-3 p-4 rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/40 dark:bg-violet-950/10">
-                <div className="h-8 w-8 rounded bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-violet-600 dark:text-violet-400 font-mono text-[11px] font-bold">AI</span>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground/80">右のAIエージェントに話しかける</p>
-                  <p className="text-xs text-muted-foreground/50">「数学プリントを作って」「見出しと本文を3つ追加して」</p>
-                  <p className="text-[10px] font-mono text-violet-500/60 mt-1">→ 右パネル <span className="text-violet-500">▸ agent</span> から入力</p>
-                </div>
+            <div className="flex flex-col gap-3 text-sm">
+              <div className="flex items-center gap-3 group cursor-default">
+                <span className="text-[10px] font-mono text-violet-400/50 w-22 shrink-0">▸ AI agent</span>
+                <span className="text-muted-foreground/35">右パネルで「数学プリントを作って」と話しかける</span>
               </div>
-
-              <div className="flex items-start gap-3 p-4 rounded-lg border border-border/30 bg-muted/20">
-                <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-muted-foreground font-mono text-sm font-bold">/</span>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-foreground/80">テキスト入力後に <code className="text-xs bg-muted px-1 rounded font-mono">/</code> でブロック変換</p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {(["paragraph", "heading", "math", "list", "table"] as BlockType[]).map((t) => {
-                      const info = BLOCK_TYPES.find((b) => b.type === t);
-                      if (!info) return null;
-                      return (
-                        <button
-                          key={t}
-                          onClick={(e) => { e.stopPropagation(); handleQuickAdd(t); }}
-                          className="flex items-center gap-1 px-2 py-1 rounded border border-border/40 bg-background/60 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-colors font-mono"
-                        >
-                          <span className={info.color}>{info.name}</span>
-                        </button>
-                      );
-                    })}
-                    <InsertMenu index={0} variant="button" />
-                  </div>
-                </div>
+              <div className="flex items-center gap-3 group cursor-default">
+                <span className="text-[10px] font-mono text-muted-foreground/25 w-22 shrink-0">▸ / command</span>
+                <span className="text-muted-foreground/35">テキストを入力してから <kbd className="text-[9px] border border-border/20 px-1 rounded font-mono bg-muted/30">/</kbd> でブロック変換</span>
               </div>
             </div>
 
-            <p className="font-mono text-[10px] text-muted-foreground/25">
-              <kbd className="px-1 py-0.5 rounded border border-border/20">Ctrl+Z</kbd> 元に戻す{" · "}
-              <kbd className="px-1 py-0.5 rounded border border-border/20">Ctrl+S</kbd> 保存{" · "}
-              <kbd className="px-1 py-0.5 rounded border border-border/20">/</kbd> コマンドパレット
+            <div className="flex gap-2 flex-wrap">
+              {(["paragraph", "heading", "math", "list"] as BlockType[]).map((t) => {
+                const info = BLOCK_TYPES.find((b) => b.type === t);
+                if (!info) return null;
+                const Icon = BLOCK_ICONS[t];
+                return (
+                  <button
+                    key={t}
+                    onClick={(e) => { e.stopPropagation(); handleQuickAdd(t); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/25 bg-background text-xs text-muted-foreground/50 hover:text-foreground hover:border-primary/30 hover:bg-muted/20 transition-colors"
+                  >
+                    <Icon className={`h-3 w-3 ${info.color}`} />
+                    {info.name}
+                  </button>
+                );
+              })}
+              <InsertMenu index={0} variant="button" />
+            </div>
+
+            <p className="text-[10px] font-mono text-muted-foreground/20">
+              <kbd className="px-1 py-0.5 rounded border border-border/15 bg-muted/20">Ctrl+Z</kbd> undo ·{" "}
+              <kbd className="px-1 py-0.5 rounded border border-border/15 bg-muted/20">Ctrl+S</kbd> save
             </p>
           </div>
         )}
