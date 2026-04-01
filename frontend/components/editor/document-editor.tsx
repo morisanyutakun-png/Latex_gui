@@ -149,68 +149,44 @@ function BlockWrapper({
 
   return (
     <div
-      className={`group/block relative flex items-stretch transition-all duration-100
-        ${isSelected
-          ? "bg-primary/[0.05] dark:bg-primary/[0.08]"
-          : "hover:bg-muted/20 dark:hover:bg-white/[0.025]"
-        }`}
+      className={`group/block relative transition-all duration-75 rounded-sm
+        ${isSelected ? "bg-blue-50/60 dark:bg-blue-950/20" : "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"}`}
       onClick={(e) => { e.stopPropagation(); selectBlock(block.id); }}
       onDoubleClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
     >
-      {/* Left active indicator */}
-      <div className={`absolute left-0 top-0 bottom-0 w-[2px] transition-all duration-100 ${
-        isSelected ? "bg-primary/70" : "bg-transparent group-hover/block:bg-border/30"
+      {/* Left selection indicator */}
+      <div className={`absolute left-0 top-0.5 bottom-0.5 w-[2px] rounded-full transition-all duration-75 ${
+        isSelected ? "bg-primary/70" : "bg-transparent"
       }`} />
 
-      {/* Left gutter */}
-      <div className="w-12 shrink-0 flex flex-col items-end pr-3 pt-[7px] pb-2 gap-0.5 select-none cursor-default">
-        <span className={`text-[9px] font-mono tabular-nums leading-none transition-colors ${
-          isSelected ? "text-primary/50" : "text-muted-foreground/20 group-hover/block:text-muted-foreground/35"
-        }`}>
-          {index + 1}
-        </span>
-      </div>
-
-      {/* Block content */}
-      <div className="flex-1 min-w-0 py-1.5 pr-16">
+      {/* Block content — Word-style, no gutter */}
+      <div className="py-0.5 pl-3 pr-20">
         {children}
       </div>
 
-      {/* Right hover actions */}
-      <div className={`absolute right-2 top-1.5 flex items-center gap-0.5 transition-opacity
+      {/* Right hover actions — appear on hover */}
+      <div className={`absolute right-1 top-0.5 flex items-center gap-0.5 transition-opacity
         ${isSelected ? "opacity-100" : "opacity-0 group-hover/block:opacity-100"}`}>
         <button
-          className="p-1 rounded text-muted-foreground/25 hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
-          title="上へ (Alt+↑)"
-        >
-          <ChevronUp className="h-2.5 w-2.5" />
-        </button>
+          title="上へ"
+        ><ChevronUp className="h-3 w-3" /></button>
         <button
-          className="p-1 rounded text-muted-foreground/25 hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
-          title="下へ (Alt+↓)"
-        >
-          <ChevronDown className="h-2.5 w-2.5" />
-        </button>
+          title="下へ"
+        ><ChevronDown className="h-3 w-3" /></button>
         <button
-          className="p-1 rounded text-muted-foreground/25 hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
           title="複製"
-        >
-          <Copy className="h-2.5 w-2.5" />
-        </button>
+        ><Copy className="h-3 w-3" /></button>
         <button
-          className="p-1 rounded text-muted-foreground/25 hover:text-destructive hover:bg-destructive/10 transition-colors"
-          onClick={(e) => {
-            e.stopPropagation();
-            deleteBlock(block.id);
-            selectBlock(null);
-          }}
-          title="削除 (Del)"
-        >
-          <Trash2 className="h-2.5 w-2.5" />
-        </button>
+          className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+          onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); selectBlock(null); }}
+          title="削除"
+        ><Trash2 className="h-3 w-3" /></button>
       </div>
     </div>
   );
@@ -932,6 +908,14 @@ function BlockEditor({ block }: { block: Block }) {
   }
 }
 
+// Paper size definitions (width in px at 96dpi)
+const PAPER_SIZES: Record<string, { w: number; label: string }> = {
+  a4:     { w: 794,  label: "A4" },
+  a3:     { w: 1123, label: "A3" },
+  b5:     { w: 669,  label: "B5" },
+  letter: { w: 816,  label: "Letter" },
+};
+
 // ──── Main Document Editor ────
 export function DocumentEditor() {
   const document = useDocumentStore((s) => s.document);
@@ -939,6 +923,7 @@ export function DocumentEditor() {
   const selectBlock = useUIStore((s) => s.selectBlock);
   const setEditingBlock = useUIStore((s) => s.setEditingBlock);
   const zoom = useUIStore((s) => s.zoom);
+  const paperSize = useUIStore((s) => s.paperSize);
 
   if (!document) return null;
 
@@ -950,76 +935,86 @@ export function DocumentEditor() {
     }
   };
 
+  const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
+
   return (
+    // Canvas — gray background like Google Docs / Word
     <div
-      className="flex-1 overflow-auto bg-background"
+      className="flex-1 overflow-auto bg-[#e8e8e8] dark:bg-[#1e1e1e]"
       onClick={() => selectBlock(null)}
-      style={{ fontSize: `${zoom * 100}%` }}
     >
-      <div className="max-w-[720px] mx-auto py-10 px-0">
+      <div className="py-10 flex flex-col items-center min-h-full">
 
-        {/* Empty state */}
-        {document.blocks.length === 0 && (
-          <div className="px-12 py-16 flex flex-col items-start gap-8 select-none">
+        {/* Paper size label */}
+        <div className="mb-2 text-[10px] font-mono text-[#aaa] dark:text-[#555] select-none self-start" style={{ marginLeft: `calc(50% - ${paper.w / 2}px)` }}>
+          {paper.label} — {paper.w}px
+        </div>
+
+        {/* Paper card */}
+        <div
+          className="bg-white dark:bg-[#fafafa] shadow-[0_4px_24px_rgba(0,0,0,0.18)] flex-shrink-0 relative"
+          style={{
+            width: paper.w,
+            minHeight: Math.round(paper.w * 1.4142),
+            padding: "64px 72px 80px",
+            zoom: zoom,
+            color: "#1a1a1a",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Empty state — inside paper */}
+          {document.blocks.length === 0 && (
+            <div className="flex flex-col items-start gap-6 py-6 select-none">
+              <div className="space-y-1">
+                <p className="text-[11px] font-mono text-gray-300">{"// 空のドキュメント"}</p>
+                <h2 className="text-2xl font-light text-gray-300 tracking-tight">何を作りますか？</h2>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {(["paragraph", "heading", "math", "list"] as BlockType[]).map((t) => {
+                  const info = BLOCK_TYPES.find((b) => b.type === t);
+                  if (!info) return null;
+                  const Icon = BLOCK_ICONS[t];
+                  return (
+                    <button
+                      key={t}
+                      onClick={(e) => { e.stopPropagation(); handleQuickAdd(t); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-gray-200 text-xs text-gray-400 hover:text-gray-700 hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+                    >
+                      <Icon className={`h-3 w-3 ${info.color}`} />
+                      {info.name}
+                    </button>
+                  );
+                })}
+                <InsertMenu index={0} variant="button" />
+              </div>
+              <p className="text-[10px] font-mono text-gray-300">
+                右のAIエージェントに「数学プリントを作って」と話しかけるか、ブロックを追加して始めましょう
+              </p>
+            </div>
+          )}
+
+          {/* Blocks */}
+          {document.blocks.length > 0 && (
             <div>
-              <p className="text-[11px] font-mono text-muted-foreground/20 mb-2">{"// document.blocks.length === 0"}</p>
-              <h2 className="text-2xl font-light text-foreground/30 tracking-tight">何を作りますか？</h2>
-            </div>
-
-            <div className="flex flex-col gap-3 text-sm">
-              <div className="flex items-center gap-3 group cursor-default">
-                <span className="text-[10px] font-mono text-violet-400/50 w-22 shrink-0">▸ AI agent</span>
-                <span className="text-muted-foreground/35">右パネルで「数学プリントを作って」と話しかける</span>
+              {document.blocks.map((block, idx) => (
+                <React.Fragment key={block.id}>
+                  <InsertMenu index={idx} variant="line" />
+                  <BlockWrapper block={block} index={idx}>
+                    <BlockEditor block={block} />
+                  </BlockWrapper>
+                </React.Fragment>
+              ))}
+              <InsertMenu index={document.blocks.length} variant="line" />
+              <div className="mt-6">
+                <InsertMenu index={document.blocks.length} variant="button" />
               </div>
-              <div className="flex items-center gap-3 group cursor-default">
-                <span className="text-[10px] font-mono text-muted-foreground/25 w-22 shrink-0">▸ / command</span>
-                <span className="text-muted-foreground/35">テキストを入力してから <kbd className="text-[9px] border border-border/20 px-1 rounded font-mono bg-muted/30">/</kbd> でブロック変換</span>
-              </div>
             </div>
+          )}
+        </div>
 
-            <div className="flex gap-2 flex-wrap">
-              {(["paragraph", "heading", "math", "list"] as BlockType[]).map((t) => {
-                const info = BLOCK_TYPES.find((b) => b.type === t);
-                if (!info) return null;
-                const Icon = BLOCK_ICONS[t];
-                return (
-                  <button
-                    key={t}
-                    onClick={(e) => { e.stopPropagation(); handleQuickAdd(t); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/25 bg-background text-xs text-muted-foreground/50 hover:text-foreground hover:border-primary/30 hover:bg-muted/20 transition-colors"
-                  >
-                    <Icon className={`h-3 w-3 ${info.color}`} />
-                    {info.name}
-                  </button>
-                );
-              })}
-              <InsertMenu index={0} variant="button" />
-            </div>
-
-            <p className="text-[10px] font-mono text-muted-foreground/20">
-              <kbd className="px-1 py-0.5 rounded border border-border/15 bg-muted/20">Ctrl+Z</kbd> undo ·{" "}
-              <kbd className="px-1 py-0.5 rounded border border-border/15 bg-muted/20">Ctrl+S</kbd> save
-            </p>
-          </div>
-        )}
-
-        {/* Blocks */}
-        {document.blocks.length > 0 && (
-          <div className="pb-32">
-            {document.blocks.map((block, idx) => (
-              <React.Fragment key={block.id}>
-                <InsertMenu index={idx} variant="line" />
-                <BlockWrapper block={block} index={idx}>
-                  <BlockEditor block={block} />
-                </BlockWrapper>
-              </React.Fragment>
-            ))}
-            <InsertMenu index={document.blocks.length} variant="line" />
-            <div className="flex justify-start pl-10 mt-6">
-              <InsertMenu index={document.blocks.length} variant="button" />
-            </div>
-          </div>
-        )}
+        {/* Bottom spacing */}
+        <div className="h-16" />
       </div>
     </div>
   );

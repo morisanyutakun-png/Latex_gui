@@ -3,11 +3,14 @@
 import { create } from "zustand";
 import { ChatMessage, DocumentPatch } from "@/lib/types";
 
+export type PaperSize = "a4" | "a3" | "b5" | "letter";
+
 interface UIState {
   selectedBlockId: string | null;
   editingBlockId: string | null;
   isGenerating: boolean;
   zoom: number;
+  paperSize: PaperSize;
 
   // AI Chat state (in-memory only, not persisted)
   chatMessages: ChatMessage[];
@@ -18,6 +21,7 @@ interface UIState {
   setEditingBlock: (id: string | null) => void;
   setGenerating: (v: boolean) => void;
   setZoom: (v: number) => void;
+  setPaperSize: (s: PaperSize) => void;
 
   // Chat actions
   addChatMessage: (msg: ChatMessage) => void;
@@ -32,6 +36,7 @@ export const useUIStore = create<UIState>((set) => ({
   editingBlockId: null,
   isGenerating: false,
   zoom: 1,
+  paperSize: "a4",
   chatMessages: [],
   pendingPatch: null,
   isChatLoading: false,
@@ -43,6 +48,7 @@ export const useUIStore = create<UIState>((set) => ({
   setEditingBlock: (id) => set({ editingBlockId: id, selectedBlockId: id }),
   setGenerating: (v) => set({ isGenerating: v }),
   setZoom: (v) => set({ zoom: Math.max(0.5, Math.min(2, v)) }),
+  setPaperSize: (s) => set({ paperSize: s }),
 
   addChatMessage: (msg) => set((state) => ({ chatMessages: [...state.chatMessages, msg] })),
   updateChatMessage: (id, updates) => set((state) => ({

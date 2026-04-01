@@ -8,7 +8,7 @@
 
 import React from "react";
 import { useDocumentStore } from "@/store/document-store";
-import { useUIStore } from "@/store/ui-store";
+import { useUIStore, PaperSize } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
 import {
   DropdownMenu,
@@ -69,10 +69,17 @@ function Divider() {
   return <div className="w-px h-4 bg-border/50 mx-0.5" />;
 }
 
+const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
+  { value: "a4", label: "A4" },
+  { value: "a3", label: "A3" },
+  { value: "b5", label: "B5" },
+  { value: "letter", label: "Letter" },
+];
+
 export function Toolbar() {
   const block = useSelectedBlock();
   const { updateBlockStyle, updateBlockContent, addBlock } = useDocumentStore();
-  const { selectBlock, setEditingBlock } = useUIStore();
+  const { selectBlock, setEditingBlock, paperSize, setPaperSize } = useUIStore();
 
   const style = block?.style || {};
   const hasBlock = !!block;
@@ -252,6 +259,20 @@ export function Toolbar() {
       )}
 
       <div className="flex-1" />
+
+      {/* Paper size selector */}
+      <div className="flex items-center gap-1 mr-1">
+        <span className="text-[9px] text-muted-foreground/30 font-mono select-none">用紙</span>
+        <select
+          value={paperSize}
+          onChange={(e) => setPaperSize(e.target.value as PaperSize)}
+          className="h-5 px-1.5 rounded border border-border/30 bg-transparent text-[10px] text-muted-foreground/60 hover:text-foreground focus:outline-none focus:border-primary/40 cursor-pointer transition-colors font-mono"
+        >
+          {PAPER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
 
       {hasBlock && block && (
         <span className="text-[9px] text-muted-foreground/30 font-mono px-2 py-0.5 rounded bg-muted/30 select-none mr-1">
