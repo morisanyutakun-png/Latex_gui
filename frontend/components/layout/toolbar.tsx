@@ -1,43 +1,21 @@
 "use client";
 
 /**
- * ContextualToolbar — VS Code style floating toolbar.
- * Appears as a slim bar only when a block is selected.
- * No Word-like ribbon. Just contextual actions.
+ * Toolbar — slim contextual format bar.
+ * Shows formatting controls when a block is selected.
+ * Block insertion is handled by EditToolbar (簡単編集).
  */
 
 import React from "react";
 import { useI18n } from "@/lib/i18n";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
-import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
+import { Block, BlockType } from "@/lib/types";
 import {
   Bold, Italic, Underline,
   AlignLeft, AlignCenter, AlignRight,
-  Plus, ChevronDown,
-  Heading, Type, Sigma, List as ListIcon, Table, ImageIcon,
-  Minus, Code, Quote, ListOrdered, Zap, GitBranch, FlaskConical, BarChart3,
+  List as ListIcon, ListOrdered,
 } from "lucide-react";
-
-const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
-  heading: Heading, paragraph: Type, math: Sigma, list: ListIcon,
-  table: Table, image: ImageIcon, divider: Minus, code: Code, quote: Quote,
-  circuit: Zap, diagram: GitBranch, chemistry: FlaskConical, chart: BarChart3,
-};
-
-const BLOCK_CATEGORY_KEYS = [
-  { key: "toolbar.cat.basic",  types: ["heading", "paragraph", "list", "table", "divider"] as BlockType[] },
-  { key: "toolbar.cat.stem",   types: ["math", "circuit", "diagram", "chemistry", "chart"] as BlockType[] },
-  { key: "toolbar.cat.media",  types: ["image", "code", "quote"] as BlockType[] },
-];
 
 function useSelectedBlock(): Block | null {
   const selectedBlockId = useUIStore((s) => s.selectedBlockId);
@@ -80,8 +58,8 @@ const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
 export function Toolbar() {
   const { t } = useI18n();
   const block = useSelectedBlock();
-  const { updateBlockStyle, updateBlockContent, addBlock } = useDocumentStore();
-  const { selectBlock, setEditingBlock, paperSize, setPaperSize } = useUIStore();
+  const { updateBlockStyle, updateBlockContent } = useDocumentStore();
+  const { paperSize, setPaperSize } = useUIStore();
 
   const style = block?.style || {};
   const hasBlock = !!block;
@@ -96,69 +74,14 @@ export function Toolbar() {
     updateBlockStyle(block.id, { textAlign });
   };
 
-  const handleInsertBlock = (type: BlockType) => {
-    const blocks = useDocumentStore.getState().document?.blocks;
-    const selectedId = useUIStore.getState().selectedBlockId;
-    let insertIndex = blocks?.length || 0;
-    if (selectedId && blocks) {
-      const idx = blocks.findIndex((b) => b.id === selectedId);
-      if (idx >= 0) insertIndex = idx + 1;
-    }
-    const id = addBlock(type, insertIndex);
-    if (id) {
-      selectBlock(id);
-      if (type !== "divider") setEditingBlock(id);
-    }
-  };
-
   const headingContent = block?.content.type === "heading" ? (block.content as { level: number }) : null;
   const listContent = block?.content.type === "list" ? (block.content as { style: string }) : null;
 
   return (
     <div className="flex items-center gap-0.5 px-3 h-8 border-b border-border/20 bg-background shrink-0">
-      {/* Insert block — always visible */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="inline-flex items-center gap-1 h-6 px-2 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors font-medium">
-            <Plus className="h-3 w-3" />
-            {t("toolbar.insert")}
-            <ChevronDown className="h-2.5 w-2.5 opacity-60" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56 p-1.5 rounded-xl shadow-xl">
-          {BLOCK_CATEGORY_KEYS.map((cat, ci) => (
-            <React.Fragment key={cat.key}>
-              {ci > 0 && <DropdownMenuSeparator className="my-1" />}
-              <DropdownMenuLabel className="text-[9px] text-muted-foreground/50 font-medium px-2 py-0.5 uppercase tracking-wider">
-                {t(cat.key)}
-              </DropdownMenuLabel>
-              <div className="grid grid-cols-3 gap-0.5">
-                {cat.types.map((type) => {
-                  const info = BLOCK_TYPES.find((t) => t.type === type);
-                  if (!info) return null;
-                  const Icon = BLOCK_ICONS[info.type];
-                  return (
-                    <DropdownMenuItem
-                      key={info.type}
-                      onClick={() => handleInsertBlock(info.type)}
-                      className="flex flex-col items-center gap-1 px-1 py-2 rounded-lg cursor-pointer text-center focus:bg-primary/5"
-                    >
-                      <Icon className={`h-3.5 w-3.5 ${info.color}`} />
-                      <span className="text-[9px] font-medium leading-none">{info.name}</span>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </div>
-            </React.Fragment>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
       {/* Contextual controls — only when block selected */}
-      {hasBlock && (
+      {hasBlock ? (
         <>
-          <Divider />
-
           {/* Font family */}
           <select
             value={style.fontFamily || "sans"}
@@ -235,7 +158,7 @@ export function Toolbar() {
             </>
           )}
 
-          {/* Text / bg color */}
+          {/* Text color */}
           <Divider />
           <div className="relative h-6 w-6" title="文字色">
             <input
@@ -251,19 +174,24 @@ export function Toolbar() {
               </div>
             </div>
           </div>
-        </>
-      )}
 
-      {!hasBlock && (
-        <span className="ml-2 text-[10px] text-muted-foreground/25 select-none font-mono">
+          <div className="flex-1" />
+
+          {/* Block type badge */}
+          <span className="text-[9px] text-muted-foreground/30 font-mono px-2 py-0.5 rounded bg-muted/30 select-none mr-1">
+            {block.content.type}
+          </span>
+        </>
+      ) : (
+        <span className="text-[10px] text-muted-foreground/25 select-none font-mono">
           {t("toolbar.hint")}
         </span>
       )}
 
-      <div className="flex-1" />
+      {!hasBlock && <div className="flex-1" />}
 
       {/* Paper size selector */}
-      <div className="flex items-center gap-1 mr-1">
+      <div className="flex items-center gap-1 shrink-0">
         <span className="text-[9px] text-muted-foreground/30 font-mono select-none">{t("toolbar.paper")}</span>
         <select
           value={paperSize}
@@ -275,12 +203,6 @@ export function Toolbar() {
           ))}
         </select>
       </div>
-
-      {hasBlock && block && (
-        <span className="text-[9px] text-muted-foreground/30 font-mono px-2 py-0.5 rounded bg-muted/30 select-none mr-1">
-          {block.content.type}
-        </span>
-      )}
     </div>
   );
 }
