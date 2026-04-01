@@ -14,11 +14,10 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Terminal, PenLine, Bot, FileCode2, Globe, FileText } from "lucide-react";
+import { Terminal, PenLine, Bot, FileCode2, Globe, FileText, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
-// "document" = editor view; others = full-panel views
-type View = "document" | "ai" | "latex" | "advanced";
+type SidebarTab = "ai" | "advanced" | "latex";
 
 export default function EditorPage() {
   useKeyboardShortcuts();
@@ -32,8 +31,12 @@ export default function EditorPage() {
   const advancedEnabled = useDocumentStore((s) => s.document?.advanced?.enabled ?? false);
   const router = useRouter();
 
-  const [view, setView] = useState<View>("document");
-  const [editMode, setEditMode] = useState(false); // shows EditToolbar when in document view
+  // Desktop state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
+  const [editMode, setEditMode] = useState(false);
+
+  // Mobile state
   const [mobileTab, setMobileTab] = useState<"ai" | "preview">("ai");
 
   useEffect(() => {
@@ -45,35 +48,27 @@ export default function EditorPage() {
   }, []);
 
   useEffect(() => {
-    if (advancedEnabled && !isMobile) setView("advanced");
+    if (advancedEnabled && !isMobile) {
+      setSidebarOpen(true);
+      setActiveTab("advanced");
+    }
   }, [advancedEnabled, isMobile]);
 
   if (!doc) return null;
 
-  const isAIActive = view === "ai" || isChatLoading;
+  const isAIActive = (sidebarOpen && activeTab === "ai") || isChatLoading;
 
-  // Activity bar item click handler
-  const handleView = (v: View) => {
-    if (v === "document") {
-      setView("document");
-      return;
-    }
-    // Toggle: clicking the active panel icon goes back to document
-    setView((prev) => (prev === v ? "document" : v));
-  };
-
-  const handleEditToggle = () => {
-    if (view !== "document") {
-      // Switch to document view and enable edit mode
-      setView("document");
-      setEditMode(true);
+  const handleTabClick = (tab: SidebarTab) => {
+    if (sidebarOpen && activeTab === tab) {
+      setSidebarOpen(false);
     } else {
-      setEditMode((v) => !v);
+      setSidebarOpen(true);
+      setActiveTab(tab);
     }
   };
 
   /* ══════════════════════════════════════════════
-     MOBILE LAYOUT
+     MOBILE — AI chat or document preview
   ══════════════════════════════════════════════ */
   if (isMobile) {
     return (
@@ -85,7 +80,7 @@ export default function EditorPage() {
         }`}>
           <button
             onClick={() => router.push("/")}
-            className="text-muted-foreground/60 hover:text-foreground p-1.5 -ml-1 rounded"
+            className="text-muted-foreground/60 p-1.5 -ml-1 rounded"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -136,152 +131,129 @@ export default function EditorPage() {
   }
 
   /* ══════════════════════════════════════════════
-     DESKTOP LAYOUT — single view at a time
+     DESKTOP — VSCode-style: editor + panel side by side
   ══════════════════════════════════════════════ */
-
-  type BarItem =
-    | { kind: "view"; id: View; icon: React.ElementType; label: string; color: string; indicator: string }
-    | { kind: "edit" }
-    | { kind: "spacer" }
-    | { kind: "sep" }
-    | { kind: "lang" };
-
-  const BAR: BarItem[] = [
-    { kind: "view", id: "document", icon: FileText,   label: t("panel.document"), color: "text-sky-500 dark:text-sky-400",    indicator: "bg-sky-500"    },
-    { kind: "view", id: "ai",       icon: Bot,        label: t("panel.ai"),       color: "text-violet-500 dark:text-violet-400", indicator: "bg-violet-500" },
-    { kind: "view", id: "latex",    icon: FileCode2,  label: t("panel.latex"),    color: "text-slate-400",                       indicator: "bg-slate-400"  },
-    { kind: "edit" },
-    { kind: "spacer" },
-    { kind: "sep" },
-    { kind: "view", id: "advanced", icon: Terminal,   label: t("panel.advanced"), color: "text-amber-500 dark:text-amber-400",   indicator: "bg-amber-500"  },
-    { kind: "lang" },
-  ];
-
   return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background overflow-hidden">
       <AppHeader isAIActive={isAIActive} />
 
+      {/* Edit toolbar — shown when edit mode is on */}
+      {editMode && <EditToolbar />}
+
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* ── Main area — editor OR panel, no transition ── */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          {view === "document" ? (
-            <>
-              {editMode && <EditToolbar />}
-              <div className="flex-1 overflow-auto">
-                <DocumentEditor />
-              </div>
-            </>
-          ) : (
-            /* Full-width panel — editor is completely absent */
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {/* ── Document editor — always visible on desktop ── */}
+        <div className="flex-1 overflow-auto min-w-0">
+          <DocumentEditor />
+        </div>
+
+        {/* ── Right panel ── */}
+        <div className={`border-l border-border/20 overflow-hidden bg-background/95 backdrop-blur-sm flex-shrink-0 flex flex-col ${sidebarOpen ? "w-96" : "w-0"}`}>
+          {sidebarOpen && (
+            <div className="w-96 h-full flex flex-col">
               {/* Panel title bar */}
-              <div className={`flex items-center px-4 h-9 border-b border-border/20 shrink-0 select-none ${
-                view === "ai"       ? "bg-violet-950/10 dark:bg-violet-950/20" :
-                view === "advanced" ? "bg-amber-950/8 dark:bg-amber-950/15" : "bg-muted/10"
+              <div className={`relative flex items-center px-3 h-9 border-b border-border/20 shrink-0 select-none ${
+                activeTab === "ai"       ? "bg-violet-950/10 dark:bg-violet-950/20" :
+                activeTab === "advanced" ? "bg-amber-950/8 dark:bg-amber-950/15" : "bg-muted/10"
               }`}>
-                {view === "ai" && (
+                {activeTab === "ai" && (
                   <div className="absolute left-0 top-0 h-full w-[2px] bg-gradient-to-b from-violet-500/60 to-violet-400/20 rounded-r" />
                 )}
                 <span className={`text-[10px] font-semibold uppercase tracking-widest flex-1 ${
-                  view === "ai"       ? "text-violet-400/70" :
-                  view === "advanced" ? "text-amber-500/70 font-mono" : "text-muted-foreground/50"
+                  activeTab === "ai"       ? "text-violet-400/70" :
+                  activeTab === "advanced" ? "text-amber-500/70 font-mono" : "text-muted-foreground/50"
                 }`}>
-                  {view === "ai"       ? t("panel.ai") :
-                   view === "latex"    ? t("panel.latex") :
-                   view === "advanced" ? t("panel.advanced") : ""}
+                  {activeTab === "ai" ? t("panel.ai") : activeTab === "latex" ? t("panel.latex") : t("panel.advanced")}
                 </span>
-                {view === "advanced" && advancedEnabled && (
-                  <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-amber-600 text-white rounded-full font-bold tracking-wide font-mono">
-                    ACTIVE
-                  </span>
+                {activeTab === "advanced" && advancedEnabled && (
+                  <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-amber-600 text-white rounded-full font-bold tracking-wide font-mono">ACTIVE</span>
                 )}
-                {/* Back to editor */}
                 <button
-                  onClick={() => setView("document")}
-                  className="flex items-center gap-1 h-5 px-2 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors text-[10px] font-mono"
-                  title={t("panel.back.editor")}
+                  onClick={() => setSidebarOpen(false)}
+                  className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+                  title={t("panel.close")}
                 >
-                  <FileText className="h-3 w-3" />
+                  <X className="h-3 w-3" />
                 </button>
               </div>
 
               {/* Panel body */}
               <div className={`flex-1 min-h-0 ${
-                view === "ai" || view === "latex"
-                  ? "overflow-hidden flex flex-col"
-                  : "overflow-y-auto p-4"
+                activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto p-4"
               }`}>
-                {view === "ai"       && <AIChatPanel />}
-                {view === "advanced" && <AdvancedModePanel />}
-                {view === "latex"    && <LaTeXSourceViewer />}
+                {activeTab === "ai"       && <AIChatPanel />}
+                {activeTab === "advanced" && <AdvancedModePanel />}
+                {activeTab === "latex"    && <LaTeXSourceViewer />}
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Activity bar ── */}
+        {/* ── Activity bar (right edge) ── */}
         <div className="w-10 flex flex-col items-center pt-1 pb-1 border-l border-border/20 bg-background/70 shrink-0">
-          {BAR.map((item, i) => {
-            if (item.kind === "spacer") return <div key={i} className="flex-1" />;
-            if (item.kind === "sep")    return <div key={i} className="w-5 h-px bg-border/30 mb-1" />;
-
-            if (item.kind === "lang") return (
-              <button
-                key="lang"
-                onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
-                title={locale === "ja" ? "Switch to English" : "日本語に切り替え"}
-                className="h-10 w-full flex flex-col items-center justify-center gap-0.5 text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/15 transition-all"
-              >
-                <Globe className="h-3.5 w-3.5" />
-                <span className="text-[7px] font-mono uppercase">{locale === "ja" ? "EN" : "JA"}</span>
-              </button>
-            );
-
-            if (item.kind === "edit") return (
-              <button
-                key="edit"
-                onClick={handleEditToggle}
-                title={t("panel.edit")}
-                className={`relative h-10 w-full flex items-center justify-center transition-all ${
-                  editMode && view === "document"
-                    ? "text-sky-500 dark:text-sky-400 bg-muted/30"
-                    : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
-                }`}
-              >
-                {editMode && view === "document" && (
-                  <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-sky-500 opacity-80" />
-                )}
-                <PenLine className="h-4 w-4" />
-              </button>
-            );
-
-            // view item
-            const isActive = view === item.id;
-            const Icon = item.icon;
+          {/* AI */}
+          {(["ai", "latex"] as SidebarTab[]).map((tab) => {
+            const Icon = tab === "ai" ? Bot : FileCode2;
+            const color = tab === "ai" ? "text-violet-500 dark:text-violet-400" : "text-slate-400";
+            const ind   = tab === "ai" ? "bg-violet-500" : "bg-slate-400";
+            const label = tab === "ai" ? t("panel.ai") : t("panel.latex");
+            const isActive = sidebarOpen && activeTab === tab;
             return (
-              <button
-                key={item.id}
-                onClick={() => handleView(item.id)}
-                title={item.label}
+              <button key={tab} onClick={() => handleTabClick(tab)} title={label}
                 className={`relative h-10 w-full flex items-center justify-center transition-all ${
-                  isActive
-                    ? `${item.color} bg-muted/30`
-                    : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
+                  isActive ? `${color} bg-muted/30` : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
                 }`}
               >
-                {isActive && (
-                  <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full ${item.indicator} opacity-80`} />
-                )}
+                {isActive && <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full ${ind} opacity-80`} />}
                 <Icon className="h-4 w-4" />
-                {item.id === "ai" && isChatLoading && (
+                {tab === "ai" && isChatLoading && (
                   <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
-                )}
-                {item.id === "advanced" && advancedEnabled && !isActive && (
-                  <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-amber-500" />
                 )}
               </button>
             );
           })}
+
+          {/* Edit mode toggle */}
+          <button
+            onClick={() => setEditMode((v) => !v)}
+            title={t("panel.edit")}
+            className={`relative h-10 w-full flex items-center justify-center transition-all ${
+              editMode ? "text-sky-500 dark:text-sky-400 bg-muted/30" : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
+            }`}
+          >
+            {editMode && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-sky-500 opacity-80" />}
+            <PenLine className="h-4 w-4" />
+          </button>
+
+          <div className="flex-1" />
+          <div className="w-5 h-px bg-border/30 mb-1" />
+
+          {/* Advanced — extension at bottom */}
+          {(() => {
+            const isActive = sidebarOpen && activeTab === "advanced";
+            return (
+              <button onClick={() => handleTabClick("advanced")} title={`${t("panel.advanced")} — LaTeX拡張`}
+                className={`relative h-10 w-full flex items-center justify-center transition-all ${
+                  isActive ? "text-amber-500 dark:text-amber-400 bg-muted/30" : "text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/15"
+                }`}
+              >
+                {isActive && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-amber-500 opacity-80" />}
+                <Terminal className="h-3.5 w-3.5" />
+                {advancedEnabled && !isActive && (
+                  <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                )}
+              </button>
+            );
+          })()}
+
+          {/* Language */}
+          <button
+            onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
+            title={locale === "ja" ? "Switch to English" : "日本語に切り替え"}
+            className="h-10 w-full flex flex-col items-center justify-center gap-0.5 text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/15 transition-all"
+          >
+            <Globe className="h-3.5 w-3.5" />
+            <span className="text-[7px] font-mono uppercase">{locale === "ja" ? "EN" : "JA"}</span>
+          </button>
         </div>
       </div>
 
