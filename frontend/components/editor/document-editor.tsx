@@ -63,6 +63,9 @@ const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
 // Block types that enter edit mode on single click
 const TEXT_EDIT_TYPES: BlockType[] = ["paragraph", "heading", "list", "quote", "code"];
 
+// Context passed down so block editors know if the global edit mode is on
+const EditModeContext = React.createContext(false);
+
 // drag-over shared state (module-level so sibling wrappers can read it)
 let _dragOverIndex: number | null = null;
 let _setDragOverIndexFns: Array<(v: number | null) => void> = [];
@@ -84,6 +87,7 @@ function BlockWrapper({
   const { t } = useI18n();
   const { selectedBlockId, selectBlock, setEditingBlock, lastAIAction } = useUIStore();
   const { deleteBlock, duplicateBlock, moveBlock, reorderToIndex, convertBlock } = useDocumentStore();
+  const editMode = React.useContext(EditModeContext);
   const isSelected = selectedBlockId === block.id;
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -122,7 +126,7 @@ function BlockWrapper({
           onClick={(e) => {
             e.stopPropagation();
             selectBlock(block.id);
-            if (TEXT_EDIT_TYPES.includes(block.content.type)) setEditingBlock(block.id);
+            if (editMode || TEXT_EDIT_TYPES.includes(block.content.type)) setEditingBlock(block.id);
           }}
           onDoubleClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
           onDragOver={(e) => { e.preventDefault(); setGlobalDragOver(index); }}
@@ -237,15 +241,7 @@ function BlockWrapper({
 }
 
 // ──── Auto-resize Textarea ────
-function AutoTextarea({
-  value,
-  onChange,
-  placeholder,
-  className = "",
-  style,
-  onKeyDown,
-  autoFocus,
-}: {
+const AutoTextarea = React.forwardRef<HTMLTextAreaElement, {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
@@ -253,15 +249,18 @@ function AutoTextarea({
   style?: React.CSSProperties;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   autoFocus?: boolean;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
+}>(function AutoTextarea({
+  value, onChange, placeholder, className = "", style, onKeyDown, autoFocus,
+}, forwardedRef) {
+  const innerRef = useRef<HTMLTextAreaElement>(null);
+  const ref = (forwardedRef as React.RefObject<HTMLTextAreaElement>) ?? innerRef;
 
   useEffect(() => {
     if (ref.current) {
       ref.current.style.height = "auto";
       ref.current.style.height = ref.current.scrollHeight + "px";
     }
-  }, [value]);
+  }, [value, ref]);
 
   return (
     <textarea
@@ -276,7 +275,7 @@ function AutoTextarea({
       rows={1}
     />
   );
-}
+});
 
 // ──── Block Editors by Type ────
 
@@ -284,9 +283,21 @@ function HeadingBlockEditor({ block }: { block: Block }) {
   const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const addBlock = useDocumentStore((s) => s.addBlock);
-  const { selectBlock, setEditingBlock } = useUIStore();
+  const { editingBlockId, selectBlock, setEditingBlock } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "heading" }>;
   const headingClass: Record<number, string> = { 1: "latex-heading-1", 2: "latex-heading-2", 3: "latex-heading-3" };
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isEditing = editingBlockId === block.id;
+
+  // Auto-focus when entering editing state
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      const len = textareaRef.current.value.length;
+      textareaRef.current.selectionStart = len;
+      textareaRef.current.selectionEnd = len;
+    }
+  }, [isEditing]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
@@ -305,8 +316,18 @@ function HeadingBlockEditor({ block }: { block: Block }) {
     }
     if (e.key === "Tab") {
       e.preventDefault();
-      const newId = addBlock("paragraph", idx + 1);
-      if (newId) { selectBlock(newId); setEditingBlock(newId); }
+      // Tab inserts math delimiters in the heading text
+      const pos = el.selectionStart ?? 0;
+      const text = content.text;
+      const newText = text.slice(0, pos) + "$$" + text.slice(pos);
+      updateContent(block.id, { text: newText });
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = pos + 1;
+          textareaRef.current.selectionEnd = pos + 1;
+          textareaRef.current.focus();
+        }
+      }, 0);
       return;
     }
     if (e.key === "Enter") {
@@ -319,6 +340,7 @@ function HeadingBlockEditor({ block }: { block: Block }) {
   return (
     <div>
       <AutoTextarea
+        ref={textareaRef}
         value={content.text}
         onChange={(text) => updateContent(block.id, { text })}
         placeholder={`H${content.level}`}
@@ -396,6 +418,16 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     const el = textareaRef.current;
     if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
   }, [content.text]);
+
+  // Auto-focus when this block enters editing state
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      const len = textareaRef.current.value.length;
+      textareaRef.current.selectionStart = len;
+      textareaRef.current.selectionEnd = len;
+    }
+  }, [isEditing]);
 
   // 入力中に候補を更新
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -547,11 +579,23 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     }
     if (e.key === "Tab") {
       e.preventDefault();
-      const newId = addBlock("paragraph", idx + 1);
-      if (newId) { sel(newId); setEdit(newId); }
+      // Tab inserts inline math delimiters $…$ and places cursor inside
+      const el = e.currentTarget;
+      const pos = el.selectionStart ?? 0;
+      const text = content.text;
+      const newText = text.slice(0, pos) + "$$" + text.slice(pos);
+      updateContent(block.id, { text: newText });
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = pos + 1;
+          textareaRef.current.selectionEnd = pos + 1;
+          textareaRef.current.focus();
+          setCursorPos(pos + 1);
+        }
+      }, 0);
       return;
     }
-  }, [showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, showSuggestions, suggestions, selectedSuggIdx, insertSuggestion, slashPos, addBlock, block.id]);
+  }, [showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, showSuggestions, suggestions, selectedSuggIdx, insertSuggestion, slashPos, addBlock, block.id, content.text, updateContent]);
 
   // インラインプレビュー（テキスト+数式が混在）— $$を非表示にしてレンダリング
   const segments = parseInlineText(content.text);
@@ -1138,21 +1182,29 @@ function GlobalCommandPalette() {
 }
 
 // ──── Main Document Editor ────
-export function DocumentEditor() {
+export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
   const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
-  const selectBlock = useUIStore((s) => s.selectBlock);
+  const { addBlock: addNewBlock } = useDocumentStore();
+  const { selectBlock, setEditingBlock } = useUIStore();
   const zoom = useUIStore((s) => s.zoom);
   const paperSize = useUIStore((s) => s.paperSize);
+
+  const handleAddBlockAtEnd = () => {
+    const blocks = useDocumentStore.getState().document?.blocks ?? [];
+    const id = addNewBlock("paragraph", blocks.length);
+    if (id) { selectBlock(id); setEditingBlock(id); }
+  };
 
   if (!document) return null;
 
   const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
 
   return (
+    <EditModeContext.Provider value={editMode}>
     <>
     <GlobalCommandPalette />
-    {/* Canvas — gray background like Google Docs / Word */}
+    {/* Canvas */}
     <div
       className="flex-1 overflow-auto bg-[#e8e8e8] dark:bg-[#1e1e1e]"
       onClick={() => selectBlock(null)}
@@ -1161,12 +1213,16 @@ export function DocumentEditor() {
 
         {/* Paper size label */}
         <div className="mb-2 text-[10px] font-mono text-[#aaa] dark:text-[#555] select-none self-start" style={{ marginLeft: `calc(50% - ${paper.w / 2}px)` }}>
-          {paper.label} — {paper.w}px
+          {paper.label}
         </div>
 
         {/* Paper card */}
         <div
-          className="bg-white dark:bg-[#fafafa] shadow-[0_4px_24px_rgba(0,0,0,0.18)] flex-shrink-0 relative"
+          className={`bg-white dark:bg-[#fafafa] flex-shrink-0 relative transition-shadow duration-200 ${
+            editMode
+              ? "shadow-[0_4px_32px_rgba(14,165,233,0.15),0_2px_8px_rgba(0,0,0,0.12)] ring-1 ring-sky-400/20"
+              : "shadow-[0_4px_24px_rgba(0,0,0,0.18)]"
+          }`}
           style={{
             width: paper.w,
             minHeight: Math.round(paper.w * 1.4142),
@@ -1177,12 +1233,27 @@ export function DocumentEditor() {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Empty state — inside paper */}
+          {/* Edit mode indicator stripe */}
+          {editMode && (
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-sky-400/60 via-sky-300/40 to-transparent rounded-t pointer-events-none" />
+          )}
+
+          {/* Empty state */}
           {document.blocks.length === 0 && (
-            <div className="flex flex-col items-start gap-3 py-6 select-none pointer-events-none">
-              <p className="text-[11px] font-mono text-gray-300">{t("editor.empty.comment")}</p>
-              <h2 className="text-2xl font-light text-gray-300 tracking-tight">{t("editor.empty.h2")}</h2>
-            </div>
+            editMode ? (
+              <div
+                className="flex flex-col items-start gap-2 py-6 cursor-text"
+                onClick={handleAddBlockAtEnd}
+              >
+                <p className="text-[11px] font-mono text-gray-300 select-none">{t("editor.empty.comment")}</p>
+                <p className="text-[14px] text-gray-300/60 select-none">{t("editor.editmode.hint")}</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-start gap-3 py-6 select-none pointer-events-none">
+                <p className="text-[11px] font-mono text-gray-300">{t("editor.empty.comment")}</p>
+                <h2 className="text-2xl font-light text-gray-300 tracking-tight">{t("editor.empty.h2")}</h2>
+              </div>
+            )
           )}
 
           {/* Blocks */}
@@ -1193,14 +1264,26 @@ export function DocumentEditor() {
                   <BlockEditor block={block} />
                 </BlockWrapper>
               ))}
+
+              {/* Click-to-add zone below last block — edit mode only */}
+              {editMode && (
+                <div
+                  className="mt-1 min-h-[80px] cursor-text group/addzone"
+                  onClick={handleAddBlockAtEnd}
+                >
+                  <span className="text-[12px] text-gray-300/0 group-hover/addzone:text-gray-300/60 transition-colors select-none font-light">
+                    {t("editor.editmode.click_to_add")}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Bottom spacing */}
         <div className="h-16" />
       </div>
     </div>
     </>
+    </EditModeContext.Provider>
   );
 }

@@ -9,14 +9,21 @@
 
 import React from "react";
 import { useDocumentStore } from "@/store/document-store";
-import { useUIStore } from "@/store/ui-store";
+import { useUIStore, PaperSize } from "@/store/ui-store";
 import { Block } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
 import {
   Bold, Italic, Underline,
   AlignLeft, AlignCenter, AlignRight,
-  Sigma, List as ListIcon, ListOrdered,
+  Sigma, List as ListIcon, ListOrdered, Command,
 } from "lucide-react";
+
+const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
+  { value: "a4", label: "A4" },
+  { value: "a3", label: "A3" },
+  { value: "b5", label: "B5" },
+  { value: "letter", label: "Letter" },
+];
 
 function useSelectedBlock(): Block | null {
   const selectedBlockId = useUIStore((s) => s.selectedBlockId);
@@ -51,6 +58,7 @@ export function EditToolbar() {
   const { t } = useI18n();
   const block = useSelectedBlock();
   const { updateBlockStyle, updateBlockContent } = useDocumentStore();
+  const { paperSize, setPaperSize, setGlobalPalette } = useUIStore();
 
   const style = block?.style ?? {};
   const on = !!block;
@@ -161,6 +169,33 @@ export function EditToolbar() {
           {t("toolbar.hint")}
         </span>
       )}
+
+      <div className="flex-1" />
+
+      {/* Cmd+K — insert block shortcut */}
+      <button
+        onClick={() => setGlobalPalette(true)}
+        className="inline-flex items-center gap-1 h-5 px-2 rounded text-[9px] font-mono text-muted-foreground/40 bg-muted/20 border border-border/25 hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+        title="ブロックを挿入 (⌘K)"
+      >
+        <Command className="h-2.5 w-2.5" />K
+      </button>
+
+      <Sep />
+
+      {/* Paper size */}
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="text-[9px] text-muted-foreground/30 font-mono select-none">{t("toolbar.paper")}</span>
+        <select
+          value={paperSize}
+          onChange={(e) => setPaperSize(e.target.value as PaperSize)}
+          className="h-5 px-1.5 rounded border border-border/30 bg-transparent text-[10px] text-muted-foreground/60 hover:text-foreground focus:outline-none focus:border-primary/40 cursor-pointer transition-colors font-mono"
+        >
+          {PAPER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }

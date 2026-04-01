@@ -143,7 +143,7 @@ export default function EditorPage() {
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* ── Document editor — always visible on desktop ── */}
         <div className="flex-1 overflow-auto min-w-0">
-          <DocumentEditor />
+          <DocumentEditor editMode={editMode} />
         </div>
 
         {/* ── Right panel ── */}

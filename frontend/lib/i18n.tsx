@@ -147,6 +147,8 @@ const ja = {
   // Document editor empty state
   "editor.empty.comment": "// 空のドキュメント",
   "editor.empty.h2": "何を作りますか？",
+  "editor.editmode.hint": "クリックして入力を始める…",
+  "editor.editmode.click_to_add": "+ クリックして段落を追加",
   // Block actions
   "block.move.up": "上へ",
   "block.move.down": "下へ",
@@ -295,6 +297,8 @@ const en = {
   // Document editor empty state
   "editor.empty.comment": "// empty document",
   "editor.empty.h2": "What would you like to create?",
+  "editor.editmode.hint": "Click to start typing…",
+  "editor.editmode.click_to_add": "+ Click to add paragraph",
   // Block actions
   "block.move.up": "Move up",
   "block.move.down": "Move down",
