@@ -7,7 +7,7 @@ import {
   BookOpen, Search, X as XIcon,
 } from "lucide-react";
 import { useDocumentStore } from "@/store/document-store";
-import { useUIStore } from "@/store/ui-store";
+import { useUIStore, LastAIAction } from "@/store/ui-store";
 import { sendAIMessage, analyzeImageOMR } from "@/lib/api";
 import { ChatMessage, DocumentPatch, PatchOp } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,29 @@ interface MaterialTopic {
     hint?: string;
     latex?: string;
   }>;
+}
+
+// ─── Build LastAIAction from patch + newly-added IDs ─────────────────────────
+
+function buildLastAIAction(patch: DocumentPatch, newIds: string[]): LastAIAction {
+  let added = 0, updated = 0, deleted = 0, reordered = 0;
+  for (const op of patch.ops) {
+    if (op.op === "add_block") added++;
+    else if (op.op === "update_block") updated++;
+    else if (op.op === "delete_block") deleted++;
+    else if (op.op === "reorder") reordered++;
+  }
+  const parts: string[] = [];
+  if (added) parts.push(`${added}件追加`);
+  if (updated) parts.push(`${updated}件更新`);
+  if (deleted) parts.push(`${deleted}件削除`);
+  if (reordered && !added && !updated && !deleted) parts.push("並び替え");
+  return {
+    description: parts.join(" · ") || "変更を適用",
+    blockIds: newIds,
+    opCounts: { added, updated, deleted, reordered },
+    timestamp: Date.now(),
+  };
 }
 
 // ─── Patch op human-readable description ─────────────────────────────────────
@@ -281,6 +304,7 @@ export function AIChatPanel() {
     setPendingPatch,
     setChatLoading,
     clearChat,
+    setLastAIAction,
   } = useUIStore();
 
   const [input, setInput] = useState("");
@@ -345,8 +369,11 @@ export function AIChatPanel() {
 
       if (result.patches && result.patches.ops.length > 0) {
         if (agentMode) {
-          // エージェントモード: 自動適用
+          const idsBefore = new Set(useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? []);
           applyPatch(result.patches);
+          const idsAfter = useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? [];
+          const newIds = idsAfter.filter((id) => !idsBefore.has(id));
+          setLastAIAction(buildLastAIAction(result.patches, newIds));
           updateChatMessage(assistantMsgId, { appliedAt: Date.now() });
         } else {
           setPendingPatch(result.patches);
@@ -375,7 +402,11 @@ export function AIChatPanel() {
 
   const handleConfirmApply = () => {
     if (!pendingPatch) return;
+    const idsBefore = new Set(useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? []);
     applyPatch(pendingPatch);
+    const idsAfter = useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? [];
+    const newIds = idsAfter.filter((id) => !idsBefore.has(id));
+    setLastAIAction(buildLastAIAction(pendingPatch, newIds));
     if (pendingMsgId) updateChatMessage(pendingMsgId, { appliedAt: Date.now() });
     setPendingPatch(null);
     setPendingMsgId(null);
@@ -411,7 +442,11 @@ export function AIChatPanel() {
       addChatMessage(assistantMsg);
       if (result.patches && result.patches.ops.length > 0) {
         if (agentMode) {
+          const idsBefore = new Set(useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? []);
           applyPatch(result.patches);
+          const idsAfter = useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? [];
+          const newIds = idsAfter.filter((id) => !idsBefore.has(id));
+          setLastAIAction(buildLastAIAction(result.patches, newIds));
           updateChatMessage(assistantMsgId, { appliedAt: Date.now() });
         } else {
           setPendingPatch(result.patches);

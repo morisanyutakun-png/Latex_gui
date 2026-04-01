@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
@@ -16,13 +16,53 @@ import {
   Redo2,
   FileDown,
   Loader2,
+  LayoutList,
+  Plus,
+  RefreshCw,
+  Trash2 as Trash2Icon,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { DocumentOutline } from "@/components/layout/document-outline";
+import { LastAIAction } from "@/store/ui-store";
+
+function OpCountIcons({ counts }: { counts: LastAIAction["opCounts"] }) {
+  return (
+    <span className="flex items-center gap-1 ml-1">
+      {counts.added > 0 && (
+        <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+          <Plus className="h-2.5 w-2.5" />
+          <span className="text-[9px] tabular-nums font-mono">{counts.added}</span>
+        </span>
+      )}
+      {counts.updated > 0 && (
+        <span className="flex items-center gap-0.5 text-blue-500 ml-0.5">
+          <RefreshCw className="h-2.5 w-2.5" />
+          <span className="text-[9px] tabular-nums font-mono">{counts.updated}</span>
+        </span>
+      )}
+      {counts.deleted > 0 && (
+        <span className="flex items-center gap-0.5 text-red-500 ml-0.5">
+          <Trash2Icon className="h-2.5 w-2.5" />
+          <span className="text-[9px] tabular-nums font-mono">{counts.deleted}</span>
+        </span>
+      )}
+    </span>
+  );
+}
 
 export function AppHeader() {
   const router = useRouter();
   const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
-  const { isGenerating, setGenerating } = useUIStore();
+  const { isGenerating, setGenerating, lastAIAction, toggleOutline, isOutlineOpen } = useUIStore();
+  const [indicatorVisible, setIndicatorVisible] = useState(false);
+
+  useEffect(() => {
+    if (!lastAIAction) return;
+    setIndicatorVisible(true);
+    const t = setTimeout(() => setIndicatorVisible(false), 8_000);
+    return () => clearTimeout(t);
+  }, [lastAIAction]);
 
   if (!doc) return null;
 
@@ -80,7 +120,7 @@ export function AppHeader() {
   };
 
   return (
-    <header className="flex items-center gap-1.5 px-3 h-10 border-b border-border/20 bg-background sticky top-0 z-40 shrink-0">
+    <header className="relative flex items-center gap-1.5 px-3 h-10 border-b border-border/20 bg-background sticky top-0 z-40 shrink-0">
       {/* Back */}
       <button
         onClick={() => router.push("/")}
@@ -118,8 +158,16 @@ export function AppHeader() {
         </button>
       </div>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Spacer + AI indicator */}
+      <div className="flex-1 flex items-center justify-center">
+        {lastAIAction && indicatorVisible && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-[11px] font-medium animate-in fade-in duration-300">
+            <Sparkles className="h-3 w-3 shrink-0" />
+            <span>{lastAIAction.description}</span>
+            <OpCountIcons counts={lastAIAction.opCounts} />
+          </div>
+        )}
+      </div>
 
       {/* File actions */}
       <div className="flex items-center gap-0.5">
@@ -148,6 +196,19 @@ export function AppHeader() {
 
       <div className="w-px h-4 bg-border/40 mx-1" />
 
+      {/* Outline toggle */}
+      <button
+        onClick={toggleOutline}
+        className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${
+          isOutlineOpen
+            ? "text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-950/40"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+        }`}
+        title="ドキュメント構成"
+      >
+        <LayoutList className="h-3.5 w-3.5" />
+      </button>
+
       <ThemeToggle />
 
       {/* PDF button */}
@@ -162,6 +223,9 @@ export function AppHeader() {
           <><Download className="h-3 w-3" />PDF</>
         )}
       </button>
+
+      {/* Floating outline panel */}
+      <DocumentOutline />
     </header>
   );
 }

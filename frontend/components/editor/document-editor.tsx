@@ -141,22 +141,35 @@ function BlockWrapper({
   index: number;
   children: React.ReactNode;
 }) {
-  const { selectedBlockId, selectBlock, setEditingBlock } = useUIStore();
+  const { selectedBlockId, selectBlock, setEditingBlock, lastAIAction } = useUIStore();
   const { deleteBlock, duplicateBlock, moveBlock } = useDocumentStore();
   const isSelected = selectedBlockId === block.id;
 
-  const Icon = BLOCK_ICONS[block.content.type as BlockType] || Type;
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    if (!lastAIAction?.blockIds.includes(block.id)) return;
+    const rem = 10_000 - (Date.now() - lastAIAction.timestamp);
+    if (rem <= 0) return;
+    const t = setTimeout(() => forceUpdate((n) => n + 1), rem);
+    return () => clearTimeout(t);
+  }, [lastAIAction, block.id]);
+
+  const isAIHighlighted =
+    lastAIAction !== null &&
+    lastAIAction.blockIds.includes(block.id) &&
+    Date.now() - lastAIAction.timestamp < 10_000;
 
   return (
     <div
+      data-block-id={block.id}
       className={`group/block relative transition-all duration-75 rounded-sm
         ${isSelected ? "bg-blue-50/60 dark:bg-blue-950/20" : "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"}`}
       onClick={(e) => { e.stopPropagation(); selectBlock(block.id); }}
       onDoubleClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
     >
-      {/* Left selection indicator */}
-      <div className={`absolute left-0 top-0.5 bottom-0.5 w-[2px] rounded-full transition-all duration-75 ${
-        isSelected ? "bg-primary/70" : "bg-transparent"
+      {/* Left selection / AI indicator */}
+      <div className={`absolute left-0 top-0.5 bottom-0.5 w-[2px] rounded-full transition-all duration-300 ${
+        isSelected ? "bg-primary/70" : isAIHighlighted ? "bg-violet-400/80" : "bg-transparent"
       }`} />
 
       {/* Block content — Word-style, no gutter */}

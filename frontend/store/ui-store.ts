@@ -5,12 +5,23 @@ import { ChatMessage, DocumentPatch } from "@/lib/types";
 
 export type PaperSize = "a4" | "a3" | "b5" | "letter";
 
+export interface LastAIAction {
+  description: string;
+  blockIds: string[];
+  opCounts: { added: number; updated: number; deleted: number; reordered: number };
+  timestamp: number;
+}
+
 interface UIState {
   selectedBlockId: string | null;
   editingBlockId: string | null;
   isGenerating: boolean;
   zoom: number;
   paperSize: PaperSize;
+
+  // AI action tracking
+  lastAIAction: LastAIAction | null;
+  isOutlineOpen: boolean;
 
   // AI Chat state (in-memory only, not persisted)
   chatMessages: ChatMessage[];
@@ -22,6 +33,12 @@ interface UIState {
   setGenerating: (v: boolean) => void;
   setZoom: (v: number) => void;
   setPaperSize: (s: PaperSize) => void;
+
+  // AI action actions
+  setLastAIAction: (action: LastAIAction | null) => void;
+  clearLastAIAction: () => void;
+  toggleOutline: () => void;
+  setOutlineOpen: (v: boolean) => void;
 
   // Chat actions
   addChatMessage: (msg: ChatMessage) => void;
@@ -37,6 +54,8 @@ export const useUIStore = create<UIState>((set) => ({
   isGenerating: false,
   zoom: 1,
   paperSize: "a4",
+  lastAIAction: null,
+  isOutlineOpen: false,
   chatMessages: [],
   pendingPatch: null,
   isChatLoading: false,
@@ -49,6 +68,11 @@ export const useUIStore = create<UIState>((set) => ({
   setGenerating: (v) => set({ isGenerating: v }),
   setZoom: (v) => set({ zoom: Math.max(0.5, Math.min(2, v)) }),
   setPaperSize: (s) => set({ paperSize: s }),
+
+  setLastAIAction: (action) => set({ lastAIAction: action }),
+  clearLastAIAction: () => set({ lastAIAction: null }),
+  toggleOutline: () => set((s) => ({ isOutlineOpen: !s.isOutlineOpen })),
+  setOutlineOpen: (v) => set({ isOutlineOpen: v }),
 
   addChatMessage: (msg) => set((state) => ({ chatMessages: [...state.chatMessages, msg] })),
   updateChatMessage: (id, updates) => set((state) => ({
