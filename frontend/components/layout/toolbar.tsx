@@ -7,6 +7,7 @@
  */
 
 import React from "react";
+import { useI18n } from "@/lib/i18n";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES } from "@/lib/types";
@@ -77,6 +78,7 @@ const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
 ];
 
 export function Toolbar() {
+  const { t } = useI18n();
   const block = useSelectedBlock();
   const { updateBlockStyle, updateBlockContent, addBlock } = useDocumentStore();
   const { selectBlock, setEditingBlock, paperSize, setPaperSize } = useUIStore();
@@ -119,7 +121,7 @@ export function Toolbar() {
         <DropdownMenuTrigger asChild>
           <button className="inline-flex items-center gap-1 h-6 px-2 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors font-medium">
             <Plus className="h-3 w-3" />
-            挿入
+            {t("toolbar.insert")}
             <ChevronDown className="h-2.5 w-2.5 opacity-60" />
           </button>
         </DropdownMenuTrigger>
@@ -163,8 +165,8 @@ export function Toolbar() {
             onChange={(e) => block && updateBlockStyle(block.id, { fontFamily: e.target.value as "serif" | "sans" })}
             className="h-6 px-1.5 rounded border border-border/40 bg-transparent text-[11px] text-muted-foreground hover:text-foreground focus:outline-none focus:border-primary/40 cursor-pointer transition-colors"
           >
-            <option value="sans">ゴシック</option>
-            <option value="serif">明朝体</option>
+            <option value="sans">{t("toolbar.gothic")}</option>
+            <option value="serif">{t("toolbar.mincho")}</option>
           </select>
 
           {/* Font size */}
@@ -254,7 +256,7 @@ export function Toolbar() {
 
       {!hasBlock && (
         <span className="ml-2 text-[10px] text-muted-foreground/25 select-none font-mono">
-          ブロックを選択して書式変更
+          {t("toolbar.hint")}
         </span>
       )}
 
@@ -262,7 +264,7 @@ export function Toolbar() {
 
       {/* Paper size selector */}
       <div className="flex items-center gap-1 mr-1">
-        <span className="text-[9px] text-muted-foreground/30 font-mono select-none">用紙</span>
+        <span className="text-[9px] text-muted-foreground/30 font-mono select-none">{t("toolbar.paper")}</span>
         <select
           value={paperSize}
           onChange={(e) => setPaperSize(e.target.value as PaperSize)}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
+import { useI18n } from "@/lib/i18n";
 import {
   Bot, Send, Paperclip, Trash2, Loader2, Check, X,
   ChevronDown, ChevronUp, KeyRound, Zap, ZapOff,
@@ -92,6 +93,7 @@ function PatchPreviewDrawer({
   onApply: () => void;
   onDismiss: () => void;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const ops = patch.ops;
   const shown = expanded ? ops : ops.slice(0, 3);
@@ -100,14 +102,14 @@ function PatchPreviewDrawer({
     <div className="border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">
-          {ops.length}件の変更案
+          {`${ops.length} ${t("chat.changes.title")}`}
         </span>
         {ops.length > 3 && (
           <button
             onClick={() => setExpanded(!expanded)}
             className="text-xs text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-0.5"
           >
-            {expanded ? <><ChevronUp className="h-3 w-3" />折りたたむ</> : <><ChevronDown className="h-3 w-3" />すべて見る</>}
+            {expanded ? <><ChevronUp className="h-3 w-3" />{t("chat.collapse")}</> : <><ChevronDown className="h-3 w-3" />{t("chat.see.all")}</>}
           </button>
         )}
       </div>
@@ -124,10 +126,10 @@ function PatchPreviewDrawer({
       </ul>
       <div className="flex gap-2 pt-1">
         <Button size="sm" onClick={onApply} className="flex-1 h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white">
-          <Check className="h-3 w-3 mr-1" /> 適用する
+          <Check className="h-3 w-3 mr-1" /> {t("chat.apply")}
         </Button>
         <Button size="sm" variant="ghost" onClick={onDismiss} className="h-7 text-xs text-slate-500 hover:text-slate-700">
-          <X className="h-3 w-3 mr-1" /> キャンセル
+          <X className="h-3 w-3 mr-1" /> {t("chat.cancel")}
         </Button>
       </div>
     </div>
@@ -143,6 +145,7 @@ function MessageBubble({
   onApplyPatches: (patch: DocumentPatch, msgId: string) => void;
   onRetryPatches: (patch: DocumentPatch, msgId: string) => void;
 }) {
+  const { t } = useI18n();
   const isUser = msg.role === "user";
 
   return (
@@ -169,9 +172,9 @@ function MessageBubble({
             {msg.appliedAt ? (
               <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 px-1">
                 <Check className="h-3 w-3" />
-                <span>ドキュメントに適用済み</span>
+                <span>{t("chat.applied")}</span>
                 <button onClick={() => msg.patches && onRetryPatches(msg.patches, msg.id)} className="underline hover:no-underline opacity-60">
-                  もう一度
+                  {t("chat.retry")}
                 </button>
               </div>
             ) : (
@@ -180,7 +183,7 @@ function MessageBubble({
                 className="flex items-center gap-1.5 text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-700 px-1 transition-colors"
               >
                 <ChevronDown className="h-3 w-3" />
-                {msg.patches.ops.length}件の変更を確認・適用
+                {`${msg.patches.ops.length} ${t("chat.changes")}`}
               </button>
             )}
           </div>
@@ -293,6 +296,7 @@ function MaterialsPanel({ onAttach }: { onAttach: (context: string) => void }) {
 // ─── Main Chat Panel ──────────────────────────────────────────────────────────
 
 export function AIChatPanel() {
+  const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
   const applyPatch = useDocumentStore((s) => s.applyPatch);
   const {
@@ -476,8 +480,8 @@ export function AIChatPanel() {
           <Bot className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground leading-none">AI エージェント</p>
-          <p className="text-[10px] text-muted-foreground/50 mt-0.5">LaTeX ドキュメント制作アシスタント</p>
+          <p className="text-sm font-semibold text-foreground leading-none">{t("chat.title")}</p>
+          <p className="text-[10px] text-muted-foreground/50 mt-0.5">{t("chat.subtitle")}</p>
         </div>
         <div className="flex items-center gap-0.5">
           {/* Agent mode toggle */}
@@ -488,17 +492,17 @@ export function AIChatPanel() {
                 ? "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
                 : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40"
             }`}
-            title={agentMode ? "自動適用モード" : "確認モード"}
+            title={agentMode ? t("chat.auto") : t("chat.confirm")}
           >
             {agentMode ? <Zap className="h-2.5 w-2.5" /> : <ZapOff className="h-2.5 w-2.5" />}
-            {agentMode ? "自動" : "確認"}
+            {agentMode ? t("chat.auto") : t("chat.confirm")}
           </button>
           <button
             onClick={() => setShowMaterials(!showMaterials)}
             className={`p-1.5 rounded-lg text-xs transition-colors ${
               showMaterials ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20" : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/40"
             }`}
-            title="教材DB"
+            title={t("chat.materials")}
           >
             <BookOpen className="h-3.5 w-3.5" />
           </button>
@@ -506,7 +510,7 @@ export function AIChatPanel() {
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v1"); } catch { /**/ } }}
               className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/40 transition-colors"
-              title="クリア"
+              title={t("chat.clear")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -545,15 +549,15 @@ export function AIChatPanel() {
               <Bot className="h-7 w-7 text-violet-500" />
             </div>
             <div className="text-center space-y-1">
-              <p className="text-sm font-medium text-foreground/60">何でも聞いてください</p>
-              <p className="text-xs text-muted-foreground/40">ドキュメントの作成・編集をAIが手伝います</p>
+              <p className="text-sm font-medium text-foreground/60">{t("chat.empty.title")}</p>
+              <p className="text-xs text-muted-foreground/40">{t("chat.empty.sub")}</p>
             </div>
             <div className="flex flex-col gap-2 w-full">
               {[
-                "数学プリントを作って",
-                "二次方程式の問題を5つ追加",
-                "模試形式の問題集にして",
-                "表を見やすく整えて",
+                t("chat.suggestion.1"),
+                t("chat.suggestion.2"),
+                t("chat.suggestion.3"),
+                t("chat.suggestion.4"),
               ].map((s) => (
                 <button
                   key={s}
@@ -610,7 +614,7 @@ export function AIChatPanel() {
         {agentMode && (
           <div className="flex items-center gap-1 text-[10px] text-violet-500/70 mb-2 px-1">
             <Zap className="h-2.5 w-2.5" />
-            自動適用モード — 変更は即時反映
+            {t("chat.agent.mode")}
           </div>
         )}
         <div className="flex items-end gap-2">
@@ -641,7 +645,7 @@ export function AIChatPanel() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="メッセージを入力…"
+              placeholder={t("chat.placeholder")}
               className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 font-sans bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-muted-foreground/35"
               disabled={isChatLoading}
             />
@@ -662,7 +666,7 @@ export function AIChatPanel() {
             </button>
           </div>
         </div>
-        <p className="text-[9px] text-muted-foreground/25 text-center mt-2">Enter で送信 · Shift+Enter で改行</p>
+        <p className="text-[9px] text-muted-foreground/25 text-center mt-2">{t("chat.hint")}</p>
       </div>
     </div>
   );

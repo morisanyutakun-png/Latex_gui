@@ -23,6 +23,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n";
 import { DocumentOutline } from "@/components/layout/document-outline";
 import { LastAIAction } from "@/store/ui-store";
 
@@ -52,6 +53,7 @@ function OpCountIcons({ counts }: { counts: LastAIAction["opCounts"] }) {
 }
 
 export function AppHeader() {
+  const { t } = useI18n();
   const router = useRouter();
   const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
   const { isGenerating, setGenerating, lastAIAction, toggleOutline, isOutlineOpen } = useUIStore();
@@ -68,12 +70,12 @@ export function AppHeader() {
 
   const handleSave = () => {
     saveToLocalStorage(doc);
-    toast.success("保存しました");
+    toast.success(t("toast.saved"));
   };
 
   const handleExportJSON = () => {
     downloadAsJSON(doc, `${doc.metadata.title || "document"}.json`);
-    toast.success("JSONエクスポート完了");
+    toast.success(t("toast.exported"));
   };
 
   const handleImportJSON = () => {
@@ -86,9 +88,9 @@ export function AppHeader() {
       try {
         const loaded = await loadFromJSONFile(file);
         useDocumentStore.getState().setDocument(loaded);
-        toast.success("読み込みました");
+        toast.success(t("toast.imported"));
       } catch {
-        toast.error("読み込み失敗");
+        toast.error(t("toast.import.fail"));
       }
     };
     input.click();
@@ -106,11 +108,11 @@ export function AppHeader() {
       a.click();
       window.document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("PDF生成完了");
+      toast.success(t("toast.pdf.done"));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "不明なエラー";
       if (message.includes("接続できません") || message.includes("起動中")) {
-        toast.error(message, { duration: 10000, description: "数秒待ってから再試行してください" });
+        toast.error(message, { duration: 10000, description: t("toast.pdf.retry") });
       } else {
         toast.error(`PDF生成失敗: ${message}`, { duration: 8000 });
       }
@@ -125,7 +127,7 @@ export function AppHeader() {
       <button
         onClick={() => router.push("/")}
         className="flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-        title="ホームへ"
+        title={t("header.home")}
       >
         <ArrowLeft className="h-3.5 w-3.5" />
       </button>
@@ -135,7 +137,7 @@ export function AppHeader() {
         value={doc.metadata.title}
         onChange={(e) => updateMetadata({ title: e.target.value })}
         className="h-7 px-2 text-sm font-medium bg-transparent border border-transparent hover:border-border/40 focus:border-primary/40 focus:outline-none rounded text-foreground/70 w-52 transition-colors placeholder:text-muted-foreground/30"
-        placeholder="無題のドキュメント"
+        placeholder={t("header.untitled")}
       />
 
       {/* Undo / Redo */}
@@ -144,7 +146,7 @@ export function AppHeader() {
           onClick={undo}
           disabled={past.length === 0}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title="元に戻す (Ctrl+Z)"
+          title={t("header.undo")}
         >
           <Undo2 className="h-3.5 w-3.5" />
         </button>
@@ -152,7 +154,7 @@ export function AppHeader() {
           onClick={redo}
           disabled={future.length === 0}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title="やり直し (Ctrl+Y)"
+          title={t("header.redo")}
         >
           <Redo2 className="h-3.5 w-3.5" />
         </button>
@@ -174,21 +176,21 @@ export function AppHeader() {
         <button
           onClick={handleSave}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-          title="保存 (Ctrl+S)"
+          title={t("header.save")}
         >
           <Save className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={handleExportJSON}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-          title="JSONエクスポート"
+          title={t("header.export")}
         >
           <FileDown className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={handleImportJSON}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-          title="JSONインポート"
+          title={t("header.import")}
         >
           <FileUp className="h-3.5 w-3.5" />
         </button>
@@ -204,7 +206,7 @@ export function AppHeader() {
             ? "text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-950/40"
             : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
         }`}
-        title="ドキュメント構成"
+        title={t("header.outline")}
       >
         <LayoutList className="h-3.5 w-3.5" />
       </button>
@@ -218,9 +220,9 @@ export function AppHeader() {
         className="flex items-center gap-1.5 h-7 px-3.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97] ml-1"
       >
         {isGenerating ? (
-          <><Loader2 className="h-3 w-3 animate-spin" />生成中…</>
+          <><Loader2 className="h-3 w-3 animate-spin" />{t("header.generating")}</>
         ) : (
-          <><Download className="h-3 w-3" />PDF</>
+          <><Download className="h-3 w-3" />{t("header.pdf")}</>
         )}
       </button>
 

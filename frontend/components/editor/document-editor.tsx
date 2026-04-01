@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
+import { useI18n } from "@/lib/i18n";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES, createBlock } from "@/lib/types";
@@ -931,6 +932,7 @@ const PAPER_SIZES: Record<string, { w: number; label: string }> = {
 
 // ──── Main Document Editor ────
 export function DocumentEditor() {
+  const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
   const addBlock = useDocumentStore((s) => s.addBlock);
   const selectBlock = useUIStore((s) => s.selectBlock);
@@ -980,8 +982,8 @@ export function DocumentEditor() {
           {document.blocks.length === 0 && (
             <div className="flex flex-col items-start gap-6 py-6 select-none">
               <div className="space-y-1">
-                <p className="text-[11px] font-mono text-gray-300">{"// 空のドキュメント"}</p>
-                <h2 className="text-2xl font-light text-gray-300 tracking-tight">何を作りますか？</h2>
+                <p className="text-[11px] font-mono text-gray-300">{t("editor.empty.comment")}</p>
+                <h2 className="text-2xl font-light text-gray-300 tracking-tight">{t("editor.empty.h2")}</h2>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {(["paragraph", "heading", "math", "list"] as BlockType[]).map((t) => {
@@ -1002,7 +1004,7 @@ export function DocumentEditor() {
                 <InsertMenu index={0} variant="button" />
               </div>
               <p className="text-[10px] font-mono text-gray-300">
-                右のAIエージェントに「数学プリントを作って」と話しかけるか、ブロックを追加して始めましょう
+                {t("editor.empty.ai")}
               </p>
             </div>
           )}

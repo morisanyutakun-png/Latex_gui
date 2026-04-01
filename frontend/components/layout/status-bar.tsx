@@ -2,9 +2,11 @@
 
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
+import { useI18n } from "@/lib/i18n";
 import { ZoomIn, ZoomOut } from "lucide-react";
 
 export function StatusBar() {
+  const { t } = useI18n();
   const docClass = useDocumentStore((s) => s.document?.settings.documentClass);
   const blockCount = useDocumentStore((s) => s.document?.blocks.length ?? 0);
   const selectedId = useUIStore((s) => s.selectedBlockId);
@@ -26,7 +28,7 @@ export function StatusBar() {
         {docClass && (
           <span className="text-primary-foreground/60 font-medium">{classLabel[docClass] ?? docClass}</span>
         )}
-        <span className="text-primary-foreground/50">{blockCount} blocks</span>
+        <span className="text-primary-foreground/50">{blockCount} {t("status.blocks")}</span>
         {selectedBlock && selectedIdx >= 0 && (
           <span className="text-primary-foreground/40">
             L{selectedIdx + 1} · {selectedBlock.content.type}

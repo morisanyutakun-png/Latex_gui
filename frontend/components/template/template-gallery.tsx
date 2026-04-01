@@ -6,6 +6,8 @@ import { useDocumentStore } from "@/store/document-store";
 import { createDefaultDocument } from "@/lib/types";
 import { loadFromLocalStorage } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { useI18n } from "@/lib/i18n";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import {
   ArrowRight,
   ChevronRight,
@@ -157,6 +159,8 @@ export function TemplateGallery() {
     }
   };
 
+  const { t, locale } = useI18n();
+
   const saved =
     typeof window !== "undefined" ? loadFromLocalStorage() : null;
 
@@ -176,6 +180,7 @@ export function TemplateGallery() {
             </span>
           </div>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             <ThemeToggle />
           </div>
         </div>
@@ -208,21 +213,19 @@ export function TemplateGallery() {
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/[0.08] dark:bg-primary/[0.12] border border-primary/[0.12] mb-8">
               <Zap className="h-3.5 w-3.5 text-primary" />
               <span className="text-primary text-[12px] font-semibold tracking-wide">
-                LaTeX × モダンUI
+                {t("hero.badge")}
               </span>
             </div>
 
             <h1 className="text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.05] font-bold tracking-[-0.03em] mb-6">
-              <span className="block">プロ品質の文書を、</span>
+              <span className="block">{t("hero.h1.line1")}</span>
               <span className="bg-gradient-to-r from-blue-600 via-violet-500 to-fuchsia-500 dark:from-blue-400 dark:via-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">
-                驚くほど簡単に。
+                {t("hero.h1.line2")}
               </span>
             </h1>
 
-            <p className="text-muted-foreground text-[17px] sm:text-[19px] leading-relaxed max-w-2xl mx-auto mb-10 font-light">
-              Word感覚の直感的な操作で、LaTeX品質のPDFを生成。
-              <br className="hidden sm:block" />
-              数式・回路図・グラフ・化学式、そして一括量産まで。
+            <p className="text-muted-foreground text-[17px] sm:text-[19px] leading-relaxed max-w-2xl mx-auto mb-10 font-light whitespace-pre-line">
+              {t("hero.sub")}
             </p>
 
             {/* CTA buttons */}
@@ -231,7 +234,7 @@ export function TemplateGallery() {
                 onClick={handleStart}
                 className="group flex items-center gap-3 px-8 py-4 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
               >
-                今すぐ始める
+                {t("hero.cta")}
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
 
@@ -241,7 +244,7 @@ export function TemplateGallery() {
                   className="group flex items-center gap-3 px-7 py-4 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
                 >
                   <FileText className="h-4 w-4 text-primary" />
-                  「{saved.metadata.title || "無題"}」を続ける
+                  {locale === "en" ? `Resume "${saved.metadata.title || "Untitled"}"` : `「${saved.metadata.title || "無題"}」を続ける`}
                   <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                 </button>
               )}
@@ -263,10 +266,10 @@ export function TemplateGallery() {
         <div className="max-w-5xl mx-auto px-6 py-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { value: "AI", label: "自律エージェント" },
-              { value: "60+", label: "対応パッケージ" },
-              { value: "∞", label: "数式サポート" },
-              { value: "CSV→ZIP", label: "一括量産" },
+              { value: "AI", label: t("stat.agent") },
+              { value: "60+", label: t("stat.packages") },
+              { value: "∞", label: t("stat.math") },
+              { value: "CSV→ZIP", label: t("stat.batch") },
             ].map((stat) => (
               <div key={stat.label}>
                 <p className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-b from-foreground to-foreground/60 bg-clip-text text-transparent">
@@ -293,19 +296,19 @@ export function TemplateGallery() {
             Start
           </p>
           <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-5">
-            AIと一緒に、今すぐ作り始めよう
+            {t("start.h2")}
           </h2>
           <p className="text-muted-foreground text-[15px] mb-10 max-w-lg mx-auto leading-relaxed">
-            空白のキャンバスからスタート。右パネルの AI エージェントに「数学プリントを作って」と話しかけるだけで、文書が自動で完成します。
+            {t("start.desc")}
           </p>
 
           {/* Feature pills */}
           <div className="flex flex-wrap justify-center gap-2 mb-12">
             {[
-              { icon: <Bot className="h-3 w-3" />, label: "AIエージェント搭載" },
-              { icon: <BookOpen className="h-3 w-3" />, label: "教材DB参照" },
-              { icon: <Sigma className="h-3 w-3" />, label: "LaTeX数式" },
-              { icon: <FileText className="h-3 w-3" />, label: "PDF出力" },
+              { icon: <Bot className="h-3 w-3" />, label: t("start.pill.ai") },
+              { icon: <BookOpen className="h-3 w-3" />, label: t("start.pill.db") },
+              { icon: <Sigma className="h-3 w-3" />, label: t("start.pill.math") },
+              { icon: <FileText className="h-3 w-3" />, label: t("start.pill.pdf") },
             ].map((p) => (
               <span key={p.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.06] text-[12px] text-muted-foreground">
                 {p.icon}
@@ -318,7 +321,7 @@ export function TemplateGallery() {
             onClick={handleStart}
             className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
           >
-            エディタを開く
+            {t("start.button")}
             <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
           </button>
         </div>
@@ -341,10 +344,10 @@ export function TemplateGallery() {
               Features
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
-              なぜ LaTeX PDF Maker？
+              {t("features.h2")}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
-              複雑な環境構築なしで、プロフェッショナルな文書を
+              {t("features.sub")}
             </p>
           </div>
 
@@ -352,50 +355,50 @@ export function TemplateGallery() {
             {[
               {
                 icon: <Bot className="h-5 w-5" strokeWidth={1.5} />,
-                title: "AI エージェント",
-                desc: "「問題を5つ追加して」と話すだけ。Claude が文書を自動生成・編集",
+                title: t("feat.ai.title"),
+                desc: t("feat.ai.desc"),
                 gradient: "from-violet-500 to-fuchsia-500",
               },
               {
                 icon: <BookOpen className="h-5 w-5" strokeWidth={1.5} />,
-                title: "教材データベース",
-                desc: "数学・理科・英語など豊富な問題集から検索してAIに参照させられる",
+                title: t("feat.db.title"),
+                desc: t("feat.db.desc"),
                 gradient: "from-emerald-500 to-teal-500",
               },
               {
                 icon: <Sigma className="h-5 w-5" strokeWidth={1.5} />,
-                title: "数式 & 回路図",
-                desc: "amsmath・circuitikz・pgfplotsをGUIだけで操作可能",
+                title: t("feat.math.title"),
+                desc: t("feat.math.desc"),
                 gradient: "from-blue-500 to-cyan-500",
               },
               {
                 icon: <Download className="h-5 w-5" strokeWidth={1.5} />,
-                title: "即座にPDF出力",
-                desc: "ブラウザで編集→ワンクリックで高品質PDFをダウンロード",
+                title: t("feat.pdf.title"),
+                desc: t("feat.pdf.desc"),
                 gradient: "from-amber-500 to-orange-500",
               },
               {
                 icon: <Factory className="h-5 w-5" strokeWidth={1.5} />,
-                title: "教材工場",
-                desc: "テンプレート × CSV変数で、数十〜数百のPDFを一括量産",
+                title: t("feat.factory.title"),
+                desc: t("feat.factory.desc"),
                 gradient: "from-orange-500 to-red-500",
               },
               {
                 icon: <Code2 className="h-5 w-5" strokeWidth={1.5} />,
-                title: "上級者モード",
-                desc: "LaTeXプリアンブルやカスタムコマンドを直接編集できるフック機能",
+                title: t("feat.advanced.title"),
+                desc: t("feat.advanced.desc"),
                 gradient: "from-purple-500 to-pink-500",
               },
               {
                 icon: <Cpu className="h-5 w-5" strokeWidth={1.5} />,
-                title: "自動パッケージ検出",
-                desc: "コンポーネントに応じて必要なLaTeXパッケージを自動でロード",
+                title: t("feat.pkg.title"),
+                desc: t("feat.pkg.desc"),
                 gradient: "from-yellow-500 to-amber-500",
               },
               {
                 icon: <Shield className="h-5 w-5" strokeWidth={1.5} />,
-                title: "セキュアな実行環境",
-                desc: "サンドボックス内でLaTeXをコンパイル。パッケージ許可リストで安全性を確保",
+                title: t("feat.secure.title"),
+                desc: t("feat.secure.desc"),
                 gradient: "from-slate-500 to-zinc-500",
               },
             ].map((f) => (
@@ -422,16 +425,16 @@ export function TemplateGallery() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_50%,hsl(var(--primary)/0.04),transparent_70%)]" />
         <div className="relative max-w-2xl mx-auto text-center px-6">
           <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-5">
-            さぁ、始めましょう
+            {t("cta.h2")}
           </h2>
           <p className="text-muted-foreground text-[15px] mb-10 max-w-md mx-auto">
-            AI エージェントと話すだけで、プロ品質の文書が完成します。
+            {t("cta.sub")}
           </p>
           <button
             onClick={handleStart}
             className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
           >
-            エディタを開く
+            {t("cta.button")}
             <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
           </button>
         </div>
@@ -447,7 +450,7 @@ export function TemplateGallery() {
             <span className="text-[13px] font-semibold tracking-tight opacity-60">LaTeX PDF Maker</span>
           </div>
           <p className="text-[11px] text-muted-foreground/40 tracking-wide">
-            Powered by pdfLaTeX, TikZ &amp; PGFPlots
+            {t("footer.powered")}
           </p>
         </div>
       </footer>

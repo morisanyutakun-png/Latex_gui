@@ -13,7 +13,8 @@ import { useAutosave } from "@/hooks/use-autosave";
 import { useDocumentStore } from "@/store/document-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Code2, Factory, Bot, FileCode2, X } from "lucide-react";
+import { Code2, Factory, Bot, FileCode2, X, Globe } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 type SidebarTab = "ai" | "advanced" | "batch" | "latex";
 
@@ -24,18 +25,20 @@ interface TabMeta {
   indicatorColor: string;
 }
 
-const TAB_META: Record<SidebarTab, TabMeta> = {
-  ai:       { label: "AI AGENT",       icon: Bot,      activeColor: "text-violet-500 dark:text-violet-400", indicatorColor: "bg-violet-500" },
-  advanced: { label: "ADVANCED",       icon: Code2,    activeColor: "text-purple-500 dark:text-purple-400", indicatorColor: "bg-purple-500" },
-  batch:    { label: "BATCH PRODUCER", icon: Factory,  activeColor: "text-amber-500 dark:text-amber-400",   indicatorColor: "bg-amber-500"  },
-  latex:    { label: "LATEX SOURCE",   icon: FileCode2,activeColor: "text-slate-500 dark:text-slate-400",   indicatorColor: "bg-slate-400"  },
-};
-
 const TAB_ORDER: SidebarTab[] = ["ai", "advanced", "batch", "latex"];
 
 export default function EditorPage() {
   useKeyboardShortcuts();
   useAutosave();
+
+  const { locale, setLocale, t } = useI18n();
+
+  const TAB_META: Record<SidebarTab, TabMeta> = {
+    ai:       { label: t("panel.ai"),       icon: Bot,       activeColor: "text-violet-500 dark:text-violet-400", indicatorColor: "bg-violet-500" },
+    advanced: { label: t("panel.advanced"), icon: Code2,     activeColor: "text-purple-500 dark:text-purple-400", indicatorColor: "bg-purple-500" },
+    batch:    { label: t("panel.batch"),    icon: Factory,   activeColor: "text-amber-500 dark:text-amber-400",   indicatorColor: "bg-amber-500"  },
+    latex:    { label: t("panel.latex"),    icon: FileCode2, activeColor: "text-slate-500 dark:text-slate-400",   indicatorColor: "bg-slate-400"  },
+  };
 
   const document = useDocumentStore((s) => s.document);
   const advancedEnabled = useDocumentStore((s) => s.document?.advanced?.enabled ?? false);
@@ -106,7 +109,7 @@ export default function EditorPage() {
                 <button
                   onClick={() => setSidebarOpen(false)}
                   className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
-                  title="パネルを閉じる"
+                  title={t("panel.close")}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -158,6 +161,15 @@ export default function EditorPage() {
               </button>
             );
           })}
+          <div className="flex-1" />
+          <button
+            onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
+            title={locale === "ja" ? "Switch to English" : "日本語に切り替え"}
+            className="h-10 w-full flex flex-col items-center justify-center gap-0.5 text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/15 transition-all"
+          >
+            <Globe className="h-3.5 w-3.5" />
+            <span className="text-[7px] font-mono uppercase">{locale === "ja" ? "EN" : "JA"}</span>
+          </button>
         </div>
       </div>
 
