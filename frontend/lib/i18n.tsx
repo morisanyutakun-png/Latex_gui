@@ -118,11 +118,13 @@ const ja = {
   "header.outline": "ドキュメント構成",
   "header.home": "ホームへ",
   // Editor page panels
+  "panel.document": "エディタ",
   "panel.ai": "AI AGENT",
   "panel.advanced": "LaTeX EXTENSIONS",
   "panel.edit": "簡単編集",
   "panel.latex": "LATEX SOURCE",
   "panel.close": "パネルを閉じる",
+  "panel.back.editor": "エディタに戻る",
   // Toolbar
   "toolbar.paper": "用紙",
   "toolbar.gothic": "ゴシック",
@@ -137,6 +139,9 @@ const ja = {
   "edit.toolbar.format": "書式",
   "edit.toolbar.collapse": "ツールバーを折りたたむ",
   "edit.toolbar.expand": "ツールバーを展開する",
+  // Mobile tabs
+  "mobile.tab.ai": "AIエージェント",
+  "mobile.tab.preview": "プレビュー",
   // Status bar
   "status.blocks": "blocks",
   // Document editor empty state
@@ -261,11 +266,13 @@ const en = {
   "header.outline": "Document outline",
   "header.home": "Home",
   // Editor page panels
+  "panel.document": "Editor",
   "panel.ai": "AI AGENT",
   "panel.advanced": "LaTeX EXTENSIONS",
   "panel.edit": "Easy Edit",
   "panel.latex": "LATEX SOURCE",
   "panel.close": "Close panel",
+  "panel.back.editor": "Back to editor",
   // Toolbar
   "toolbar.paper": "Paper",
   "toolbar.gothic": "Sans-serif",
@@ -280,6 +287,9 @@ const en = {
   "edit.toolbar.format": "Format",
   "edit.toolbar.collapse": "Collapse toolbar",
   "edit.toolbar.expand": "Expand toolbar",
+  // Mobile tabs
+  "mobile.tab.ai": "AI Agent",
+  "mobile.tab.preview": "Preview",
   // Status bar
   "status.blocks": "blocks",
   // Document editor empty state
