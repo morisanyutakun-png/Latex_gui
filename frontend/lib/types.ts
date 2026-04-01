@@ -375,7 +375,7 @@ export interface ChatMessage {
 export function createDefaultDocument(template: string, blocks: Block[]): DocumentModel {
   return {
     template,
-    metadata: { title: "無題のドキュメント", author: "" },
+    metadata: { title: "", author: "" },
     settings: { ...DEFAULT_SETTINGS },
     blocks,
   };

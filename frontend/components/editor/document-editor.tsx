@@ -10,17 +10,7 @@ import { JapaneseMathInput, MathWritingGuide, type JapaneseMathInputHandle } fro
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { parseInlineText, getInlineMathContext, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
-import {
-  Plus,
   Trash2,
   Copy,
   ChevronUp,
@@ -57,80 +47,6 @@ const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
   chart: BarChart3,
 };
 
-// Category grouping for insert menu
-const BLOCK_CATEGORIES = [
-  { label: "基本", types: ["heading", "paragraph", "list", "table", "divider"] as BlockType[] },
-  { label: "理工系", types: ["math", "circuit", "diagram", "chemistry", "chart"] as BlockType[] },
-  { label: "メディア", types: ["image", "code", "quote"] as BlockType[] },
-];
-
-// ──── Insert Menu ────
-function InsertMenu({ index, variant = "line" }: { index: number; variant?: "line" | "button" }) {
-  const addBlock = useDocumentStore((s) => s.addBlock);
-  const selectBlock = useUIStore((s) => s.selectBlock);
-  const setEditingBlock = useUIStore((s) => s.setEditingBlock);
-
-  const handleInsert = (type: BlockType) => {
-    const id = addBlock(type, index);
-    if (id) {
-      selectBlock(id);
-      if (type !== "divider") setEditingBlock(id);
-    }
-  };
-
-  const trigger =
-    variant === "line" ? (
-      <div className="group/ins relative flex items-center h-[3px] z-10">
-        <DropdownMenuTrigger asChild>
-          <button className="absolute left-0 flex h-4 w-4 items-center justify-center rounded-full bg-background border border-border/0 text-primary/0 group-hover/ins:border-primary/30 group-hover/ins:text-primary/60 transition-all ml-9">
-            <Plus className="h-2.5 w-2.5" />
-          </button>
-        </DropdownMenuTrigger>
-        <div className="absolute inset-x-0 h-px bg-transparent group-hover/ins:bg-primary/10 transition-colors" />
-      </div>
-    ) : (
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8 rounded-lg">
-          <Plus className="h-3 w-3" />
-          ブロックを追加
-        </Button>
-      </DropdownMenuTrigger>
-    );
-
-  return (
-    <DropdownMenu>
-      {trigger}
-      <DropdownMenuContent align="center" className="w-64 p-1.5 rounded-xl shadow-xl border-border/50">
-        {BLOCK_CATEGORIES.map((cat, ci) => (
-          <React.Fragment key={cat.label}>
-            {ci > 0 && <DropdownMenuSeparator className="my-1" />}
-            <DropdownMenuLabel className="text-[9px] text-muted-foreground/60 font-medium px-2 py-0.5">
-              {cat.label}
-            </DropdownMenuLabel>
-            <div className="grid grid-cols-3 gap-1">
-              {cat.types.map((type) => {
-                const info = BLOCK_TYPES.find((t) => t.type === type);
-                if (!info) return null;
-                const Icon = BLOCK_ICONS[info.type];
-                return (
-                  <DropdownMenuItem
-                    key={info.type}
-                    onClick={() => handleInsert(info.type)}
-                    className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg cursor-pointer text-center focus:bg-primary/5"
-                  >
-                    <Icon className={`h-4 w-4 ${info.color}`} />
-                    <span className="text-[10px] font-medium leading-none">{info.name}</span>
-                  </DropdownMenuItem>
-                );
-              })}
-            </div>
-          </React.Fragment>
-        ))}
-
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 // ──── Block Wrapper — VS Code style ────
 function BlockWrapper({
@@ -142,6 +58,7 @@ function BlockWrapper({
   index: number;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
   const { selectedBlockId, selectBlock, setEditingBlock, lastAIAction } = useUIStore();
   const { deleteBlock, duplicateBlock, moveBlock } = useDocumentStore();
   const isSelected = selectedBlockId === block.id;
@@ -184,22 +101,22 @@ function BlockWrapper({
         <button
           className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
-          title="上へ"
+          title={t("block.move.up")}
         ><ChevronUp className="h-3 w-3" /></button>
         <button
           className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
-          title="下へ"
+          title={t("block.move.down")}
         ><ChevronDown className="h-3 w-3" /></button>
         <button
           className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
-          title="複製"
+          title={t("block.duplicate")}
         ><Copy className="h-3 w-3" /></button>
         <button
           className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
           onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); selectBlock(null); }}
-          title="削除"
+          title={t("block.delete")}
         ><Trash2 className="h-3 w-3" /></button>
       </div>
     </div>
@@ -245,6 +162,7 @@ function AutoTextarea({
 // ──── Block Editors by Type ────
 
 function HeadingBlockEditor({ block }: { block: Block }) {
+  const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const content = block.content as Extract<Block["content"], { type: "heading" }>;
   const headingClass: Record<number, string> = { 1: "latex-heading-1", 2: "latex-heading-2", 3: "latex-heading-3" };
@@ -254,7 +172,7 @@ function HeadingBlockEditor({ block }: { block: Block }) {
       <AutoTextarea
         value={content.text}
         onChange={(text) => updateContent(block.id, { text })}
-        placeholder={`見出し ${content.level}`}
+        placeholder={`H${content.level}`}
         className={headingClass[content.level] || "latex-heading-1"}
         style={{
           textAlign: block.style.textAlign || "left",
@@ -271,6 +189,7 @@ const PALETTE_ITEMS = BLOCK_TYPES.filter((t) =>
 ).concat(BLOCK_TYPES.filter((t) => ["circuit", "diagram", "chemistry", "chart"].includes(t.type)));
 
 function ParagraphBlockEditor({ block }: { block: Block }) {
+  const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const addBlock = useDocumentStore((s) => s.addBlock);
   const convertBlock = useDocumentStore((s) => s.convertBlock);
@@ -518,7 +437,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               }
               handleKeyDown(e);
             }}
-            placeholder="テキストを入力…"
+            placeholder={t("block.ph.paragraph")}
             className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 px-0 py-0.5 text-[14px] leading-[1.8] placeholder:text-muted-foreground/25"
             style={baseStyle}
             rows={1}
@@ -732,6 +651,7 @@ function ListBlockEditor({ block }: { block: Block }) {
 }
 
 function TableBlockEditor({ block }: { block: Block }) {
+  const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const pushHistory = useDocumentStore((s) => s._pushHistory);
   const content = block.content as Extract<Block["content"], { type: "table" }>;
@@ -784,7 +704,7 @@ function TableBlockEditor({ block }: { block: Block }) {
         <input
           value={content.caption || ""}
           onChange={(e) => updateContent(block.id, { caption: e.target.value })}
-          placeholder="表のキャプション"
+          placeholder={t("block.ph.table.caption")}
           className="text-xs text-muted-foreground bg-transparent border-none outline-none w-full text-center"
         />
       )}
@@ -818,6 +738,7 @@ function TableBlockEditor({ block }: { block: Block }) {
 }
 
 function ImageBlockEditor({ block }: { block: Block }) {
+  const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const content = block.content as Extract<Block["content"], { type: "image" }>;
 
@@ -831,7 +752,7 @@ function ImageBlockEditor({ block }: { block: Block }) {
       ) : (
         <div className="flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed border-muted-foreground/10 bg-muted/10 text-muted-foreground/20 gap-1.5">
           <ImageIcon className="h-6 w-6" />
-          <span className="text-[10px]">画像URL</span>
+          <span className="text-[10px]">{t("block.ph.image.url")}</span>
         </div>
       )}
       <Input
@@ -843,7 +764,7 @@ function ImageBlockEditor({ block }: { block: Block }) {
       <Input
         value={content.caption}
         onChange={(e) => updateContent(block.id, { caption: e.target.value })}
-        placeholder="キャプション（任意）"
+        placeholder={t("block.ph.caption")}
         className="h-8 text-xs rounded-lg"
       />
     </div>
@@ -855,6 +776,7 @@ function DividerBlock() {
 }
 
 function CodeBlockEditor({ block }: { block: Block }) {
+  const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const content = block.content as Extract<Block["content"], { type: "code" }>;
 
@@ -864,14 +786,14 @@ function CodeBlockEditor({ block }: { block: Block }) {
         <input
           value={content.language}
           onChange={(e) => updateContent(block.id, { language: e.target.value })}
-          placeholder="言語"
+          placeholder={t("block.ph.code.lang")}
           className="bg-transparent text-[10px] text-slate-500 border-none outline-none w-24"
         />
       </div>
       <textarea
         value={content.code}
         onChange={(e) => updateContent(block.id, { code: e.target.value })}
-        placeholder="コードを入力..."
+        placeholder={t("block.ph.code.body")}
         className="w-full bg-transparent text-sm font-mono border-none outline-none resize-y min-h-[60px]"
         style={{ color: '#1a1a2e', lineHeight: '1.5' }}
         rows={3}
@@ -881,6 +803,7 @@ function CodeBlockEditor({ block }: { block: Block }) {
 }
 
 function QuoteBlockEditor({ block }: { block: Block }) {
+  const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const content = block.content as Extract<Block["content"], { type: "quote" }>;
 
@@ -889,13 +812,13 @@ function QuoteBlockEditor({ block }: { block: Block }) {
       <AutoTextarea
         value={content.text}
         onChange={(text) => updateContent(block.id, { text })}
-        placeholder="引用テキスト..."
+        placeholder={t("block.ph.quote")}
         className="text-sm italic leading-relaxed text-foreground/80"
       />
       <input
         value={content.attribution || ""}
         onChange={(e) => updateContent(block.id, { attribution: e.target.value })}
-        placeholder="— 出典"
+        placeholder={t("block.ph.quote.src")}
         className="bg-transparent border-none outline-none text-xs text-muted-foreground/60 mt-1 w-full"
       />
     </div>
@@ -934,21 +857,11 @@ const PAPER_SIZES: Record<string, { w: number; label: string }> = {
 export function DocumentEditor() {
   const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
-  const addBlock = useDocumentStore((s) => s.addBlock);
   const selectBlock = useUIStore((s) => s.selectBlock);
-  const setEditingBlock = useUIStore((s) => s.setEditingBlock);
   const zoom = useUIStore((s) => s.zoom);
   const paperSize = useUIStore((s) => s.paperSize);
 
   if (!document) return null;
-
-  const handleQuickAdd = (type: BlockType) => {
-    const id = addBlock(type, document.blocks.length);
-    if (id) {
-      selectBlock(id);
-      if (type !== "divider") setEditingBlock(id);
-    }
-  };
 
   const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
 
@@ -980,32 +893,9 @@ export function DocumentEditor() {
         >
           {/* Empty state — inside paper */}
           {document.blocks.length === 0 && (
-            <div className="flex flex-col items-start gap-6 py-6 select-none">
-              <div className="space-y-1">
-                <p className="text-[11px] font-mono text-gray-300">{t("editor.empty.comment")}</p>
-                <h2 className="text-2xl font-light text-gray-300 tracking-tight">{t("editor.empty.h2")}</h2>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {(["paragraph", "heading", "math", "list"] as BlockType[]).map((t) => {
-                  const info = BLOCK_TYPES.find((b) => b.type === t);
-                  if (!info) return null;
-                  const Icon = BLOCK_ICONS[t];
-                  return (
-                    <button
-                      key={t}
-                      onClick={(e) => { e.stopPropagation(); handleQuickAdd(t); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-gray-200 text-xs text-gray-400 hover:text-gray-700 hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
-                    >
-                      <Icon className={`h-3 w-3 ${info.color}`} />
-                      {info.name}
-                    </button>
-                  );
-                })}
-                <InsertMenu index={0} variant="button" />
-              </div>
-              <p className="text-[10px] font-mono text-gray-300">
-                {t("editor.empty.ai")}
-              </p>
+            <div className="flex flex-col items-start gap-3 py-6 select-none pointer-events-none">
+              <p className="text-[11px] font-mono text-gray-300">{t("editor.empty.comment")}</p>
+              <h2 className="text-2xl font-light text-gray-300 tracking-tight">{t("editor.empty.h2")}</h2>
             </div>
           )}
 
@@ -1013,17 +903,10 @@ export function DocumentEditor() {
           {document.blocks.length > 0 && (
             <div>
               {document.blocks.map((block, idx) => (
-                <React.Fragment key={block.id}>
-                  <InsertMenu index={idx} variant="line" />
-                  <BlockWrapper block={block} index={idx}>
-                    <BlockEditor block={block} />
-                  </BlockWrapper>
-                </React.Fragment>
+                <BlockWrapper key={block.id} block={block} index={idx}>
+                  <BlockEditor block={block} />
+                </BlockWrapper>
               ))}
-              <InsertMenu index={document.blocks.length} variant="line" />
-              <div className="mt-6">
-                <InsertMenu index={document.blocks.length} variant="button" />
-              </div>
             </div>
           )}
         </div>

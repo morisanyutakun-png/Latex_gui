@@ -295,7 +295,7 @@ export function createFromTemplate(templateId: string, blank = false): DocumentM
   const blocks = tmpl.blocks();
   return {
     template: tmpl.id,
-    metadata: { title: tmpl.name === "白紙" ? "無題のドキュメント" : tmpl.name, author: "" },
+    metadata: { title: tmpl.name === "白紙" ? "" : tmpl.name, author: "" },
     settings: { ...DEFAULT_SETTINGS, documentClass: tmpl.documentClass },
     blocks: blank ? blocks.map(stripBlockContent) : blocks,
   };

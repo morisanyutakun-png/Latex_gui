@@ -33,10 +33,10 @@ const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
   circuit: Zap, diagram: GitBranch, chemistry: FlaskConical, chart: BarChart3,
 };
 
-const BLOCK_CATEGORIES = [
-  { label: "基本", types: ["heading", "paragraph", "list", "table", "divider"] as BlockType[] },
-  { label: "理工系", types: ["math", "circuit", "diagram", "chemistry", "chart"] as BlockType[] },
-  { label: "メディア", types: ["image", "code", "quote"] as BlockType[] },
+const BLOCK_CATEGORY_KEYS = [
+  { key: "toolbar.cat.basic",  types: ["heading", "paragraph", "list", "table", "divider"] as BlockType[] },
+  { key: "toolbar.cat.stem",   types: ["math", "circuit", "diagram", "chemistry", "chart"] as BlockType[] },
+  { key: "toolbar.cat.media",  types: ["image", "code", "quote"] as BlockType[] },
 ];
 
 function useSelectedBlock(): Block | null {
@@ -126,11 +126,11 @@ export function Toolbar() {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56 p-1.5 rounded-xl shadow-xl">
-          {BLOCK_CATEGORIES.map((cat, ci) => (
-            <React.Fragment key={cat.label}>
+          {BLOCK_CATEGORY_KEYS.map((cat, ci) => (
+            <React.Fragment key={cat.key}>
               {ci > 0 && <DropdownMenuSeparator className="my-1" />}
               <DropdownMenuLabel className="text-[9px] text-muted-foreground/50 font-medium px-2 py-0.5 uppercase tracking-wider">
-                {cat.label}
+                {t(cat.key)}
               </DropdownMenuLabel>
               <div className="grid grid-cols-3 gap-0.5">
                 {cat.types.map((type) => {

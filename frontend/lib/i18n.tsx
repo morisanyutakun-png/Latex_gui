@@ -129,12 +129,28 @@ const ja = {
   "toolbar.gothic": "ゴシック",
   "toolbar.mincho": "明朝体",
   "toolbar.hint": "ブロックを選択して書式変更",
+  "toolbar.cat.basic": "基本",
+  "toolbar.cat.stem": "理工系",
+  "toolbar.cat.media": "メディア",
   // Status bar
   "status.blocks": "blocks",
   // Document editor empty state
   "editor.empty.comment": "// 空のドキュメント",
   "editor.empty.h2": "何を作りますか？",
-  "editor.empty.ai": "右のAIエージェントに「数学プリントを作って」と話しかけるか、ブロックを追加して始めましょう",
+  // Block actions
+  "block.move.up": "上へ",
+  "block.move.down": "下へ",
+  "block.duplicate": "複製",
+  "block.delete": "削除",
+  // Block editor placeholders
+  "block.ph.paragraph": "テキストを入力…",
+  "block.ph.caption": "キャプション（任意）",
+  "block.ph.image.url": "画像URL",
+  "block.ph.code.lang": "言語",
+  "block.ph.code.body": "コードを入力...",
+  "block.ph.quote": "引用テキスト...",
+  "block.ph.quote.src": "— 出典",
+  "block.ph.table.caption": "表のキャプション",
   // AI Chat panel
   "chat.title": "AI エージェント",
   "chat.subtitle": "LaTeX ドキュメント制作アシスタント",
@@ -243,12 +259,28 @@ const en = {
   "toolbar.gothic": "Sans-serif",
   "toolbar.mincho": "Serif",
   "toolbar.hint": "Select a block to format",
+  "toolbar.cat.basic": "Basic",
+  "toolbar.cat.stem": "STEM",
+  "toolbar.cat.media": "Media",
   // Status bar
   "status.blocks": "blocks",
   // Document editor empty state
   "editor.empty.comment": "// empty document",
   "editor.empty.h2": "What would you like to create?",
-  "editor.empty.ai": "Tell the AI agent \"Create a math worksheet\" — or add a block to start.",
+  // Block actions
+  "block.move.up": "Move up",
+  "block.move.down": "Move down",
+  "block.duplicate": "Duplicate",
+  "block.delete": "Delete",
+  // Block editor placeholders
+  "block.ph.paragraph": "Type something…",
+  "block.ph.caption": "Caption (optional)",
+  "block.ph.image.url": "Image URL",
+  "block.ph.code.lang": "Language",
+  "block.ph.code.body": "Enter code...",
+  "block.ph.quote": "Quote text...",
+  "block.ph.quote.src": "— Source",
+  "block.ph.table.caption": "Table caption",
   // AI Chat panel
   "chat.title": "AI Agent",
   "chat.subtitle": "LaTeX document creation assistant",
