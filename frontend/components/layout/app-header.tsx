@@ -80,7 +80,7 @@ export function AppHeader() {
   };
 
   return (
-    <header className="flex items-center gap-1.5 px-3 h-10 border-b border-border/40 bg-background/95 backdrop-blur-sm sticky top-0 z-40 shrink-0">
+    <header className="flex items-center gap-1.5 px-3 h-10 border-b border-border/20 bg-background sticky top-0 z-40 shrink-0">
       {/* Back */}
       <button
         onClick={() => router.push("/")}
@@ -90,16 +90,11 @@ export function AppHeader() {
         <ArrowLeft className="h-3.5 w-3.5" />
       </button>
 
-      {/* Logo pill */}
-      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/40 border border-border/30">
-        <span className="text-[9px] font-bold tracking-tighter text-primary/80 font-mono">Lx</span>
-      </div>
-
-      {/* Title — monospace feel */}
+      {/* Title */}
       <input
         value={doc.metadata.title}
         onChange={(e) => updateMetadata({ title: e.target.value })}
-        className="h-6 px-2 text-[13px] font-medium bg-transparent border border-transparent hover:border-border/40 focus:border-primary/40 focus:outline-none rounded text-foreground/80 w-44 transition-colors"
+        className="h-7 px-2 text-sm font-medium bg-transparent border border-transparent hover:border-border/40 focus:border-primary/40 focus:outline-none rounded text-foreground/70 w-52 transition-colors placeholder:text-muted-foreground/30"
         placeholder="無題のドキュメント"
       />
 

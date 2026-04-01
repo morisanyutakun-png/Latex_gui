@@ -20,42 +20,42 @@ export function StatusBar() {
   };
 
   return (
-    <div className="flex items-center justify-between h-6 px-3 border-t border-border/30 bg-primary/5 dark:bg-primary/10 shrink-0 select-none">
+    <div className="flex items-center justify-between h-5 px-3 shrink-0 select-none bg-primary text-primary-foreground/80">
       {/* Left */}
-      <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground/60">
+      <div className="flex items-center gap-3 text-[10px] font-mono">
         {docClass && (
-          <span className="text-primary/60 font-semibold">\documentclass{"{"}{classLabel[docClass] ?? docClass}{"}"}</span>
+          <span className="text-primary-foreground/60 font-medium">{classLabel[docClass] ?? docClass}</span>
         )}
-        <span>{blockCount} blocks</span>
+        <span className="text-primary-foreground/50">{blockCount} blocks</span>
         {selectedBlock && selectedIdx >= 0 && (
-          <span className="text-muted-foreground/40">
+          <span className="text-primary-foreground/40">
             L{selectedIdx + 1} · {selectedBlock.content.type}
           </span>
         )}
       </div>
 
       {/* Right — zoom */}
-      <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/50">
+      <div className="flex items-center gap-1 text-[10px] font-mono text-primary-foreground/50">
         <button
           onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-          className="hover:text-foreground transition-colors"
+          className="hover:text-primary-foreground transition-colors px-0.5"
           title="縮小"
         >
-          <ZoomOut className="h-3 w-3" />
+          <ZoomOut className="h-2.5 w-2.5" />
         </button>
         <button
           onClick={() => setZoom(1)}
-          className="w-8 text-center hover:text-foreground transition-colors tabular-nums"
+          className="w-8 text-center hover:text-primary-foreground transition-colors tabular-nums"
           title="100%にリセット"
         >
           {Math.round(zoom * 100)}%
         </button>
         <button
           onClick={() => setZoom(Math.min(2, zoom + 0.1))}
-          className="hover:text-foreground transition-colors"
+          className="hover:text-primary-foreground transition-colors px-0.5"
           title="拡大"
         >
-          <ZoomIn className="h-3 w-3" />
+          <ZoomIn className="h-2.5 w-2.5" />
         </button>
       </div>
     </div>

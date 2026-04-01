@@ -106,7 +106,7 @@ export function Toolbar() {
   const listContent = block?.content.type === "list" ? (block.content as { style: string }) : null;
 
   return (
-    <div className="flex items-center gap-0.5 px-3 h-8 border-b border-border/30 bg-background/80 backdrop-blur-sm shrink-0">
+    <div className="flex items-center gap-0.5 px-3 h-8 border-b border-border/20 bg-background shrink-0">
       {/* Insert block — always visible */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -245,18 +245,16 @@ export function Toolbar() {
         </>
       )}
 
-      {/* Slash hint */}
       {!hasBlock && (
-        <span className="ml-2 text-[11px] text-muted-foreground/40 select-none font-mono">
-          / でブロック挿入 · Shift+クリックで複数選択
+        <span className="ml-2 text-[10px] text-muted-foreground/25 select-none font-mono">
+          ブロックを選択して書式変更
         </span>
       )}
 
       <div className="flex-1" />
 
-      {/* Block type indicator */}
       {hasBlock && block && (
-        <span className="text-[10px] text-muted-foreground/40 font-mono px-2 select-none">
+        <span className="text-[9px] text-muted-foreground/30 font-mono px-2 py-0.5 rounded bg-muted/30 select-none mr-1">
           {block.content.type}
         </span>
       )}

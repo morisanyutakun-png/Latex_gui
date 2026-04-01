@@ -79,13 +79,13 @@ function InsertMenu({ index, variant = "line" }: { index: number; variant?: "lin
 
   const trigger =
     variant === "line" ? (
-      <div className="group/ins relative flex items-center justify-center h-2 -my-1 z-10 cursor-pointer">
-        <div className="absolute inset-x-0 h-px bg-transparent group-hover/ins:bg-primary/20 transition-colors" />
+      <div className="group/ins relative flex items-center h-[3px] z-10">
         <DropdownMenuTrigger asChild>
-          <button className="relative flex h-5 w-5 items-center justify-center rounded-full bg-background border border-border/60 text-muted-foreground/0 group-hover/ins:text-primary group-hover/ins:border-primary/40 transition-all shadow-sm hover:shadow">
-            <Plus className="h-3 w-3" />
+          <button className="absolute left-0 flex h-4 w-4 items-center justify-center rounded-full bg-background border border-border/0 text-primary/0 group-hover/ins:border-primary/30 group-hover/ins:text-primary/60 transition-all ml-9">
+            <Plus className="h-2.5 w-2.5" />
           </button>
         </DropdownMenuTrigger>
+        <div className="absolute inset-x-0 h-px bg-transparent group-hover/ins:bg-primary/10 transition-colors" />
       </div>
     ) : (
       <DropdownMenuTrigger asChild>
@@ -149,70 +149,59 @@ function BlockWrapper({
 
   return (
     <div
-      className={`group/block relative flex items-stretch transition-colors duration-100 rounded-sm
+      className={`group/block relative flex items-stretch transition-all duration-100
         ${isSelected
-          ? "bg-primary/[0.04] dark:bg-primary/[0.06]"
-          : "hover:bg-muted/30 dark:hover:bg-white/[0.02]"
+          ? "bg-primary/[0.05] dark:bg-primary/[0.08]"
+          : "hover:bg-muted/20 dark:hover:bg-white/[0.025]"
         }`}
       onClick={(e) => { e.stopPropagation(); selectBlock(block.id); }}
       onDoubleClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
     >
-      {/* Left gutter — VS Code line number style */}
-      <div
-        className={`w-8 shrink-0 flex flex-col items-center pt-[5px] pb-1 gap-0.5 select-none cursor-default
-          border-r border-transparent transition-colors
-          ${isSelected ? "border-primary/30" : "group-hover/block:border-border/20"}`}
-      >
-        {/* Block type icon */}
-        <Icon
-          className={`h-3 w-3 transition-colors ${
-            isSelected ? "text-primary/60" : "text-muted-foreground/20 group-hover/block:text-muted-foreground/40"
-          }`}
-        />
-        {/* Line number */}
-        <span className={`text-[8px] font-mono tabular-nums leading-none transition-colors ${
-          isSelected ? "text-primary/40" : "text-muted-foreground/15 group-hover/block:text-muted-foreground/30"
+      {/* Left active indicator */}
+      <div className={`absolute left-0 top-0 bottom-0 w-[2px] transition-all duration-100 ${
+        isSelected ? "bg-primary/70" : "bg-transparent group-hover/block:bg-border/30"
+      }`} />
+
+      {/* Left gutter */}
+      <div className="w-12 shrink-0 flex flex-col items-end pr-3 pt-[7px] pb-2 gap-0.5 select-none cursor-default">
+        <span className={`text-[9px] font-mono tabular-nums leading-none transition-colors ${
+          isSelected ? "text-primary/50" : "text-muted-foreground/20 group-hover/block:text-muted-foreground/35"
         }`}>
           {index + 1}
         </span>
       </div>
 
-      {/* Left active indicator */}
-      {isSelected && (
-        <div className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-primary/60" />
-      )}
-
       {/* Block content */}
-      <div className="flex-1 min-w-0 py-1 px-3">
+      <div className="flex-1 min-w-0 py-1.5 pr-16">
         {children}
       </div>
 
-      {/* Right hover actions — appear on hover like VS Code's inline actions */}
-      <div className={`absolute right-1 top-1 flex items-center gap-0.5 transition-opacity
+      {/* Right hover actions */}
+      <div className={`absolute right-2 top-1.5 flex items-center gap-0.5 transition-opacity
         ${isSelected ? "opacity-100" : "opacity-0 group-hover/block:opacity-100"}`}>
         <button
-          className="p-1 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="p-1 rounded text-muted-foreground/25 hover:text-foreground hover:bg-muted/60 transition-colors"
           onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
           title="上へ (Alt+↑)"
         >
           <ChevronUp className="h-2.5 w-2.5" />
         </button>
         <button
-          className="p-1 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="p-1 rounded text-muted-foreground/25 hover:text-foreground hover:bg-muted/60 transition-colors"
           onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
           title="下へ (Alt+↓)"
         >
           <ChevronDown className="h-2.5 w-2.5" />
         </button>
         <button
-          className="p-1 rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+          className="p-1 rounded text-muted-foreground/25 hover:text-foreground hover:bg-muted/60 transition-colors"
           onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
           title="複製"
         >
           <Copy className="h-2.5 w-2.5" />
         </button>
         <button
-          className="p-1 rounded text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors"
+          className="p-1 rounded text-muted-foreground/25 hover:text-destructive hover:bg-destructive/10 transition-colors"
           onClick={(e) => {
             e.stopPropagation();
             deleteBlock(block.id);
@@ -494,6 +483,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             onSelect={handleSelect}
             onKeyDown={(e) => {
               // ⌘+Shift+M / Ctrl+Shift+M で数式モード切替
+              // ⌘+Shift+M / Ctrl+Shift+M で数式モード切替
               if (e.key === "m" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
                 e.preventDefault();
                 const el = textareaRef.current;
@@ -538,8 +528,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               }
               handleKeyDown(e);
             }}
-            placeholder="テキストを入力... (⇧⌘M で数式モード切替)"
-            className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 p-2 text-sm leading-relaxed"
+            placeholder="テキストを入力…"
+            className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 px-0 py-0.5 text-[14px] leading-[1.8] placeholder:text-muted-foreground/25"
             style={baseStyle}
             rows={1}
           />
@@ -598,10 +588,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 
       {/* 非編集時のレンダリング表示（$$は非表示、数式はKaTeXレンダリング） */}
       {!isEditing && (
-        <div className="px-2 py-1 text-sm leading-relaxed min-h-[1.5em]" style={baseStyle}>
+        <div className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text" style={baseStyle}>
           {content.text ? (
             hasMath ? (
-              // 数式を含む場合：テキスト+数式をレンダリング（$$は非表示）
               segments.map((seg, i) =>
                 seg.type === "math" && seg.latex ? (
                   <span key={i} className="inline-block mx-0.5 align-middle">
@@ -612,11 +601,10 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 )
               )
             ) : (
-              // テキストのみ
               <span>{content.text}</span>
             )
           ) : (
-            <span className="text-muted-foreground/30 italic">ダブルクリックで編集</span>
+            <span className="text-muted-foreground/20 select-none">—</span>
           )}
         </div>
       )}
@@ -968,7 +956,7 @@ export function DocumentEditor() {
       onClick={() => selectBlock(null)}
       style={{ fontSize: `${zoom * 100}%` }}
     >
-      <div className="max-w-3xl mx-auto py-6 px-0">
+      <div className="max-w-[720px] mx-auto py-10 px-0">
 
         {/* Empty state */}
         {document.blocks.length === 0 && (
