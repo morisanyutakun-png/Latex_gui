@@ -19,6 +19,7 @@ interface DocumentState {
   deleteBlock: (blockId: string) => void;
   duplicateBlock: (blockId: string) => void;
   moveBlock: (blockId: string, direction: "up" | "down") => void;
+  reorderToIndex: (blockId: string, toIndex: number) => void;
   updateBlockContent: (blockId: string, updates: Partial<BlockContent>) => void;
   updateBlockStyle: (blockId: string, updates: Partial<BlockStyle>) => void;
 
@@ -128,6 +129,19 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     if (newIdx < 0 || newIdx >= blocks.length) return;
     _pushHistory();
     [blocks[idx], blocks[newIdx]] = [blocks[newIdx], blocks[idx]];
+    set({ document: { ...document, blocks } });
+  },
+
+  reorderToIndex: (blockId, toIndex) => {
+    const { document, _pushHistory } = get();
+    if (!document) return;
+    const blocks = [...document.blocks];
+    const from = blocks.findIndex((b) => b.id === blockId);
+    if (from === -1 || from === toIndex) return;
+    _pushHistory();
+    const [moved] = blocks.splice(from, 1);
+    const adjustedTo = from < toIndex ? toIndex - 1 : toIndex;
+    blocks.splice(adjustedTo, 0, moved);
     set({ document: { ...document, blocks } });
   },
 

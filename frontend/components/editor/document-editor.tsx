@@ -28,7 +28,19 @@ import {
   GitBranch,
   FlaskConical,
   BarChart3,
+  GripVertical,
+  Search,
 } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 // Icon mapper
 const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
@@ -48,7 +60,18 @@ const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
 };
 
 
-// ──── Block Wrapper — VS Code style ────
+// Block types that enter edit mode on single click
+const TEXT_EDIT_TYPES: BlockType[] = ["paragraph", "heading", "list", "quote", "code"];
+
+// drag-over shared state (module-level so sibling wrappers can read it)
+let _dragOverIndex: number | null = null;
+let _setDragOverIndexFns: Array<(v: number | null) => void> = [];
+function setGlobalDragOver(v: number | null) {
+  _dragOverIndex = v;
+  _setDragOverIndexFns.forEach((fn) => fn(v));
+}
+
+// ──── Block Wrapper — click-to-edit, drag-and-drop, context menu ────
 function BlockWrapper({
   block,
   index,
@@ -60,16 +83,24 @@ function BlockWrapper({
 }) {
   const { t } = useI18n();
   const { selectedBlockId, selectBlock, setEditingBlock, lastAIAction } = useUIStore();
-  const { deleteBlock, duplicateBlock, moveBlock } = useDocumentStore();
+  const { deleteBlock, duplicateBlock, moveBlock, reorderToIndex, convertBlock } = useDocumentStore();
   const isSelected = selectedBlockId === block.id;
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Register for global drag-over updates
+  useEffect(() => {
+    _setDragOverIndexFns.push(setDragOver);
+    return () => { _setDragOverIndexFns = _setDragOverIndexFns.filter((f) => f !== setDragOver); };
+  }, []);
 
   const [, forceUpdate] = useState(0);
   useEffect(() => {
     if (!lastAIAction?.blockIds.includes(block.id)) return;
     const rem = 10_000 - (Date.now() - lastAIAction.timestamp);
     if (rem <= 0) return;
-    const t = setTimeout(() => forceUpdate((n) => n + 1), rem);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => forceUpdate((n) => n + 1), rem);
+    return () => clearTimeout(timer);
   }, [lastAIAction, block.id]);
 
   const isAIHighlighted =
@@ -77,49 +108,131 @@ function BlockWrapper({
     lastAIAction.blockIds.includes(block.id) &&
     Date.now() - lastAIAction.timestamp < 10_000;
 
+  const isDropTarget = dragOver === index && !isDragging;
+
   return (
-    <div
-      data-block-id={block.id}
-      className={`group/block relative transition-all duration-75 rounded-sm
-        ${isSelected ? "bg-blue-50/60 dark:bg-blue-950/20" : "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"}`}
-      onClick={(e) => { e.stopPropagation(); selectBlock(block.id); }}
-      onDoubleClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
-    >
-      {/* Left selection / AI indicator */}
-      <div className={`absolute left-0 top-0.5 bottom-0.5 w-[2px] rounded-full transition-all duration-300 ${
-        isSelected ? "bg-primary/70" : isAIHighlighted ? "bg-violet-400/80" : "bg-transparent"
-      }`} />
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          data-block-id={block.id}
+          className={`group/block relative transition-all duration-75 rounded-sm
+            ${isSelected ? "bg-blue-50/60 dark:bg-blue-950/20" : "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"}
+            ${isDragging ? "opacity-40" : ""}
+            ${isDropTarget ? "ring-1 ring-primary/30" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            selectBlock(block.id);
+            if (TEXT_EDIT_TYPES.includes(block.content.type)) setEditingBlock(block.id);
+          }}
+          onDoubleClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
+          onDragOver={(e) => { e.preventDefault(); setGlobalDragOver(index); }}
+          onDragLeave={() => setGlobalDragOver(null)}
+          onDrop={(e) => {
+            e.preventDefault();
+            const fromId = e.dataTransfer.getData("blockId");
+            if (fromId && fromId !== block.id) reorderToIndex(fromId, index);
+            setGlobalDragOver(null);
+          }}
+        >
+          {/* Drop indicator line */}
+          {isDropTarget && (
+            <div className="absolute top-0 left-3 right-3 h-0.5 bg-primary/50 rounded-full pointer-events-none" />
+          )}
 
-      {/* Block content — Word-style, no gutter */}
-      <div className="py-0.5 pl-3 pr-20">
-        {children}
-      </div>
+          {/* Left selection / AI indicator */}
+          <div className={`absolute left-0 top-0.5 bottom-0.5 w-[2px] rounded-full transition-all duration-300 ${
+            isSelected ? "bg-primary/70" : isAIHighlighted ? "bg-violet-400/80" : "bg-transparent"
+          }`} />
 
-      {/* Right hover actions — appear on hover */}
-      <div className={`absolute right-1 top-0.5 flex items-center gap-0.5 transition-opacity
-        ${isSelected ? "opacity-100" : "opacity-0 group-hover/block:opacity-100"}`}>
-        <button
-          className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
-          title={t("block.move.up")}
-        ><ChevronUp className="h-3 w-3" /></button>
-        <button
-          className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
-          title={t("block.move.down")}
-        ><ChevronDown className="h-3 w-3" /></button>
-        <button
-          className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
-          title={t("block.duplicate")}
-        ><Copy className="h-3 w-3" /></button>
-        <button
-          className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-          onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); selectBlock(null); }}
-          title={t("block.delete")}
-        ><Trash2 className="h-3 w-3" /></button>
-      </div>
-    </div>
+          {/* Drag handle — left edge, hover only */}
+          <div
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData("blockId", block.id);
+              e.dataTransfer.effectAllowed = "move";
+              setIsDragging(true);
+            }}
+            onDragEnd={() => { setIsDragging(false); setGlobalDragOver(null); }}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute left-[-18px] top-1/2 -translate-y-1/2 opacity-0 group-hover/block:opacity-100 cursor-grab active:cursor-grabbing transition-opacity p-1"
+            title={t("block.move.up")}
+          >
+            <GripVertical className="h-3 w-3 text-muted-foreground/30" />
+          </div>
+
+          {/* Block content */}
+          <div className="py-0.5 pl-3 pr-20">
+            {children}
+          </div>
+
+          {/* Right hover actions */}
+          <div className={`absolute right-1 top-0.5 flex items-center gap-0.5 transition-opacity
+            ${isSelected ? "opacity-100" : "opacity-0 group-hover/block:opacity-100"}`}>
+            <button
+              className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
+              title={t("block.move.up")}
+            ><ChevronUp className="h-3 w-3" /></button>
+            <button
+              className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
+              title={t("block.move.down")}
+            ><ChevronDown className="h-3 w-3" /></button>
+            <button
+              className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
+              title={t("block.duplicate")}
+            ><Copy className="h-3 w-3" /></button>
+            <button
+              className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); selectBlock(null); }}
+              title={t("block.delete")}
+            ><Trash2 className="h-3 w-3" /></button>
+          </div>
+        </div>
+      </ContextMenuTrigger>
+
+      {/* Right-click context menu */}
+      <ContextMenuContent className="w-48 rounded-xl p-1">
+        <ContextMenuItem onClick={() => moveBlock(block.id, "up")} className="text-xs gap-2">
+          <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />{t("ctx.move.up")}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => moveBlock(block.id, "down")} className="text-xs gap-2">
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />{t("ctx.move.down")}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => duplicateBlock(block.id)} className="text-xs gap-2">
+          <Copy className="h-3.5 w-3.5 text-muted-foreground" />{t("ctx.duplicate")}
+          <span className="ml-auto text-[10px] text-muted-foreground/50">⌘D</span>
+        </ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger className="text-xs gap-2">
+            <Type className="h-3.5 w-3.5 text-muted-foreground" />{t("ctx.change.type")}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-44 rounded-xl p-1">
+            {BLOCK_TYPES.map((info) => {
+              const Icon = BLOCK_ICONS[info.type];
+              return (
+                <ContextMenuItem
+                  key={info.type}
+                  onClick={() => convertBlock(block.id, createBlock(info.type).content)}
+                  className="text-xs gap-2"
+                >
+                  <Icon className={`h-3.5 w-3.5 ${info.color}`} />{info.name}
+                </ContextMenuItem>
+              );
+            })}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onClick={() => { deleteBlock(block.id); selectBlock(null); }}
+          className="text-xs gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30"
+        >
+          <Trash2 className="h-3.5 w-3.5" />{t("ctx.delete")}
+          <span className="ml-auto text-[10px] text-muted-foreground/50">⌫</span>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -130,12 +243,16 @@ function AutoTextarea({
   placeholder,
   className = "",
   style,
+  onKeyDown,
+  autoFocus,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  autoFocus?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -152,6 +269,8 @@ function AutoTextarea({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      onKeyDown={onKeyDown}
+      autoFocus={autoFocus}
       className={`w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 p-0 ${className}`}
       style={style}
       rows={1}
@@ -164,8 +283,38 @@ function AutoTextarea({
 function HeadingBlockEditor({ block }: { block: Block }) {
   const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const addBlock = useDocumentStore((s) => s.addBlock);
+  const { selectBlock, setEditingBlock } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "heading" }>;
   const headingClass: Record<number, string> = { 1: "latex-heading-1", 2: "latex-heading-2", 3: "latex-heading-3" };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    const blocks = useDocumentStore.getState().document?.blocks ?? [];
+    const idx = blocks.findIndex((b) => b.id === block.id);
+
+    if (e.key === "ArrowUp" && el.selectionStart === 0) {
+      e.preventDefault();
+      if (idx > 0) { selectBlock(blocks[idx - 1].id); setEditingBlock(blocks[idx - 1].id); }
+      return;
+    }
+    if (e.key === "ArrowDown" && el.selectionStart === el.value.length) {
+      e.preventDefault();
+      if (idx < blocks.length - 1) { selectBlock(blocks[idx + 1].id); setEditingBlock(blocks[idx + 1].id); }
+      return;
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const newId = addBlock("paragraph", idx + 1);
+      if (newId) { selectBlock(newId); setEditingBlock(newId); }
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const newId = addBlock("paragraph", idx + 1);
+      if (newId) { selectBlock(newId); setEditingBlock(newId); }
+    }
+  };
 
   return (
     <div>
@@ -178,6 +327,7 @@ function HeadingBlockEditor({ block }: { block: Block }) {
           textAlign: block.style.textAlign || "left",
           color: block.style.textColor || undefined,
         }}
+        onKeyDown={handleKeyDown}
       />
     </div>
   );
@@ -216,22 +366,26 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       )
     : PALETTE_ITEMS;
 
+  // Track where the slash was typed so we can clean it up
+  const [slashPos, setSlashPos] = useState<number>(0);
+
   const handleSelectPaletteItem = useCallback((type: BlockType) => {
     setShowPalette(false);
     setPaletteQuery("");
-    if (type === "paragraph") return; // already a paragraph, nothing to do
+    if (type === "paragraph") return;
     const blocks = document?.blocks ?? [];
     const idx = blocks.findIndex((b) => b.id === block.id);
-    if (content.text === "" || content.text === "/") {
-      // Current block is empty — convert in-place (history-tracked via convertBlock)
+    // Remove the "/" that triggered the palette
+    const cleanText = content.text.slice(0, slashPos) + content.text.slice(slashPos + 1 + paletteQuery.length);
+    if (cleanText === "") {
       convertBlock(block.id, createBlock(type).content);
       setTimeout(() => setEditingBlock(block.id), 50);
     } else {
-      // Paragraph has content — insert a new block of the selected type after it
+      updateContent(block.id, { text: cleanText });
       const newId = addBlock(type, idx + 1);
       setTimeout(() => setEditingBlock(newId), 50);
     }
-  }, [block.id, content.text, document, addBlock, convertBlock, setEditingBlock]);
+  }, [block.id, content.text, slashPos, paletteQuery, document, addBlock, convertBlock, setEditingBlock, updateContent]);
 
   // インライン数式コンテキスト検出
   const mathCtx = getInlineMathContext(content.text, cursorPos);
@@ -250,18 +404,20 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     updateContent(block.id, { text });
     setCursorPos(pos);
 
-    // Slash command palette: trigger when "/" typed in a paragraph
-    if (text.startsWith("/")) {
-      const query = text.slice(1);
-      setShowPalette(true);
-      setPaletteQuery(query);
-      setPaletteIdx(0); // always reset index when query changes
-      setShowSuggestions(false);
-      return;
-    } else if (showPalette) {
-      setShowPalette(false);
-      setPaletteQuery("");
-      setPaletteIdx(0);
+    // Slash command palette: trigger when "/" typed anywhere in paragraph
+    if (showPalette) {
+      // Update query based on text after the slash position
+      const query = text.slice(slashPos + 1, pos);
+      if (text[slashPos] !== "/" || pos <= slashPos) {
+        setShowPalette(false);
+        setPaletteQuery("");
+        setPaletteIdx(0);
+      } else {
+        setPaletteQuery(query);
+        setPaletteIdx(0);
+        setShowSuggestions(false);
+        return;
+      }
     }
 
     // $の中にいるなら候補を表示
@@ -319,7 +475,15 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   }, [content.text, cursorPos, block.id, updateContent]);
 
   // 候補のキーボード操作
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // "/" key pressed → open slash palette
+    if (e.key === "/" && !showPalette && !showSuggestions) {
+      const el = e.currentTarget;
+      setSlashPos(el.selectionStart || 0);
+      // let the char be typed first, then open palette
+      setTimeout(() => { setShowPalette(true); setPaletteIdx(0); setPaletteQuery(""); }, 0);
+    }
+
     // Slash command palette navigation
     if (showPalette && filteredPalette.length > 0) {
       if (e.key === "ArrowDown") {
@@ -338,28 +502,56 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       } else if (e.key === "Escape") {
         e.preventDefault();
         setShowPalette(false);
-        updateContent(block.id, { text: "" });
+        setPaletteQuery("");
         return;
       }
     }
 
-    if (!showSuggestions || suggestions.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setSelectedSuggIdx((i) => Math.min(i + 1, suggestions.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSelectedSuggIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === " " || e.key === "Enter") {
-      // スペースキーで候補を確定（IME風操作）
-      if (showSuggestions && suggestions[selectedSuggIdx]) {
+    // Math suggestions
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
         e.preventDefault();
-        insertSuggestion(suggestions[selectedSuggIdx]);
+        setSelectedSuggIdx((i) => Math.min(i + 1, suggestions.length - 1));
+        return;
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedSuggIdx((i) => Math.max(i - 1, 0));
+        return;
+      } else if (e.key === " " || e.key === "Enter") {
+        if (suggestions[selectedSuggIdx]) {
+          e.preventDefault();
+          insertSuggestion(suggestions[selectedSuggIdx]);
+          return;
+        }
+      } else if (e.key === "Escape") {
+        setShowSuggestions(false);
+        return;
       }
-    } else if (e.key === "Escape") {
-      setShowSuggestions(false);
     }
-  }, [showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, showSuggestions, suggestions, selectedSuggIdx, insertSuggestion, block.id, updateContent]);
+
+    // Block navigation
+    const el = e.currentTarget;
+    const blocks = useDocumentStore.getState().document?.blocks ?? [];
+    const idx = blocks.findIndex((b) => b.id === block.id);
+    const { selectBlock: sel, setEditingBlock: setEdit } = useUIStore.getState();
+
+    if (e.key === "ArrowUp" && el.selectionStart === 0 && el.selectionEnd === 0 && !showPalette) {
+      e.preventDefault();
+      if (idx > 0) { sel(blocks[idx - 1].id); setEdit(blocks[idx - 1].id); }
+      return;
+    }
+    if (e.key === "ArrowDown" && el.selectionStart === el.value.length && !showPalette) {
+      e.preventDefault();
+      if (idx < blocks.length - 1) { sel(blocks[idx + 1].id); setEdit(blocks[idx + 1].id); }
+      return;
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const newId = addBlock("paragraph", idx + 1);
+      if (newId) { sel(newId); setEdit(newId); }
+      return;
+    }
+  }, [showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, showSuggestions, suggestions, selectedSuggIdx, insertSuggestion, slashPos, addBlock, block.id]);
 
   // インラインプレビュー（テキスト+数式が混在）— $$を非表示にしてレンダリング
   const segments = parseInlineText(content.text);
@@ -447,7 +639,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           {showPalette && filteredPalette.length > 0 && (
             <div className="absolute z-50 left-0 right-0 mt-1 bg-popover border rounded-xl shadow-xl max-h-52 overflow-y-auto">
               <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-b">
-                ブロックを選択 (↑↓ で移動、Enter で確定、Esc でキャンセル)
+                {t("cmd.palette.hint")}
               </div>
               {filteredPalette.slice(0, 10).map((item, i) => (
                 <button
@@ -853,6 +1045,98 @@ const PAPER_SIZES: Record<string, { w: number; label: string }> = {
   letter: { w: 816,  label: "Letter" },
 };
 
+// ──── Global Command Palette (Cmd+K) ────
+function GlobalCommandPalette() {
+  const { t } = useI18n();
+  const { showGlobalPalette, setGlobalPalette, selectedBlockId, selectBlock, setEditingBlock } = useUIStore();
+  const { addBlock } = useDocumentStore();
+  const [query, setQuery] = useState("");
+  const [idx, setIdx] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = query
+    ? BLOCK_TYPES.filter((b) =>
+        b.name.toLowerCase().includes(query.toLowerCase()) ||
+        b.type.includes(query.toLowerCase()) ||
+        b.description.toLowerCase().includes(query.toLowerCase())
+      )
+    : BLOCK_TYPES;
+
+  useEffect(() => {
+    if (showGlobalPalette) {
+      setQuery("");
+      setIdx(0);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [showGlobalPalette]);
+
+  const handleSelect = (type: BlockType) => {
+    setGlobalPalette(false);
+    const blocks = useDocumentStore.getState().document?.blocks ?? [];
+    const afterIdx = selectedBlockId
+      ? blocks.findIndex((b) => b.id === selectedBlockId) + 1
+      : blocks.length;
+    const newId = addBlock(type, afterIdx);
+    if (newId) { selectBlock(newId); if (TEXT_EDIT_TYPES.includes(type)) setEditingBlock(newId); }
+  };
+
+  if (!showGlobalPalette) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-start justify-center pt-[20vh]"
+      onClick={() => setGlobalPalette(false)}
+    >
+      <div
+        className="w-[480px] bg-background border border-border/40 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.2)] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Search */}
+        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border/20">
+          <Search className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setIdx(0); }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") { e.preventDefault(); setIdx((i) => Math.min(i + 1, filtered.length - 1)); }
+              else if (e.key === "ArrowUp") { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
+              else if (e.key === "Enter") { e.preventDefault(); if (filtered[idx]) handleSelect(filtered[idx].type); }
+              else if (e.key === "Escape") { e.preventDefault(); setGlobalPalette(false); }
+            }}
+            placeholder={t("cmd.palette.search")}
+            className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground/30"
+          />
+          <span className="text-[10px] font-mono text-muted-foreground/30 shrink-0">Esc</span>
+        </div>
+        {/* Block list */}
+        <div className="max-h-72 overflow-y-auto py-1">
+          {filtered.map((info, i) => {
+            const Icon = BLOCK_ICONS[info.type];
+            return (
+              <button
+                key={info.type}
+                onClick={() => handleSelect(info.type)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left ${
+                  i === idx ? "bg-primary/8 text-primary" : "hover:bg-muted/40"
+                }`}
+              >
+                <Icon className={`h-4 w-4 shrink-0 ${info.color}`} />
+                <span className="font-medium text-[13px]">{info.name}</span>
+                <span className="text-muted-foreground/50 text-[11px] ml-1">{info.description}</span>
+              </button>
+            );
+          })}
+        </div>
+        {/* Hint */}
+        <div className="px-4 py-2 border-t border-border/10 text-[10px] text-muted-foreground/30 font-mono">
+          {t("cmd.palette.hint")}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ──── Main Document Editor ────
 export function DocumentEditor() {
   const { t } = useI18n();
@@ -866,7 +1150,9 @@ export function DocumentEditor() {
   const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
 
   return (
-    // Canvas — gray background like Google Docs / Word
+    <>
+    <GlobalCommandPalette />
+    {/* Canvas — gray background like Google Docs / Word */}
     <div
       className="flex-1 overflow-auto bg-[#e8e8e8] dark:bg-[#1e1e1e]"
       onClick={() => selectBlock(null)}
@@ -915,5 +1201,6 @@ export function DocumentEditor() {
         <div className="h-16" />
       </div>
     </div>
+    </>
   );
 }

@@ -142,6 +142,14 @@ const ja = {
   "block.move.down": "下へ",
   "block.duplicate": "複製",
   "block.delete": "削除",
+  // Command palette & context menu
+  "cmd.palette.hint": "ブロックを挿入 (↑↓ 移動, Enter で確定)",
+  "cmd.palette.search": "ブロックタイプを検索…",
+  "ctx.move.up": "上へ移動",
+  "ctx.move.down": "下へ移動",
+  "ctx.duplicate": "複製",
+  "ctx.delete": "削除",
+  "ctx.change.type": "ブロックタイプを変更",
   // Block editor placeholders
   "block.ph.paragraph": "テキストを入力…",
   "block.ph.caption": "キャプション（任意）",
@@ -272,6 +280,14 @@ const en = {
   "block.move.down": "Move down",
   "block.duplicate": "Duplicate",
   "block.delete": "Delete",
+  // Command palette & context menu
+  "cmd.palette.hint": "Insert block (↑↓ to navigate, Enter to insert)",
+  "cmd.palette.search": "Search block types…",
+  "ctx.move.up": "Move up",
+  "ctx.move.down": "Move down",
+  "ctx.duplicate": "Duplicate",
+  "ctx.delete": "Delete",
+  "ctx.change.type": "Change block type",
   // Block editor placeholders
   "block.ph.paragraph": "Type something…",
   "block.ph.caption": "Caption (optional)",

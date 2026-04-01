@@ -15,7 +15,7 @@ export function useKeyboardShortcuts() {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
       const { document, undo, redo, deleteBlock, duplicateBlock } = store.getState();
-      const { selectedBlockId, setGenerating } = uiStore.getState();
+      const { selectedBlockId, editingBlockId, setGenerating, setGlobalPalette } = uiStore.getState();
 
       // Undo: Ctrl/Cmd + Z
       if (meta && !e.shiftKey && e.key === "z") {
@@ -72,11 +72,35 @@ export function useKeyboardShortcuts() {
         duplicateBlock(selectedBlockId);
         return;
       }
-      // Escape: deselect
-      if (e.key === "Escape") {
-        uiStore.getState().selectBlock(null);
-        uiStore.getState().setEditingBlock(null);
+      // Cmd/Ctrl + K: open global block palette
+      if (meta && e.key === "k") {
+        e.preventDefault();
+        setGlobalPalette(true);
         return;
+      }
+      // Escape: exit editing but keep block selected; if not editing, deselect
+      if (e.key === "Escape") {
+        if (editingBlockId) {
+          uiStore.getState().setEditingBlock(null);
+        } else {
+          uiStore.getState().selectBlock(null);
+        }
+        return;
+      }
+      // Arrow Up/Down: navigate blocks when selected but not editing
+      if (!editingBlockId && selectedBlockId && !meta && !e.shiftKey) {
+        const blocks = document?.blocks ?? [];
+        const idx = blocks.findIndex((b) => b.id === selectedBlockId);
+        if (e.key === "ArrowUp" && idx > 0) {
+          e.preventDefault();
+          uiStore.getState().selectBlock(blocks[idx - 1].id);
+          return;
+        }
+        if (e.key === "ArrowDown" && idx < blocks.length - 1) {
+          e.preventDefault();
+          uiStore.getState().selectBlock(blocks[idx + 1].id);
+          return;
+        }
       }
     };
 

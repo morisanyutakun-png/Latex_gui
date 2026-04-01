@@ -23,6 +23,9 @@ interface UIState {
   lastAIAction: LastAIAction | null;
   isOutlineOpen: boolean;
 
+  // Global command palette
+  showGlobalPalette: boolean;
+
   // AI Chat state (in-memory only, not persisted)
   chatMessages: ChatMessage[];
   pendingPatch: DocumentPatch | null;
@@ -40,6 +43,8 @@ interface UIState {
   toggleOutline: () => void;
   setOutlineOpen: (v: boolean) => void;
 
+  setGlobalPalette: (v: boolean) => void;
+
   // Chat actions
   addChatMessage: (msg: ChatMessage) => void;
   updateChatMessage: (id: string, updates: Partial<ChatMessage>) => void;
@@ -56,6 +61,7 @@ export const useUIStore = create<UIState>((set) => ({
   paperSize: "a4",
   lastAIAction: null,
   isOutlineOpen: false,
+  showGlobalPalette: false,
   chatMessages: [],
   pendingPatch: null,
   isChatLoading: false,
@@ -69,6 +75,7 @@ export const useUIStore = create<UIState>((set) => ({
   setZoom: (v) => set({ zoom: Math.max(0.5, Math.min(2, v)) }),
   setPaperSize: (s) => set({ paperSize: s }),
 
+  setGlobalPalette: (v) => set({ showGlobalPalette: v }),
   setLastAIAction: (action) => set({ lastAIAction: action }),
   clearLastAIAction: () => set({ lastAIAction: null }),
   toggleOutline: () => set((s) => ({ isOutlineOpen: !s.isOutlineOpen })),
