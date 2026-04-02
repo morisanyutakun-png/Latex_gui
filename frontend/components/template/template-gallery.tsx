@@ -20,33 +20,43 @@ import {
   Copy,
   Code2,
   ChevronDown,
+  PenLine,
+  GraduationCap,
+  Users,
+  LayoutGrid,
+  Eye,
+  RefreshCw,
+  FileDown,
+  Layers,
+  Pencil,
+  Plus,
 } from "lucide-react";
 
-/* ── Scrolling background — math problems, not LaTeX code ── */
+/* ── Scrolling background — worksheet problems (bilingual) ── */
 const SCROLL_ITEMS_A = [
+  "Solve x² + 3x - 4 = 0",
   "二次方程式 x²+3x-4=0 を解け",
-  "∫₀^π sin x dx を計算せよ",
-  "三角形ABCでAB=5, BC=7, CA=6のとき面積を求めよ",
+  "Find ∫₀^π sin x dx",
+  "三角形ABCの面積を求めよ",
+  "Simplify √(48) + √(27)",
+  "連立方程式を解け: 2x+y=5, x-y=1",
+  "Factor 6x² - 7x - 3",
+  "確率: コインを3回投げて表が2回出る確率は？",
+  "Find the slope of y = 3x² at x = 2",
   "lim_{x→0} (sin x)/x の値を求めよ",
-  "行列 A = [[1,2],[3,4]] の逆行列を求めよ",
-  "微分方程式 dy/dx = 2y を解け",
-  "cos 75° の値を求めよ",
-  "数列 {aₙ}: a₁=2, aₙ₊₁=3aₙ の一般項を求めよ",
-  "ベクトル a=(1,2,3), b=(4,5,6) の内積を求めよ",
-  "円 x²+y²=25 と直線 y=x+1 の交点を求めよ",
 ];
 
 const SCROLL_ITEMS_B = [
-  "次の英文を和訳せよ: The quick brown fox…",
-  "化学反応式を完成させよ: H₂ + O₂ → ?",
-  "ニュートンの運動方程式 F = ma を用いて…",
-  "地球の公転周期を求めよ（ケプラーの法則）",
-  "オームの法則: V = IR を用いて抵抗を求めよ",
-  "DNA二重らせん構造の塩基対を答えよ",
-  "光の速さを c として波長 λ と振動数 f の関係を示せ",
-  "熱力学第一法則 ΔU = Q - W を説明せよ",
-  "次の連立方程式を解け: 2x+y=5, x-y=1",
-  "確率: コインを3回投げて表が2回出る確率は？",
+  "Worksheet: Quadratic Equations (20 problems)",
+  "小テスト: 二次関数の基本（10問）",
+  "Quiz: Systems of Linear Equations",
+  "演習プリント: 三角比の応用",
+  "Assessment: Polynomial Operations",
+  "確認テスト: 微分の計算",
+  "Practice Set: Fraction Word Problems",
+  "宿題プリント: 図形の証明（5問）",
+  "Exit Ticket: Solving Inequalities",
+  "定期テスト対策: 数列の総合演習",
 ];
 
 /* ── Scroll column ── */
@@ -111,14 +121,155 @@ function StepCard({ num, icon, title, desc, color }: {
   );
 }
 
+/* ── Editor Workspace Mockup ── */
+function EditorMockup({ isJa }: { isJa: boolean }) {
+  return (
+    <div className="relative w-full max-w-4xl mx-auto rounded-2xl border border-foreground/[0.08] bg-card/80 backdrop-blur-xl shadow-2xl shadow-foreground/[0.04] overflow-hidden">
+      {/* Title bar */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-foreground/[0.06] bg-foreground/[0.02]">
+        <div className="flex gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-red-400/60" />
+          <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
+          <div className="w-2.5 h-2.5 rounded-full bg-green-400/60" />
+        </div>
+        <span className="text-[11px] text-muted-foreground/50 ml-2 font-medium">
+          {isJa ? "二次方程式 演習プリント.pdf" : "Quadratic Equations Worksheet.pdf"}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+            {isJa ? "生徒用PDF" : "Student PDF"}
+          </span>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
+            {isJa ? "解答付きPDF" : "Answer Key PDF"}
+          </span>
+        </div>
+      </div>
+
+      {/* 3-pane layout */}
+      <div className="grid grid-cols-12 min-h-[280px] sm:min-h-[320px]">
+        {/* Left: Problem list */}
+        <div className="col-span-3 border-r border-foreground/[0.06] p-3 space-y-2">
+          <p className="text-[9px] text-muted-foreground/40 font-semibold tracking-wider uppercase mb-2">
+            {isJa ? "問題一覧" : "Problems"}
+          </p>
+          {[
+            { n: "Q1", label: isJa ? "因数分解" : "Factoring" },
+            { n: "Q2", label: isJa ? "解の公式" : "Quadratic formula" },
+            { n: "Q3", label: isJa ? "判別式" : "Discriminant" },
+            { n: "Q4", label: isJa ? "文章題" : "Word problem" },
+            { n: "Q5", label: isJa ? "応用" : "Application" },
+          ].map((q, i) => (
+            <div
+              key={q.n}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] transition-colors ${
+                i === 1
+                  ? "bg-primary/[0.08] border border-primary/[0.15] text-primary font-medium"
+                  : "text-muted-foreground/60 hover:bg-foreground/[0.03]"
+              }`}
+            >
+              <span className="font-mono text-[9px] opacity-50">{q.n}</span>
+              <span className="truncate">{q.label}</span>
+            </div>
+          ))}
+          <button className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] text-primary/60 hover:text-primary hover:bg-primary/[0.05] transition-colors w-full">
+            <Plus className="h-3 w-3" />
+            <span>{isJa ? "問題を追加" : "Add problem"}</span>
+          </button>
+        </div>
+
+        {/* Center: Editor */}
+        <div className="col-span-5 p-4 space-y-3">
+          <div className="space-y-2">
+            <p className="text-[9px] text-muted-foreground/40 font-semibold tracking-wider uppercase">
+              Q2 — {isJa ? "解の公式" : "Quadratic Formula"}
+            </p>
+            <div className="rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] p-3 space-y-2">
+              <p className="text-[11px] text-foreground/80 leading-relaxed">
+                {isJa
+                  ? "次の二次方程式を解の公式を用いて解け。"
+                  : "Solve the following using the quadratic formula."}
+              </p>
+              <div className="bg-foreground/[0.03] rounded px-3 py-2 text-center">
+                <span className="text-[13px] font-medium text-foreground/70 font-mono">
+                  2x² - 5x + 3 = 0
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 pt-1">
+                <span className="text-[9px] text-muted-foreground/30">{isJa ? "配点" : "Points"}:</span>
+                <span className="text-[9px] text-muted-foreground/50">5</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-medium hover:bg-violet-500/15 transition-colors">
+              <RefreshCw className="h-3 w-3" />
+              {isJa ? "類題を作る" : "Make variants"}
+            </button>
+            <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-foreground/[0.04] text-muted-foreground text-[10px] hover:bg-foreground/[0.06] transition-colors">
+              <Pencil className="h-3 w-3" />
+              {isJa ? "編集" : "Edit"}
+            </button>
+          </div>
+        </div>
+
+        {/* Right: PDF Preview */}
+        <div className="col-span-4 border-l border-foreground/[0.06] bg-foreground/[0.015] p-3">
+          <p className="text-[9px] text-muted-foreground/40 font-semibold tracking-wider uppercase mb-2">
+            {isJa ? "PDFプレビュー" : "PDF Preview"}
+          </p>
+          <div className="bg-white dark:bg-white/[0.95] rounded-lg shadow-sm border border-foreground/[0.08] p-3 aspect-[1/1.2]">
+            <div className="space-y-2">
+              <div className="h-2 w-3/4 bg-gray-200 dark:bg-gray-300 rounded-full mx-auto" />
+              <div className="h-1 w-1/2 bg-gray-100 dark:bg-gray-200 rounded-full mx-auto" />
+              <div className="mt-3 space-y-3">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <div key={n} className="flex gap-2">
+                    <span className="text-[8px] text-gray-400 font-mono">{n}.</span>
+                    <div className="flex-1 space-y-1">
+                      <div className="h-1 bg-gray-100 dark:bg-gray-200 rounded-full w-full" />
+                      <div className="h-1 bg-gray-100 dark:bg-gray-200 rounded-full w-2/3" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Persona card ── */
+function PersonaCard({ icon, title, desc }: {
+  icon: React.ReactNode; title: string; desc: string;
+}) {
+  return (
+    <div className="flex items-start gap-4 p-5 rounded-2xl bg-card/50 backdrop-blur-sm border border-foreground/[0.06] hover:border-foreground/[0.10] transition-all duration-300">
+      <div className="h-10 w-10 rounded-xl bg-primary/[0.08] flex items-center justify-center text-primary shrink-0">
+        {icon}
+      </div>
+      <div>
+        <h4 className="text-[14px] font-semibold tracking-tight mb-1">{title}</h4>
+        <p className="text-[12px] text-muted-foreground leading-relaxed">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
 export function TemplateGallery() {
   const router = useRouter();
   const setDocument = useDocumentStore((s) => s.setDocument);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [powerOpen, setPowerOpen] = useState(false);
 
+  const personaFade = useFadeIn(0);
+  const mockupFade = useFadeIn(0);
   const workflowFade = useFadeIn(0);
   const featuresFade = useFadeIn(0);
+  const diffFade = useFadeIn(0);
   const powerFade = useFadeIn(0);
   const ctaFade = useFadeIn(0);
 
@@ -173,7 +324,7 @@ export function TemplateGallery() {
           <div className="absolute inset-0 opacity-[0.012] dark:opacity-[0.025]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '40px 40px' }} />
         </div>
 
-        {/* Scrolling math problems background */}
+        {/* Scrolling background */}
         <div className="absolute inset-0 flex justify-between px-2 sm:px-6 pointer-events-none">
           <ScrollColumn items={SCROLL_ITEMS_A} speed={50} direction="up" className="w-28 sm:w-40 lg:w-56 opacity-70 sm:opacity-100" />
           <ScrollColumn items={SCROLL_ITEMS_B} speed={60} direction="down" className="w-40 lg:w-56 hidden md:block opacity-70" />
@@ -189,23 +340,23 @@ export function TemplateGallery() {
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/[0.07] dark:bg-primary/[0.12] border border-primary/[0.10] mb-8">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span className="text-primary text-[12px] font-semibold tracking-wide">
-                {isJa ? "教師・塾講師・受験生のための教材ツール" : "Worksheets made simple"}
+                {isJa ? "教材を自分で作る先生のためのツール" : "The worksheet tool for educators who build their own"}
               </span>
             </div>
 
-            <h1 className="text-[clamp(2.6rem,6.5vw,5rem)] leading-[1.05] font-bold tracking-[-0.03em] mb-6">
+            <h1 className="text-[clamp(2.4rem,6vw,4.5rem)] leading-[1.08] font-bold tracking-[-0.03em] mb-6">
               <span className="block">
-                {isJa ? "教材を、" : "Make worksheets,"}
+                {isJa ? "作って、直して、" : "Create. Edit."}
               </span>
               <span className="bg-gradient-to-r from-blue-600 via-violet-500 to-fuchsia-500 dark:from-blue-400 dark:via-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">
-                {isJa ? "もっと速く。" : "insanely fast."}
+                {isJa ? "増やして、配る。" : "Multiply. Distribute."}
               </span>
             </h1>
 
-            <p className="text-muted-foreground text-[17px] sm:text-[18px] leading-relaxed max-w-xl mx-auto mb-10 font-light">
+            <p className="text-muted-foreground text-[16px] sm:text-[18px] leading-relaxed max-w-xl mx-auto mb-10 font-light">
               {isJa
-                ? "AIが問題を生成し、類題を量産し、解答付きPDFを自動で作成。\nWordのように編集して、そのまま印刷できます。"
-                : "AI generates problems, creates variants, and auto-builds answer-key PDFs.\nEdit like Word, print immediately."}
+                ? "PDF・画像・テキストから教材を取り込み、問題ごとに編集し、\n類題を増やし、解答付きPDFですぐ配布。"
+                : "Import from PDFs, images, or text. Edit each problem.\nGenerate variants. Export answer-key PDFs and print."}
             </p>
 
             {/* CTAs */}
@@ -214,7 +365,7 @@ export function TemplateGallery() {
                 onClick={handleStart}
                 className="group flex items-center gap-3 px-8 py-4 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
               >
-                {isJa ? "無料で始める" : "Start free"}
+                {isJa ? "無料で1枚作ってみる" : "Make your first worksheet free"}
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
               {saved && (
@@ -232,7 +383,7 @@ export function TemplateGallery() {
             </div>
 
             <p className="text-[12px] text-muted-foreground/40">
-              {isJa ? "クレジットカード不要 · 登録不要" : "No signup required"}
+              {isJa ? "登録不要 · クレジットカード不要 · すぐ使える" : "No signup · No credit card · Start immediately"}
             </p>
           </div>
 
@@ -246,14 +397,99 @@ export function TemplateGallery() {
         </div>
       </section>
 
+      {/* ━━ Who is this for ━━ */}
+      <section className="relative border-y border-foreground/[0.04] bg-foreground/[0.01] dark:bg-white/[0.015] py-20">
+        <div
+          ref={personaFade.ref}
+          className={`relative max-w-4xl mx-auto px-6 transition-all duration-1000 ${personaFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+        >
+          <div className="text-center mb-12">
+            <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
+              {isJa ? "こんな方に" : "Built for"}
+            </p>
+            <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
+              {isJa ? "教材を自分で作る、すべての先生へ。" : "For every educator who builds their own materials."}
+            </h2>
+            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
+              {isJa
+                ? "演習プリント・小テスト・宿題・模試。自分で作るからこそ、速く作りたい。"
+                : "Worksheets, quizzes, homework, assessments. You build them yourself — so you need to build them fast."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <PersonaCard
+              icon={<GraduationCap className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "個人塾・家庭教師" : "Tutors & Small Academies"}
+              desc={isJa
+                ? "生徒に合わせたオリジナル教材を毎週作る先生。過去問の再利用や類題の量産に。"
+                : "Create custom materials weekly for each student. Reuse past exams and generate problem variants."}
+            />
+            <PersonaCard
+              icon={<Users className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "学校の教科担当" : "Math & STEM Teachers"}
+              desc={isJa
+                ? "授業用プリント・小テスト・定期テストを効率よく作成。解答付きPDFで採点も楽に。"
+                : "Build worksheets, quizzes, and assessments efficiently. Answer-key PDFs make grading easy."}
+            />
+            <PersonaCard
+              icon={<BookOpen className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "テスト対策・教材制作" : "Test Prep & Content Creators"}
+              desc={isJa
+                ? "問題集やドリルを作って配布・販売する方。印刷品質のPDFを大量に。"
+                : "Produce drill sets and practice booklets at scale. Print-quality PDFs ready to distribute or sell."}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ━━ Editor Workspace Mockup ━━ */}
+      <section className="relative py-24 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,hsl(var(--primary)/0.04),transparent_70%)]" />
+        <div
+          ref={mockupFade.ref}
+          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${mockupFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+        >
+          <div className="text-center mb-12">
+            <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
+              {isJa ? "ワークスペース" : "Workspace"}
+            </p>
+            <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
+              {isJa ? "チャットではなく、教材エディタ。" : "Not a chatbot. A worksheet editor."}
+            </h2>
+            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
+              {isJa
+                ? "問題一覧・編集エリア・PDFプレビューの3ペイン。\n問題ごとに編集でき、類題も1クリックで作れます。"
+                : "Three-pane layout: problem list, editor, and PDF preview.\nEdit each problem individually. Generate variants in one click."}
+            </p>
+          </div>
+
+          <EditorMockup isJa={isJa} />
+
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
+            {[
+              { icon: <LayoutGrid className="h-3.5 w-3.5" />, label: isJa ? "問題ごとに管理" : "Per-problem management" },
+              { icon: <Pencil className="h-3.5 w-3.5" />, label: isJa ? "Word感覚で編集" : "Edit like Word" },
+              { icon: <Eye className="h-3.5 w-3.5" />, label: isJa ? "リアルタイムプレビュー" : "Live PDF preview" },
+              { icon: <RefreshCw className="h-3.5 w-3.5" />, label: isJa ? "類題を1クリックで" : "Variants in one click" },
+            ].map((chip) => (
+              <div key={chip.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[11px] text-muted-foreground">
+                {chip.icon}
+                {chip.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ━━ Outcome stats ━━ */}
       <section className="relative border-y border-foreground/[0.04] bg-foreground/[0.01] dark:bg-white/[0.015]">
         <div className="max-w-4xl mx-auto px-6 py-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { value: isJa ? "30秒" : "30s", label: isJa ? "問題を生成" : "to generate" },
-              { value: isJa ? "AI" : "AI", label: isJa ? "類題を量産" : "problem variants" },
-              { value: isJa ? "自動" : "Auto", label: isJa ? "解答PDF生成" : "answer key PDF" },
+              { value: isJa ? "30秒" : "30s", label: isJa ? "で問題セットを生成" : "to generate a problem set" },
+              { value: isJa ? "1クリック" : "1 click", label: isJa ? "で類題を量産" : "to create variants" },
+              { value: isJa ? "自動" : "Auto", label: isJa ? "解答付きPDF生成" : "answer key PDF" },
               { value: isJa ? "即印刷" : "Print", label: isJa ? "A4/B5対応" : "A4/B5 ready" },
             ].map((s) => (
               <div key={s.label}>
@@ -267,7 +503,7 @@ export function TemplateGallery() {
         </div>
       </section>
 
-      {/* ━━ Workflow — How it works ━━ */}
+      {/* ━━ Workflow — Input to Output ━━ */}
       <section className="relative py-24 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_100%,hsl(var(--primary)/0.03),transparent_70%)]" />
         <div
@@ -276,52 +512,52 @@ export function TemplateGallery() {
         >
           <div className="text-center mb-14">
             <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
-              {isJa ? "使い方" : "How it works"}
+              {isJa ? "ワークフロー" : "Workflow"}
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
-              {isJa ? "5ステップで教材完成。" : "From idea to print in 5 steps."}
+              {isJa ? "入力から配布まで、5ステップ。" : "From input to distribution in 5 steps."}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
               {isJa
-                ? "AIと一緒に、問題を作ってPDFに変えるまでの流れ。"
-                : "The end-to-end flow from creating problems to printing PDFs."}
+                ? "PDF・画像・テキスト、何からでも始められます。"
+                : "Start from a PDF, an image, or just a text description."}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-3">
             <StepCard
               num="01"
-              icon={<Sparkles className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "問題を作る" : "Create problems"}
-              desc={isJa ? "AIに話しかけるだけ。「二次方程式を5問」で即完成" : "Just ask AI — \"5 quadratic equations\" and you're done"}
-              color="bg-gradient-to-br from-violet-500 to-fuchsia-500"
-            />
-            <StepCard
-              num="02"
               icon={<Upload className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "PDFを取り込む" : "Import a PDF"}
-              desc={isJa ? "既存の教材PDFをAIが解析。問題を自動で抽出・編集" : "AI reads your existing PDFs and extracts problems"}
+              title={isJa ? "素材を入力" : "Bring your source"}
+              desc={isJa ? "PDFをアップロード、画像を貼る、またはテキストで指示。何からでもOK" : "Upload a PDF, paste an image, or describe what you need in plain text"}
               color="bg-gradient-to-br from-blue-500 to-cyan-500"
             />
             <StepCard
+              num="02"
+              icon={<Layers className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "問題を抽出" : "Extract problems"}
+              desc={isJa ? "PDFや画像から問題を自動で認識し、編集可能な形式に変換" : "AI recognizes problems from your PDF or image and makes them editable"}
+              color="bg-gradient-to-br from-violet-500 to-fuchsia-500"
+            />
+            <StepCard
               num="03"
-              icon={<Copy className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "類題を出す" : "Generate variants"}
-              desc={isJa ? "「類題を10問」と頼むだけで即量産。難易度も調整可" : "\"Make 10 variants\" — AI generates them instantly"}
+              icon={<PenLine className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "問題ごとに編集" : "Edit per problem"}
+              desc={isJa ? "数式・選択肢・配点をWord感覚で自由に修正。1問ずつ微調整" : "Modify equations, choices, and points like in Word. Fine-tune each problem"}
               color="bg-gradient-to-br from-emerald-500 to-teal-500"
             />
             <StepCard
               num="04"
-              icon={<CheckSquare className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "解答付きPDF" : "Answer key PDF"}
-              desc={isJa ? "ワンクリックで解答・解説付きのPDFを自動生成" : "One click to auto-generate a full answer-key PDF"}
+              icon={<Copy className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "類題を増やす" : "Generate variants"}
+              desc={isJa ? "「類題を5問」で数値・難易度を変えたバリエーションを即生成" : "\"5 variants\" — instantly get new problems with adjusted numbers and difficulty"}
               color="bg-gradient-to-br from-amber-500 to-orange-500"
             />
             <StepCard
               num="05"
-              icon={<Printer className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "印刷する" : "Print"}
-              desc={isJa ? "A4/B5対応、美しい組版で即印刷。配布用に最適" : "A4/B5, perfect typesetting, ready to distribute"}
+              icon={<FileDown className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "PDF出力・印刷" : "Export & print"}
+              desc={isJa ? "生徒用と解答付きの2種類のPDFを出力。A4/B5で即印刷" : "Export student and answer-key PDFs. Print A4/B5 immediately"}
               color="bg-gradient-to-br from-slate-500 to-gray-600"
             />
           </div>
@@ -331,7 +567,7 @@ export function TemplateGallery() {
               onClick={handleStart}
               className="group inline-flex items-center gap-3 px-9 py-3.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[14px] shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
             >
-              {isJa ? "今すぐ試してみる" : "Try it now"}
+              {isJa ? "PDFから始めてみる" : "Start from a PDF"}
               <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
           </div>
@@ -350,10 +586,10 @@ export function TemplateGallery() {
           <div className="text-center mb-14">
             <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">Features</p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
-              {isJa ? "教材作成のすべてが、ここに。" : "Everything for worksheet creation."}
+              {isJa ? "問題作成から配布まで、全部ここで。" : "From problem authoring to distribution — all in one place."}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
-              {isJa ? "LaTeXの知識は不要。直感的に使えて、プロ品質の仕上がり。" : "No LaTeX knowledge needed. Intuitive to use, professional results."}
+              {isJa ? "LaTeXの知識は不要。入力すれば、プロ品質の教材が出来上がります。" : "No LaTeX knowledge needed. Just provide your input and get professional worksheets."}
             </p>
           </div>
 
@@ -361,28 +597,28 @@ export function TemplateGallery() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             {[
               {
-                icon: <Sparkles className="h-6 w-6" strokeWidth={1.5} />,
-                gradient: "from-violet-500 to-fuchsia-500",
-                title: isJa ? "AIが問題を生成" : "AI problem generation",
+                icon: <Upload className="h-6 w-6" strokeWidth={1.5} />,
+                gradient: "from-blue-500 to-cyan-500",
+                title: isJa ? "PDF・画像から教材を再利用" : "Reuse materials from PDFs & images",
                 desc: isJa
-                  ? "「数学の二次関数の問題を難易度別に3問」と話すだけ。数学・英語・理科・社会の問題を瞬時に作成します。"
-                  : "Just say \"3 quadratic function problems by difficulty.\" Math, English, science — generated instantly.",
+                  ? "既存の教材PDF・過去問・画像をアップロードするだけ。問題を自動で認識・抽出し、そのまま編集できます。"
+                  : "Upload existing worksheets, past exams, or images. Problems are auto-extracted and ready to edit.",
               },
               {
-                icon: <BookOpen className="h-6 w-6" strokeWidth={1.5} />,
+                icon: <PenLine className="h-6 w-6" strokeWidth={1.5} />,
                 gradient: "from-emerald-500 to-teal-500",
-                title: isJa ? "既存PDFを取り込んで編集" : "Import & edit PDFs",
+                title: isJa ? "問題ごとにWord感覚で編集" : "Edit each problem like Word",
                 desc: isJa
-                  ? "塾のテキストや過去問PDFをアップロードすると、AIが問題を解析。そのまま編集・流用できます。"
-                  : "Upload textbook or past-exam PDFs. AI extracts and edits problems for reuse.",
+                  ? "数式・選択肢・配点・解説をクリックして直接編集。問題の入れ替え・並べ替えも自在です。"
+                  : "Click to edit equations, choices, points, and explanations. Reorder and rearrange problems freely.",
               },
               {
                 icon: <Copy className="h-6 w-6" strokeWidth={1.5} />,
-                gradient: "from-blue-500 to-cyan-500",
-                title: isJa ? "類題を即量産" : "Instant problem variants",
+                gradient: "from-violet-500 to-fuchsia-500",
+                title: isJa ? "類題を即座に量産" : "Instantly generate problem variants",
                 desc: isJa
-                  ? "気に入った問題に「類題を5問」と頼めば、数値・難易度を変えたバリエーションを自動生成します。"
-                  : "Ask for \"5 variants\" of any problem. AI adjusts numbers and difficulty automatically.",
+                  ? "1問から数値・条件・難易度を変えたバリエーションを一括生成。演習量を一気に増やせます。"
+                  : "From one problem, generate batches with varied numbers, conditions, and difficulty levels.",
               },
             ].map((f) => (
               <div
@@ -404,20 +640,20 @@ export function TemplateGallery() {
               {
                 icon: <CheckSquare className="h-5 w-5" strokeWidth={1.5} />,
                 gradient: "from-amber-500 to-orange-500",
-                title: isJa ? "解答付きPDFを自動生成" : "Auto answer-key PDF",
-                desc: isJa ? "生徒用・教師用の2種類のPDFをワンクリックで書き出し。" : "Export student and teacher versions in one click.",
+                title: isJa ? "解答付きPDFをワンクリック" : "Answer-key PDF in one click",
+                desc: isJa ? "生徒用と解答付きの2種類をボタン一つで書き出し。採点・配布がすぐできます。" : "Export student and answer-key versions with one button. Ready for grading and distribution.",
               },
               {
                 icon: <Printer className="h-5 w-5" strokeWidth={1.5} />,
                 gradient: "from-slate-500 to-zinc-500",
-                title: isJa ? "A4/B5 そのまま印刷" : "Print-ready A4/B5",
-                desc: isJa ? "LaTeX品質の組版でプロ仕上がり。余白・フォントも自由に調整。" : "LaTeX-quality typesetting, fully customizable margins and fonts.",
+                title: isJa ? "印刷に強いA4/B5レイアウト" : "Print-optimized A4/B5 layout",
+                desc: isJa ? "プロ品質の組版で印刷配布に最適。余白・フォント・レイアウトも調整可能。" : "Professional typesetting optimized for print. Customize margins, fonts, and layout.",
               },
               {
-                icon: <FileText className="h-5 w-5" strokeWidth={1.5} />,
+                icon: <Sparkles className="h-5 w-5" strokeWidth={1.5} />,
                 gradient: "from-pink-500 to-rose-500",
-                title: isJa ? "Word感覚で編集" : "Edit like Word",
-                desc: isJa ? "クリックして即タイプ。数式もタブキーで自然に入力できます。" : "Click and type. Math entry with Tab key feels natural.",
+                title: isJa ? "テキストからも問題を生成" : "Generate problems from text",
+                desc: isJa ? "「二次方程式を5問」のように指示するだけで問題を自動生成。ゼロからでも始められます。" : "Just describe what you need — \"5 quadratic equations\" — and problems are generated from scratch.",
               },
             ].map((f) => (
               <div
@@ -431,6 +667,67 @@ export function TemplateGallery() {
                 <p className="text-[11.5px] text-muted-foreground leading-relaxed">{f.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ━━ Differentiation — Not Canva, Not Overleaf ━━ */}
+      <section className="relative py-20 border-t border-foreground/[0.04]">
+        <div
+          ref={diffFade.ref}
+          className={`relative max-w-4xl mx-auto px-6 transition-all duration-1000 ${diffFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+        >
+          <div className="text-center mb-12">
+            <h2 className="text-[clamp(1.3rem,3.5vw,2rem)] font-bold tracking-tight mb-4">
+              {isJa ? "テンプレートツールでも、LaTeX専用ツールでもない。" : "Not a template tool. Not a LaTeX editor."}
+            </h2>
+            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
+              {isJa
+                ? "教材の「運用」を速くする、ワークフロー特化のツールです。"
+                : "A workflow-first tool that accelerates how you produce and manage educational materials."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Template tools */}
+            <div className="p-5 rounded-2xl border border-foreground/[0.06] bg-foreground/[0.01]">
+              <p className="text-[11px] text-muted-foreground/50 font-semibold tracking-wider uppercase mb-3">
+                {isJa ? "テンプレ系ツール" : "Template tools"}
+              </p>
+              <ul className="space-y-2 text-[12px] text-muted-foreground/60">
+                <li>✕ {isJa ? "数式の細かい編集が難しい" : "Hard to fine-tune equations"}</li>
+                <li>✕ {isJa ? "問題単位で管理できない" : "No per-problem management"}</li>
+                <li>✕ {isJa ? "類題生成ができない" : "No variant generation"}</li>
+                <li>✕ {isJa ? "解答PDFの自動生成なし" : "No auto answer-key export"}</li>
+              </ul>
+            </div>
+
+            {/* This tool */}
+            <div className="p-5 rounded-2xl border-2 border-primary/20 bg-primary/[0.03] shadow-lg shadow-primary/[0.05]">
+              <p className="text-[11px] text-primary font-bold tracking-wider uppercase mb-3">
+                {isJa ? "かんたん教材メーカー" : "Easy Worksheet Maker"}
+              </p>
+              <ul className="space-y-2 text-[12px] text-foreground/80 font-medium">
+                <li>✓ {isJa ? "PDF・画像から問題を再利用" : "Reuse problems from PDFs & images"}</li>
+                <li>✓ {isJa ? "問題ごとに編集・並べ替え" : "Edit & reorder per problem"}</li>
+                <li>✓ {isJa ? "類題を1クリックで量産" : "Generate variants in one click"}</li>
+                <li>✓ {isJa ? "生徒用 + 解答付きPDF出力" : "Student + answer-key PDF export"}</li>
+                <li>✓ {isJa ? "印刷に最適な組版品質" : "Print-ready typesetting quality"}</li>
+              </ul>
+            </div>
+
+            {/* LaTeX tools */}
+            <div className="p-5 rounded-2xl border border-foreground/[0.06] bg-foreground/[0.01]">
+              <p className="text-[11px] text-muted-foreground/50 font-semibold tracking-wider uppercase mb-3">
+                {isJa ? "LaTeX専用ツール" : "LaTeX editors"}
+              </p>
+              <ul className="space-y-2 text-[12px] text-muted-foreground/60">
+                <li>✕ {isJa ? "LaTeXの知識が必須" : "LaTeX knowledge required"}</li>
+                <li>✕ {isJa ? "問題単位の管理がない" : "No per-problem structure"}</li>
+                <li>✕ {isJa ? "類題の自動生成なし" : "No auto variant generation"}</li>
+                <li>✕ {isJa ? "教材ワークフロー非対応" : "Not built for worksheet workflows"}</li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>
@@ -451,10 +748,10 @@ export function TemplateGallery() {
               </div>
               <div className="text-left">
                 <p className="text-[13px] font-semibold tracking-tight">
-                  {isJa ? "上級者向け — LaTeXを直接触れる" : "Power users — direct LaTeX access"}
+                  {isJa ? "上級者向け — LaTeXも直接触れる" : "Power users — direct LaTeX access"}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  {isJa ? "LaTeX・回路図・化学式・カスタムパッケージにも対応" : "LaTeX, circuits, chemistry, custom packages — all supported"}
+                  {isJa ? "必要なときだけ。LaTeX・回路図・化学式・カスタムパッケージ対応" : "When you need it. LaTeX, circuits, chemistry, custom packages — all supported"}
                 </p>
               </div>
             </div>
@@ -492,22 +789,24 @@ export function TemplateGallery() {
           className={`relative max-w-2xl mx-auto text-center px-6 transition-all duration-1000 ${ctaFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
           <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-5">
-            {isJa ? "今日の授業プリント、\nもう悩まない。" : "No more struggling with worksheets."}
+            {isJa ? "教材づくりに、もう時間をかけない。" : "Stop spending hours on worksheets."}
           </h2>
           <p className="text-muted-foreground text-[15px] mb-10 max-w-md mx-auto leading-relaxed whitespace-pre-line">
             {isJa
-              ? "AIに話しかけるだけで教材が完成。\nまずは無料でお試しください。"
-              : "Just talk to AI. Your worksheet builds itself.\nStart free, no signup needed."}
+              ? "手持ちのPDFから始めても、ゼロから作っても。\n登録不要で、今すぐ1枚作れます。"
+              : "Start from your existing PDF or build from scratch.\nNo signup needed — make your first worksheet now."}
           </p>
-          <button
-            onClick={handleStart}
-            className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
-          >
-            {isJa ? "無料で始める" : "Start free"}
-            <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button
+              onClick={handleStart}
+              className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+            >
+              {isJa ? "無料で1枚作ってみる" : "Make your first worksheet free"}
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+            </button>
+          </div>
           <p className="mt-4 text-[11px] text-muted-foreground/40">
-            {isJa ? "クレジットカード不要" : "No credit card required"}
+            {isJa ? "登録不要 · クレジットカード不要 · 30秒で最初の教材" : "No signup · No credit card · First worksheet in 30 seconds"}
           </p>
         </div>
       </section>
