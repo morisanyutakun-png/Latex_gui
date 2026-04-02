@@ -8,7 +8,7 @@ import { Block, BlockType, BLOCK_TYPES, createBlock } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
 import { JapaneseMathInput, type JapaneseMathInputHandle } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
-import { parseInlineText, getInlineMathContext, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
+import { parseInlineText, getJapaneseSuggestions, type JapaneseSuggestion } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
 import {
   Trash2,
@@ -293,16 +293,25 @@ const PALETTE_ITEMS = BLOCK_TYPES.filter((t) =>
   !["circuit", "diagram", "chemistry", "chart"].includes(t.type)
 ).concat(BLOCK_TYPES.filter((t) => ["circuit", "diagram", "chemistry", "chart"].includes(t.type)));
 
-// カーソル前の「現在入力中の単語」を抽出（数式IME用）
-function getCurrentMathWord(text: string, pos: number): { word: string; start: number } | null {
-  let start = pos;
-  // 区切り文字: 空白・改行・$・/・句読点
-  while (start > 0 && !/[\s\n　。、「」（）(){}[\]$=/+\-*<>?!@#%^&|~\\]/.test(text[start - 1])) {
-    start--;
-  }
-  const word = text.slice(start, pos);
-  if (word.length < 2) return null;
-  return { word, start };
+// ── レンダリング済みインラインテキスト表示（数式は常にKaTeX描画） ──
+function RenderedInlineText({ text, style }: { text: string; style?: React.CSSProperties }) {
+  const segments = parseInlineText(text);
+  const hasMath = segments.some((s) => s.type === "math");
+  if (!text) return <span className="text-muted-foreground/20 select-none">—</span>;
+  if (!hasMath) return <span style={style}>{text}</span>;
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "math" && seg.latex ? (
+          <span key={i} className="inline-block mx-0.5 align-middle">
+            <MathRenderer latex={seg.latex} displayMode={false} />
+          </span>
+        ) : (
+          <span key={i}>{seg.content}</span>
+        )
+      )}
+    </>
+  );
 }
 
 function ParagraphBlockEditor({ block }: { block: Block }) {
@@ -317,7 +326,15 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const editMode = React.useContext(EditModeContext);
   const showTextarea = editMode || isEditing;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [cursorPos, setCursorPos] = useState(0);
+  const mathInputRef = useRef<HTMLInputElement>(null);
+
+  // ── 数式コンポーズモード（IME的数式入力） ──
+  const [mathComposing, setMathComposing] = useState(false);
+  const [composeText, setComposeText] = useState("");
+  const [composeSuggs, setComposeSuggs] = useState<JapaneseSuggestion[]>([]);
+  const [composeIdx, setComposeIdx] = useState(0);
+  // 数式挿入位置（テキスト内のカーソル位置）
+  const [mathInsertPos, setMathInsertPos] = useState(0);
 
   // Slash command palette state
   const [showPalette, setShowPalette] = useState(false);
@@ -325,44 +342,94 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const [paletteIdx, setPaletteIdx] = useState(0);
   const [slashPos, setSlashPos] = useState<number>(0);
 
-  // 数式IME — raw text（$の外）での予測変換
-  const [imeSuggs, setImeSuggs] = useState<JapaneseSuggestion[]>([]);
-  const [showIme, setShowIme] = useState(false);
-  const [imeRange, setImeRange] = useState<{ start: number; end: number } | null>(null);
-  const [imeIdx, setImeIdx] = useState(0);
-
-  // $...$内での候補（既存）
-  const [innerSuggs, setInnerSuggs] = useState<JapaneseSuggestion[]>([]);
-  const [showInner, setShowInner] = useState(false);
-  const [innerIdx, setInnerIdx] = useState(0);
-
   const filteredPalette = paletteQuery
     ? PALETTE_ITEMS.filter((b) =>
         b.name.includes(paletteQuery) || b.type.includes(paletteQuery) || b.description.includes(paletteQuery)
       )
     : PALETTE_ITEMS;
 
+  // ── 数式コンポーズモードに入る ──
+  const enterMathCompose = useCallback((insertPos: number) => {
+    setMathComposing(true);
+    setComposeText("");
+    setComposeSuggs([]);
+    setComposeIdx(0);
+    setMathInsertPos(insertPos);
+    setMathEditing(true);
+    setTimeout(() => mathInputRef.current?.focus(), 0);
+  }, [setMathEditing]);
+
+  // ── 数式コンポーズモードから抜ける ──
+  const exitMathCompose = useCallback(() => {
+    setMathComposing(false);
+    setComposeText("");
+    setComposeSuggs([]);
+    setMathEditing(false);
+    // textarea にフォーカスを戻す
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [setMathEditing]);
+
+  // ── 数式候補を確定して挿入 ──
+  const acceptComposeSugg = useCallback((sugg: JapaneseSuggestion) => {
+    const before = content.text.slice(0, mathInsertPos);
+    const after = content.text.slice(mathInsertPos);
+    const newText = before + "$" + sugg.latex + "$" + after;
+    updateContent(block.id, { text: newText });
+    const newPos = mathInsertPos + 1 + sugg.latex.length + 1;
+    setMathInsertPos(newPos);
+    setComposeText("");
+    setComposeSuggs([]);
+    setComposeIdx(0);
+    // コンポーズモードに留まる（連続入力可能）
+    setTimeout(() => mathInputRef.current?.focus(), 0);
+  }, [content.text, mathInsertPos, block.id, updateContent]);
+
+  // ── コンポーズ入力のハンドリング ──
+  const handleComposeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setComposeText(val);
+    if (val.length >= 1) {
+      const suggs = getJapaneseSuggestions(val);
+      setComposeSuggs(suggs);
+      setComposeIdx(0);
+    } else {
+      setComposeSuggs([]);
+    }
+  }, []);
+
+  const handleComposeKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      exitMathCompose();
+      return;
+    }
+    if (composeSuggs.length > 0) {
+      if (e.key === "Tab" || (e.key === "Enter" && composeSuggs[composeIdx])) {
+        e.preventDefault();
+        acceptComposeSugg(composeSuggs[composeIdx]);
+        return;
+      }
+      if (e.key === "ArrowDown") { e.preventDefault(); setComposeIdx((i) => Math.min(i + 1, composeSuggs.length - 1)); return; }
+      if (e.key === "ArrowUp")   { e.preventDefault(); setComposeIdx((i) => Math.max(i - 1, 0)); return; }
+    }
+    // Enter（候補なし / 空）→ コンポーズモード終了
+    if (e.key === "Enter" && !composeText) {
+      e.preventDefault();
+      exitMathCompose();
+      return;
+    }
+  }, [composeSuggs, composeIdx, composeText, acceptComposeSugg, exitMathCompose]);
+
   const handleSelectPaletteItem = useCallback((type: BlockType) => {
     setShowPalette(false);
     setPaletteQuery("");
     if (type === "paragraph") return;
 
-    // 数式: ブロックを作らず $$ をインライン挿入して数式モードに入る
+    // 数式: コンポーズモードに入る
     if (type === "math") {
-      const before = content.text.slice(0, slashPos);
-      const after = content.text.slice(slashPos + 1 + paletteQuery.length);
-      const newText = before + "$$" + after;
-      updateContent(block.id, { text: newText });
-      setMathEditing(true);
-      setTimeout(() => {
-        if (textareaRef.current) {
-          const pos = slashPos + 1;
-          textareaRef.current.selectionStart = pos;
-          textareaRef.current.selectionEnd = pos;
-          textareaRef.current.focus();
-          setCursorPos(pos);
-        }
-      }, 0);
+      const cleanText = content.text.slice(0, slashPos) + content.text.slice(slashPos + 1 + paletteQuery.length);
+      updateContent(block.id, { text: cleanText });
+      enterMathCompose(slashPos);
       return;
     }
 
@@ -377,11 +444,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       const newId = addBlock(type, idx + 1);
       setTimeout(() => setEditingBlock(newId), 50);
     }
-  }, [block.id, content.text, slashPos, paletteQuery, document, addBlock, convertBlock, setEditingBlock, updateContent, setMathEditing]);
-
-  // インライン数式コンテキスト（$...$内かどうか）
-  const mathCtx = getInlineMathContext(content.text, cursorPos);
-  const isInMathMode = !!(mathCtx?.inMath);
+  }, [block.id, content.text, slashPos, paletteQuery, document, addBlock, convertBlock, setEditingBlock, updateContent, enterMathCompose]);
 
   // Auto-resize
   useEffect(() => {
@@ -389,9 +452,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
   }, [content.text]);
 
-  // Auto-focus（クリックで既にフォーカス済みの場合はカーソル位置を保持）
+  // Auto-focus
   useEffect(() => {
-    if (isEditing && textareaRef.current) {
+    if (isEditing && !mathComposing && textareaRef.current) {
       if (window.document.activeElement !== textareaRef.current) {
         textareaRef.current.focus();
         const len = textareaRef.current.value.length;
@@ -399,81 +462,13 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         textareaRef.current.selectionEnd = len;
       }
     }
-    if (!isEditing) { setMathEditing(false); setShowIme(false); setShowInner(false); }
-  }, [isEditing, setMathEditing]);
-
-  // 数式モード通知（textarea focused + math context の両方をチェック）
-  useEffect(() => {
-    const focused = window.document.activeElement === textareaRef.current;
-    if (focused) setMathEditing(isInMathMode || showIme);
-  }, [isInMathMode, showIme, isEditing, setMathEditing]);
-
-  // IMEで数式をインラインとして確定
-  const acceptImeInline = useCallback((sugg: JapaneseSuggestion) => {
-    if (!imeRange) return;
-    const before = content.text.slice(0, imeRange.start);
-    const after = content.text.slice(imeRange.end);
-    const newText = before + "$" + sugg.latex + "$" + after;
-    updateContent(block.id, { text: newText });
-    setShowIme(false);
-    setImeRange(null);
-    setTimeout(() => {
-      if (textareaRef.current) {
-        const newPos = imeRange.start + 1 + sugg.latex.length + 1;
-        textareaRef.current.selectionStart = newPos;
-        textareaRef.current.selectionEnd = newPos;
-        textareaRef.current.focus();
-        setCursorPos(newPos);
-      }
-    }, 0);
-  }, [content.text, imeRange, block.id, updateContent]);
-
-  // IMEで数式ブロックとして挿入
-  const acceptImeBlock = useCallback((sugg: JapaneseSuggestion) => {
-    if (!imeRange) return;
-    const before = content.text.slice(0, imeRange.start);
-    const after = content.text.slice(imeRange.end);
-    const newText = (before + after).trim();
-    updateContent(block.id, { text: newText });
-    setShowIme(false);
-    setImeRange(null);
-    const blocks = useDocumentStore.getState().document?.blocks ?? [];
-    const idx = blocks.findIndex((b) => b.id === block.id);
-    const newId = addBlock("math", idx + 1);
-    if (newId) {
-      useDocumentStore.getState().updateBlockContent(newId, { latex: sugg.latex, sourceText: sugg.reading });
-    }
-  }, [content.text, imeRange, block.id, updateContent, addBlock]);
-
-  // $...$内での候補確定
-  const acceptInnerSugg = useCallback((sugg: JapaneseSuggestion) => {
-    const ctx = getInlineMathContext(content.text, cursorPos);
-    if (!ctx) return;
-    const mathContent = ctx.mathContent;
-    const lastWordMatch = mathContent.match(/([^\s　]*)$/);
-    const lastWord = lastWordMatch ? lastWordMatch[1] : "";
-    const newMathContent = mathContent.slice(0, mathContent.length - lastWord.length) + sugg.latex;
-    const textBefore = content.text.slice(0, ctx.mathStart + 1);
-    const textAfter = content.text.slice(ctx.mathEnd);
-    const newText = textBefore + newMathContent + "$" + textAfter;
-    updateContent(block.id, { text: newText });
-    setShowInner(false);
-    setTimeout(() => {
-      if (textareaRef.current) {
-        const newPos = ctx.mathStart + 1 + newMathContent.length + 1;
-        textareaRef.current.selectionStart = newPos;
-        textareaRef.current.selectionEnd = newPos;
-        textareaRef.current.focus();
-        setCursorPos(newPos);
-      }
-    }, 0);
-  }, [content.text, cursorPos, block.id, updateContent]);
+    if (!isEditing) { setMathEditing(false); setMathComposing(false); }
+  }, [isEditing, mathComposing, setMathEditing]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     const pos = e.target.selectionStart || 0;
     updateContent(block.id, { text });
-    setCursorPos(pos);
 
     // スラッシュパレット更新
     if (showPalette) {
@@ -481,46 +476,15 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       if (text[slashPos] !== "/" || pos <= slashPos) {
         setShowPalette(false); setPaletteQuery(""); setPaletteIdx(0);
       } else {
-        setPaletteQuery(query); setPaletteIdx(0); setShowIme(false); setShowInner(false);
-        return;
-      }
-    }
-
-    const ctx = getInlineMathContext(text, pos);
-    if (ctx && ctx.inMath) {
-      // $...$内: 既存候補システム
-      setShowIme(false);
-      const suggs = ctx.mathContent.length > 0 ? getJapaneseSuggestions(ctx.mathContent) : [];
-      setInnerSuggs(suggs);
-      setShowInner(suggs.length > 0);
-      setInnerIdx(0);
-    } else {
-      // $の外: 現在単語で数式IME
-      setShowInner(false);
-      const wordInfo = getCurrentMathWord(text, pos);
-      if (wordInfo && !showPalette) {
-        const suggs = getJapaneseSuggestions(wordInfo.word);
-        if (suggs.length > 0) {
-          setImeSuggs(suggs);
-          setShowIme(true);
-          setImeRange({ start: wordInfo.start, end: pos });
-          setImeIdx(0);
-        } else {
-          setImeSuggs([]); setShowIme(false); setImeRange(null);
-        }
-      } else {
-        setImeSuggs([]); setShowIme(false); setImeRange(null);
+        setPaletteQuery(query); setPaletteIdx(0);
       }
     }
   }, [block.id, updateContent, showPalette, slashPos]);
 
-  const handleSelect = useCallback(() => {
-    if (textareaRef.current) setCursorPos(textareaRef.current.selectionStart || 0);
-  }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 空行でBackspace → 行を削除して前に戻る
-    if (e.key === "Backspace" && content.text === "" && !showPalette && !showIme) {
+    if (e.key === "Backspace" && content.text === "" && !showPalette) {
       e.preventDefault();
       const blocks = useDocumentStore.getState().document?.blocks ?? [];
       const idx = blocks.findIndex((b) => b.id === block.id);
@@ -530,35 +494,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       return;
     }
 
-    // 数式IMEが開いている時（$の外）
-    if (showIme && imeSuggs.length > 0) {
-      if (e.key === "Tab") {
-        e.preventDefault();
-        acceptImeInline(imeSuggs[imeIdx]);
-        return;
-      }
-      if (e.key === "Enter" && e.shiftKey) {
-        e.preventDefault();
-        acceptImeInline(imeSuggs[imeIdx]);
-        return;
-      }
-      if (e.key === "ArrowDown") { e.preventDefault(); setImeIdx((i) => Math.min(i + 1, imeSuggs.length - 1)); return; }
-      if (e.key === "ArrowUp")   { e.preventDefault(); setImeIdx((i) => Math.max(i - 1, 0)); return; }
-      if (e.key === "Escape")    { e.preventDefault(); setShowIme(false); return; }
-    }
-
-    // $...$内候補
-    if (showInner && innerSuggs.length > 0) {
-      if (e.key === "Tab" || e.key === "Enter") {
-        if (innerSuggs[innerIdx]) { e.preventDefault(); acceptInnerSugg(innerSuggs[innerIdx]); return; }
-      }
-      if (e.key === "ArrowDown") { e.preventDefault(); setInnerIdx((i) => Math.min(i + 1, innerSuggs.length - 1)); return; }
-      if (e.key === "ArrowUp")   { e.preventDefault(); setInnerIdx((i) => Math.max(i - 1, 0)); return; }
-      if (e.key === "Escape")    { setShowInner(false); return; }
-    }
-
     // スラッシュパレット
-    if (e.key === "/" && !showPalette && !showIme) {
+    if (e.key === "/" && !showPalette) {
       const el = e.currentTarget;
       setSlashPos(el.selectionStart || 0);
       setTimeout(() => { setShowPalette(true); setPaletteIdx(0); setPaletteQuery(""); }, 0);
@@ -570,51 +507,37 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       if (e.key === "Escape")    { e.preventDefault(); setShowPalette(false); setPaletteQuery(""); return; }
     }
 
+    // Tab → 数式コンポーズモードに入る
+    if (e.key === "Tab" && !showPalette) {
+      e.preventDefault();
+      const pos = e.currentTarget.selectionStart ?? 0;
+      enterMathCompose(pos);
+      return;
+    }
+
     // ブロック間移動
     const el = e.currentTarget;
     const blocks = useDocumentStore.getState().document?.blocks ?? [];
     const idx = blocks.findIndex((b) => b.id === block.id);
     const { selectBlock: sel, setEditingBlock: setEdit } = useUIStore.getState();
 
-    // Tab → インライン数式 $...$ を挿入（ポップアップなし時）
-    if (e.key === "Tab" && !showPalette && !showIme && !showInner) {
-      e.preventDefault();
-      const pos = el.selectionStart ?? 0;
-      const currentText = el.value;
-      const newText = currentText.slice(0, pos) + "$$" + currentText.slice(pos);
-      useDocumentStore.getState().updateBlockContent(block.id, { text: newText });
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart = pos + 1;
-          textareaRef.current.selectionEnd = pos + 1;
-          textareaRef.current.focus();
-          setCursorPos(pos + 1);
-        }
-      }, 0);
-      return;
-    }
-
-    if (e.key === "ArrowUp" && el.selectionStart === 0 && el.selectionEnd === 0 && !showPalette && !showIme) {
+    if (e.key === "ArrowUp" && el.selectionStart === 0 && el.selectionEnd === 0 && !showPalette) {
       e.preventDefault();
       if (idx > 0) { sel(blocks[idx - 1].id); setEdit(blocks[idx - 1].id); }
       return;
     }
-    if (e.key === "ArrowDown" && el.selectionStart === el.value.length && !showPalette && !showIme) {
+    if (e.key === "ArrowDown" && el.selectionStart === el.value.length && !showPalette) {
       e.preventDefault();
       if (idx < blocks.length - 1) { sel(blocks[idx + 1].id); setEdit(blocks[idx + 1].id); }
       return;
     }
-    if (e.key === "Enter" && !e.shiftKey && !showPalette && !showIme && !showInner) {
+    if (e.key === "Enter" && !e.shiftKey && !showPalette) {
       e.preventDefault();
       const newId = addBlock("paragraph", idx + 1);
       if (newId) { sel(newId); setEdit(newId); }
       return;
     }
-  }, [showIme, imeSuggs, imeIdx, acceptImeInline, acceptImeBlock, showInner, innerSuggs, innerIdx, acceptInnerSugg, showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, block.id, addBlock]);
-
-  // インラインレンダリング
-  const segments = parseInlineText(content.text);
-  const hasMath = segments.some((s) => s.type === "math");
+  }, [showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, block.id, addBlock, content.text, enterMathCompose]);
 
   const baseStyle: React.CSSProperties = {
     fontSize: block.style.fontSize ? `${block.style.fontSize}pt` : undefined,
@@ -625,68 +548,50 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     color: block.style.textColor || undefined,
   };
 
-  // 数式モード中はカーソルをバイオレットに
-  const textareaStyle: React.CSSProperties = {
-    ...baseStyle,
-    caretColor: isInMathMode ? "#8b5cf6" : undefined,
-  };
-
   return (
     <div className="relative">
-      {/* 編集中: レンダリングプレビュー + 入力欄 */}
-      {showTextarea && (
+      {/* ── 数式コンポーズモード: 紙面にはレンダリング済みのみ + IME入力バー ── */}
+      {showTextarea && mathComposing ? (
         <>
-          {/* リアルタイムレンダリングプレビュー（数式含む場合のみ） */}
-          {hasMath && (
-            <div className="px-0 py-1 text-[14px] leading-[1.8] border-b border-violet-200/30 dark:border-violet-800/30 mb-1" style={baseStyle}>
-              {segments.map((seg, i) =>
-                seg.type === "math" && seg.latex ? (
-                  <span key={i} className="inline-block mx-0.5 align-middle">
-                    <MathRenderer latex={seg.latex} displayMode={false} />
-                  </span>
-                ) : (
-                  <span key={i}>{seg.content}</span>
-                )
-              )}
+          {/* レンダリング済み出力（紙面表示） */}
+          <div className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em]" style={baseStyle}>
+            <RenderedInlineText text={content.text} style={baseStyle} />
+            {/* コンポーズ中のプレビュー（入力中の数式を仮表示） */}
+            {composeSuggs.length > 0 && composeSuggs[composeIdx] && (
+              <span className="inline-block mx-0.5 align-middle opacity-40">
+                <MathRenderer latex={composeSuggs[composeIdx].latex} displayMode={false} />
+              </span>
+            )}
+            <span className="inline-block w-0.5 h-4 bg-violet-500 animate-pulse align-middle ml-0.5" />
+          </div>
+
+          {/* 数式IME入力バー */}
+          <div className="mt-1 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-violet-50/80 dark:bg-violet-950/30 border border-violet-200/50 dark:border-violet-700/40">
+            <Sigma className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+            <input
+              ref={mathInputRef}
+              value={composeText}
+              onChange={handleComposeChange}
+              onKeyDown={handleComposeKeyDown}
+              placeholder="日本語で数式を入力..."
+              className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-violet-400/40"
+              autoFocus
+            />
+            <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/50 shrink-0">
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> 確定</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 終了</span>
             </div>
-          )}
+          </div>
 
-          {/* 入力欄（数式がある場合は格下げ表示） */}
-          <textarea
-            ref={textareaRef}
-            value={content.text}
-            onChange={handleChange}
-            onSelect={handleSelect}
-            onKeyDown={handleKeyDown}
-            placeholder={t("block.ph.paragraph")}
-            className={`w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 px-0 py-0.5 placeholder:text-muted-foreground/25 ${
-              hasMath
-                ? "text-[11px] leading-[1.6] font-mono text-muted-foreground/60"
-                : "text-[14px] leading-[1.8]"
-            }`}
-            style={hasMath ? { ...textareaStyle, fontSize: undefined, fontFamily: undefined } : textareaStyle}
-            rows={1}
-          />
-
-          {/* 数式IMEポップアップ（$の外での自然言語予測変換） */}
-          {showIme && imeSuggs.length > 0 && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-popover border border-violet-200/40 dark:border-violet-800/40 rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100">
-              <div className="px-3 py-1.5 border-b border-border/15 flex items-center justify-between bg-violet-50/60 dark:bg-violet-950/20">
-                <div className="flex items-center gap-1.5">
-                  <Sigma className="h-3 w-3 text-violet-500" />
-                  <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">数式変換</span>
-                </div>
-                <div className="flex items-center gap-3 text-[9px] font-mono text-muted-foreground/50">
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> 確定</span>
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 閉じる</span>
-                </div>
-              </div>
-              {imeSuggs.slice(0, 6).map((sugg, i) => (
+          {/* 数式候補リスト */}
+          {composeSuggs.length > 0 && (
+            <div className="absolute z-50 left-0 right-0 mt-0.5 bg-popover border border-violet-200/40 dark:border-violet-800/40 rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100" style={{ top: "100%" }}>
+              {composeSuggs.slice(0, 6).map((sugg, i) => (
                 <button
                   key={i}
-                  onMouseDown={(e) => { e.preventDefault(); acceptImeInline(sugg); }}
+                  onMouseDown={(e) => { e.preventDefault(); acceptComposeSugg(sugg); }}
                   className={`w-full text-left px-3 py-2 flex items-center gap-3 transition-colors ${
-                    i === imeIdx
+                    i === composeIdx
                       ? "bg-violet-50/70 dark:bg-violet-950/25"
                       : "hover:bg-muted/40"
                   }`}
@@ -698,44 +603,31 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                     <span className="text-[11px] font-medium text-foreground/80 truncate">{sugg.reading}</span>
                     <span className="text-[9px] text-muted-foreground/50">{sugg.category}</span>
                   </div>
-                  {i === imeIdx && (
-                    <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                      <span className="text-[9px] font-mono text-violet-400/70">Tab</span>
-                    </div>
-                  )}
-                  {i < 9 && (
-                    <span className="ml-auto shrink-0 text-[9px] font-mono text-muted-foreground/30">{i + 1}</span>
+                  {i === composeIdx && (
+                    <span className="ml-auto text-[9px] font-mono text-violet-400/70">Tab</span>
                   )}
                 </button>
               ))}
             </div>
           )}
-
-          {/* $...$内での候補（IMEスタイル） */}
-          {showInner && innerSuggs.length > 0 && !showIme && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-popover border border-border/30 rounded-xl shadow-xl overflow-hidden animate-in fade-in-0 duration-75">
-              <div className="px-3 py-1 border-b border-border/10 flex items-center gap-1.5 bg-muted/20">
-                <Sigma className="h-3 w-3 text-violet-400" />
-                <span className="text-[10px] text-muted-foreground/60">数式候補</span>
-                <span className="ml-auto text-[9px] font-mono text-muted-foreground/40">Tab / Enter で確定</span>
-              </div>
-              {innerSuggs.slice(0, 5).map((sugg, i) => (
-                <button
-                  key={i}
-                  onMouseDown={(e) => { e.preventDefault(); acceptInnerSugg(sugg); }}
-                  className={`w-full text-left px-3 py-1.5 flex items-center gap-3 transition-colors ${
-                    i === innerIdx ? "bg-violet-50/60 dark:bg-violet-950/20" : "hover:bg-muted/40"
-                  }`}
-                >
-                  <div className="min-w-[48px] flex justify-center">
-                    <MathRenderer latex={sugg.latex} displayMode={false} />
-                  </div>
-                  <span className="text-[11px] text-foreground/70">{sugg.reading}</span>
-                  <span className="ml-auto text-[9px] text-muted-foreground/40">{sugg.category}</span>
-                </button>
-              ))}
-            </div>
-          )}
+        </>
+      ) : showTextarea ? (
+        <>
+          {/* ── 通常テキスト編集モード: textarea（レンダリング済み表示） ── */}
+          {/* 紙面にはレンダリング済みテキスト+数式を表示 */}
+          <div className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em]" style={baseStyle}>
+            <RenderedInlineText text={content.text} style={baseStyle} />
+          </div>
+          {/* 隠しtextarea（実際の入力はここ） */}
+          <textarea
+            ref={textareaRef}
+            value={content.text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={t("block.ph.paragraph")}
+            className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 px-0 py-0.5 text-[11px] leading-[1.6] font-mono text-muted-foreground/40 placeholder:text-muted-foreground/25"
+            rows={1}
+          />
 
           {/* スラッシュコマンドパレット */}
           {showPalette && filteredPalette.length > 0 && (
@@ -759,28 +651,10 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             </div>
           )}
         </>
-      )}
-
-      {/* 非編集時: レンダリング表示 */}
-      {!showTextarea && (
+      ) : (
+        /* ── 非編集時: レンダリング表示のみ ── */
         <div className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text" style={baseStyle}>
-          {content.text ? (
-            hasMath ? (
-              segments.map((seg, i) =>
-                seg.type === "math" && seg.latex ? (
-                  <span key={i} className="inline-block mx-0.5 align-middle">
-                    <MathRenderer latex={seg.latex} displayMode={false} />
-                  </span>
-                ) : (
-                  <span key={i}>{seg.content}</span>
-                )
-              )
-            ) : (
-              <span>{content.text}</span>
-            )
-          ) : (
-            <span className="text-muted-foreground/20 select-none">—</span>
-          )}
+          <RenderedInlineText text={content.text} style={baseStyle} />
         </div>
       )}
     </div>
