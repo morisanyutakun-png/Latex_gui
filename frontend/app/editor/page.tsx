@@ -26,6 +26,7 @@ export default function EditorPage() {
   useAutosave();
 
   const { locale, setLocale, t } = useI18n();
+  const isJa = locale !== "en";
   const isChatLoading = useUIStore((s) => s.isChatLoading);
   const isMathEditing = useUIStore((s) => s.isMathEditing);
   const isMobile = useIsMobile();
@@ -100,11 +101,11 @@ export default function EditorPage() {
 
   // パネルタイトルと色設定
   const panelMeta: Record<SidebarTab, { label: string; bg: string; textColor: string; indicator: string }> = {
-    ai:       { label: t("panel.ai"),       bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/70", indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
-    advanced: { label: t("panel.advanced"), bg: "bg-amber-950/8 dark:bg-amber-950/15",    textColor: "text-amber-500/70 font-mono",  indicator: "bg-amber-400" },
-    latex:    { label: t("panel.latex"),    bg: "bg-muted/10",                             textColor: "text-muted-foreground/50",    indicator: "" },
-    guide:    { label: "編集ガイド",         bg: "bg-sky-950/8 dark:bg-sky-950/15",         textColor: "text-sky-400/80",             indicator: "bg-gradient-to-b from-sky-500/60 to-sky-400/20" },
-    math:     { label: "数式リファレンス",   bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/80",          indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
+    ai:       { label: isJa ? "AIアシスタント" : "AI Assistant",    bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/70",          indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
+    advanced: { label: isJa ? "LaTeX拡張"      : "LaTeX Extensions", bg: "bg-amber-950/8 dark:bg-amber-950/15",   textColor: "text-amber-500/70 font-mono", indicator: "bg-amber-400" },
+    latex:    { label: isJa ? "LaTeXソース"    : "LaTeX Source",     bg: "bg-muted/10",                           textColor: "text-muted-foreground/50",    indicator: "" },
+    guide:    { label: isJa ? "編集ガイド"      : "Editing Guide",    bg: "bg-sky-950/8 dark:bg-sky-950/15",       textColor: "text-sky-400/80",             indicator: "bg-gradient-to-b from-sky-500/60 to-sky-400/20" },
+    math:     { label: isJa ? "数式入力ガイド"  : "Math Reference",   bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/80",         indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
   };
 
   /* ══════════════════════════════════════════════
@@ -230,12 +231,14 @@ export default function EditorPage() {
 
           {/* Activity bar — right edge, no extra border */}
           <div className="w-10 flex flex-col items-center pt-1 pb-1 border-l border-border/10 shrink-0">
-          {/* AI */}
+          {/* AI アシスタント */}
           {(["ai", "latex"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Bot : FileCode2;
             const color = tab === "ai" ? "text-violet-500 dark:text-violet-400" : "text-slate-400";
             const ind   = tab === "ai" ? "bg-violet-500" : "bg-slate-400";
-            const label = tab === "ai" ? t("panel.ai") : t("panel.latex");
+            const label = tab === "ai"
+              ? (isJa ? "AIアシスタント" : "AI Assistant")
+              : (isJa ? "LaTeXソース" : "LaTeX Source");
             const isActive = sidebarOpen && activeTab === tab;
             return (
               <button key={tab} onClick={() => handleTabClick(tab)} title={label}
@@ -252,10 +255,12 @@ export default function EditorPage() {
             );
           })}
 
-          {/* Edit mode toggle */}
+          {/* 編集モード切替 */}
           <button
             onClick={() => setEditMode((v) => !v)}
-            title={editMode ? "編集モードをOFF" : "編集モードをON"}
+            title={editMode
+              ? (isJa ? "編集モードをOFF" : "Exit edit mode")
+              : (isJa ? "編集モードをON — クリックして書き込む" : "Edit mode — click to write")}
             className={`relative h-10 w-full flex items-center justify-center transition-all ${
               editMode ? "text-sky-500 dark:text-sky-400 bg-muted/30" : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
             }`}
@@ -267,11 +272,13 @@ export default function EditorPage() {
             )}
           </button>
 
-          {/* 編集ガイド — editMode時のみ */}
+          {/* 編集ガイド / 数式ガイド — editMode時のみ */}
           {editMode && (
             <button
               onClick={() => handleTabClick(isMathEditing ? "math" : "guide")}
-              title={isMathEditing ? "数式リファレンス" : "編集ガイド"}
+              title={isMathEditing
+                ? (isJa ? "数式入力ガイド" : "Math reference")
+                : (isJa ? "編集ガイド" : "Editing guide")}
               className={`relative h-10 w-full flex items-center justify-center transition-all ${
                 sidebarOpen && (activeTab === "guide" || activeTab === "math")
                   ? isMathEditing ? "text-violet-500 bg-muted/30" : "text-sky-500 bg-muted/30"
@@ -291,11 +298,13 @@ export default function EditorPage() {
           <div className="flex-1" />
           <div className="w-5 h-px bg-border/30 mb-1" />
 
-          {/* Advanced — extension at bottom */}
+          {/* LaTeX拡張 — 上級者向け、下部に配置 */}
           {(() => {
             const isActive = sidebarOpen && activeTab === "advanced";
             return (
-              <button onClick={() => handleTabClick("advanced")} title={`${t("panel.advanced")} — LaTeX拡張`}
+              <button
+                onClick={() => handleTabClick("advanced")}
+                title={isJa ? "LaTeX拡張（上級者向け）" : "LaTeX Extensions (advanced)"}
                 className={`relative h-10 w-full flex items-center justify-center transition-all ${
                   isActive ? "text-amber-500 dark:text-amber-400 bg-muted/30" : "text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/15"
                 }`}
