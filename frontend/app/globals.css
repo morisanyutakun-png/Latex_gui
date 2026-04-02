@@ -119,6 +119,12 @@ html {
   border-radius: 6px;
 }
 
+/* Editor paper — seamless editing, no focus rings on form elements */
+.latex-paper textarea:focus-visible,
+.latex-paper input:focus-visible {
+  outline: none;
+}
+
 /* Apple-style glassmorphism */
 .glass {
   background: hsl(var(--background) / 0.72);

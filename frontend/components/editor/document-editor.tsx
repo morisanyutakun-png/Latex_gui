@@ -189,7 +189,7 @@ const AutoTextarea = React.forwardRef<HTMLTextAreaElement, {
       placeholder={placeholder}
       onKeyDown={onKeyDown}
       autoFocus={autoFocus}
-      className={`w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 p-0 ${className}`}
+      className={`w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 focus-visible:outline-none p-0 ${className}`}
       style={style}
       rows={1}
     />
@@ -363,20 +363,23 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
   }, [content.text]);
 
-  // Auto-focus
+  // Auto-focus（クリックで既にフォーカス済みの場合はカーソル位置を保持）
   useEffect(() => {
     if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      const len = textareaRef.current.value.length;
-      textareaRef.current.selectionStart = len;
-      textareaRef.current.selectionEnd = len;
+      if (window.document.activeElement !== textareaRef.current) {
+        textareaRef.current.focus();
+        const len = textareaRef.current.value.length;
+        textareaRef.current.selectionStart = len;
+        textareaRef.current.selectionEnd = len;
+      }
     }
     if (!isEditing) { setMathEditing(false); setShowIme(false); setShowInner(false); }
   }, [isEditing, setMathEditing]);
 
-  // 数式モード通知
+  // 数式モード通知（textarea focused + math context の両方をチェック）
   useEffect(() => {
-    if (isEditing) setMathEditing(isInMathMode || showIme);
+    const focused = window.document.activeElement === textareaRef.current;
+    if (focused) setMathEditing(isInMathMode || showIme);
   }, [isInMathMode, showIme, isEditing, setMathEditing]);
 
   // IMEで数式をインラインとして確定
@@ -547,6 +550,24 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     const idx = blocks.findIndex((b) => b.id === block.id);
     const { selectBlock: sel, setEditingBlock: setEdit } = useUIStore.getState();
 
+    // Tab → インライン数式 $...$ を挿入（ポップアップなし時）
+    if (e.key === "Tab" && !showPalette && !showIme && !showInner) {
+      e.preventDefault();
+      const pos = el.selectionStart ?? 0;
+      const currentText = el.value;
+      const newText = currentText.slice(0, pos) + "$$" + currentText.slice(pos);
+      useDocumentStore.getState().updateBlockContent(block.id, { text: newText });
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = pos + 1;
+          textareaRef.current.selectionEnd = pos + 1;
+          textareaRef.current.focus();
+          setCursorPos(pos + 1);
+        }
+      }, 0);
+      return;
+    }
+
     if (e.key === "ArrowUp" && el.selectionStart === 0 && el.selectionEnd === 0 && !showPalette && !showIme) {
       e.preventDefault();
       if (idx > 0) { sel(blocks[idx - 1].id); setEdit(blocks[idx - 1].id); }
@@ -578,6 +599,12 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     color: block.style.textColor || undefined,
   };
 
+  // 数式モード中はカーソルをバイオレットに
+  const textareaStyle: React.CSSProperties = {
+    ...baseStyle,
+    caretColor: isInMathMode ? "#8b5cf6" : undefined,
+  };
+
   return (
     <div className="relative">
       {/* 編集中: textarea */}
@@ -591,9 +618,19 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             onKeyDown={handleKeyDown}
             placeholder={t("block.ph.paragraph")}
             className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 px-0 py-0.5 text-[14px] leading-[1.8] placeholder:text-muted-foreground/25"
-            style={baseStyle}
+            style={textareaStyle}
             rows={1}
           />
+
+          {/* インライン数式ライブプレビュー（$...$内にカーソルがある時） */}
+          {isInMathMode && mathCtx?.mathContent && !showIme && !showInner && !showPalette && (
+            <div className="absolute left-0 top-full mt-0.5 z-40 pointer-events-none">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-50/95 dark:bg-violet-950/80 border border-violet-200/50 dark:border-violet-700/40 shadow-sm backdrop-blur-sm">
+                <Sigma className="h-2.5 w-2.5 text-violet-400 shrink-0" />
+                <MathRenderer latex={mathCtx.mathContent} displayMode={false} />
+              </div>
+            </div>
+          )}
 
           {/* 数式IMEポップアップ（$の外での自然言語予測変換） */}
           {showIme && imeSuggs.length > 0 && (
@@ -1179,7 +1216,7 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
 
         {/* Paper card */}
         <div
-          className="bg-white dark:bg-[#fafafa] flex-shrink-0 relative shadow-[0_4px_24px_rgba(0,0,0,0.18)]"
+          className={`latex-paper bg-white dark:bg-[#fafafa] flex-shrink-0 relative shadow-[0_4px_24px_rgba(0,0,0,0.18)] ${editMode ? "cursor-text" : ""}`}
           style={{
             width: paper.w,
             minHeight: Math.round(paper.w * 1.4142),
