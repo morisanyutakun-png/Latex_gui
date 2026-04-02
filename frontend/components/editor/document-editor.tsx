@@ -612,118 +612,117 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   // 通常モード: 全テキスト(レンダリング済み)
   const confirmedText = mathMode ? content.text.slice(0, mathAnchor) : content.text;
 
+  // 編集中かどうかでカーソル表示
+  const showCursor = showTextarea && isEditing;
+
   return (
     <div className="relative">
-      {showTextarea ? (
-        <>
-          {/* ── 紙面表示 + textarea を同一行に完全重ね ── */}
-          <div className="relative min-h-[1.75em]">
-            {/* レンダリング済み表示（見える層） */}
-            <div
-              className="px-0 py-0 text-[14px] leading-[1.8] pointer-events-none whitespace-pre-wrap break-words"
-              style={baseStyle}
-              aria-hidden
-            >
-              {confirmedText ? (
-                <RenderedInlineText text={confirmedText} style={baseStyle} />
-              ) : !mathMode ? (
-                <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
-              ) : null}
-              {mathMode && (
-                composingText ? (
-                  composingLatex ? (
-                    <span className="inline-block mx-0.5 align-middle">
-                      <MathRenderer latex={composingLatex} displayMode={false} />
-                    </span>
-                  ) : (
-                    <span className="text-violet-500/60">{composingText}</span>
-                  )
-                ) : (
-                  <span className="text-violet-400/30">|</span>
-                )
-              )}
-            </div>
+      {/* ── 紙面: 常にレンダリング済み表示のみ（LaTeXコードは絶対に見せない） ── */}
+      <div
+        className={`px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] ${showTextarea ? "cursor-text" : "cursor-text"}`}
+        style={baseStyle}
+        onClick={() => textareaRef.current?.focus()}
+      >
+        {/* 確定済みテキスト（数式はKaTeX描画） */}
+        {confirmedText ? (
+          <RenderedInlineText text={confirmedText} style={baseStyle} />
+        ) : !mathMode && !showCursor ? (
+          <span className="text-muted-foreground/20 select-none">—</span>
+        ) : !mathMode && showCursor && !content.text ? (
+          <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
+        ) : null}
 
-            {/* textarea（完全に同じ位置に重ねる — テキスト透明、カーソルだけ見える） */}
-            <textarea
-              ref={textareaRef}
-              value={content.text}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              placeholder={mathMode ? "" : t("block.ph.paragraph")}
-              className={`absolute top-0 left-0 w-full h-full resize-none overflow-hidden border-none outline-none focus:ring-0 bg-transparent px-0 py-0 m-0 text-[14px] leading-[1.8] placeholder:text-transparent ${
-                mathMode
-                  ? "text-transparent caret-violet-500"
-                  : "text-transparent caret-foreground"
-              }`}
-              style={{ ...baseStyle, WebkitTextFillColor: "transparent" }}
-              rows={1}
-            />
+        {/* 数式モード: リアルタイム変換プレビュー */}
+        {mathMode && (
+          composingText ? (
+            composingLatex ? (
+              <span className="inline-block mx-0.5 align-middle">
+                <MathRenderer latex={composingLatex} displayMode={false} />
+              </span>
+            ) : (
+              <span className="text-violet-500/60">{composingText}</span>
+            )
+          ) : null
+        )}
+
+        {/* 擬似カーソル（点滅バー） */}
+        {showCursor && (
+          <span
+            className={`inline-block w-[2px] h-[1.1em] align-middle animate-pulse ${
+              mathMode ? "bg-violet-500" : "bg-foreground"
+            }`}
+          />
+        )}
+      </div>
+
+      {/* ── textarea（画面外に隠蔽 — キー入力のみ受け取る） ── */}
+      {showTextarea && (
+        <textarea
+          ref={textareaRef}
+          value={content.text}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          className="sr-only"
+          rows={1}
+        />
+      )}
+
+      {/* ── 数式候補リスト ── */}
+      {mathMode && mathSuggs.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-popover border border-violet-200/40 dark:border-violet-800/40 rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100">
+          <div className="px-3 py-1 border-b border-border/10 flex items-center justify-between bg-violet-50/40 dark:bg-violet-950/20">
+            <div className="flex items-center gap-1.5">
+              <Sigma className="h-3 w-3 text-violet-500" />
+              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">数式変換</span>
+            </div>
+            <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/50">
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> 確定</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">;</kbd> 確定&終了</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 破棄</span>
+            </div>
           </div>
-
-          {/* ── 数式候補リスト ── */}
-          {mathMode && mathSuggs.length > 0 && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-popover border border-violet-200/40 dark:border-violet-800/40 rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100">
-              <div className="px-3 py-1 border-b border-border/10 flex items-center justify-between bg-violet-50/40 dark:bg-violet-950/20">
-                <div className="flex items-center gap-1.5">
-                  <Sigma className="h-3 w-3 text-violet-500" />
-                  <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">数式変換</span>
-                </div>
-                <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/50">
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> 確定</span>
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">;</kbd> 確定&終了</span>
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 破棄</span>
-                </div>
+          {mathSuggs.slice(0, 6).map((sugg, i) => (
+            <button
+              key={i}
+              onMouseDown={(e) => { e.preventDefault(); acceptSugg(sugg); }}
+              className={`w-full text-left px-3 py-2 flex items-center gap-3 transition-colors ${
+                i === clampedSuggIdx ? "bg-violet-50/70 dark:bg-violet-950/25" : "hover:bg-muted/40"
+              }`}
+            >
+              <div className="min-w-[56px] flex justify-center">
+                <MathRenderer latex={sugg.latex} displayMode={false} />
               </div>
-              {mathSuggs.slice(0, 6).map((sugg, i) => (
-                <button
-                  key={i}
-                  onMouseDown={(e) => { e.preventDefault(); acceptSugg(sugg); }}
-                  className={`w-full text-left px-3 py-2 flex items-center gap-3 transition-colors ${
-                    i === clampedSuggIdx ? "bg-violet-50/70 dark:bg-violet-950/25" : "hover:bg-muted/40"
-                  }`}
-                >
-                  <div className="min-w-[56px] flex justify-center">
-                    <MathRenderer latex={sugg.latex} displayMode={false} />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[11px] font-medium text-foreground/80 truncate">{sugg.reading}</span>
-                    <span className="text-[9px] text-muted-foreground/50">{sugg.category}</span>
-                  </div>
-                  {i === clampedSuggIdx && (
-                    <span className="ml-auto text-[9px] font-mono text-violet-400/70">Tab</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+              <div className="flex flex-col min-w-0">
+                <span className="text-[11px] font-medium text-foreground/80 truncate">{sugg.reading}</span>
+                <span className="text-[9px] text-muted-foreground/50">{sugg.category}</span>
+              </div>
+              {i === clampedSuggIdx && (
+                <span className="ml-auto text-[9px] font-mono text-violet-400/70">Tab</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
-          {/* ── スラッシュコマンドパレット ── */}
-          {!mathMode && showPalette && filteredPalette.length > 0 && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border rounded-xl shadow-xl max-h-52 overflow-y-auto">
-              <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-b">{t("cmd.palette.hint")}</div>
-              {filteredPalette.slice(0, 10).map((item, i) => (
-                <button
-                  key={item.type}
-                  className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 transition-colors ${
-                    i === paletteIdx ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
-                  }`}
-                  onMouseDown={(e) => { e.preventDefault(); handleSelectPaletteItem(item.type); }}
-                >
-                  <span className={`shrink-0 text-[10px] font-medium ${item.color}`}>{item.name}</span>
-                  <span className="text-muted-foreground text-[10px]">{item.description}</span>
-                  {item.type === "math" && (
-                    <span className="ml-auto shrink-0 px-1.5 py-0.5 rounded text-[8px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300">モード</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      ) : (
-        /* ── 非編集時: レンダリング表示のみ ── */
-        <div className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text" style={baseStyle}>
-          <RenderedInlineText text={content.text} style={baseStyle} />
+      {/* ── スラッシュコマンドパレット ── */}
+      {!mathMode && showPalette && filteredPalette.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border rounded-xl shadow-xl max-h-52 overflow-y-auto">
+          <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-b">{t("cmd.palette.hint")}</div>
+          {filteredPalette.slice(0, 10).map((item, i) => (
+            <button
+              key={item.type}
+              className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 transition-colors ${
+                i === paletteIdx ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
+              }`}
+              onMouseDown={(e) => { e.preventDefault(); handleSelectPaletteItem(item.type); }}
+            >
+              <span className={`shrink-0 text-[10px] font-medium ${item.color}`}>{item.name}</span>
+              <span className="text-muted-foreground text-[10px]">{item.description}</span>
+              {item.type === "math" && (
+                <span className="ml-auto shrink-0 px-1.5 py-0.5 rounded text-[8px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300">モード</span>
+              )}
+            </button>
+          ))}
         </div>
       )}
     </div>
