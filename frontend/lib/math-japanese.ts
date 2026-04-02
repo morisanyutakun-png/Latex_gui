@@ -1402,7 +1402,7 @@ const UNICODE_TO_LATEX: [RegExp, string][] = [
   [/≤/g, "\\leq"], [/≥/g, "\\geq"], [/≠/g, "\\neq"], [/≈/g, "\\approx"],
   [/±/g, "\\pm"], [/∓/g, "\\mp"], [/×/g, "\\times"], [/÷/g, "\\div"],
   [/·/g, "\\cdot"], [/∂/g, "\\partial"], [/∇/g, "\\nabla"],
-  [/∀/g, "\\forall"], [/∃/g, "\\exists"], [/∅/g, "\\emptyset"],
+  [/∀/g, "\\forall"], [/∃/g, "\\exists"], [/∅/g, "\\emptyset"], [/∧/g, "\\land"], [/∨/g, "\\lor"],
   [/∈/g, "\\in"], [/∉/g, "\\notin"], [/⊂/g, "\\subset"], [/⊃/g, "\\supset"],
   [/∪/g, "\\cup"], [/∩/g, "\\cap"], [/⊕/g, "\\oplus"], [/⊗/g, "\\otimes"],
   [/⇒/g, "\\Rightarrow"], [/⇔/g, "\\Leftrightarrow"],

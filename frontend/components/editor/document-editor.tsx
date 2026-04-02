@@ -226,6 +226,7 @@ function HeadingBlockEditor({ block }: { block: Block }) {
   }, [isEditing]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing || e.key === "Process") return;
     const el = e.currentTarget;
     const blocks = useDocumentStore.getState().document?.blocks ?? [];
     const idx = blocks.findIndex((b) => b.id === block.id);
@@ -334,13 +335,15 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const [mathMode, setMathMode] = useState(false);
   // 数式モード開始時のテキスト位置（確定済みテキストの末尾）
   const [mathAnchor, setMathAnchor] = useState(0);
+  // IME変換中フラグ（日本語入力中の誤変換防止）
+  const [imeComposing, setImeComposing] = useState(false);
 
   // 未確定テキスト（mathAnchor以降）
   const composingText = mathMode ? content.text.slice(mathAnchor) : "";
-  // リアルタイム変換結果
-  const composingLatex = composingText ? parseJapanesemath(composingText) : "";
-  // 候補リスト（補助）
-  const mathSuggs = mathMode && composingText.length >= 1 ? getJapaneseSuggestions(composingText) : [];
+  // リアルタイム変換結果（IME変換中はパースをスキップ）
+  const composingLatex = composingText && !imeComposing ? parseJapanesemath(composingText) : "";
+  // 候補リスト（補助）— IME変換中はスキップ
+  const mathSuggs = mathMode && composingText.length >= 1 && !imeComposing ? getJapaneseSuggestions(composingText) : [];
   const [mathSuggIdx, setMathSuggIdx] = useState(0);
   // suggIdx がはみ出ないように
   const clampedSuggIdx = mathSuggs.length > 0 ? Math.min(mathSuggIdx, mathSuggs.length - 1) : 0;
@@ -483,6 +486,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   }, [block.id, updateContent, mathMode, showPalette, slashPos]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // ── IME変換中はキー処理をスキップ（日本語入力の干渉防止） ──
+    if (e.nativeEvent.isComposing || e.key === "Process") return;
+
     // ── 数式モード中 ──
     if (mathMode) {
       // Esc → 未確定テキストを破棄して数式モード終了
@@ -635,7 +641,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         {/* 数式モード: リアルタイム変換プレビュー */}
         {mathMode && (
           composingText ? (
-            composingLatex ? (
+            imeComposing ? (
+              <span className="text-violet-500/60">{composingText}</span>
+            ) : composingLatex ? (
               <span className="inline-block mx-0.5 align-middle">
                 <MathRenderer latex={composingLatex} displayMode={false} />
               </span>
@@ -662,6 +670,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           value={content.text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onCompositionStart={() => setImeComposing(true)}
+          onCompositionEnd={() => setImeComposing(false)}
           className="sr-only"
           rows={1}
         />
