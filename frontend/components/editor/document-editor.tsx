@@ -8,7 +8,7 @@ import { Block, BlockType, BLOCK_TYPES, createBlock } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
 import { JapaneseMathInput, type JapaneseMathInputHandle } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
-import { parseInlineText, getJapaneseSuggestions, type JapaneseSuggestion } from "@/lib/math-japanese";
+import { parseInlineText, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
 import {
   Trash2,
@@ -328,14 +328,22 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ── 数式変換モード ──
-  // /数式 or Tab で ON → その行に直接日本語を書く → 候補が出る → Tab確定 → Esc終了
+  // その行のtextareaに直接自然言語を書く。
+  // parseJapanesemath でリアルタイム変換し、紙面にはレンダリング結果を表示。
+  // Esc で確定終了（未確定テキストを $latex$ に変換して格納）。
   const [mathMode, setMathMode] = useState(false);
-  const [mathSuggs, setMathSuggs] = useState<JapaneseSuggestion[]>([]);
-  const [mathSuggIdx, setMathSuggIdx] = useState(0);
   // 数式モード開始時のテキスト位置（確定済みテキストの末尾）
   const [mathAnchor, setMathAnchor] = useState(0);
-  // 現在の未確定入力テキスト（textarea内のmathAnchor以降）
+
+  // 未確定テキスト（mathAnchor以降）
   const composingText = mathMode ? content.text.slice(mathAnchor) : "";
+  // リアルタイム変換結果
+  const composingLatex = composingText ? parseJapanesemath(composingText) : "";
+  // 候補リスト（補助）
+  const mathSuggs = mathMode && composingText.length >= 1 ? getJapaneseSuggestions(composingText) : [];
+  const [mathSuggIdx, setMathSuggIdx] = useState(0);
+  // suggIdx がはみ出ないように
+  const clampedSuggIdx = mathSuggs.length > 0 ? Math.min(mathSuggIdx, mathSuggs.length - 1) : 0;
 
   // Slash command palette state
   const [showPalette, setShowPalette] = useState(false);
@@ -352,31 +360,48 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   // ── 数式モードに入る ──
   const enterMathMode = useCallback((anchor: number) => {
     setMathMode(true);
-    setMathSuggs([]);
-    setMathSuggIdx(0);
     setMathAnchor(anchor);
+    setMathSuggIdx(0);
     setMathEditing(true);
-    setTimeout(() => textareaRef.current?.focus(), 0);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.selectionStart = anchor;
+        textareaRef.current.selectionEnd = anchor;
+        textareaRef.current.focus();
+      }
+    }, 0);
   }, [setMathEditing]);
 
-  // ── 数式モードから抜ける ──
-  const exitMathMode = useCallback(() => {
+  // ── 数式モード終了: 未確定テキストをLaTeXに変換して確定 ──
+  const finishMathMode = useCallback(() => {
+    const raw = content.text.slice(mathAnchor);
+    if (raw.trim()) {
+      const latex = parseJapanesemath(raw);
+      const before = content.text.slice(0, mathAnchor);
+      const newText = before + "$" + latex + "$";
+      updateContent(block.id, { text: newText });
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const end = newText.length;
+          textareaRef.current.selectionStart = end;
+          textareaRef.current.selectionEnd = end;
+          textareaRef.current.focus();
+        }
+      }, 0);
+    }
     setMathMode(false);
-    setMathSuggs([]);
     setMathSuggIdx(0);
     setMathEditing(false);
-  }, [setMathEditing]);
+  }, [content.text, mathAnchor, block.id, updateContent, setMathEditing]);
 
-  // ── 数式候補を確定: 未確定テキストを $latex$ に置換 ──
-  const acceptMathSugg = useCallback((sugg: JapaneseSuggestion) => {
+  // ── 候補から確定（候補を選んで確定し、数式モードに留まる） ──
+  const acceptSugg = useCallback((sugg: JapaneseSuggestion) => {
     const before = content.text.slice(0, mathAnchor);
     const newText = before + "$" + sugg.latex + "$";
     updateContent(block.id, { text: newText });
     const newAnchor = newText.length;
     setMathAnchor(newAnchor);
-    setMathSuggs([]);
     setMathSuggIdx(0);
-    // 数式モードに留まる
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.selectionStart = newAnchor;
@@ -391,7 +416,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     setPaletteQuery("");
     if (type === "paragraph") return;
 
-    // 数式: そのまま数式モードに入る
     if (type === "math") {
       const cleanText = content.text.slice(0, slashPos) + content.text.slice(slashPos + 1 + paletteQuery.length);
       updateContent(block.id, { text: cleanText });
@@ -428,27 +452,20 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         textareaRef.current.selectionEnd = len;
       }
     }
-    if (!isEditing) { exitMathMode(); }
+    if (!isEditing && mathMode) { finishMathMode(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing]);
+
+  // suggIdx リセット
+  useEffect(() => { setMathSuggIdx(0); }, [composingText]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     const pos = e.target.selectionStart || 0;
     updateContent(block.id, { text });
 
-    if (mathMode) {
-      // 数式モード中: anchor以降のテキストで候補を検索
-      const composing = text.slice(mathAnchor);
-      if (composing.length >= 1) {
-        const suggs = getJapaneseSuggestions(composing);
-        setMathSuggs(suggs);
-        setMathSuggIdx(0);
-      } else {
-        setMathSuggs([]);
-      }
-      return;
-    }
+    // 数式モード中は候補更新のみ（parseJapanesemathはrender時にリアルタイム実行）
+    if (mathMode) return;
 
     // スラッシュパレット更新
     if (showPalette) {
@@ -459,40 +476,54 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         setPaletteQuery(query); setPaletteIdx(0);
       }
     }
-  }, [block.id, updateContent, mathMode, mathAnchor, showPalette, slashPos]);
+  }, [block.id, updateContent, mathMode, showPalette, slashPos]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // ── 数式モード中のキー操作 ──
+    // ── 数式モード中 ──
     if (mathMode) {
-      // Escape → 未確定テキストを削除して数式モード終了
+      // Esc → 現在の入力をLaTeX変換して確定、数式モード終了
       if (e.key === "Escape") {
         e.preventDefault();
-        const before = content.text.slice(0, mathAnchor);
-        updateContent(block.id, { text: before });
-        exitMathMode();
-        setTimeout(() => {
-          if (textareaRef.current) {
-            textareaRef.current.selectionStart = mathAnchor;
-            textareaRef.current.selectionEnd = mathAnchor;
-          }
-        }, 0);
+        finishMathMode();
         return;
       }
-      // Tab / Enter → 候補確定
-      if (mathSuggs.length > 0 && (e.key === "Tab" || e.key === "Enter")) {
+      // Tab → 候補があれば候補から確定、なければリアルタイム変換で確定
+      if (e.key === "Tab") {
         e.preventDefault();
-        acceptMathSugg(mathSuggs[mathSuggIdx]);
+        if (mathSuggs.length > 0) {
+          acceptSugg(mathSuggs[clampedSuggIdx]);
+        } else if (composingText.trim()) {
+          // 候補なしでもparseJapanesemathで変換して確定
+          const latex = parseJapanesemath(composingText);
+          const before = content.text.slice(0, mathAnchor);
+          const newText = before + "$" + latex + "$";
+          updateContent(block.id, { text: newText });
+          const newAnchor = newText.length;
+          setMathAnchor(newAnchor);
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = newAnchor;
+              textareaRef.current.selectionEnd = newAnchor;
+              textareaRef.current.focus();
+            }
+          }, 0);
+        }
+        return;
+      }
+      // Enter → 変換確定して数式モード終了
+      if (e.key === "Enter") {
+        e.preventDefault();
+        finishMathMode();
         return;
       }
       // 候補ナビゲーション
       if (mathSuggs.length > 0 && e.key === "ArrowDown") { e.preventDefault(); setMathSuggIdx((i) => Math.min(i + 1, mathSuggs.length - 1)); return; }
       if (mathSuggs.length > 0 && e.key === "ArrowUp")   { e.preventDefault(); setMathSuggIdx((i) => Math.max(i - 1, 0)); return; }
-      // その他のキーはそのままtextareaに入力される（自然言語入力）
+      // その他はそのままtextareaに自然言語入力
       return;
     }
 
     // ── 通常モード ──
-    // 空行でBackspace → 行を削除
     if (e.key === "Backspace" && content.text === "" && !showPalette) {
       e.preventDefault();
       const blocks = useDocumentStore.getState().document?.blocks ?? [];
@@ -503,7 +534,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       return;
     }
 
-    // スラッシュパレット
     if (e.key === "/" && !showPalette) {
       const el = e.currentTarget;
       setSlashPos(el.selectionStart || 0);
@@ -519,8 +549,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     // Tab → 数式モードに入る
     if (e.key === "Tab" && !showPalette) {
       e.preventDefault();
-      const pos = e.currentTarget.selectionStart ?? content.text.length;
-      enterMathMode(pos);
+      enterMathMode(e.currentTarget.selectionStart ?? content.text.length);
       return;
     }
 
@@ -546,7 +575,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       if (newId) { sel(newId); setEdit(newId); }
       return;
     }
-  }, [mathMode, mathSuggs, mathSuggIdx, acceptMathSugg, exitMathMode, mathAnchor, showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, block.id, addBlock, content.text, enterMathMode, updateContent]);
+  }, [mathMode, mathSuggs, clampedSuggIdx, acceptSugg, finishMathMode, composingText, mathAnchor, showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, block.id, addBlock, content.text, enterMathMode, updateContent]);
 
   const baseStyle: React.CSSProperties = {
     fontSize: block.style.fontSize ? `${block.style.fontSize}pt` : undefined,
@@ -557,44 +586,63 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     color: block.style.textColor || undefined,
   };
 
+  // ── 紙面の表示内容を組み立て ──
+  // 数式モード中: 確定済み部分(レンダリング済み) + 未確定の自然言語 + リアルタイム変換プレビュー
+  // 通常モード: 全テキスト(レンダリング済み)
+  const confirmedText = mathMode ? content.text.slice(0, mathAnchor) : content.text;
+
   return (
     <div className="relative">
       {showTextarea ? (
         <>
-          {/* ── 紙面: 常にレンダリング済み表示 ── */}
-          <div className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em]" style={baseStyle}>
-            {/* 確定済みテキスト（数式はKaTeX描画） */}
-            <RenderedInlineText text={mathMode ? content.text.slice(0, mathAnchor) : content.text} style={baseStyle} />
-            {/* 数式モード中: 未確定テキスト + 候補プレビュー */}
+          {/* ── 紙面表示（常にレンダリング済み） ── */}
+          <div
+            className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text"
+            style={baseStyle}
+            onClick={() => textareaRef.current?.focus()}
+          >
+            {/* 確定済み部分 */}
+            {confirmedText ? (
+              <RenderedInlineText text={confirmedText} style={baseStyle} />
+            ) : !mathMode ? (
+              <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
+            ) : null}
+
+            {/* 数式モード: 未確定テキスト（入力中の自然言語）+ リアルタイム変換プレビュー */}
             {mathMode && (
               <>
-                {composingText && (
-                  <span className="text-violet-500 border-b border-violet-400/50">{composingText}</span>
+                {composingText ? (
+                  <>
+                    <span className="text-violet-500/70 text-[12px] border-b border-dashed border-violet-400/40 mx-0.5">{composingText}</span>
+                    {composingLatex && (
+                      <span className="inline-block mx-1 align-middle">
+                        <span className="inline-block px-1 py-0.5 rounded bg-violet-50/80 dark:bg-violet-950/30 border border-violet-200/30 dark:border-violet-700/30">
+                          <MathRenderer latex={composingLatex} displayMode={false} />
+                        </span>
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-violet-400/40 text-[12px] mx-0.5">数式を入力...</span>
                 )}
-                {mathSuggs.length > 0 && mathSuggs[mathSuggIdx] && (
-                  <span className="inline-block mx-0.5 align-middle opacity-35">
-                    <MathRenderer latex={mathSuggs[mathSuggIdx].latex} displayMode={false} />
-                  </span>
-                )}
-                <span className="inline-block w-0.5 h-4 bg-violet-500 animate-pulse align-middle ml-0.5" />
               </>
-            )}
-            {/* 非数式モードでテキスト空の場合のプレースホルダー */}
-            {!mathMode && !content.text && (
-              <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
             )}
           </div>
 
-          {/* ── 実際の入力textarea（視覚的に隠す） ── */}
+          {/* ── textarea（数式モード中は入力用、通常時もテキスト入力用） ── */}
           <textarea
             ref={textareaRef}
             value={content.text}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            className="absolute opacity-0 pointer-events-auto w-full h-0 overflow-hidden"
-            style={{ top: 0, left: 0, height: 1 }}
+            placeholder={mathMode ? "" : t("block.ph.paragraph")}
+            className={`w-full resize-none overflow-hidden border-none outline-none focus:ring-0 px-0 py-0.5 ${
+              mathMode
+                ? "bg-transparent text-[13px] leading-[1.6] text-violet-600 dark:text-violet-400 caret-violet-500"
+                : "bg-transparent text-[14px] leading-[1.8] text-transparent caret-foreground placeholder:text-muted-foreground/25"
+            }`}
+            style={mathMode ? {} : baseStyle}
             rows={1}
-            autoFocus
           />
 
           {/* ── 数式候補リスト ── */}
@@ -607,15 +655,16 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 </div>
                 <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/50">
                   <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> 確定</span>
+                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Enter</kbd> 確定&終了</span>
                   <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 終了</span>
                 </div>
               </div>
               {mathSuggs.slice(0, 6).map((sugg, i) => (
                 <button
                   key={i}
-                  onMouseDown={(e) => { e.preventDefault(); acceptMathSugg(sugg); }}
+                  onMouseDown={(e) => { e.preventDefault(); acceptSugg(sugg); }}
                   className={`w-full text-left px-3 py-2 flex items-center gap-3 transition-colors ${
-                    i === mathSuggIdx ? "bg-violet-50/70 dark:bg-violet-950/25" : "hover:bg-muted/40"
+                    i === clampedSuggIdx ? "bg-violet-50/70 dark:bg-violet-950/25" : "hover:bg-muted/40"
                   }`}
                 >
                   <div className="min-w-[56px] flex justify-center">
@@ -625,7 +674,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                     <span className="text-[11px] font-medium text-foreground/80 truncate">{sugg.reading}</span>
                     <span className="text-[9px] text-muted-foreground/50">{sugg.category}</span>
                   </div>
-                  {i === mathSuggIdx && (
+                  {i === clampedSuggIdx && (
                     <span className="ml-auto text-[9px] font-mono text-violet-400/70">Tab</span>
                   )}
                 </button>
