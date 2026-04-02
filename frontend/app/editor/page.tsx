@@ -177,9 +177,10 @@ export default function EditorPage() {
 
   return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background overflow-hidden">
+      {/* Header — spans full width */}
       <AppHeader isAIActive={isAIActive} />
 
-      {/* Edit toolbar — shown when edit mode is on */}
+      {/* Edit toolbar */}
       {editMode && <EditToolbar />}
 
       <div className="flex flex-1 overflow-hidden min-h-0">
@@ -188,46 +189,47 @@ export default function EditorPage() {
           <DocumentEditor editMode={editMode} />
         </div>
 
-        {/* ── Right panel ── */}
-        <div className={`border-l border-border/20 overflow-hidden bg-background/95 backdrop-blur-sm flex-shrink-0 flex flex-col transition-all duration-200 ${sidebarOpen ? "w-96" : "w-0"}`}>
-          {sidebarOpen && (
-            <div className="w-96 h-full flex flex-col">
-              {/* Panel title bar */}
-              <div className={`relative flex items-center px-3 h-9 border-b border-border/20 shrink-0 select-none ${meta.bg}`}>
-                {meta.indicator && (
-                  <div className={`absolute left-0 top-0 h-full w-[2px] ${meta.indicator} rounded-r`} />
-                )}
-                <span className={`text-[10px] font-semibold uppercase tracking-widest flex-1 ${meta.textColor}`}>
-                  {meta.label}
-                </span>
-                {activeTab === "advanced" && advancedEnabled && (
-                  <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-amber-600 text-white rounded-full font-bold tracking-wide font-mono">ACTIVE</span>
-                )}
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
-                  title={t("panel.close")}
-                >
-                  <X className="h-3 w-3" />
-                </button>
+        {/* ── Sidebar (panel + activity bar) — unified column ── */}
+        <div className="flex flex-shrink-0 border-l border-border/20 bg-background">
+          {/* Panel content */}
+          <div className={`overflow-hidden flex flex-col transition-all duration-200 ${sidebarOpen ? "w-96" : "w-0"}`}>
+            {sidebarOpen && (
+              <div className="w-96 h-full flex flex-col">
+                {/* Panel title bar */}
+                <div className={`relative flex items-center px-3 h-9 border-b border-border/15 shrink-0 select-none ${meta.bg}`}>
+                  {meta.indicator && (
+                    <div className={`absolute left-0 top-0 h-full w-[2px] ${meta.indicator} rounded-r`} />
+                  )}
+                  <span className={`text-[10px] font-semibold uppercase tracking-widest flex-1 ${meta.textColor}`}>
+                    {meta.label}
+                  </span>
+                  {activeTab === "advanced" && advancedEnabled && (
+                    <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-amber-600 text-white rounded-full font-bold tracking-wide font-mono">ACTIVE</span>
+                  )}
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+                    title={t("panel.close")}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                {/* Panel body */}
+                <div className={`flex-1 min-h-0 ${
+                  activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto"
+                }`}>
+                  {activeTab === "ai"       && <AIChatPanel />}
+                  {activeTab === "advanced" && <AdvancedModePanel />}
+                  {activeTab === "latex"    && <LaTeXSourceViewer />}
+                  {activeTab === "guide"    && <EditGuidePanel />}
+                  {activeTab === "math"     && <MathReferencePanel />}
+                </div>
               </div>
+            )}
+          </div>
 
-              {/* Panel body */}
-              <div className={`flex-1 min-h-0 ${
-                activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto"
-              }`}>
-                {activeTab === "ai"       && <AIChatPanel />}
-                {activeTab === "advanced" && <AdvancedModePanel />}
-                {activeTab === "latex"    && <LaTeXSourceViewer />}
-                {activeTab === "guide"    && <EditGuidePanel />}
-                {activeTab === "math"     && <MathReferencePanel />}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Activity bar (right edge) ── */}
-        <div className="w-10 flex flex-col items-center pt-1 pb-1 border-l border-border/20 bg-background/70 shrink-0">
+          {/* Activity bar — right edge, no extra border */}
+          <div className="w-10 flex flex-col items-center pt-1 pb-1 border-l border-border/10 shrink-0">
           {/* AI */}
           {(["ai", "latex"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Bot : FileCode2;
@@ -316,8 +318,9 @@ export default function EditorPage() {
             <Globe className="h-3.5 w-3.5" />
             <span className="text-[7px] font-mono uppercase">{locale === "ja" ? "EN" : "JA"}</span>
           </button>
-        </div>
-      </div>
+          </div>{/* end activity bar */}
+        </div>{/* end sidebar column */}
+      </div>{/* end flex-1 */}
 
       <StatusBar />
     </div>
