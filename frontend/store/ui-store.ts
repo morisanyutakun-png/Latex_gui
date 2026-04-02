@@ -69,10 +69,11 @@ export const useUIStore = create<UIState>((set) => ({
   pendingPatch: null,
   isChatLoading: false,
 
-  selectBlock: (id) => set((state) => ({
-    selectedBlockId: id,
-    editingBlockId: id && state.editingBlockId === id ? id : (id ? state.editingBlockId : null),
-  })),
+  selectBlock: (id) => set(
+    id === null
+      ? { selectedBlockId: null, editingBlockId: null }
+      : { selectedBlockId: id }
+  ),
   setEditingBlock: (id) => set({ editingBlockId: id, selectedBlockId: id }),
   setMathEditing: (v) => set({ isMathEditing: v }),
   setGenerating: (v) => set({ isGenerating: v }),

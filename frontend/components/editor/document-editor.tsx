@@ -28,7 +28,6 @@ import {
   GitBranch,
   FlaskConical,
   BarChart3,
-  GripVertical,
   Search,
 } from "lucide-react";
 import {
@@ -66,18 +65,10 @@ const TEXT_EDIT_TYPES: BlockType[] = ["paragraph", "heading", "list", "quote", "
 // Context passed down so block editors know if the global edit mode is on
 const EditModeContext = React.createContext(false);
 
-// drag-over shared state (module-level so sibling wrappers can read it)
-let _dragOverIndex: number | null = null;
-let _setDragOverIndexFns: Array<(v: number | null) => void> = [];
-function setGlobalDragOver(v: number | null) {
-  _dragOverIndex = v;
-  _setDragOverIndexFns.forEach((fn) => fn(v));
-}
-
-// ──── Block Wrapper — click-to-edit, drag-and-drop, context menu ────
+// ──── Block Wrapper — transparent wrapper with right-click context menu ────
 function BlockWrapper({
   block,
-  index,
+  index: _index,
   children,
 }: {
   block: Block;
@@ -85,19 +76,9 @@ function BlockWrapper({
   children: React.ReactNode;
 }) {
   const { t } = useI18n();
-  const { selectedBlockId, editingBlockId, selectBlock, setEditingBlock, lastAIAction } = useUIStore();
-  const { deleteBlock, duplicateBlock, moveBlock, reorderToIndex, convertBlock } = useDocumentStore();
+  const { selectBlock, setEditingBlock, lastAIAction } = useUIStore();
+  const { deleteBlock, duplicateBlock, moveBlock, convertBlock } = useDocumentStore();
   const editMode = React.useContext(EditModeContext);
-  const isSelected = selectedBlockId === block.id;
-  const isEditing = editingBlockId === block.id;
-  const [dragOver, setDragOver] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Register for global drag-over updates
-  useEffect(() => {
-    _setDragOverIndexFns.push(setDragOver);
-    return () => { _setDragOverIndexFns = _setDragOverIndexFns.filter((f) => f !== setDragOver); };
-  }, []);
 
   const [, forceUpdate] = useState(0);
   useEffect(() => {
@@ -113,85 +94,23 @@ function BlockWrapper({
     lastAIAction.blockIds.includes(block.id) &&
     Date.now() - lastAIAction.timestamp < 10_000;
 
-  const isDropTarget = dragOver === index && !isDragging;
-
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           data-block-id={block.id}
-          className={`group/block relative transition-all duration-75 rounded-sm
-            ${isDragging ? "opacity-40" : "hover:bg-black/[0.015] dark:hover:bg-white/[0.015]"}
-            ${isDropTarget ? "ring-1 ring-primary/20" : ""}`}
+          className="relative"
           onClick={(e) => {
             e.stopPropagation();
-            selectBlock(block.id);
-            if (editMode || TEXT_EDIT_TYPES.includes(block.content.type)) setEditingBlock(block.id);
-          }}
-          onDoubleClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
-          onDragOver={(e) => { e.preventDefault(); setGlobalDragOver(index); }}
-          onDragLeave={() => setGlobalDragOver(null)}
-          onDrop={(e) => {
-            e.preventDefault();
-            const fromId = e.dataTransfer.getData("blockId");
-            if (fromId && fromId !== block.id) reorderToIndex(fromId, index);
-            setGlobalDragOver(null);
+            if (editMode) setEditingBlock(block.id);
+            else selectBlock(block.id);
           }}
         >
-          {/* Drop indicator line */}
-          {isDropTarget && (
-            <div className="absolute top-0 left-3 right-3 h-0.5 bg-primary/50 rounded-full pointer-events-none" />
-          )}
-
-          {/* AI highlight indicator */}
           {isAIHighlighted && (
-            <div className="absolute left-0 top-0.5 bottom-0.5 w-[2px] rounded-full bg-violet-400/80" />
+            <div className="absolute inset-0 rounded-sm bg-violet-400/5 animate-pulse pointer-events-none" />
           )}
-
-          {/* Drag handle — left edge, hover only */}
-          <div
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData("blockId", block.id);
-              e.dataTransfer.effectAllowed = "move";
-              setIsDragging(true);
-            }}
-            onDragEnd={() => { setIsDragging(false); setGlobalDragOver(null); }}
-            onClick={(e) => e.stopPropagation()}
-            className="absolute left-[-18px] top-1/2 -translate-y-1/2 opacity-0 group-hover/block:opacity-100 cursor-grab active:cursor-grabbing transition-opacity p-1"
-            title={t("block.move.up")}
-          >
-            <GripVertical className="h-3 w-3 text-muted-foreground/30" />
-          </div>
-
-          {/* Block content */}
-          <div className="py-0.5 pl-3 pr-20">
+          <div className="py-0">
             {children}
-          </div>
-
-          {/* Right hover actions */}
-          <div className={`absolute right-1 top-0.5 flex items-center gap-0.5 transition-opacity
-            ${isSelected ? "opacity-100" : "opacity-0 group-hover/block:opacity-100"}`}>
-            <button
-              className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-              onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "up"); }}
-              title={t("block.move.up")}
-            ><ChevronUp className="h-3 w-3" /></button>
-            <button
-              className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-              onClick={(e) => { e.stopPropagation(); moveBlock(block.id, "down"); }}
-              title={t("block.move.down")}
-            ><ChevronDown className="h-3 w-3" /></button>
-            <button
-              className="p-1 rounded text-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-              onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
-              title={t("block.duplicate")}
-            ><Copy className="h-3 w-3" /></button>
-            <button
-              className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-              onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); selectBlock(null); }}
-              title={t("block.delete")}
-            ><Trash2 className="h-3 w-3" /></button>
           </div>
         </div>
       </ContextMenuTrigger>
@@ -283,6 +202,7 @@ function HeadingBlockEditor({ block }: { block: Block }) {
   const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const addBlock = useDocumentStore((s) => s.addBlock);
+  const deleteBlock = useDocumentStore((s) => s.deleteBlock);
   const { editingBlockId, selectBlock, setEditingBlock } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "heading" }>;
   const headingClass: Record<number, string> = { 1: "latex-heading-1", 2: "latex-heading-2", 3: "latex-heading-3" };
@@ -303,6 +223,13 @@ function HeadingBlockEditor({ block }: { block: Block }) {
     const el = e.currentTarget;
     const blocks = useDocumentStore.getState().document?.blocks ?? [];
     const idx = blocks.findIndex((b) => b.id === block.id);
+
+    if (e.key === "Backspace" && content.text === "") {
+      e.preventDefault();
+      deleteBlock(block.id);
+      if (idx > 0) { selectBlock(blocks[idx - 1].id); setEditingBlock(blocks[idx - 1].id); }
+      return;
+    }
 
     if (e.key === "ArrowUp" && el.selectionStart === 0) {
       e.preventDefault();
@@ -381,6 +308,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const { editingBlockId, setEditingBlock, setMathEditing } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "paragraph" }>;
   const isEditing = editingBlockId === block.id;
+  const editMode = React.useContext(EditModeContext);
+  const showTextarea = editMode || isEditing;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [cursorPos, setCursorPos] = useState(0);
 
@@ -561,6 +490,17 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 空行でBackspace → 行を削除して前に戻る
+    if (e.key === "Backspace" && content.text === "" && !showPalette && !showIme) {
+      e.preventDefault();
+      const blocks = useDocumentStore.getState().document?.blocks ?? [];
+      const idx = blocks.findIndex((b) => b.id === block.id);
+      useDocumentStore.getState().deleteBlock(block.id);
+      const { setEditingBlock: setEdit } = useUIStore.getState();
+      if (idx > 0) setEdit(blocks[idx - 1].id);
+      return;
+    }
+
     // 数式IMEが開いている時（$の外）
     if (showIme && imeSuggs.length > 0) {
       if (e.key === "Tab") {
@@ -641,7 +581,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   return (
     <div className="relative">
       {/* 編集中: textarea */}
-      {isEditing && (
+      {showTextarea && (
         <>
           <textarea
             ref={textareaRef}
@@ -747,7 +687,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       )}
 
       {/* 非編集時: レンダリング表示 */}
-      {!isEditing && (
+      {!showTextarea && (
         <div className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text" style={baseStyle}>
           {content.text ? (
             hasMath ? (
@@ -1239,11 +1179,7 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
 
         {/* Paper card */}
         <div
-          className={`bg-white dark:bg-[#fafafa] flex-shrink-0 relative transition-shadow duration-200 ${
-            editMode
-              ? "shadow-[0_4px_32px_rgba(14,165,233,0.15),0_2px_8px_rgba(0,0,0,0.12)] ring-1 ring-sky-400/20"
-              : "shadow-[0_4px_24px_rgba(0,0,0,0.18)]"
-          }`}
+          className="bg-white dark:bg-[#fafafa] flex-shrink-0 relative shadow-[0_4px_24px_rgba(0,0,0,0.18)]"
           style={{
             width: paper.w,
             minHeight: Math.round(paper.w * 1.4142),
@@ -1254,11 +1190,6 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Edit mode indicator stripe */}
-          {editMode && (
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-sky-400/60 via-sky-300/40 to-transparent rounded-t pointer-events-none" />
-          )}
-
           {/* Empty state */}
           {document.blocks.length === 0 && (
             editMode ? (
@@ -1286,17 +1217,6 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
                 </BlockWrapper>
               ))}
 
-              {/* Click-to-add zone below last block — edit mode only */}
-              {editMode && (
-                <div
-                  className="mt-1 min-h-[80px] cursor-text group/addzone"
-                  onClick={handleAddBlockAtEnd}
-                >
-                  <span className="text-[12px] text-gray-300/0 group-hover/addzone:text-gray-300/60 transition-colors select-none font-light">
-                    {t("editor.editmode.click_to_add")}
-                  </span>
-                </div>
-              )}
             </div>
           )}
         </div>

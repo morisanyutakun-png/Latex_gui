@@ -206,7 +206,7 @@ export function EditToolbar() {
 
       {!on && !isMathEditing && (
         <span className="ml-2 text-[10px] text-muted-foreground/30 select-none font-medium hidden sm:inline">
-          ブロックをクリックして編集
+          テキストをクリック
         </span>
       )}
 
