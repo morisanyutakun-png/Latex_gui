@@ -85,10 +85,11 @@ function BlockWrapper({
   children: React.ReactNode;
 }) {
   const { t } = useI18n();
-  const { selectedBlockId, selectBlock, setEditingBlock, lastAIAction } = useUIStore();
+  const { selectedBlockId, editingBlockId, selectBlock, setEditingBlock, lastAIAction } = useUIStore();
   const { deleteBlock, duplicateBlock, moveBlock, reorderToIndex, convertBlock } = useDocumentStore();
   const editMode = React.useContext(EditModeContext);
   const isSelected = selectedBlockId === block.id;
+  const isEditing = editingBlockId === block.id;
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -119,10 +120,10 @@ function BlockWrapper({
       <ContextMenuTrigger asChild>
         <div
           data-block-id={block.id}
-          className={`group/block relative transition-all duration-75 rounded-sm
-            ${isSelected ? "bg-blue-50/60 dark:bg-blue-950/20" : "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"}
+          className={`group/block relative transition-all duration-100 rounded-sm
+            ${isEditing ? "bg-sky-50/50 dark:bg-sky-950/15 ring-1 ring-sky-300/40 dark:ring-sky-700/30" : isSelected ? "bg-blue-50/40 dark:bg-blue-950/15" : "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"}
             ${isDragging ? "opacity-40" : ""}
-            ${isDropTarget ? "ring-1 ring-primary/30" : ""}`}
+            ${isDropTarget && !isEditing ? "ring-1 ring-primary/30" : ""}`}
           onClick={(e) => {
             e.stopPropagation();
             selectBlock(block.id);
@@ -143,9 +144,9 @@ function BlockWrapper({
             <div className="absolute top-0 left-3 right-3 h-0.5 bg-primary/50 rounded-full pointer-events-none" />
           )}
 
-          {/* Left selection / AI indicator */}
+          {/* Left selection / AI / editing indicator */}
           <div className={`absolute left-0 top-0.5 bottom-0.5 w-[2px] rounded-full transition-all duration-300 ${
-            isSelected ? "bg-primary/70" : isAIHighlighted ? "bg-violet-400/80" : "bg-transparent"
+            isEditing ? "bg-sky-400" : isSelected ? "bg-primary/70" : isAIHighlighted ? "bg-violet-400/80" : "bg-transparent"
           }`} />
 
           {/* Drag handle — left edge, hover only */}
@@ -366,7 +367,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const addBlock = useDocumentStore((s) => s.addBlock);
   const convertBlock = useDocumentStore((s) => s.convertBlock);
   const document = useDocumentStore((s) => s.document);
-  const { editingBlockId, setEditingBlock } = useUIStore();
+  const { editingBlockId, setEditingBlock, setMathEditing } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "paragraph" }>;
   const isEditing = editingBlockId === block.id;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -427,7 +428,15 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       textareaRef.current.selectionStart = len;
       textareaRef.current.selectionEnd = len;
     }
-  }, [isEditing]);
+    if (!isEditing) {
+      setMathEditing(false);
+    }
+  }, [isEditing, setMathEditing]);
+
+  // 数式モード変化を通知
+  useEffect(() => {
+    if (isEditing) setMathEditing(isInMathMode);
+  }, [isInMathMode, isEditing, setMathEditing]);
 
   // 入力中に候補を更新
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -759,11 +768,17 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 
 function MathBlockEditor({ block }: { block: Block }) {
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const { editingBlockId } = useUIStore();
+  const { editingBlockId, setMathEditing } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
-  const [showGuide, setShowGuide] = useState(true);
+  const [showGuide, setShowGuide] = useState(false);
   const mathInputRef = useRef<JapaneseMathInputHandle>(null);
+
+  // 数式ブロック編集中は数式モード
+  useEffect(() => {
+    setMathEditing(isEditing);
+    return () => { if (isEditing) setMathEditing(false); };
+  }, [isEditing, setMathEditing]);
 
   const handleApply = useCallback((latex: string, sourceText: string) => {
     updateContent(block.id, { latex, sourceText });

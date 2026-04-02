@@ -7,6 +7,8 @@ import { DocumentEditor } from "@/components/editor/document-editor";
 import { AdvancedModePanel } from "@/components/editor/advanced-mode";
 import { AIChatPanel } from "@/components/editor/ai-chat-panel";
 import { LaTeXSourceViewer } from "@/components/editor/latex-source-viewer";
+import { EditGuidePanel } from "@/components/editor/edit-guide-panel";
+import { MathReferencePanel } from "@/components/editor/math-reference-panel";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -14,10 +16,10 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Terminal, PenLine, Bot, FileCode2, Globe, FileText, X } from "lucide-react";
+import { Terminal, PenLine, Bot, FileCode2, Globe, FileText, X, BookOpen, Sigma } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
-type SidebarTab = "ai" | "advanced" | "latex";
+type SidebarTab = "ai" | "advanced" | "latex" | "guide" | "math";
 
 export default function EditorPage() {
   useKeyboardShortcuts();
@@ -25,6 +27,7 @@ export default function EditorPage() {
 
   const { locale, setLocale, t } = useI18n();
   const isChatLoading = useUIStore((s) => s.isChatLoading);
+  const isMathEditing = useUIStore((s) => s.isMathEditing);
   const isMobile = useIsMobile();
 
   const doc = useDocumentStore((s) => s.document);
@@ -35,6 +38,8 @@ export default function EditorPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
   const [editMode, setEditMode] = useState(false);
+  // 前の非editモードタブを記憶してeditMode OFF時に戻せるようにする
+  const [preEditTab, setPreEditTab] = useState<SidebarTab>("ai");
 
   // Mobile state
   const [mobileTab, setMobileTab] = useState<"ai" | "preview">("ai");
@@ -54,6 +59,32 @@ export default function EditorPage() {
     }
   }, [advancedEnabled, isMobile]);
 
+  // editModeのON/OFFに応じてサイドパネル自動切替
+  useEffect(() => {
+    if (editMode) {
+      setPreEditTab(activeTab);
+      setSidebarOpen(true);
+      setActiveTab("guide");
+    } else {
+      // editMode OFFになったら以前のタブに戻す（guide/mathならaiに）
+      const fallback: SidebarTab = (preEditTab === "guide" || preEditTab === "math") ? "ai" : preEditTab;
+      setActiveTab(fallback);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode]);
+
+  // 数式モードに応じてサイドパネル自動切替
+  useEffect(() => {
+    if (!editMode) return;
+    if (isMathEditing) {
+      setActiveTab("math");
+    } else {
+      // 数式モードを抜けたらガイドに戻す
+      if (activeTab === "math") setActiveTab("guide");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMathEditing, editMode]);
+
   if (!doc) return null;
 
   const isAIActive = (sidebarOpen && activeTab === "ai") || isChatLoading;
@@ -65,6 +96,15 @@ export default function EditorPage() {
       setSidebarOpen(true);
       setActiveTab(tab);
     }
+  };
+
+  // パネルタイトルと色設定
+  const panelMeta: Record<SidebarTab, { label: string; bg: string; textColor: string; indicator: string }> = {
+    ai:       { label: t("panel.ai"),       bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/70", indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
+    advanced: { label: t("panel.advanced"), bg: "bg-amber-950/8 dark:bg-amber-950/15",    textColor: "text-amber-500/70 font-mono",  indicator: "bg-amber-400" },
+    latex:    { label: t("panel.latex"),    bg: "bg-muted/10",                             textColor: "text-muted-foreground/50",    indicator: "" },
+    guide:    { label: "編集ガイド",         bg: "bg-sky-950/8 dark:bg-sky-950/15",         textColor: "text-sky-400/80",             indicator: "bg-gradient-to-b from-sky-500/60 to-sky-400/20" },
+    math:     { label: "数式リファレンス",   bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/80",          indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
   };
 
   /* ══════════════════════════════════════════════
@@ -133,6 +173,8 @@ export default function EditorPage() {
   /* ══════════════════════════════════════════════
      DESKTOP — VSCode-style: editor + panel side by side
   ══════════════════════════════════════════════ */
+  const meta = panelMeta[activeTab];
+
   return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background overflow-hidden">
       <AppHeader isAIActive={isAIActive} />
@@ -141,28 +183,22 @@ export default function EditorPage() {
       {editMode && <EditToolbar />}
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* ── Document editor — always visible on desktop ── */}
+        {/* ── Document editor ── */}
         <div className="flex-1 overflow-auto min-w-0">
           <DocumentEditor editMode={editMode} />
         </div>
 
         {/* ── Right panel ── */}
-        <div className={`border-l border-border/20 overflow-hidden bg-background/95 backdrop-blur-sm flex-shrink-0 flex flex-col ${sidebarOpen ? "w-96" : "w-0"}`}>
+        <div className={`border-l border-border/20 overflow-hidden bg-background/95 backdrop-blur-sm flex-shrink-0 flex flex-col transition-all duration-200 ${sidebarOpen ? "w-96" : "w-0"}`}>
           {sidebarOpen && (
             <div className="w-96 h-full flex flex-col">
               {/* Panel title bar */}
-              <div className={`relative flex items-center px-3 h-9 border-b border-border/20 shrink-0 select-none ${
-                activeTab === "ai"       ? "bg-violet-950/10 dark:bg-violet-950/20" :
-                activeTab === "advanced" ? "bg-amber-950/8 dark:bg-amber-950/15" : "bg-muted/10"
-              }`}>
-                {activeTab === "ai" && (
-                  <div className="absolute left-0 top-0 h-full w-[2px] bg-gradient-to-b from-violet-500/60 to-violet-400/20 rounded-r" />
+              <div className={`relative flex items-center px-3 h-9 border-b border-border/20 shrink-0 select-none ${meta.bg}`}>
+                {meta.indicator && (
+                  <div className={`absolute left-0 top-0 h-full w-[2px] ${meta.indicator} rounded-r`} />
                 )}
-                <span className={`text-[10px] font-semibold uppercase tracking-widest flex-1 ${
-                  activeTab === "ai"       ? "text-violet-400/70" :
-                  activeTab === "advanced" ? "text-amber-500/70 font-mono" : "text-muted-foreground/50"
-                }`}>
-                  {activeTab === "ai" ? t("panel.ai") : activeTab === "latex" ? t("panel.latex") : t("panel.advanced")}
+                <span className={`text-[10px] font-semibold uppercase tracking-widest flex-1 ${meta.textColor}`}>
+                  {meta.label}
                 </span>
                 {activeTab === "advanced" && advancedEnabled && (
                   <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-amber-600 text-white rounded-full font-bold tracking-wide font-mono">ACTIVE</span>
@@ -178,11 +214,13 @@ export default function EditorPage() {
 
               {/* Panel body */}
               <div className={`flex-1 min-h-0 ${
-                activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto p-4"
+                activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto"
               }`}>
                 {activeTab === "ai"       && <AIChatPanel />}
                 {activeTab === "advanced" && <AdvancedModePanel />}
                 {activeTab === "latex"    && <LaTeXSourceViewer />}
+                {activeTab === "guide"    && <EditGuidePanel />}
+                {activeTab === "math"     && <MathReferencePanel />}
               </div>
             </div>
           )}
@@ -215,14 +253,38 @@ export default function EditorPage() {
           {/* Edit mode toggle */}
           <button
             onClick={() => setEditMode((v) => !v)}
-            title={t("panel.edit")}
+            title={editMode ? "編集モードをOFF" : "編集モードをON"}
             className={`relative h-10 w-full flex items-center justify-center transition-all ${
               editMode ? "text-sky-500 dark:text-sky-400 bg-muted/30" : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
             }`}
           >
             {editMode && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-sky-500 opacity-80" />}
             <PenLine className="h-4 w-4" />
+            {editMode && (
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-sky-400" />
+            )}
           </button>
+
+          {/* 編集ガイド — editMode時のみ */}
+          {editMode && (
+            <button
+              onClick={() => handleTabClick(isMathEditing ? "math" : "guide")}
+              title={isMathEditing ? "数式リファレンス" : "編集ガイド"}
+              className={`relative h-10 w-full flex items-center justify-center transition-all ${
+                sidebarOpen && (activeTab === "guide" || activeTab === "math")
+                  ? isMathEditing ? "text-violet-500 bg-muted/30" : "text-sky-500 bg-muted/30"
+                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/15"
+              }`}
+            >
+              {sidebarOpen && (activeTab === "guide" || activeTab === "math") && (
+                <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full opacity-80 ${isMathEditing ? "bg-violet-500" : "bg-sky-400"}`} />
+              )}
+              {isMathEditing
+                ? <Sigma className="h-3.5 w-3.5" />
+                : <BookOpen className="h-3.5 w-3.5" />
+              }
+            </button>
+          )}
 
           <div className="flex-1" />
           <div className="w-5 h-px bg-border/30 mb-1" />

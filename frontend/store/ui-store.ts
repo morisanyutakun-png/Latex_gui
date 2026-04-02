@@ -18,6 +18,7 @@ interface UIState {
   isGenerating: boolean;
   zoom: number;
   paperSize: PaperSize;
+  isMathEditing: boolean;
 
   // AI action tracking
   lastAIAction: LastAIAction | null;
@@ -33,6 +34,7 @@ interface UIState {
 
   selectBlock: (id: string | null) => void;
   setEditingBlock: (id: string | null) => void;
+  setMathEditing: (v: boolean) => void;
   setGenerating: (v: boolean) => void;
   setZoom: (v: number) => void;
   setPaperSize: (s: PaperSize) => void;
@@ -59,6 +61,7 @@ export const useUIStore = create<UIState>((set) => ({
   isGenerating: false,
   zoom: 1,
   paperSize: "a4",
+  isMathEditing: false,
   lastAIAction: null,
   isOutlineOpen: false,
   showGlobalPalette: false,
@@ -71,6 +74,7 @@ export const useUIStore = create<UIState>((set) => ({
     editingBlockId: id && state.editingBlockId === id ? id : (id ? state.editingBlockId : null),
   })),
   setEditingBlock: (id) => set({ editingBlockId: id, selectedBlockId: id }),
+  setMathEditing: (v) => set({ isMathEditing: v }),
   setGenerating: (v) => set({ isGenerating: v }),
   setZoom: (v) => set({ zoom: Math.max(0.5, Math.min(2, v)) }),
   setPaperSize: (s) => set({ paperSize: s }),

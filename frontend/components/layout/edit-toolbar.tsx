@@ -1,10 +1,9 @@
 "use client";
 
 /**
- * EditToolbar — slim formatting bar for diff-style micro-edits.
- * Appears above the editor when edit mode is toggled.
- * Intended for tweaking AI-generated content: font, size, color, style.
- * No block insertion (that's the AI's job).
+ * EditToolbar — モード対応フォーマットバー
+ * 編集モード: sky blue テーマ
+ * 数式モード: violet テーマ (isMathEditing)
  */
 
 import React from "react";
@@ -16,6 +15,7 @@ import {
   Bold, Italic, Underline,
   AlignLeft, AlignCenter, AlignRight,
   Sigma, List as ListIcon, ListOrdered, Command,
+  PenLine,
 } from "lucide-react";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
@@ -25,6 +25,8 @@ const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
   { value: "letter", label: "Letter" },
 ];
 
+const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32];
+
 function useSelectedBlock(): Block | null {
   const selectedBlockId = useUIStore((s) => s.selectedBlockId);
   const blocks = useDocumentStore((s) => s.document?.blocks);
@@ -33,21 +35,26 @@ function useSelectedBlock(): Block | null {
 }
 
 function Sep() {
-  return <div className="w-px h-3.5 bg-border/40 mx-1 shrink-0" />;
+  return <div className="w-px h-4 bg-border/30 mx-1 shrink-0" />;
 }
 
-function Btn({ active, onClick, title, disabled, children }: {
+function Btn({
+  active, onClick, title, disabled, children, mathMode,
+}: {
   active?: boolean; onClick: () => void; title?: string;
-  disabled?: boolean; children: React.ReactNode;
+  disabled?: boolean; children: React.ReactNode; mathMode?: boolean;
 }) {
+  const activeClass = mathMode
+    ? "bg-violet-500/15 text-violet-600 dark:text-violet-400"
+    : "bg-sky-500/15 text-sky-600 dark:text-sky-400";
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`inline-flex items-center justify-center h-6 w-6 rounded transition-colors shrink-0
-        ${active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}
-        ${disabled ? "opacity-25 cursor-not-allowed pointer-events-none" : ""}`}
+      className={`inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors shrink-0
+        ${active ? activeClass : "text-foreground/60 hover:text-foreground hover:bg-white/60 dark:hover:bg-white/10"}
+        ${disabled ? "opacity-30 cursor-not-allowed pointer-events-none" : ""}`}
     >
       {children}
     </button>
@@ -58,7 +65,7 @@ export function EditToolbar() {
   const { t } = useI18n();
   const block = useSelectedBlock();
   const { updateBlockStyle, updateBlockContent } = useDocumentStore();
-  const { paperSize, setPaperSize, setGlobalPalette } = useUIStore();
+  const { paperSize, setPaperSize, setGlobalPalette, isMathEditing } = useUIStore();
 
   const style = block?.style ?? {};
   const on = !!block;
@@ -76,17 +83,48 @@ export function EditToolbar() {
   const headingContent = block?.content.type === "heading" ? (block.content as { level: number }) : null;
   const listContent   = block?.content.type === "list"    ? (block.content as { style: string })  : null;
 
+  // テーマカラー
+  const theme = isMathEditing
+    ? {
+        bg: "bg-gradient-to-r from-violet-50/90 via-violet-50/70 to-background dark:from-violet-950/30 dark:via-violet-950/20 dark:to-background",
+        border: "border-violet-200/50 dark:border-violet-800/30",
+        badge: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-300/40 dark:border-violet-700/40",
+        badgeGlow: "bg-violet-400",
+        selectBorder: "border-violet-200/60 dark:border-violet-800/40 focus:border-violet-400/60",
+        hint: "text-violet-400/70",
+      }
+    : {
+        bg: "bg-gradient-to-r from-sky-50/90 via-sky-50/50 to-background dark:from-sky-950/20 dark:via-sky-950/10 dark:to-background",
+        border: "border-sky-200/40 dark:border-sky-800/20",
+        badge: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-300/40 dark:border-sky-700/40",
+        badgeGlow: "bg-sky-400",
+        selectBorder: "border-sky-200/60 dark:border-sky-800/40 focus:border-sky-400/60",
+        hint: "text-sky-400/70",
+      };
+
   return (
-    <div className="flex items-center gap-0.5 px-3 h-8 border-b border-border/15 bg-muted/5 shrink-0">
+    <div className={`flex items-center gap-1 px-3 h-10 border-b shrink-0 backdrop-blur-sm transition-all duration-300 ${theme.bg} ${theme.border}`}>
+
+      {/* モードバッジ */}
+      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold mr-1 shrink-0 transition-all duration-300 ${theme.badge}`}>
+        <span className={`h-1.5 w-1.5 rounded-full animate-pulse ${theme.badgeGlow}`} />
+        {isMathEditing
+          ? <><Sigma className="h-3 w-3" /><span>数式モード</span></>
+          : <><PenLine className="h-3 w-3" /><span>編集モード</span></>
+        }
+      </div>
+
+      <Sep />
+
       {/* Font family */}
       <select
         value={style.fontFamily ?? "sans"}
         onChange={(e) => block && updateBlockStyle(block.id, { fontFamily: e.target.value as "serif" | "sans" })}
         disabled={!on}
-        className="h-6 px-1.5 rounded border border-border/40 bg-transparent text-[11px] text-muted-foreground focus:outline-none focus:border-primary/40 cursor-pointer transition-colors disabled:opacity-25 shrink-0"
+        className={`h-7 px-2 rounded-md border bg-white/70 dark:bg-white/5 text-[12px] text-foreground/80 focus:outline-none cursor-pointer transition-colors disabled:opacity-30 shrink-0 ${theme.selectBorder}`}
       >
-        <option value="sans">{t("toolbar.gothic")}</option>
-        <option value="serif">{t("toolbar.mincho")}</option>
+        <option value="sans">ゴシック</option>
+        <option value="serif">明朝</option>
       </select>
 
       {/* Font size */}
@@ -94,33 +132,33 @@ export function EditToolbar() {
         value={String(style.fontSize ?? 11)}
         onChange={(e) => block && updateBlockStyle(block.id, { fontSize: parseInt(e.target.value) })}
         disabled={!on}
-        className="h-6 w-11 px-1 rounded border border-border/40 bg-transparent text-[11px] text-muted-foreground focus:outline-none focus:border-primary/40 cursor-pointer transition-colors disabled:opacity-25 shrink-0"
+        className={`h-7 w-14 px-1.5 rounded-md border bg-white/70 dark:bg-white/5 text-[12px] text-foreground/80 focus:outline-none cursor-pointer transition-colors disabled:opacity-30 shrink-0 ${theme.selectBorder}`}
       >
-        {[9, 10, 11, 12, 14, 16, 18, 24].map((s) => (
-          <option key={s} value={s}>{s}</option>
+        {FONT_SIZES.map((s) => (
+          <option key={s} value={s}>{s}pt</option>
         ))}
       </select>
 
       <Sep />
 
-      <Btn active={!!style.bold}      onClick={() => toggle("bold")}      title="太字 (Ctrl+B)" disabled={!on}><Bold      className="h-3 w-3" /></Btn>
-      <Btn active={!!style.italic}    onClick={() => toggle("italic")}    title="斜体"           disabled={!on}><Italic    className="h-3 w-3" /></Btn>
-      <Btn active={!!style.underline} onClick={() => toggle("underline")} title="下線"           disabled={!on}><Underline className="h-3 w-3" /></Btn>
+      <Btn active={!!style.bold}      onClick={() => toggle("bold")}      title="太字 (⌘B)"  disabled={!on} mathMode={isMathEditing}><Bold      className="h-3.5 w-3.5" /></Btn>
+      <Btn active={!!style.italic}    onClick={() => toggle("italic")}    title="斜体"       disabled={!on} mathMode={isMathEditing}><Italic    className="h-3.5 w-3.5" /></Btn>
+      <Btn active={!!style.underline} onClick={() => toggle("underline")} title="下線"       disabled={!on} mathMode={isMathEditing}><Underline className="h-3.5 w-3.5" /></Btn>
 
       <Sep />
 
-      <Btn active={!style.textAlign || style.textAlign === "left"}  onClick={() => setAlign("left")}   title="左揃え"   disabled={!on}><AlignLeft   className="h-3 w-3" /></Btn>
-      <Btn active={style.textAlign === "center"}                     onClick={() => setAlign("center")} title="中央揃え" disabled={!on}><AlignCenter className="h-3 w-3" /></Btn>
-      <Btn active={style.textAlign === "right"}                      onClick={() => setAlign("right")}  title="右揃え"   disabled={!on}><AlignRight  className="h-3 w-3" /></Btn>
+      <Btn active={!style.textAlign || style.textAlign === "left"}  onClick={() => setAlign("left")}   title="左揃え"   disabled={!on} mathMode={isMathEditing}><AlignLeft   className="h-3.5 w-3.5" /></Btn>
+      <Btn active={style.textAlign === "center"}                     onClick={() => setAlign("center")} title="中央揃え" disabled={!on} mathMode={isMathEditing}><AlignCenter className="h-3.5 w-3.5" /></Btn>
+      <Btn active={style.textAlign === "right"}                      onClick={() => setAlign("right")}  title="右揃え"   disabled={!on} mathMode={isMathEditing}><AlignRight  className="h-3.5 w-3.5" /></Btn>
 
-      {/* Heading level — contextual */}
+      {/* 見出しレベル（コンテキスト） */}
       {headingContent && (
         <>
           <Sep />
           <select
             value={String(headingContent.level)}
             onChange={(e) => block && updateBlockContent(block.id, { level: parseInt(e.target.value) as 1|2|3 })}
-            className="h-6 w-12 px-1 rounded border border-border/40 bg-transparent text-[11px] text-muted-foreground focus:outline-none focus:border-primary/40 cursor-pointer shrink-0"
+            className={`h-7 w-14 px-1.5 rounded-md border bg-white/70 dark:bg-white/5 text-[12px] text-foreground/80 focus:outline-none cursor-pointer shrink-0 ${theme.selectBorder}`}
           >
             <option value="1">H1</option>
             <option value="2">H2</option>
@@ -129,67 +167,70 @@ export function EditToolbar() {
         </>
       )}
 
-      {/* List style — contextual */}
+      {/* リストスタイル（コンテキスト） */}
       {listContent && (
         <>
           <Sep />
-          <Btn active={listContent.style === "bullet"}   onClick={() => block && updateBlockContent(block.id, { style: "bullet" })}   title="箇条書き" disabled={!on}><ListIcon    className="h-3 w-3" /></Btn>
-          <Btn active={listContent.style === "numbered"} onClick={() => block && updateBlockContent(block.id, { style: "numbered" })} title="番号付き" disabled={!on}><ListOrdered className="h-3 w-3" /></Btn>
+          <Btn active={listContent.style === "bullet"}   onClick={() => block && updateBlockContent(block.id, { style: "bullet" })}   title="箇条書き" disabled={!on} mathMode={isMathEditing}><ListIcon    className="h-3.5 w-3.5" /></Btn>
+          <Btn active={listContent.style === "numbered"} onClick={() => block && updateBlockContent(block.id, { style: "numbered" })} title="番号付き" disabled={!on} mathMode={isMathEditing}><ListOrdered className="h-3.5 w-3.5" /></Btn>
         </>
       )}
 
       <Sep />
 
-      {/* Text color */}
-      <div className={`relative h-6 w-6 shrink-0 ${!on ? "opacity-25 pointer-events-none" : ""}`} title="文字色">
+      {/* 文字色 */}
+      <div className={`relative h-7 w-7 shrink-0 ${!on ? "opacity-30 pointer-events-none" : ""}`} title="文字色">
         <input
           type="color"
-          value={style.textColor ?? "#000000"}
+          value={style.textColor ?? "#1a1a1a"}
           onChange={(e) => block && updateBlockStyle(block.id, { textColor: e.target.value })}
-          className="absolute inset-0 opacity-0 cursor-pointer w-6 h-6"
+          className="absolute inset-0 opacity-0 cursor-pointer w-7 h-7"
         />
-        <div className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted/60 transition-colors">
+        <div className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-white/60 dark:hover:bg-white/10 transition-colors">
           <div className="flex flex-col items-center gap-0.5">
-            <span className="text-[10px] font-bold leading-none" style={{ color: style.textColor ?? undefined }}>A</span>
-            <div className="h-0.5 w-3 rounded-full" style={{ backgroundColor: style.textColor ?? "currentColor" }} />
+            <span className="text-[12px] font-bold leading-none" style={{ color: style.textColor ?? undefined }}>A</span>
+            <div className="h-0.5 w-3.5 rounded-full" style={{ backgroundColor: style.textColor ?? "currentColor" }} />
           </div>
         </div>
       </div>
 
       <div className="flex-1" />
 
-      {/* Math mode hint */}
-      <span className="inline-flex items-center gap-1 h-5 px-2 rounded text-[9px] font-mono text-muted-foreground/35 bg-muted/20 border border-border/25 select-none shrink-0">
-        <Sigma className="h-2.5 w-2.5" />
-        Tab
-      </span>
+      {/* 数式ヒント */}
+      {!isMathEditing && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={`text-[10px] font-mono ${theme.hint} select-none`}>Tab = $...$</span>
+          <Sigma className={`h-3 w-3 ${theme.hint}`} />
+        </div>
+      )}
 
-      {!on && (
-        <span className="ml-2 text-[9px] text-muted-foreground/25 select-none font-mono hidden sm:inline">
-          {t("toolbar.hint")}
+      {!on && !isMathEditing && (
+        <span className="ml-2 text-[10px] text-muted-foreground/30 select-none font-medium hidden sm:inline">
+          ブロックをクリックして編集
         </span>
       )}
 
-      <div className="flex-1" />
+      <Sep />
 
-      {/* Cmd+K — insert block shortcut */}
+      {/* ブロック挿入 */}
       <button
         onClick={() => setGlobalPalette(true)}
-        className="inline-flex items-center gap-1 h-5 px-2 rounded text-[9px] font-mono text-muted-foreground/40 bg-muted/20 border border-border/25 hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium text-foreground/50 bg-white/60 dark:bg-white/5 border border-border/30 hover:text-foreground hover:bg-white/90 dark:hover:bg-white/10 transition-colors shrink-0"
         title="ブロックを挿入 (⌘K)"
       >
-        <Command className="h-2.5 w-2.5" />K
+        <Command className="h-3 w-3" />
+        <span className="font-mono">K</span>
       </button>
 
       <Sep />
 
-      {/* Paper size */}
-      <div className="flex items-center gap-1 shrink-0">
-        <span className="text-[9px] text-muted-foreground/30 font-mono select-none">{t("toolbar.paper")}</span>
+      {/* 用紙サイズ */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">{t("toolbar.paper")}</span>
         <select
           value={paperSize}
           onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-          className="h-5 px-1.5 rounded border border-border/30 bg-transparent text-[10px] text-muted-foreground/60 hover:text-foreground focus:outline-none focus:border-primary/40 cursor-pointer transition-colors font-mono"
+          className={`h-7 px-2 rounded-md border bg-white/70 dark:bg-white/5 text-[11px] text-foreground/70 hover:text-foreground focus:outline-none cursor-pointer transition-colors font-mono ${theme.selectBorder}`}
         >
           {PAPER_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
