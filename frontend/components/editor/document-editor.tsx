@@ -595,50 +595,50 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     <div className="relative">
       {showTextarea ? (
         <>
-          {/* ── 紙面表示（常にレンダリング済み） ── */}
-          <div
-            className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text"
-            style={baseStyle}
-            onClick={() => textareaRef.current?.focus()}
-          >
-            {/* 確定済み部分 */}
-            {confirmedText ? (
-              <RenderedInlineText text={confirmedText} style={baseStyle} />
-            ) : !mathMode ? (
-              <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
-            ) : null}
-
-            {/* 数式モード: リアルタイム変換結果をインライン表示 */}
-            {mathMode && (
-              composingText ? (
-                composingLatex ? (
-                  <span className="inline-block mx-0.5 align-middle">
-                    <MathRenderer latex={composingLatex} displayMode={false} />
-                  </span>
+          {/* ── 紙面表示 + textarea を同一行に重ねる ── */}
+          <div className="relative px-0 py-0.5 min-h-[1.75em]">
+            {/* レンダリング済み表示（見える層） */}
+            <div
+              className="text-[14px] leading-[1.8] pointer-events-none"
+              style={baseStyle}
+              aria-hidden
+            >
+              {confirmedText ? (
+                <RenderedInlineText text={confirmedText} style={baseStyle} />
+              ) : !mathMode ? (
+                <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
+              ) : null}
+              {mathMode && (
+                composingText ? (
+                  composingLatex ? (
+                    <span className="inline-block mx-0.5 align-middle">
+                      <MathRenderer latex={composingLatex} displayMode={false} />
+                    </span>
+                  ) : (
+                    <span className="text-violet-500/60">{composingText}</span>
+                  )
                 ) : (
-                  <span className="text-violet-500/60 text-[14px]">{composingText}</span>
+                  <span className="text-violet-400/30">|</span>
                 )
-              ) : (
-                <span className="text-violet-400/30 text-[14px]">|</span>
-              )
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* ── textarea（入力用 — 紙面表示と重ねて透明化、カーソルだけ見せる） ── */}
-          <textarea
-            ref={textareaRef}
-            value={content.text}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={mathMode ? "" : t("block.ph.paragraph")}
-            className={`w-full resize-none overflow-hidden border-none outline-none focus:ring-0 px-0 py-0.5 bg-transparent text-[14px] leading-[1.8] placeholder:text-muted-foreground/25 ${
-              mathMode
-                ? "text-transparent caret-violet-500 selection:bg-violet-200/30"
-                : "text-transparent caret-foreground"
-            }`}
-            style={baseStyle}
-            rows={1}
-          />
+            {/* textarea（同じ位置に重ねる — テキスト透明、カーソルだけ見える） */}
+            <textarea
+              ref={textareaRef}
+              value={content.text}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder={mathMode ? "" : t("block.ph.paragraph")}
+              className={`absolute inset-0 w-full h-full resize-none overflow-hidden border-none outline-none focus:ring-0 bg-transparent text-[14px] leading-[1.8] placeholder:text-transparent ${
+                mathMode
+                  ? "text-transparent caret-violet-500"
+                  : "text-transparent caret-foreground"
+              }`}
+              style={baseStyle}
+              rows={1}
+            />
+          </div>
 
           {/* ── 数式候補リスト ── */}
           {mathMode && mathSuggs.length > 0 && (
