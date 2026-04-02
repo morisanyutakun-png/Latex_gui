@@ -29,6 +29,7 @@ export default function EditorPage() {
   const isJa = locale !== "en";
   const isChatLoading = useUIStore((s) => s.isChatLoading);
   const isMathEditing = useUIStore((s) => s.isMathEditing);
+  const activeGuideContext = useUIStore((s) => s.activeGuideContext);
   const isMobile = useIsMobile();
 
   const doc = useDocumentStore((s) => s.document);
@@ -74,17 +75,21 @@ export default function EditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editMode]);
 
-  // 数式モードに応じてサイドパネル自動切替
+  // コンテキストに応じてサイドパネル自動切替
   useEffect(() => {
     if (!editMode) return;
-    if (isMathEditing) {
+    if (isMathEditing || activeGuideContext === "math") {
       setActiveTab("math");
+      setSidebarOpen(true);
+    } else if (activeGuideContext !== "none" && activeGuideContext !== "general") {
+      // heading/list/table/code → ガイドタブで表示
+      setActiveTab("guide");
+      setSidebarOpen(true);
     } else {
-      // 数式モードを抜けたらガイドに戻す
       if (activeTab === "math") setActiveTab("guide");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMathEditing, editMode]);
+  }, [isMathEditing, activeGuideContext, editMode]);
 
   if (!doc) return null;
 
@@ -222,7 +227,7 @@ export default function EditorPage() {
                   {activeTab === "ai"       && <AIChatPanel />}
                   {activeTab === "advanced" && <AdvancedModePanel />}
                   {activeTab === "latex"    && <LaTeXSourceViewer />}
-                  {activeTab === "guide"    && <EditGuidePanel />}
+                  {activeTab === "guide"    && <EditGuidePanel context={activeGuideContext} />}
                   {activeTab === "math"     && <MathReferencePanel />}
                 </div>
               </div>

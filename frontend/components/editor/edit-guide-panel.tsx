@@ -1,12 +1,12 @@
 "use client";
 
-import { Keyboard, MousePointer2, PenLine, Sigma, Command } from "lucide-react";
+import { Keyboard, MousePointer2, PenLine, Sigma, Command, Heading, List, Table, Code } from "lucide-react";
+import type { GuideContext } from "@/store/ui-store";
 
 const shortcuts = [
   { keys: ["Enter"],        desc: "新しい段落を追加" },
   { keys: ["⌫"],           desc: "空行 → 行を削除して前に戻る" },
   { keys: ["Tab"],          desc: "インライン数式 $...$ を挿入" },
-  { keys: ["⇧↵"],         desc: "数式候補表示中 → 数式として挿入" },
   { keys: ["/"],            desc: "要素挿入メニューを開く" },
   { keys: ["⌘", "K"],      desc: "要素挿入パレット" },
   { keys: ["↑", "↓"],     desc: "段落間を移動" },
@@ -22,6 +22,57 @@ const writingTips = [
   { icon: Command,       color: "text-slate-400",  text: "右クリックで 削除・移動・種類変更" },
 ];
 
+// コンテキスト別ガイド
+const CONTEXT_GUIDES: Record<string, { icon: React.ElementType; color: string; title: string; tips: string[] }> = {
+  heading: {
+    icon: Heading,
+    color: "text-blue-500",
+    title: "見出しガイド",
+    tips: [
+      "H1: 文書タイトルに使用",
+      "H2: セクション見出しに使用",
+      "H3: サブセクションに使用",
+      "ツールバーで見出しレベルを変更可能",
+      "右クリック → 種類変更 で段落に戻せます",
+    ],
+  },
+  list: {
+    icon: List,
+    color: "text-emerald-500",
+    title: "リストガイド",
+    tips: [
+      "Enter で新しい項目を追加",
+      "Backspace で空の項目を削除",
+      "箇条書き（•）と番号付き（1.）を切替可能",
+      "右クリック → 種類変更 でリスト形式を変更",
+      "「+ 追加」ボタンで項目を末尾に追加",
+    ],
+  },
+  table: {
+    icon: Table,
+    color: "text-amber-500",
+    title: "表ガイド",
+    tips: [
+      "各セルをクリックして直接編集",
+      "「+ 行」「+ 列」で表を拡張",
+      "ヘッダー行は自動で太字表示",
+      "キャプション欄で表の説明を追加可能",
+      "セル内に $数式$ も入力可能",
+    ],
+  },
+  code: {
+    icon: Code,
+    color: "text-gray-500",
+    title: "コードブロックガイド",
+    tips: [
+      "左上のフィールドで言語名を指定（例: python, javascript）",
+      "コードはそのまま等幅フォントで表示",
+      "インデントは自動保持",
+      "LaTeX の listings / minted パッケージで出力",
+    ],
+  },
+};
+
 function KeyBadge({ k }: { k: string }) {
   return (
     <kbd className="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md text-[10px] font-mono font-medium bg-muted border border-border/60 text-foreground/70 leading-none select-none">
@@ -30,9 +81,32 @@ function KeyBadge({ k }: { k: string }) {
   );
 }
 
-export function EditGuidePanel() {
+export function EditGuidePanel({ context = "none" }: { context?: GuideContext }) {
+  const ctxGuide = CONTEXT_GUIDES[context];
+
   return (
     <div className="flex flex-col gap-5 p-4 text-sm">
+      {/* コンテキスト別ガイド（該当時のみ表示） */}
+      {ctxGuide && (
+        <>
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <ctxGuide.icon className={`h-3.5 w-3.5 ${ctxGuide.color} shrink-0`} />
+              <span className={`text-[11px] font-semibold uppercase tracking-wider ${ctxGuide.color}`}>{ctxGuide.title}</span>
+            </div>
+            <div className="space-y-2">
+              {ctxGuide.tips.map((tip, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <span className={`text-[10px] mt-0.5 font-bold ${ctxGuide.color}`}>•</span>
+                  <span className="text-[11px] text-muted-foreground/70 leading-relaxed">{tip}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+          <div className="h-px bg-border/20" />
+        </>
+      )}
+
       {/* キーボードショートカット */}
       <section>
         <div className="flex items-center gap-2 mb-3">

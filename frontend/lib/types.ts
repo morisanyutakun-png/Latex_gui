@@ -309,7 +309,7 @@ export interface BlockTypeInfo {
 export const BLOCK_TYPES: BlockTypeInfo[] = [
   { type: "heading",   name: "見出し",     description: "セクション見出し",     color: "text-blue-500" },
   { type: "paragraph", name: "テキスト",   description: "本文テキスト",         color: "text-slate-500" },
-  { type: "math",      name: "数式",       description: "LaTeX数式",            color: "text-violet-500", packages: ["amsmath", "amssymb", "mathtools"] },
+  { type: "math",      name: "数式",       description: "インライン数式を挿入",   color: "text-violet-500", packages: ["amsmath", "amssymb", "mathtools"] },
   { type: "list",      name: "リスト",     description: "箇条書き・番号リスト", color: "text-emerald-500", packages: ["enumitem"] },
   { type: "table",     name: "表",         description: "表組みデータ",         color: "text-orange-500", packages: ["booktabs"] },
   { type: "image",     name: "画像",       description: "画像を挿入",           color: "text-pink-500", packages: ["graphicx"] },

@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { ChatMessage, DocumentPatch } from "@/lib/types";
 
 export type PaperSize = "a4" | "a3" | "b5" | "letter";
+export type GuideContext = "none" | "math" | "heading" | "list" | "table" | "code" | "general";
 
 export interface LastAIAction {
   description: string;
@@ -19,6 +20,7 @@ interface UIState {
   zoom: number;
   paperSize: PaperSize;
   isMathEditing: boolean;
+  activeGuideContext: GuideContext;
 
   // AI action tracking
   lastAIAction: LastAIAction | null;
@@ -35,6 +37,7 @@ interface UIState {
   selectBlock: (id: string | null) => void;
   setEditingBlock: (id: string | null) => void;
   setMathEditing: (v: boolean) => void;
+  setActiveGuideContext: (ctx: GuideContext) => void;
   setGenerating: (v: boolean) => void;
   setZoom: (v: number) => void;
   setPaperSize: (s: PaperSize) => void;
@@ -62,6 +65,7 @@ export const useUIStore = create<UIState>((set) => ({
   zoom: 1,
   paperSize: "a4",
   isMathEditing: false,
+  activeGuideContext: "none",
   lastAIAction: null,
   isOutlineOpen: false,
   showGlobalPalette: false,
@@ -76,6 +80,7 @@ export const useUIStore = create<UIState>((set) => ({
   ),
   setEditingBlock: (id) => set({ editingBlockId: id, selectedBlockId: id }),
   setMathEditing: (v) => set({ isMathEditing: v }),
+  setActiveGuideContext: (ctx) => set({ activeGuideContext: ctx }),
   setGenerating: (v) => set({ isGenerating: v }),
   setZoom: (v) => set({ zoom: Math.max(0.5, Math.min(2, v)) }),
   setPaperSize: (s) => set({ paperSize: s }),

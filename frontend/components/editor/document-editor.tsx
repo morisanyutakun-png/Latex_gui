@@ -6,7 +6,7 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES, createBlock } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
-import { JapaneseMathInput, MathWritingGuide, type JapaneseMathInputHandle } from "./math-japanese-input";
+import { JapaneseMathInput, type JapaneseMathInputHandle } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
 import { parseInlineText, getInlineMathContext, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
@@ -76,7 +76,7 @@ function BlockWrapper({
   children: React.ReactNode;
 }) {
   const { t } = useI18n();
-  const { selectBlock, setEditingBlock, lastAIAction } = useUIStore();
+  const { selectBlock, setEditingBlock, lastAIAction, setActiveGuideContext } = useUIStore();
   const { deleteBlock, duplicateBlock, moveBlock, convertBlock } = useDocumentStore();
   const editMode = React.useContext(EditModeContext);
 
@@ -102,7 +102,13 @@ function BlockWrapper({
           className="relative"
           onClick={(e) => {
             e.stopPropagation();
-            if (editMode) setEditingBlock(block.id);
+            if (editMode) {
+              setEditingBlock(block.id);
+              // ブロック種別に応じてサイドバーガイドを切替
+              const t = block.content.type;
+              const guideMap: Record<string, string> = { heading: "heading", list: "list", table: "table", code: "code", math: "math" };
+              setActiveGuideContext((guideMap[t] || "general") as import("@/store/ui-store").GuideContext);
+            }
             else selectBlock(block.id);
           }}
         >
@@ -340,6 +346,26 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     setShowPalette(false);
     setPaletteQuery("");
     if (type === "paragraph") return;
+
+    // 数式: ブロックを作らず $$ をインライン挿入して数式モードに入る
+    if (type === "math") {
+      const before = content.text.slice(0, slashPos);
+      const after = content.text.slice(slashPos + 1 + paletteQuery.length);
+      const newText = before + "$$" + after;
+      updateContent(block.id, { text: newText });
+      setMathEditing(true);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const pos = slashPos + 1;
+          textareaRef.current.selectionStart = pos;
+          textareaRef.current.selectionEnd = pos;
+          textareaRef.current.focus();
+          setCursorPos(pos);
+        }
+      }, 0);
+      return;
+    }
+
     const blocks = document?.blocks ?? [];
     const idx = blocks.findIndex((b) => b.id === block.id);
     const cleanText = content.text.slice(0, slashPos) + content.text.slice(slashPos + 1 + paletteQuery.length);
@@ -351,7 +377,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       const newId = addBlock(type, idx + 1);
       setTimeout(() => setEditingBlock(newId), 50);
     }
-  }, [block.id, content.text, slashPos, paletteQuery, document, addBlock, convertBlock, setEditingBlock, updateContent]);
+  }, [block.id, content.text, slashPos, paletteQuery, document, addBlock, convertBlock, setEditingBlock, updateContent, setMathEditing]);
 
   // インライン数式コンテキスト（$...$内かどうか）
   const mathCtx = getInlineMathContext(content.text, cursorPos);
@@ -513,7 +539,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       }
       if (e.key === "Enter" && e.shiftKey) {
         e.preventDefault();
-        acceptImeBlock(imeSuggs[imeIdx]);
+        acceptImeInline(imeSuggs[imeIdx]);
         return;
       }
       if (e.key === "ArrowDown") { e.preventDefault(); setImeIdx((i) => Math.min(i + 1, imeSuggs.length - 1)); return; }
@@ -641,8 +667,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                   <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">数式変換</span>
                 </div>
                 <div className="flex items-center gap-3 text-[9px] font-mono text-muted-foreground/50">
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> インライン</span>
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">⇧↵</kbd> 数式ブロック</span>
+                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> 確定</span>
                   <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 閉じる</span>
                 </div>
               </div>
@@ -716,6 +741,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 >
                   <span className={`shrink-0 text-[10px] font-medium ${item.color}`}>{item.name}</span>
                   <span className="text-muted-foreground text-[10px]">{item.description}</span>
+                  {item.type === "math" && (
+                    <span className="ml-auto shrink-0 px-1.5 py-0.5 rounded text-[8px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300">モード</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -754,7 +782,6 @@ function MathBlockEditor({ block }: { block: Block }) {
   const { editingBlockId, setMathEditing } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
-  const [showGuide, setShowGuide] = useState(false);
   const mathInputRef = useRef<JapaneseMathInputHandle>(null);
 
   // 数式ブロック編集中は数式モード
@@ -767,72 +794,28 @@ function MathBlockEditor({ block }: { block: Block }) {
     updateContent(block.id, { latex, sourceText });
   }, [block.id, updateContent]);
 
-  const handleTryExample = useCallback((input: string) => {
-    mathInputRef.current?.setInput(input);
-    mathInputRef.current?.focus();
-  }, []);
-
   return (
     <div className="space-y-0">
-      {/* 数式プレビュー — 入力欄のすぐ上に配置 */}
-      <div
-        className={`transition-all cursor-pointer ${
-          content.latex
-            ? isEditing
-              ? "latex-display-math border-b border-violet-200/50 dark:border-violet-800/50 pb-2 mb-0"
-              : "latex-display-math"
-            : isEditing
-            ? ""
-            : "flex justify-center py-6 px-4 bg-gradient-to-r from-violet-50/60 to-emerald-50/30 dark:from-violet-950/20 dark:to-emerald-950/10 rounded-xl border-2 border-dashed border-violet-200/50 dark:border-violet-800/40"
-        }`}
-      >
-        {content.latex ? (
+      {/* 数式レンダリング（既存ドキュメント後方互換） */}
+      {content.latex ? (
+        <div className="latex-display-math">
           <MathRenderer latex={content.latex} displayMode={content.displayMode} />
-        ) : !isEditing ? (
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Sigma className="h-5 w-5 text-violet-400/60" />
-              <span className="text-muted-foreground/50 text-sm font-medium">数式ブロック</span>
-            </div>
-            <span className="text-muted-foreground/30 text-xs">ダブルクリックして日本語で数式を入力</span>
-            {/* パイプラインミニ図 */}
-            <div className="flex items-center gap-1 text-[8px] text-muted-foreground/30 mt-1">
-              <span className="px-1 py-0.5 rounded bg-emerald-100/40 dark:bg-emerald-900/10">日本語入力</span>
-              <span>→</span>
-              <span className="px-1 py-0.5 rounded bg-violet-100/40 dark:bg-violet-900/10">LaTeX変換</span>
-              <span>→</span>
-              <span className="px-1 py-0.5 rounded bg-blue-100/40 dark:bg-blue-900/10">美しい数式</span>
-            </div>
-          </div>
-        ) : null}
-      </div>
+        </div>
+      ) : !isEditing ? (
+        <div className="py-2 text-center text-muted-foreground/30 text-xs select-none">
+          クリックして数式を入力
+        </div>
+      ) : null}
 
-      {/* 入力欄 */}
+      {/* 編集中: 最小限の入力欄のみ */}
       {isEditing && (
-        <>
-          {/* 独立書き方ガイド（入力欄の上、独立領域） */}
-          {showGuide ? (
-            <MathWritingGuide
-              onTryExample={handleTryExample}
-              onClose={() => setShowGuide(false)}
-              className="mb-1"
-            />
-          ) : (
-            <button
-              onClick={() => setShowGuide(true)}
-              className="mb-1 px-2 py-0.5 rounded-lg text-[9px] text-muted-foreground/50 hover:text-foreground hover:bg-muted/40 transition-colors flex items-center gap-1"
-            >
-              <Sigma className="h-2.5 w-2.5" />ルール表示
-            </button>
-          )}
-          <div className={`border rounded-xl p-3 bg-background shadow-md ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
-            <JapaneseMathInput
-              ref={mathInputRef}
-              onApply={handleApply}
-              initialSourceText={content.sourceText || ""}
-            />
-          </div>
-        </>
+        <div className={`border rounded-lg p-2 bg-background/80 ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
+          <JapaneseMathInput
+            ref={mathInputRef}
+            onApply={handleApply}
+            initialSourceText={content.sourceText || ""}
+          />
+        </div>
       )}
     </div>
   );
@@ -1114,6 +1097,23 @@ function GlobalCommandPalette() {
 
   const handleSelect = (type: BlockType) => {
     setGlobalPalette(false);
+
+    // 数式: paragraph を作って $$ を挿入（インライン数式モード）
+    if (type === "math") {
+      const blocks = useDocumentStore.getState().document?.blocks ?? [];
+      const afterIdx = selectedBlockId
+        ? blocks.findIndex((b) => b.id === selectedBlockId) + 1
+        : blocks.length;
+      const newId = addBlock("paragraph", afterIdx);
+      if (newId) {
+        useDocumentStore.getState().updateBlockContent(newId, { text: "$$" });
+        selectBlock(newId);
+        setEditingBlock(newId);
+        useUIStore.getState().setMathEditing(true);
+      }
+      return;
+    }
+
     const blocks = useDocumentStore.getState().document?.blocks ?? [];
     const afterIdx = selectedBlockId
       ? blocks.findIndex((b) => b.id === selectedBlockId) + 1
