@@ -608,40 +608,35 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
             ) : null}
 
-            {/* 数式モード: 未確定テキスト（入力中の自然言語）+ リアルタイム変換プレビュー */}
+            {/* 数式モード: リアルタイム変換結果をインライン表示 */}
             {mathMode && (
-              <>
-                {composingText ? (
-                  <>
-                    <span className="text-violet-500/70 text-[12px] border-b border-dashed border-violet-400/40 mx-0.5">{composingText}</span>
-                    {composingLatex && (
-                      <span className="inline-block mx-1 align-middle">
-                        <span className="inline-block px-1 py-0.5 rounded bg-violet-50/80 dark:bg-violet-950/30 border border-violet-200/30 dark:border-violet-700/30">
-                          <MathRenderer latex={composingLatex} displayMode={false} />
-                        </span>
-                      </span>
-                    )}
-                  </>
+              composingText ? (
+                composingLatex ? (
+                  <span className="inline-block mx-0.5 align-middle">
+                    <MathRenderer latex={composingLatex} displayMode={false} />
+                  </span>
                 ) : (
-                  <span className="text-violet-400/40 text-[12px] mx-0.5">数式を入力...</span>
-                )}
-              </>
+                  <span className="text-violet-500/60 text-[14px]">{composingText}</span>
+                )
+              ) : (
+                <span className="text-violet-400/30 text-[14px]">|</span>
+              )
             )}
           </div>
 
-          {/* ── textarea（数式モード中は入力用、通常時もテキスト入力用） ── */}
+          {/* ── textarea（入力用 — 紙面表示と重ねて透明化、カーソルだけ見せる） ── */}
           <textarea
             ref={textareaRef}
             value={content.text}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={mathMode ? "" : t("block.ph.paragraph")}
-            className={`w-full resize-none overflow-hidden border-none outline-none focus:ring-0 px-0 py-0.5 ${
+            className={`w-full resize-none overflow-hidden border-none outline-none focus:ring-0 px-0 py-0.5 bg-transparent text-[14px] leading-[1.8] placeholder:text-muted-foreground/25 ${
               mathMode
-                ? "bg-transparent text-[13px] leading-[1.6] text-violet-600 dark:text-violet-400 caret-violet-500"
-                : "bg-transparent text-[14px] leading-[1.8] text-transparent caret-foreground placeholder:text-muted-foreground/25"
+                ? "text-transparent caret-violet-500 selection:bg-violet-200/30"
+                : "text-transparent caret-foreground"
             }`}
-            style={mathMode ? {} : baseStyle}
+            style={baseStyle}
             rows={1}
           />
 
