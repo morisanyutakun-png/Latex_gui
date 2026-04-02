@@ -6,7 +6,8 @@ import type { GuideContext } from "@/store/ui-store";
 const shortcuts = [
   { keys: ["Enter"],        desc: "新しい段落を追加" },
   { keys: ["⌫"],           desc: "空行 → 行を削除して前に戻る" },
-  { keys: ["Tab"],          desc: "インライン数式 $...$ を挿入" },
+  { keys: ["Tab"],          desc: "数式モードに入る" },
+  { keys: [";"],            desc: "数式モード終了（確定）" },
   { keys: ["/"],            desc: "要素挿入メニューを開く" },
   { keys: ["⌘", "K"],      desc: "要素挿入パレット" },
   { keys: ["↑", "↓"],     desc: "段落間を移動" },
@@ -18,7 +19,7 @@ const shortcuts = [
 const writingTips = [
   { icon: MousePointer2, color: "text-sky-500",    text: "クリックしてすぐ書ける — 選択ステップ不要" },
   { icon: PenLine,       color: "text-blue-400",   text: "見出しはツールバーから H1/H2/H3 を選択" },
-  { icon: Sigma,         color: "text-violet-500", text: "Tab で数式 $...$ モードに（日本語→数式変換）" },
+  { icon: Sigma,         color: "text-violet-500", text: "Tab or /数式 で数式モード → 日本語入力 → ; で終了" },
   { icon: Command,       color: "text-slate-400",  text: "右クリックで 削除・移動・種類変更" },
 ];
 

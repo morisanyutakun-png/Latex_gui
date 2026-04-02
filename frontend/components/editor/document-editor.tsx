@@ -417,9 +417,13 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     if (type === "paragraph") return;
 
     if (type === "math") {
-      const cleanText = content.text.slice(0, slashPos) + content.text.slice(slashPos + 1 + paletteQuery.length);
+      // / とクエリを除去してから数式モードに入る
+      const before = content.text.slice(0, slashPos);
+      const after = content.text.slice(slashPos + 1 + paletteQuery.length);
+      const cleanText = before + after;
       updateContent(block.id, { text: cleanText });
-      enterMathMode(slashPos);
+      // cleanText の before の長さが数式挿入位置
+      setTimeout(() => enterMathMode(before.length), 0);
       return;
     }
 
@@ -481,19 +485,36 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // ── 数式モード中 ──
     if (mathMode) {
-      // Esc → 現在の入力をLaTeX変換して確定、数式モード終了
+      // Esc → 未確定テキストを破棄して数式モード終了
       if (e.key === "Escape") {
+        e.preventDefault();
+        // 未確定分を削除
+        const before = content.text.slice(0, mathAnchor);
+        updateContent(block.id, { text: before });
+        setMathMode(false);
+        setMathSuggIdx(0);
+        setMathEditing(false);
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = before.length;
+            textareaRef.current.selectionEnd = before.length;
+            textareaRef.current.focus();
+          }
+        }, 0);
+        return;
+      }
+      // ; (セミコロン) → 現在の入力を変換確定して数式モード終了
+      if (e.key === ";") {
         e.preventDefault();
         finishMathMode();
         return;
       }
-      // Tab → 候補があれば候補から確定、なければリアルタイム変換で確定
+      // Tab → 候補があれば候補で確定、なければ変換確定（数式モードに留まる）
       if (e.key === "Tab") {
         e.preventDefault();
         if (mathSuggs.length > 0) {
           acceptSugg(mathSuggs[clampedSuggIdx]);
         } else if (composingText.trim()) {
-          // 候補なしでもparseJapanesemathで変換して確定
           const latex = parseJapanesemath(composingText);
           const before = content.text.slice(0, mathAnchor);
           const newText = before + "$" + latex + "$";
@@ -595,11 +616,11 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     <div className="relative">
       {showTextarea ? (
         <>
-          {/* ── 紙面表示 + textarea を同一行に重ねる ── */}
-          <div className="relative px-0 py-0.5 min-h-[1.75em]">
+          {/* ── 紙面表示 + textarea を同一行に完全重ね ── */}
+          <div className="relative min-h-[1.75em]">
             {/* レンダリング済み表示（見える層） */}
             <div
-              className="text-[14px] leading-[1.8] pointer-events-none"
+              className="px-0 py-0 text-[14px] leading-[1.8] pointer-events-none whitespace-pre-wrap break-words"
               style={baseStyle}
               aria-hidden
             >
@@ -623,19 +644,19 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               )}
             </div>
 
-            {/* textarea（同じ位置に重ねる — テキスト透明、カーソルだけ見える） */}
+            {/* textarea（完全に同じ位置に重ねる — テキスト透明、カーソルだけ見える） */}
             <textarea
               ref={textareaRef}
               value={content.text}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               placeholder={mathMode ? "" : t("block.ph.paragraph")}
-              className={`absolute inset-0 w-full h-full resize-none overflow-hidden border-none outline-none focus:ring-0 bg-transparent text-[14px] leading-[1.8] placeholder:text-transparent ${
+              className={`absolute top-0 left-0 w-full h-full resize-none overflow-hidden border-none outline-none focus:ring-0 bg-transparent px-0 py-0 m-0 text-[14px] leading-[1.8] placeholder:text-transparent ${
                 mathMode
                   ? "text-transparent caret-violet-500"
                   : "text-transparent caret-foreground"
               }`}
-              style={baseStyle}
+              style={{ ...baseStyle, WebkitTextFillColor: "transparent" }}
               rows={1}
             />
           </div>
@@ -650,8 +671,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 </div>
                 <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/50">
                   <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> 確定</span>
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Enter</kbd> 確定&終了</span>
-                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 終了</span>
+                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">;</kbd> 確定&終了</span>
+                  <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 破棄</span>
                 </div>
               </div>
               {mathSuggs.slice(0, 6).map((sugg, i) => (
