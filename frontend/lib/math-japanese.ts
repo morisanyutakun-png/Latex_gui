@@ -1571,15 +1571,14 @@ export function parseJapanesemath(input: string): string {
   // ── Phase 1: 構造パターン (長いパターン優先) ──
 
   // ══ Phase 1a: 括弧演算子 (最優先 — 他の単項演算子より先に処理) ══
-  // 括弧は単項前置演算子: スペースまでの内容を括弧で囲む
-  // ネスト例: ルート かっこa+b → ルート (a+b) → \sqrt{(a+b)}
-  //           ルートa+b → \sqrt{a+b}
-  //           かっこa+b たす かっこc+d → (a+b) + (c+d)
-  // ※ スペース (全角・半角) がネストの区切り。演算子と引数の間にスペース1つ許容。
+  // 【スペース区切りルール】
+  //   演算子の直後に「スペース0個 or 1個」で引数を取る。
+  //   引数は「次のスペースまで」を消費する。
+  //   スペース2個以上は「演算子と引数の間の区切り」ではなく「別の項」とみなす。
   // ※ 長いパターン優先 (なみかっこ > かくかっこ > かっこ)
-  result = result.replace(/(?:なみかっこ|波括弧|中括弧)\s?([^\s]+)/g, (_, x) => `\\{${x}\\}`);
-  result = result.replace(/(?:かくかっこ|角括弧)\s?([^\s]+)/g, (_, x) => `[${x}]`);
-  result = result.replace(/(?:かっこ|括弧)\s?([^\s]+)/g, (_, x) => `(${x})`);
+  result = result.replace(/(?:なみかっこ|波括弧|中括弧) ?([^\s]+)/g, (_, x) => `\\{${x}\\}`);
+  result = result.replace(/(?:かくかっこ|角括弧) ?([^\s]+)/g, (_, x) => `[${x}]`);
+  result = result.replace(/(?:かっこ|括弧) ?([^\s]+)/g, (_, x) => `(${x})`);
   // ※ かっこ は「次のスペースまで消費」が原則。分離にはスペースを使う:
   //    かっこa+b / かっこc+d → (a+b) / (c+d) → \frac{(a+b)}{(c+d)}
   // 「」 → () (鉤括弧 → 通常括弧、補助的構文)
@@ -1618,28 +1617,30 @@ export function parseJapanesemath(input: string): string {
   //    ルート かっこa+b → \sqrt{(a+b)}  ← スペースでネスト
 
   // ルート / 平方根 / 根号 → \sqrt{}
-  // 括弧付き: 括弧を保持 (かっこが()に変換済み)
+  // 【引数取得ルール】
+  //   1. 括弧付き: るーと(x+1) → \sqrt{(x+1)}  — 括弧内を引数とする
+  //   2. 括弧なし: るーとx → \sqrt{x}  — 次のスペースまでを引数とする
+  //   3. スペース1つまで許容: るーと x → \sqrt{x}
   result = result.replace(
-    /(?:るーと|平方根|根号|√)\s?\(([^)]+)\)/g,
+    /(?:るーと|平方根|根号|√) ?\(([^)]+)\)/g,
     (_, x) => `\\sqrt{(${x})}`
   );
-  // 括弧なし: スペースまで消費
   result = result.replace(
-    /(?:るーと|平方根|根号|√)\s?([^\s(]+)/g,
+    /(?:るーと|平方根|根号|√) ?([^\s(]+)/g,
     (_, x) => `\\sqrt{${resolveTerm(x)}}`
   );
 
   // 絶対値 → \left| ... \right|
-  result = result.replace(/(?:ぜったいち|絶対値)\s?\(([^)]+)\)/g, (_, x) => `\\left| (${x}) \\right|`);
-  result = result.replace(/(?:ぜったいち|絶対値)\s?([^\s(]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
+  result = result.replace(/(?:ぜったいち|絶対値) ?\(([^)]+)\)/g, (_, x) => `\\left| (${x}) \\right|`);
+  result = result.replace(/(?:ぜったいち|絶対値) ?([^\s(]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
 
   // ノルム → \left\| ... \right\|
-  result = result.replace(/(?:のるむ|ノルム)\s?\(([^)]+)\)/g, (_, x) => `\\left\\| (${x}) \\right\\|`);
-  result = result.replace(/(?:のるむ|ノルム)\s?([^\s(]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
+  result = result.replace(/(?:のるむ|ノルム) ?\(([^)]+)\)/g, (_, x) => `\\left\\| (${x}) \\right\\|`);
+  result = result.replace(/(?:のるむ|ノルム) ?([^\s(]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
 
   // 太字 / ボールド → \mathbf{}
-  result = result.replace(/(?:太字|ぼーるど|ボールド)\s?\(([^)]+)\)/g, (_, x) => `\\mathbf{${x}}`);
-  result = result.replace(/(?:太字|ぼーるど|ボールド)\s?([a-zA-Z])/g, (_, x) => `\\mathbf{${x}}`);
+  result = result.replace(/(?:太字|ぼーるど|ボールド) ?\(([^)]+)\)/g, (_, x) => `\\mathbf{${x}}`);
+  result = result.replace(/(?:太字|ぼーるど|ボールド) ?([a-zA-Z])/g, (_, x) => `\\mathbf{${x}}`);
 
   // ══ Phase 1d: 三項演算子 (から〜まで) ══
   result = result.replace(
@@ -1683,19 +1684,19 @@ export function parseJapanesemath(input: string): string {
   );
 
   // ── Phase 1.3: 自然言語パターン ──
-  // xは0より大きい → x > 0
+  // xは0より大きい → x > 0 （「は」は日本語助詞なので英字境界のみ）
   result = result.replace(/([a-zA-Z])は([^\s]+)より大きい/g, (_, v, n) => `${v} > ${resolveTerm(n)}`);
   result = result.replace(/([a-zA-Z])は([^\s]+)より小さい/g, (_, v, n) => `${v} < ${resolveTerm(n)}`);
   result = result.replace(/([a-zA-Z])は([^\s]+)以上/g, (_, v, n) => `${v} \\geq ${resolveTerm(n)}`);
   result = result.replace(/([a-zA-Z])は([^\s]+)以下/g, (_, v, n) => `${v} \\leq ${resolveTerm(n)}`);
   // fはxの関数 → f(x)
   result = result.replace(/([a-zA-Z])は([a-zA-Z])の関数/g, (_, f, x) => `${f}(${x})`);
-  // aかつb → a \land b, aまたはb → a \lor b
-  result = result.replace(/かつ/g, "\\land ");
-  result = result.replace(/(?:または|もしくは)/g, "\\lor ");
-  // 「ゆえに」「したがって」
-  result = result.replace(/(?:ゆえに|故に)/g, "\\therefore ");
-  result = result.replace(/(?:なぜなら|なぜならば)/g, "\\because ");
+  // 論理演算子: 英数字/括弧/LaTeXコマンドとの境界でマッチ
+  result = result.replace(/(?<=[\sa-zA-Z0-9)\]})かつ(?=[\sa-zA-Z0-9(\[{])/g, "\\land ");
+  result = result.replace(/(?<=[\sa-zA-Z0-9)\]})(?:または|もしくは)(?=[\sa-zA-Z0-9(\[{])/g, "\\lor ");
+  // 「ゆえに」「したがって」— 文頭 or スペース後のみ
+  result = result.replace(/(?<=^|\s)(?:ゆえに|故に)(?=\s|$)/g, "\\therefore ");
+  result = result.replace(/(?<=^|\s)(?:なぜなら|なぜならば)(?=\s|$)/g, "\\because ");
 
   // ── Phase 1.5: 添え字・上付き（日本語表現 + LaTeX _/^ 記法保持） ──
   // [var]の添え字[n] / [var]のそえじ[n] → var_{n}
@@ -1730,17 +1731,29 @@ export function parseJapanesemath(input: string): string {
 
   // ── Phase 3: 二項演算子・関係子 ──
   // (カタカナ形は Phase0 でひらがなに正規化済み)
-  result = result.replace(/(?:たす|たして|足す|足して|ぷらす|加算|かさん)/g, "+ ");
-  result = result.replace(/(?:ひく|ひいて|引く|引いて|まいなす|減算|げんざん)/g, "- ");
-  result = result.replace(/(?:かける|かけて|掛ける|掛けて|乗算|じょうざん)/g, "\\times ");
-  result = result.replace(/(?:わる|わって|割る|割って|除算|じょざん)/g, "\\div ");
-  result = result.replace(/(?:いこーる|等しい|ひとしい)/g, "= ");
-  result = result.replace(/(?:のっといこーる|等しくない|ひとしくない)/g, "\\neq ");
-  result = result.replace(/(?:いか(?!ら)|以下)/g, "\\leq ");
-  result = result.replace(/(?:いじょう|以上)/g, "\\geq ");
-  result = result.replace(/(?:みまん|未満)/g, "< ");
-  result = result.replace(/ならば/g, "\\Rightarrow ");
-  result = result.replace(/(?:どうち|同値)/g, "\\Leftrightarrow ");
+  //
+  // 【厳密ルール】演算子は以下の境界でのみマッチ:
+  //   - スペース区切り: "a たす b" → "a + b"
+  //   - 英数字と日本語の境界: "aたすb" → "a+ b"  (英字→日本語, 日本語→英字)
+  //   - 文頭/文末
+  // これにより "たすき" のような単語内の誤マッチを防止。
+  //
+  // B = 境界: スペース, 英数字/日本語の切り替わり, 文頭文末
+  // 演算子パターン: (?<=^|[\s]|[a-zA-Z0-9)])OPERATOR(?=$|[\s]|[a-zA-Z0-9(])
+
+  // 長いパターンを先に処理（部分マッチ防止）
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:のっといこーる|等しくない|ひとしくない)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\neq ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:たす|たして|足す|足して|ぷらす|加算|かさん)(?=$|[\sa-zA-Z0-9(\[{])/g, "+ ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:ひく|ひいて|引く|引いて|まいなす|減算|げんざん)(?=$|[\sa-zA-Z0-9(\[{])/g, "- ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:かける|かけて|掛ける|掛けて|乗算|じょうざん)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\times ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:わる|わって|割る|割って|除算|じょざん)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\div ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:いこーる|等しい|ひとしい)(?=$|[\sa-zA-Z0-9(\[{])/g, "= ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])いか(?!ら)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\leq ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])以下(?=$|[\sa-zA-Z0-9(\[{])/g, "\\leq ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:いじょう|以上)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\geq ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:みまん|未満)(?=$|[\sa-zA-Z0-9(\[{])/g, "< ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])ならば(?=$|[\sa-zA-Z0-9(\[{])/g, "\\Rightarrow ");
+  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:どうち|同値)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\Leftrightarrow ");
 
   // ── Phase 4: 辞書引き (残りの記号・関数) ──
   for (const entry of MATH_DICTIONARY) {
