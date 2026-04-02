@@ -633,9 +633,25 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 
   return (
     <div className="relative">
-      {/* 編集中: textarea */}
+      {/* 編集中: レンダリングプレビュー + 入力欄 */}
       {showTextarea && (
         <>
+          {/* リアルタイムレンダリングプレビュー（数式含む場合のみ） */}
+          {hasMath && (
+            <div className="px-0 py-1 text-[14px] leading-[1.8] border-b border-violet-200/30 dark:border-violet-800/30 mb-1" style={baseStyle}>
+              {segments.map((seg, i) =>
+                seg.type === "math" && seg.latex ? (
+                  <span key={i} className="inline-block mx-0.5 align-middle">
+                    <MathRenderer latex={seg.latex} displayMode={false} />
+                  </span>
+                ) : (
+                  <span key={i}>{seg.content}</span>
+                )
+              )}
+            </div>
+          )}
+
+          {/* 入力欄（数式がある場合は格下げ表示） */}
           <textarea
             ref={textareaRef}
             value={content.text}
@@ -643,20 +659,14 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             onSelect={handleSelect}
             onKeyDown={handleKeyDown}
             placeholder={t("block.ph.paragraph")}
-            className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 px-0 py-0.5 text-[14px] leading-[1.8] placeholder:text-muted-foreground/25"
-            style={textareaStyle}
+            className={`w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 px-0 py-0.5 placeholder:text-muted-foreground/25 ${
+              hasMath
+                ? "text-[11px] leading-[1.6] font-mono text-muted-foreground/60"
+                : "text-[14px] leading-[1.8]"
+            }`}
+            style={hasMath ? { ...textareaStyle, fontSize: undefined, fontFamily: undefined } : textareaStyle}
             rows={1}
           />
-
-          {/* インライン数式ライブプレビュー（$...$内にカーソルがある時） */}
-          {isInMathMode && mathCtx?.mathContent && !showIme && !showInner && !showPalette && (
-            <div className="absolute left-0 top-full mt-0.5 z-40 pointer-events-none">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-50/95 dark:bg-violet-950/80 border border-violet-200/50 dark:border-violet-700/40 shadow-sm backdrop-blur-sm">
-                <Sigma className="h-2.5 w-2.5 text-violet-400 shrink-0" />
-                <MathRenderer latex={mathCtx.mathContent} displayMode={false} />
-              </div>
-            </div>
-          )}
 
           {/* 数式IMEポップアップ（$の外での自然言語予測変換） */}
           {showIme && imeSuggs.length > 0 && (
