@@ -302,10 +302,10 @@ export function TemplateGallery() {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 h-12">
           <div className="flex items-center gap-3">
             <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <span className="text-white text-[10px] font-bold tracking-tighter leading-none">Lx</span>
+              <span className="text-white text-[10px] font-bold tracking-tighter leading-none">Ed</span>
             </div>
-            <span className="text-[14px] font-semibold tracking-tight">
-              {isJa ? "かんたん教材メーカー" : "Easy Worksheet Maker"}
+            <span className="text-[15px] font-bold tracking-tight">
+              Eddivom
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -340,23 +340,23 @@ export function TemplateGallery() {
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/[0.07] dark:bg-primary/[0.12] border border-primary/[0.10] mb-8">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span className="text-primary text-[12px] font-semibold tracking-wide">
-                {isJa ? "教材を自分で作る先生のためのツール" : "For math educators who build and sell their own worksheets"}
+                {isJa ? "数式がきれいな教材を、自分の手で。" : "Math worksheets that just work."}
               </span>
             </div>
 
             <h1 className="text-[clamp(2.4rem,6vw,4.5rem)] leading-[1.08] font-bold tracking-[-0.03em] mb-6">
               <span className="block">
-                {isJa ? "作って、直して、" : "Create. Edit."}
+                {isJa ? "教材を、もっと速く" : "Your worksheets,"}
               </span>
               <span className="bg-gradient-to-r from-blue-600 via-violet-500 to-fuchsia-500 dark:from-blue-400 dark:via-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">
-                {isJa ? "増やして、配る。" : "Multiply. Distribute."}
+                {isJa ? "もっときれいに。" : "done right."}
               </span>
             </h1>
 
             <p className="text-muted-foreground text-[16px] sm:text-[18px] leading-relaxed max-w-xl mx-auto mb-10 font-light">
               {isJa
-                ? "PDF・画像・テキストから教材を取り込み、問題ごとに編集し、\n類題を増やし、解答付きPDFですぐ配布。"
-                : "Turn your existing PDFs into editable problems.\nEquations stay perfect. Variants multiply. Answer keys export themselves."}
+                ? "PDFや画像を取り込んで、問題ごとに編集。\n類題を一瞬で増やし、解答付きPDFですぐ配布。"
+                : "Import a PDF. Edit each problem. Generate variants.\nExport with answer keys. Equations always look perfect."}
             </p>
 
             {/* CTAs */}
@@ -365,7 +365,7 @@ export function TemplateGallery() {
                 onClick={handleStart}
                 className="group flex items-center gap-3 px-8 py-4 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
               >
-                {isJa ? "無料で1枚作ってみる" : "Make your first worksheet free"}
+                {isJa ? "無料で試してみる" : "Try it free"}
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
               {saved && (
@@ -383,7 +383,7 @@ export function TemplateGallery() {
             </div>
 
             <p className="text-[12px] text-muted-foreground/40">
-              {isJa ? "登録不要 · クレジットカード不要 · すぐ使える" : "No signup · No credit card · Start immediately"}
+              {isJa ? "登録不要 · クレジットカード不要 · 30秒で最初の1枚" : "No signup · No credit card · First worksheet in 30 seconds"}
             </p>
           </div>
 
@@ -567,7 +567,7 @@ export function TemplateGallery() {
               onClick={handleStart}
               className="group inline-flex items-center gap-3 px-9 py-3.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[14px] shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
             >
-              {isJa ? "PDFから始めてみる" : "Start from a PDF"}
+              {isJa ? "PDFから始めてみる" : "Try it with your PDF"}
               <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
           </div>
@@ -705,7 +705,7 @@ export function TemplateGallery() {
             {/* This tool */}
             <div className="p-5 rounded-2xl border-2 border-primary/20 bg-primary/[0.03] shadow-lg shadow-primary/[0.05]">
               <p className="text-[11px] text-primary font-bold tracking-wider uppercase mb-3">
-                {isJa ? "かんたん教材メーカー" : "Easy Worksheet Maker"}
+                Eddivom
               </p>
               <ul className="space-y-2 text-[12px] text-foreground/80 font-medium">
                 <li>✓ {isJa ? "PDF・画像から問題を再利用" : "Import from your existing PDFs"}</li>
@@ -789,11 +789,11 @@ export function TemplateGallery() {
           className={`relative max-w-2xl mx-auto text-center px-6 transition-all duration-1000 ${ctaFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
           <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-5">
-            {isJa ? "教材づくりに、もう時間をかけない。" : "Your next worksheet, done tonight."}
+            {isJa ? "教材づくりを、今夜から変えよう。" : "Your next worksheet, done tonight."}
           </h2>
           <p className="text-muted-foreground text-[15px] mb-10 max-w-md mx-auto leading-relaxed whitespace-pre-line">
             {isJa
-              ? "手持ちのPDFから始めても、ゼロから作っても。\n登録不要で、今すぐ1枚作れます。"
+              ? "手持ちのPDFでも、ゼロからでも。\n登録なし、30秒で最初の1枚。"
               : "Bring a PDF you already have, or start from scratch.\nNo signup — just open it and go."}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -801,12 +801,12 @@ export function TemplateGallery() {
               onClick={handleStart}
               className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
             >
-              {isJa ? "無料で1枚作ってみる" : "Make your first worksheet free"}
+              {isJa ? "無料で試してみる" : "Try Eddivom free"}
               <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
           </div>
           <p className="mt-4 text-[11px] text-muted-foreground/40">
-            {isJa ? "登録不要 · クレジットカード不要 · 30秒で最初の教材" : "No signup · No credit card · First worksheet in 30 seconds"}
+            {isJa ? "登録不要 · カード不要 · 30秒で最初の1枚" : "No signup · No credit card · First worksheet in 30 seconds"}
           </p>
         </div>
       </section>
@@ -816,14 +816,14 @@ export function TemplateGallery() {
         <div className="max-w-5xl mx-auto px-6">
           <div className="flex items-center justify-center gap-3 mb-2">
             <div className="h-6 w-6 rounded-md bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center">
-              <span className="text-white text-[8px] font-bold tracking-tighter">Lx</span>
+              <span className="text-white text-[8px] font-bold tracking-tighter">Ed</span>
             </div>
-            <span className="text-[13px] font-semibold tracking-tight opacity-60">
-              {isJa ? "かんたん教材メーカー" : "Easy Worksheet Maker"}
+            <span className="text-[13px] font-bold tracking-tight opacity-60">
+              Eddivom
             </span>
           </div>
           <p className="text-[10px] text-muted-foreground/30 tracking-wide">
-            Powered by LuaLaTeX, TikZ & Claude AI
+            Powered by LuaLaTeX & AI
           </p>
         </div>
       </footer>

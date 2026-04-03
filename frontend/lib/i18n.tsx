@@ -82,7 +82,7 @@ const ja = {
   "start.button": "エディタを開く",
   // Features
   "features.label": "Features",
-  "features.h2": "なぜ LaTeX PDF Maker？",
+  "features.h2": "なぜ Eddivom？",
   "features.sub": "複雑な環境構築なしで、プロフェッショナルな文書を",
   "feat.ai.title": "AI エージェント",
   "feat.ai.desc": "「問題を5つ追加して」と話すだけ。Claude が文書を自動生成・編集",
@@ -163,7 +163,7 @@ const ja = {
   "ctx.delete": "削除",
   "ctx.change.type": "種類を変更",
   // Block editor placeholders
-  "block.ph.paragraph": "テキストを入力…",
+  "block.ph.paragraph": "テキストを入力… ( ;; でコマンド, Tab で数式 )",
   "block.ph.caption": "キャプション（任意）",
   "block.ph.image.url": "画像URL",
   "block.ph.code.lang": "言語",
@@ -232,7 +232,7 @@ const en = {
   "start.button": "Open editor",
   // Features
   "features.label": "Features",
-  "features.h2": "Why LaTeX PDF Maker?",
+  "features.h2": "Why Eddivom?",
   "features.sub": "Professional documents without the setup complexity",
   "feat.ai.title": "AI Agent",
   "feat.ai.desc": "Just say \"Add 5 problems.\" Claude automatically generates and edits your document.",
@@ -313,7 +313,7 @@ const en = {
   "ctx.delete": "Delete",
   "ctx.change.type": "Change type",
   // Block editor placeholders
-  "block.ph.paragraph": "Type something…",
+  "block.ph.paragraph": "Type something… ( ;; for commands, Tab for math )",
   "block.ph.caption": "Caption (optional)",
   "block.ph.image.url": "Image URL",
   "block.ph.code.lang": "Language",

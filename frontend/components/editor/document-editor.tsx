@@ -348,11 +348,11 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   // suggIdx がはみ出ないように
   const clampedSuggIdx = mathSuggs.length > 0 ? Math.min(mathSuggIdx, mathSuggs.length - 1) : 0;
 
-  // Slash command palette state
+  // Command palette state (triggered by ;; double semicolon)
   const [showPalette, setShowPalette] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
   const [paletteIdx, setPaletteIdx] = useState(0);
-  const [slashPos, setSlashPos] = useState<number>(0);
+  const [paletteAnchor, setPaletteAnchor] = useState<number>(0);
 
   const filteredPalette = paletteQuery
     ? PALETTE_ITEMS.filter((b) =>
@@ -419,20 +419,19 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     setPaletteQuery("");
     if (type === "paragraph") return;
 
+    // ;; は既に除去済み。パレット表示中に追加入力されたクエリ部分のみ除去。
+    const before = content.text.slice(0, paletteAnchor);
+    const after = content.text.slice(paletteAnchor + paletteQuery.length);
+    const cleanText = before + after;
+
     if (type === "math") {
-      // / とクエリを除去してから数式モードに入る
-      const before = content.text.slice(0, slashPos);
-      const after = content.text.slice(slashPos + 1 + paletteQuery.length);
-      const cleanText = before + after;
       updateContent(block.id, { text: cleanText });
-      // cleanText の before の長さが数式挿入位置
       setTimeout(() => enterMathMode(before.length), 0);
       return;
     }
 
     const blocks = document?.blocks ?? [];
     const idx = blocks.findIndex((b) => b.id === block.id);
-    const cleanText = content.text.slice(0, slashPos) + content.text.slice(slashPos + 1 + paletteQuery.length);
     if (cleanText === "") {
       convertBlock(block.id, createBlock(type).content);
       setTimeout(() => setEditingBlock(block.id), 50);
@@ -441,7 +440,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       const newId = addBlock(type, idx + 1);
       setTimeout(() => setEditingBlock(newId), 50);
     }
-  }, [block.id, content.text, slashPos, paletteQuery, document, addBlock, convertBlock, setEditingBlock, updateContent, enterMathMode]);
+  }, [block.id, content.text, paletteAnchor, paletteQuery, document, addBlock, convertBlock, setEditingBlock, updateContent, enterMathMode]);
 
   // Auto-resize
   useEffect(() => {
@@ -471,19 +470,38 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     const pos = e.target.selectionStart || 0;
     updateContent(block.id, { text });
 
-    // 数式モード中は候補更新のみ（parseJapanesemathはrender時にリアルタイム実行）
+    // 数式モード中は候補更新のみ
     if (mathMode) return;
 
-    // スラッシュパレット更新
+    // ;; 検出 → コマンドパレットを開く（;; はテキストから除去）
+    if (!showPalette && pos >= 2 && text.slice(pos - 2, pos) === ";;") {
+      const cleanText = text.slice(0, pos - 2) + text.slice(pos);
+      const anchor = pos - 2;
+      updateContent(block.id, { text: cleanText });
+      setPaletteAnchor(anchor);
+      setTimeout(() => {
+        setShowPalette(true);
+        setPaletteIdx(0);
+        setPaletteQuery("");
+        // カーソルを ;; 除去後の位置に戻す
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = anchor;
+          textareaRef.current.selectionEnd = anchor;
+        }
+      }, 0);
+      return;
+    }
+
+    // パレット表示中: クエリ更新
     if (showPalette) {
-      const query = text.slice(slashPos + 1, pos);
-      if (text[slashPos] !== "/" || pos <= slashPos) {
+      const query = text.slice(paletteAnchor, pos);
+      if (pos < paletteAnchor) {
         setShowPalette(false); setPaletteQuery(""); setPaletteIdx(0);
       } else {
         setPaletteQuery(query); setPaletteIdx(0);
       }
     }
-  }, [block.id, updateContent, mathMode, showPalette, slashPos]);
+  }, [block.id, updateContent, mathMode, showPalette, paletteAnchor]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // ── IME変換中はキー処理をスキップ（日本語入力の干渉防止） ──
@@ -537,10 +555,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         }
         return;
       }
-      // Enter → 変換確定して数式モード終了
+      // Enter → 数式モード中は何もしない（誤確定防止）
       if (e.key === "Enter") {
         e.preventDefault();
-        finishMathMode();
         return;
       }
       // 候補ナビゲーション
@@ -561,11 +578,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       return;
     }
 
-    if (e.key === "/" && !showPalette) {
-      const el = e.currentTarget;
-      setSlashPos(el.selectionStart || 0);
-      setTimeout(() => { setShowPalette(true); setPaletteIdx(0); setPaletteQuery(""); }, 0);
-    }
+    // ;; トリガーは handleChange で処理済み。ここではパレットのキーボード操作のみ。
     if (showPalette && filteredPalette.length > 0) {
       if (e.key === "ArrowDown") { e.preventDefault(); setPaletteIdx((i) => Math.min(i + 1, filteredPalette.length - 1)); return; }
       if (e.key === "ArrowUp")   { e.preventDefault(); setPaletteIdx((i) => Math.max(i - 1, 0)); return; }
@@ -714,7 +727,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         </div>
       )}
 
-      {/* ── スラッシュコマンドパレット ── */}
+      {/* ── コマンドパレット (;; トリガー) ── */}
       {!mathMode && showPalette && filteredPalette.length > 0 && (
         <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border rounded-xl shadow-xl max-h-52 overflow-y-auto">
           <div className="px-3 py-1.5 text-[10px] text-muted-foreground border-b">{t("cmd.palette.hint")}</div>

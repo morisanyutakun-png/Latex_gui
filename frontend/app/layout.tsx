@@ -6,8 +6,8 @@ import { I18nProvider } from "@/lib/i18n";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Easy Worksheet Maker — Math Worksheets with Perfect Equations",
-  description: "Turn your PDFs into editable math worksheets. Edit equations, generate variants, export with answer keys. No LaTeX needed.",
+  title: "Eddivom — Math Worksheets That Just Work",
+  description: "Turn PDFs into editable math worksheets. Equations stay perfect. Variants multiply. Answer keys export themselves. No LaTeX needed.",
 };
 
 export default function RootLayout({
