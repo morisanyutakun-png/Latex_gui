@@ -53,14 +53,46 @@ export interface MathDictEntry {
   aliases: string[];
   /** 生成されるLaTeX */
   latex: string;
-  /** 構造型: symbol=そのまま, unary=引数1つ, binary=引数2つ, environment=環境 */
-  kind: "symbol" | "unary" | "binary" | "environment" | "operator" | "relation";
+  /**
+   * 構造型:
+   *   symbol   = 0項 (そのまま出力: π, ∞, α)
+   *   unary    = 1項前置 (ルート x → √x)
+   *   binary   = 2項構造 (A分のB → \frac{B}{A})
+   *   ternary  = 3項 (下限 上限 積分 本体 → \int_{下限}^{上限} 本体)
+   *   operator = 2項中置 (a たす b → a + b)
+   *   relation = 2項中置 (a イコール b → a = b)
+   *   environment = 環境
+   */
+  kind: "symbol" | "unary" | "binary" | "environment" | "operator" | "relation" | "ternary";
+  /**
+   * 演算子の項数 (明示指定用)。省略時は kind から自動推定:
+   *   symbol/environment → 0, unary → 1, binary/operator/relation → 2, ternary → 3
+   */
+  arity?: number;
   /** 日本語の説明 */
   description: string;
   /** カテゴリ */
   category: string;
   /** 例文（日本語入力 → LaTeX出力） */
   example?: { input: string; output: string };
+}
+
+/**
+ * 辞書エントリから演算子の項数を取得
+ * arity フィールドが明示されていればそれを使い、なければ kind から推定
+ */
+export function getArity(entry: MathDictEntry): number {
+  if (entry.arity !== undefined) return entry.arity;
+  switch (entry.kind) {
+    case "symbol": return 0;
+    case "unary": return 1;
+    case "binary": return 2;
+    case "ternary": return 3;
+    case "operator": return 2;
+    case "relation": return 2;
+    case "environment": return 0;
+    default: return 0;
+  }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -388,10 +420,10 @@ export const MATH_DICTIONARY: MathDictEntry[] = [
   // 微積分
   // ══════════════════════════════════════
   { reading: "積分", aliases: ["せきぶん", "インテグラル", "いんてぐらる"],
-    latex: "\\int_{A}^{B}", kind: "binary",
-    description: "定積分: 「0から1まで積分」",
+    latex: "\\int_{A}^{B} C", kind: "ternary", arity: 3,
+    description: "定積分 [3項: 下限 上限 積分 本体]",
     category: "微積分",
-    example: { input: "0からパイまで積分 sin(x)dx", output: "\\int_{0}^{\\pi} \\sin(x) \\, dx" } },
+    example: { input: "0 パイ 積分 sinx", output: "\\int_{0}^{\\pi} \\sin x" } },
   { reading: "不定積分", aliases: ["ふていせきぶん"],
     latex: "\\int", kind: "symbol",
     description: "不定積分: ∫",
@@ -418,18 +450,18 @@ export const MATH_DICTIONARY: MathDictEntry[] = [
     description: "偏微分: 「xで偏微分」→ ∂/∂x",
     category: "微積分" },
   { reading: "極限", aliases: ["きょくげん", "リミット", "lim"],
-    latex: "\\lim_{A \\to B}", kind: "binary",
-    description: "極限: 「xが0に近づくとき極限」",
+    latex: "\\lim_{A \\to B} C", kind: "ternary", arity: 3,
+    description: "極限 [3項: 変数 行先 極限 本体]",
     category: "微積分",
-    example: { input: "xを無限大に飛ばす極限", output: "\\lim_{x \\to \\infty}" } },
+    example: { input: "x 0 極限 f(x)", output: "\\lim_{x \\to 0} f(x)" } },
   { reading: "総和", aliases: ["そうわ", "合計", "ごうけい", "sum"],
-    latex: "\\sum_{A}^{B}", kind: "binary",
-    description: "総和: 「i=1からnまで総和」",
+    latex: "\\sum_{A}^{B} C", kind: "ternary", arity: 3,
+    description: "総和 [3項: 下限 上限 総和 本体]",
     category: "微積分",
-    example: { input: "i=1からnまで総和", output: "\\sum_{i=1}^{n}" } },
+    example: { input: "i=1 n 総和 a_i", output: "\\sum_{i=1}^{n} a_i" } },
   { reading: "総乗", aliases: ["そうじょう", "パイ積", "prod"],
-    latex: "\\prod_{A}^{B}", kind: "binary",
-    description: "総乗: 「i=1からnまで総乗」",
+    latex: "\\prod_{A}^{B} C", kind: "ternary", arity: 3,
+    description: "総乗 [3項: 下限 上限 総乗 本体]",
     category: "微積分" },
   { reading: "勾配", aliases: ["こうばい", "grad", "グラジエント"],
     latex: "\\nabla", kind: "symbol",
@@ -1291,6 +1323,212 @@ function resolveTerm(term: string): string {
   return t;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §4b. 厳密な演算規則 (Strict Arity-Based Token Parser)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// ═══════════════════════════════════════════════════════════════
+//  演算子の項数 (Operator Arity) — スペース区切り厳密ルール
+// ═══════════════════════════════════════════════════════════════
+//
+// 【0項 (symbol)】 記号をそのまま出力。引数なし。
+//   例: パイ → π,  無限大 → ∞,  アルファ → α
+//
+// 【1項 (unary / 前置)】 演算子の直後の1トークンを引数に取る。
+//   形式: OP arg
+//   例: ルート x → \sqrt{x}
+//       ベクトル a → \vec{a}
+//       絶対値 x+1 → |x+1|
+//
+// 【2項 (binary)】
+//   ├ 中置 (operator/relation): 左右のトークンを引数に取る。
+//   │ 形式: arg1 OP arg2
+//   │ 例: a たす b → a + b
+//   │     x イコール 0 → x = 0
+//   │
+//   └ 構造 (binary): 直後の2トークンを引数に取る。
+//     形式: OP arg1 arg2  (※ 日本語パターン "Aぶんの B" も継続サポート)
+//     例: 分数 a b → \frac{a}{b}
+//         組合せ n r → \binom{n}{r}
+//
+// 【3項 (ternary)】 直前の2トークン + 直後の1トークンを引数に取る。
+//   形式: arg1 arg2 OP arg3
+//   例: 0 パイ 積分 sinx → \int_{0}^{\pi} sinx
+//       i=1 n 総和 a_i → \sum_{i=1}^{n} a_i
+//       x 0 極限 f(x) → \lim_{x \to 0} f(x)
+//   ※ 2引数のみ (本体なし) も許容:
+//       0 パイ 積分 → \int_{0}^{\pi}
+//
+// スペースは **演算子と引数の区切り** として機能する。
+// スペースなしで連結された文字列は1つのトークンとして扱う。
+//
+
+/** 演算子の正規化名 → 演算情報のルックアップテーブル */
+interface OperatorInfo {
+  arity: number;
+  kind: "prefix" | "infix" | "ternary_infix";
+  latex: string;
+  /** ternary 用: LaTeX テンプレート (A=下限, B=上限, C=本体) */
+  ternaryTemplate?: (a: string, b: string, c: string) => string;
+  /** binary構造 用: LaTeX テンプレート (A, B) */
+  binaryTemplate?: (a: string, b: string) => string;
+  /** unary 用: LaTeX テンプレート (A) */
+  unaryTemplate?: (a: string) => string;
+}
+
+/**
+ * スペース区切りトークンから演算子を検索するためのマップ
+ * 正規化済みの読み/aliases → OperatorInfo
+ */
+const OPERATOR_LOOKUP: Map<string, OperatorInfo> = new Map();
+
+// --- 1項前置演算子 (arity=1) ---
+const UNARY_PREFIX_OPS: [string[], (a: string) => string][] = [
+  [["るーと", "平方根", "根号", "√"], (a) => `\\sqrt{${a}}`],
+  [["ぜったいち", "絶対値"], (a) => `\\left| ${a} \\right|`],
+  [["のるむ"], (a) => `\\left\\| ${a} \\right\\|`],
+  [["べくとる", "vec"], (a) => `\\vec{${a}}`],
+  [["太字", "ぼーるど", "bold"], (a) => `\\mathbf{${a}}`],
+  [["はっと", "hat"], (a) => `\\hat{${a}}`],
+  [["ちるだ", "tilde", "波", "なみ"], (a) => `\\tilde{${a}}`],
+  [["ばー", "bar", "上線", "うわせん", "平均", "へいきん"], (a) => `\\bar{${a}}`],
+  [["どっと", "時間微分", "じかんびぶん"], (a) => `\\dot{${a}}`],
+  [["だぶるどっと", "二階微分", "にかいびぶん"], (a) => `\\ddot{${a}}`],
+  [["下線", "かせん", "あんだーらいん"], (a) => `\\underline{${a}}`],
+  [["上括弧", "うわかっこ", "おーばーぶれーす"], (a) => `\\overbrace{${a}}`],
+  [["下括弧", "したかっこ", "あんだーぶれーす"], (a) => `\\underbrace{${a}}`],
+  [["天井関数", "てんじょうかんすう", "切り上げ", "きりあげ"], (a) => `\\lceil ${a} \\rceil`],
+  [["床関数", "ゆかかんすう", "切り捨て", "きりすて", "がうす"], (a) => `\\lfloor ${a} \\rfloor`],
+];
+
+for (const [names, template] of UNARY_PREFIX_OPS) {
+  for (const name of names) {
+    OPERATOR_LOOKUP.set(normalizeForMatch(name), {
+      arity: 1, kind: "prefix", latex: "", unaryTemplate: template,
+    });
+  }
+}
+
+// --- 2項中置演算子 (arity=2, infix) ---
+const BINARY_INFIX_OPS: [string[], string][] = [
+  [["たす", "たして", "足す", "足して", "ぷらす", "加算", "かさん"], "+ "],
+  [["ひく", "ひいて", "引く", "引いて", "まいなす", "減算", "げんざん"], "- "],
+  [["かける", "かけて", "掛ける", "掛けて", "乗算", "じょうざん"], "\\times "],
+  [["わる", "わって", "割る", "割って", "除算", "じょざん"], "\\div "],
+  [["いこーる", "等しい", "ひとしい"], "= "],
+  [["のっといこーる", "等しくない", "ひとしくない"], "\\neq "],
+  [["いか", "以下"], "\\leq "],
+  [["いじょう", "以上"], "\\geq "],
+  [["みまん", "未満"], "< "],
+  [["ならば"], "\\Rightarrow "],
+  [["どうち", "同値"], "\\Leftrightarrow "],
+];
+
+for (const [names, latex] of BINARY_INFIX_OPS) {
+  for (const name of names) {
+    OPERATOR_LOOKUP.set(normalizeForMatch(name), {
+      arity: 2, kind: "infix", latex,
+    });
+  }
+}
+
+// --- 3項演算子 (arity=3, ternary_infix) ---
+// 形式: arg1 arg2 OP arg3  →  LaTeX(arg1, arg2, arg3)
+const TERNARY_OPS: [string[], (a: string, b: string, c: string) => string][] = [
+  [["せきぶん", "積分", "いんてぐらる"],
+    (lo, hi, body) => `\\int_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
+  [["そうわ", "総和", "合計", "ごうけい", "sum"],
+    (lo, hi, body) => `\\sum_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
+  [["そうじょう", "総乗", "prod"],
+    (lo, hi, body) => `\\prod_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
+  [["きょくげん", "極限", "りみっと", "lim"],
+    (v, target, body) => `\\lim_{${resolveTerm(v)} \\to ${resolveTerm(target)}} ${resolveTerm(body)}`],
+];
+
+for (const [names, template] of TERNARY_OPS) {
+  for (const name of names) {
+    OPERATOR_LOOKUP.set(normalizeForMatch(name), {
+      arity: 3, kind: "ternary_infix", latex: "", ternaryTemplate: template,
+    });
+  }
+}
+
+/**
+ * 厳密な演算規則に基づくスペース区切りトークン解析
+ *
+ * スペースで区切られたトークン列を走査し、
+ * 演算子の項数に基づいて正しい数の引数を消費する。
+ *
+ * 処理優先順:
+ *   1. 3項演算子 (arg1 arg2 OP arg3)
+ *   2. 1項前置演算子 (OP arg)
+ *   3. 2項中置演算子 (arg OP arg)
+ *   4. そのまま保持
+ */
+function parseStrictArityTokens(input: string): string {
+  const tokens = input.split(/\s+/).filter(t => t.length > 0);
+  if (tokens.length <= 1) return input;
+
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < tokens.length) {
+    const normToken = normalizeForMatch(tokens[i]);
+    const opInfo = OPERATOR_LOOKUP.get(normToken);
+
+    if (opInfo) {
+      switch (opInfo.kind) {
+        case "ternary_infix": {
+          // 3項: 前2トークン + 後1トークン → arg1 arg2 OP arg3
+          if (result.length >= 2 && i + 1 < tokens.length) {
+            const arg2 = result.pop()!;
+            const arg1 = result.pop()!;
+            const arg3 = tokens[i + 1];
+            result.push(opInfo.ternaryTemplate!(arg1, arg2, arg3));
+            i += 2;
+          } else if (result.length >= 2) {
+            // 本体なし: arg1 arg2 OP → 2引数のみ
+            const arg2 = result.pop()!;
+            const arg1 = result.pop()!;
+            result.push(opInfo.ternaryTemplate!(arg1, arg2, ""));
+            i++;
+          } else {
+            result.push(tokens[i]);
+            i++;
+          }
+          break;
+        }
+        case "prefix": {
+          // 1項前置: OP arg
+          if (i + 1 < tokens.length) {
+            const arg = tokens[i + 1];
+            result.push(opInfo.unaryTemplate!(resolveTerm(arg)));
+            i += 2;
+          } else {
+            result.push(tokens[i]);
+            i++;
+          }
+          break;
+        }
+        case "infix": {
+          // 2項中置: arg OP arg — 演算子を出力に追加（左辺はすでにresult内）
+          result.push(opInfo.latex);
+          i++;
+          break;
+        }
+        default:
+          result.push(tokens[i]);
+          i++;
+      }
+    } else {
+      result.push(resolveTerm(tokens[i]));
+      i++;
+    }
+  }
+
+  return result.join(" ");
+}
+
 /** 漢数字+算用数字の両方にマッチする正規表現の文字クラス */
 const K = "零〇一二三四五六七八九十百千万";
 const NUM_CLASS = `[${K}\\d]`; // 漢数字 or 算用数字
@@ -1526,6 +1764,9 @@ function enhanceArithmetic(s: string): string {
   // 「」→ 通常括弧 (Phase5 convertBrackets で自動サイズ化)
   s = s.replace(/「([^」]+)」/g, (_, x) => `(${x})`);
   s = s.replace(/『([^』]+)』/g, (_, x) => `[${x}]`);
+  // √記号 → \sqrt{} (引数を取るため単純な記号置換ではなく構造変換)
+  s = s.replace(/√\(([^)]+)\)/g, (_, x) => `\\sqrt{(${x})}`);
+  s = s.replace(/√([^\s(]+)/g, (_, x) => `\\sqrt{${x}}`);
   // Unicode記号変換
   for (const [re, latex] of UNICODE_TO_LATEX) {
     s = s.replace(re, latex);
@@ -1567,6 +1808,14 @@ export function parseJapanesemath(input: string): string {
   }
   // テキスト矢印変換
   result = convertArrows(result);
+
+  // ── Phase 0.9: 厳密な演算規則 (スペース区切りトークン解析) ──
+  // スペースが含まれる入力に対して、演算子の項数に基づく厳密解析を適用。
+  // 0項=記号, 1項=前置(ルート x), 2項=中置(a たす b), 3項(0 π 積分 sinx)
+  // ※ 日本語助詞パターン (AぶんのB, AからBまで) は Phase 1 で引き続き処理
+  if (result.includes(" ")) {
+    result = parseStrictArityTokens(result);
+  }
 
   // ── Phase 1: 構造パターン (長いパターン優先) ──
 
@@ -1692,8 +1941,8 @@ export function parseJapanesemath(input: string): string {
   // fはxの関数 → f(x)
   result = result.replace(/([a-zA-Z])は([a-zA-Z])の関数/g, (_, f, x) => `${f}(${x})`);
   // 論理演算子: 英数字/括弧/LaTeXコマンドとの境界でマッチ
-  result = result.replace(/(?<=[\sa-zA-Z0-9)\]})かつ(?=[\sa-zA-Z0-9(\[{])/g, "\\land ");
-  result = result.replace(/(?<=[\sa-zA-Z0-9)\]})(?:または|もしくは)(?=[\sa-zA-Z0-9(\[{])/g, "\\lor ");
+  result = result.replace(/(?<=[\sa-zA-Z0-9)\]}])かつ(?=[\sa-zA-Z0-9(\[{])/g, "\\land ");
+  result = result.replace(/(?<=[\sa-zA-Z0-9)\]}])(?:または|もしくは)(?=[\sa-zA-Z0-9(\[{])/g, "\\lor ");
   // 「ゆえに」「したがって」— 文頭 or スペース後のみ
   result = result.replace(/(?<=^|\s)(?:ゆえに|故に)(?=\s|$)/g, "\\therefore ");
   result = result.replace(/(?<=^|\s)(?:なぜなら|なぜならば)(?=\s|$)/g, "\\because ");

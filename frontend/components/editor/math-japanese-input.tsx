@@ -36,16 +36,21 @@ const HINT_KIND_STYLES: Record<OperatorKind, { label: string; badge: string; dot
 };
 
 const CONVERSION_HINTS: { input: string; output: string; kind: OperatorKind; desc: string }[] = [
-  { input: "ルートx", output: "\\sqrt{x}", kind: "unary", desc: "操作+対象" },
-  { input: "絶対値x", output: "\\left| x \\right|", kind: "unary", desc: "操作+対象" },
-  { input: "ベクトルa", output: "\\vec{a}", kind: "unary", desc: "操作+対象" },
-  { input: "a/b", output: "\\frac{a}{b}", kind: "binary", desc: "A 操作 B" },
-  { input: "2分の1", output: "\\frac{1}{2}", kind: "binary", desc: "A 操作 B" },
-  { input: "xの2乗", output: "x^{2}", kind: "binary", desc: "A 操作 B" },
-  { input: "0からπまで積分", output: "\\int_{0}^{\\pi}", kind: "ternary", desc: "AからBまで操作" },
-  { input: "i=1からnまで総和", output: "\\sum_{i=1}^{n}", kind: "ternary", desc: "AからBまで操作" },
+  // ── 1項演算 (unary): OP 引数 ──
+  { input: "ルート x", output: "\\sqrt{x}", kind: "unary", desc: "1項: OP 引数" },
+  { input: "絶対値 x+1", output: "\\left| x+1 \\right|", kind: "unary", desc: "1項: OP 引数" },
+  { input: "ベクトル a", output: "\\vec{a}", kind: "unary", desc: "1項: OP 引数" },
+  // ── 2項演算 (binary): 引数 OP 引数 ──
+  { input: "a たす b", output: "a + b", kind: "binary", desc: "2項: A OP B" },
+  { input: "x イコール 0", output: "x = 0", kind: "binary", desc: "2項: A OP B" },
+  { input: "2分の1", output: "\\frac{1}{2}", kind: "binary", desc: "2項: A分のB" },
+  { input: "xの2乗", output: "x^{2}", kind: "binary", desc: "2項: Aの B乗" },
+  // ── 3項演算 (ternary): 下限 上限 OP 本体 ──
+  { input: "0 π 積分 sinx", output: "\\int_{0}^{\\pi} \\sin x", kind: "ternary", desc: "3項: A B OP C" },
+  { input: "i=1 n 総和 a_i", output: "\\sum_{i=1}^{n} a_i", kind: "ternary", desc: "3項: A B OP C" },
+  { input: "x 0 極限 f(x)", output: "\\lim_{x \\to 0} f(x)", kind: "ternary", desc: "3項: A B OP C" },
+  // ── 括弧・その他 ──
   { input: "かっこa+b", output: "\\left(a+b\\right)", kind: "bracket", desc: "かっこ+内容" },
-  { input: "ルートかっこa+b", output: "\\sqrt{a+b}", kind: "bracket", desc: "ネスト結合" },
   { input: "sin(x)", output: "\\sin\\left(x\\right)", kind: "other", desc: "関数認識" },
   { input: "α, →, Σ", output: "\\alpha, \\to, \\Sigma", kind: "other", desc: "記号直接入力" },
 ];
@@ -265,7 +270,11 @@ export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMat
           category: entry.category,
           score,
           inputHint: entry.example?.input,
-          opKind: entry.kind === "unary" ? "unary" : entry.kind === "binary" ? "binary" : undefined,
+          opKind: entry.kind === "unary" ? "unary"
+               : entry.kind === "binary" ? "binary"
+               : entry.kind === "ternary" ? "ternary"
+               : entry.kind === "operator" || entry.kind === "relation" ? "binary"
+               : undefined,
         });
       }
     }
