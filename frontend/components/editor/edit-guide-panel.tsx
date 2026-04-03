@@ -11,9 +11,9 @@ const shortcuts = [
   { keys: ["Tab"],                desc: "数式モードを終了して確定" },
   { keys: ["Esc"],                desc: "数式モードをキャンセル（未確定テキストを破棄）" },
   { keys: ["↑", "↓"],           desc: "段落間を移動" },
-  { keys: ["⌘", "Z"],            desc: "元に戻す" },
-  { keys: ["⌘", "Shift", "Z"],   desc: "やり直す" },
-  { keys: ["⌘", "K"],            desc: "ブロック挿入パレットを開く" },
+  { keys: ["Ctrl/⌘", "Z"],        desc: "元に戻す" },
+  { keys: ["Ctrl/⌘", "Shift", "Z"], desc: "やり直す" },
+  { keys: ["Ctrl/⌘", "K"],       desc: "ブロック挿入パレットを開く" },
   { keys: [";;"],                 desc: "ブロック挿入パレットをインラインで開く" },
 ];
 
@@ -119,7 +119,7 @@ export function EditGuidePanel({ context = "none" }: { context?: GuideContext })
         <div className="space-y-2">
           {shortcuts.map((s, i) => (
             <div key={i} className="flex items-center gap-2">
-              <div className="flex items-center gap-1 shrink-0 min-w-[80px]">
+              <div className="flex items-center gap-1 shrink-0 min-w-[100px]">
                 {s.keys.map((k, j) => <KeyBadge key={j} k={k} />)}
               </div>
               <span className="text-[11px] text-muted-foreground/70 leading-tight">{s.desc}</span>
@@ -158,7 +158,7 @@ export function EditGuidePanel({ context = "none" }: { context?: GuideContext })
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">ブロック挿入</span>
         </div>
         <p className="text-[11px] text-muted-foreground/50 mb-3 leading-relaxed">
-          <KeyBadge k="⌘" /><KeyBadge k="K" /> または テキスト入力中に <KeyBadge k=";;" /> を入力してブロックを挿入
+          <KeyBadge k="Ctrl/⌘" /><KeyBadge k="K" /> または テキスト入力中に <KeyBadge k=";;" /> を入力してブロックを挿入
         </p>
         <div className="grid grid-cols-2 gap-1.5">
           {[

@@ -131,7 +131,7 @@ function BlockWrapper({
         </ContextMenuItem>
         <ContextMenuItem onClick={() => duplicateBlock(block.id)} className="text-xs gap-2">
           <Copy className="h-3.5 w-3.5 text-muted-foreground" />{t("ctx.duplicate")}
-          <span className="ml-auto text-[10px] text-muted-foreground/50">⌘D</span>
+          <span className="ml-auto text-[10px] text-muted-foreground/50">Ctrl/⌘D</span>
         </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger className="text-xs gap-2">

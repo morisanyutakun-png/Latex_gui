@@ -388,7 +388,7 @@ export function AIChatPanel() {
   const [input, setInput] = useState("");
   const [pendingMsgId, setPendingMsgId] = useState<string | null>(null);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
-  const [agentMode, setAgentMode] = useState(false);
+  const [agentMode, setAgentMode] = useState(true); // default: auto-apply (autonomous)
   const [showMaterials, setShowMaterials] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

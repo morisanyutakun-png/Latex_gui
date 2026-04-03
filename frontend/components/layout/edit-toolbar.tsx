@@ -141,7 +141,7 @@ export function EditToolbar() {
 
       <Sep />
 
-      <Btn active={!!style.bold}      onClick={() => toggle("bold")}      title="太字 (⌘B)"  disabled={!on} mathMode={isMathEditing}><Bold      className="h-3.5 w-3.5" /></Btn>
+      <Btn active={!!style.bold}      onClick={() => toggle("bold")}      title="太字 (Ctrl/⌘+B)"  disabled={!on} mathMode={isMathEditing}><Bold      className="h-3.5 w-3.5" /></Btn>
       <Btn active={!!style.italic}    onClick={() => toggle("italic")}    title="斜体"       disabled={!on} mathMode={isMathEditing}><Italic    className="h-3.5 w-3.5" /></Btn>
       <Btn active={!!style.underline} onClick={() => toggle("underline")} title="下線"       disabled={!on} mathMode={isMathEditing}><Underline className="h-3.5 w-3.5" /></Btn>
 
@@ -216,7 +216,7 @@ export function EditToolbar() {
       <button
         onClick={() => setGlobalPalette(true)}
         className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium text-foreground/50 bg-white/60 dark:bg-white/5 border border-border/30 hover:text-foreground hover:bg-white/90 dark:hover:bg-white/10 transition-colors shrink-0"
-        title="ブロックを挿入 (⌘K)"
+        title="ブロックを挿入 (Ctrl/⌘+K)"
       >
         <Command className="h-3 w-3" />
         <span className="font-mono">K</span>
