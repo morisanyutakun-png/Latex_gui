@@ -649,7 +649,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 {isJa ? "数式モード" : "Math mode"}
               </span>
               <span className="hidden sm:inline text-[9px] text-muted-foreground/30 ml-2">
-                {isJa ? "日本語で入力 → 自動変換" : "type naturally → auto-convert"}
+                {isJa ? "例: a たす b、ルート x" : "e.g. a plus b, sqrt x"}
               </span>
             </div>
             <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/40">
@@ -683,13 +683,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 ))}
               </>
             ) : (
-              /* 未入力: プレースホルダー + 末尾カーソル */
-              <>
-                <span className="text-muted-foreground/25 italic text-[12px]">
-                  {isJa ? "数式を入力… (例: a たす b, ルート x)" : "type math… (e.g. a plus b, sqrt x)"}
-                </span>
-                <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-pulse ml-px align-middle" />
-              </>
+              /* 未入力: カーソルのみ（プレースホルダーは非表示） */
+              <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-pulse align-middle" />
             )}
           </div>
         </div>
