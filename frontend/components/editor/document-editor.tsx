@@ -338,6 +338,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const [mathAnchor, setMathAnchor] = useState(0);
   // IME変換中フラグ（日本語入力中の誤変換防止）
   const [imeComposing, setImeComposing] = useState(false);
+  // 数式モード中のカーソル位置（content.text 上の絶対位置）
+  const [mathCursorPos, setMathCursorPos] = useState(0);
 
   // 未確定テキスト（mathAnchor以降）
   const composingText = mathMode ? content.text.slice(mathAnchor) : "";
@@ -360,6 +362,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     setMathMode(true);
     setMathAnchor(anchor);
     setMathEditing(true);
+    setMathCursorPos(anchor);
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.selectionStart = anchor;
@@ -443,8 +446,11 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     const pos = e.target.selectionStart || 0;
     updateContent(block.id, { text });
 
-    // 数式モード中は候補更新のみ
-    if (mathMode) return;
+    // 数式モード中はカーソル位置を更新して終了
+    if (mathMode) {
+      setMathCursorPos(pos);
+      return;
+    }
 
     // ;; 検出 → コマンドパレットを開く（;; はテキストから除去）
     if (!showPalette && pos >= 2 && text.slice(pos - 2, pos) === ";;") {
@@ -588,10 +594,13 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     text:      "text-foreground/70",                          // その他 → デフォルト
   };
 
-  // ハイライト済みトークン列
-  const highlightedTokens = mathMode && composingText && !imeComposing
-    ? highlightMathTokens(composingText)
-    : [];
+  // 数式モード中のカーソル位置（composingText 内のオフセット）
+  const localCursorOffset = mathMode ? Math.max(0, Math.min(mathCursorPos - mathAnchor, composingText.length)) : composingText.length;
+  // カーソル前後でテキストを分割してそれぞれハイライト
+  const beforeCursor = mathMode && composingText ? composingText.slice(0, localCursorOffset) : "";
+  const afterCursor  = mathMode && composingText ? composingText.slice(localCursorOffset) : "";
+  const tokensBeforeCursor = mathMode && beforeCursor && !imeComposing ? highlightMathTokens(beforeCursor) : [];
+  const tokensAfterCursor  = mathMode && afterCursor  && !imeComposing ? highlightMathTokens(afterCursor)  : [];
 
   return (
     <div className="relative">
@@ -604,10 +613,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         {/* 確定済みテキスト（数式はKaTeX描画） */}
         {confirmedText ? (
           <RenderedInlineText text={confirmedText} style={baseStyle} />
-        ) : !mathMode && !showCursor ? (
+        ) : !mathMode && !isEditing ? (
           <span className="text-muted-foreground/20 select-none">—</span>
-        ) : !mathMode && showCursor && !content.text ? (
-          <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
         ) : null}
 
         {/* 数式モード 上段: LaTeXレンダリング結果 */}
@@ -651,25 +658,39 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             </div>
           </div>
 
-          {/* IDE風コード行: シンタックスハイライト表示 */}
+          {/* IDE風コード行: シンタックスハイライト表示（カーソル位置連動） */}
           <div className="px-3 py-2 font-mono text-[13px] leading-relaxed min-h-[2em] flex items-center flex-wrap gap-0">
             {/* 行番号風 */}
             <span className="text-[10px] text-muted-foreground/20 mr-2 select-none font-mono">1</span>
-            {highlightedTokens.length > 0 ? (
-              highlightedTokens.map((tok, i) => (
-                <span key={i} className={`${TOKEN_COLORS[tok.kind]} ${tok.kind !== "text" ? "font-medium" : ""}`}>
-                  {tok.text}
-                </span>
-              ))
-            ) : composingText ? (
+            {imeComposing ? (
+              /* IME変換中はそのまま表示 */
               <span className="text-foreground/50">{composingText}</span>
+            ) : composingText ? (
+              /* カーソル前のトークン */
+              <>
+                {tokensBeforeCursor.map((tok, i) => (
+                  <span key={`b${i}`} className={`${TOKEN_COLORS[tok.kind]} ${tok.kind !== "text" ? "font-medium" : ""}`}>
+                    {tok.text}
+                  </span>
+                ))}
+                {/* カーソル（位置連動） */}
+                <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-pulse mx-px align-middle" />
+                {/* カーソル後のトークン */}
+                {tokensAfterCursor.map((tok, i) => (
+                  <span key={`a${i}`} className={`${TOKEN_COLORS[tok.kind]} ${tok.kind !== "text" ? "font-medium" : ""}`}>
+                    {tok.text}
+                  </span>
+                ))}
+              </>
             ) : (
-              <span className="text-muted-foreground/25 italic text-[12px]">
-                {isJa ? "数式を入力… (例: a たす b, ルート x)" : "type math… (e.g. a plus b, sqrt x)"}
-              </span>
+              /* 未入力: プレースホルダー + 末尾カーソル */
+              <>
+                <span className="text-muted-foreground/25 italic text-[12px]">
+                  {isJa ? "数式を入力… (例: a たす b, ルート x)" : "type math… (e.g. a plus b, sqrt x)"}
+                </span>
+                <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-pulse ml-px align-middle" />
+              </>
             )}
-            {/* 点滅カーソル */}
-            <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-pulse ml-px" />
           </div>
         </div>
       )}
@@ -681,8 +702,13 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           value={content.text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onKeyUp={() => { if (mathMode && textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart); }}
+          onSelect={() => { if (mathMode && textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart); }}
           onCompositionStart={() => setImeComposing(true)}
-          onCompositionEnd={() => setImeComposing(false)}
+          onCompositionEnd={() => {
+            setImeComposing(false);
+            if (mathMode && textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart);
+          }}
           className="sr-only"
           rows={1}
         />

@@ -172,7 +172,7 @@ const ja = {
   "block.ph.quote.src": "— 出典",
   "block.ph.table.caption": "表のキャプション",
   // AI Chat panel
-  "chat.title": "AI エージェント",
+  "chat.title": "EddivomAI",
   "chat.subtitle": "LaTeX ドキュメント制作アシスタント",
   "chat.auto": "自動",
   "chat.confirm": "確認",
@@ -322,7 +322,7 @@ const en = {
   "block.ph.quote.src": "— Source",
   "block.ph.table.caption": "Table caption",
   // AI Chat panel
-  "chat.title": "AI Agent",
+  "chat.title": "EddivomAI",
   "chat.subtitle": "LaTeX document creation assistant",
   "chat.auto": "Auto",
   "chat.confirm": "Confirm",

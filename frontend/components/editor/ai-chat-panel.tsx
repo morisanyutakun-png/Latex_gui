@@ -125,7 +125,7 @@ function PatchPreviewDrawer({
         })}
       </ul>
       <div className="flex gap-2 pt-1">
-        <Button size="sm" onClick={onApply} className="flex-1 h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white">
+        <Button size="sm" onClick={onApply} className="flex-1 h-7 text-xs bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white border-0">
           <Check className="h-3 w-3 mr-1" /> {t("chat.apply")}
         </Button>
         <Button size="sm" variant="ghost" onClick={onDismiss} className="h-7 text-xs text-slate-500 hover:text-slate-700">
@@ -152,7 +152,7 @@ function MessageBubble({
     <div className={`flex items-end gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       {/* Avatar */}
       {!isUser && (
-        <div className="h-7 w-7 rounded-full bg-violet-600 flex items-center justify-center shrink-0 mb-0.5 shadow-sm">
+        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center shrink-0 mb-0.5 shadow-md shadow-indigo-900/30 ring-1 ring-white/10">
           <Bot className="h-3.5 w-3.5 text-white" />
         </div>
       )}
@@ -160,8 +160,8 @@ function MessageBubble({
       <div className={`max-w-[82%] flex flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
         <div className={`rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
           isUser
-            ? "bg-violet-600 text-white rounded-br-md"
-            : "bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 text-slate-800 dark:text-slate-100 rounded-bl-md"
+            ? "bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-br-sm shadow-indigo-900/30"
+            : "bg-white dark:bg-[#23262e] border border-slate-200/60 dark:border-slate-700/40 text-slate-800 dark:text-slate-100 rounded-bl-sm"
         }`}>
           {msg.content}
         </div>
@@ -180,7 +180,7 @@ function MessageBubble({
             ) : (
               <button
                 onClick={() => msg.patches && onApplyPatches(msg.patches, msg.id)}
-                className="flex items-center gap-1.5 text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-700 px-1 transition-colors"
+                className="flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 px-1 transition-colors"
               >
                 <ChevronDown className="h-3 w-3" />
                 {`${msg.patches.ops.length} ${t("chat.changes")}`}
@@ -473,15 +473,20 @@ export function AIChatPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f5f5f5] dark:bg-[#1a1a1a]">
-      {/* Header — Chat style */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/20 bg-white dark:bg-[#242424] shrink-0 shadow-sm">
-        <div className="h-9 w-9 rounded-full bg-violet-600 flex items-center justify-center shadow-sm shrink-0">
+    <div className="flex flex-col h-full bg-[#f2f3f5] dark:bg-[#16181c]">
+      {/* Header — EddivomAI brand bar */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-[#0f1117] dark:bg-[#0a0c10] shrink-0 shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
+        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-600 to-purple-700 flex items-center justify-center shadow-lg shadow-indigo-900/40 shrink-0 ring-1 ring-white/10">
           <Bot className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground leading-none">{t("chat.title")}</p>
-          <p className="text-[10px] text-muted-foreground/50 mt-0.5">{t("chat.subtitle")}</p>
+          <p className="text-sm font-bold tracking-tight leading-none bg-gradient-to-r from-indigo-300 to-violet-300 bg-clip-text text-transparent">
+            {t("chat.title")}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <p className="text-[10px] text-slate-400">{t("chat.subtitle")}</p>
+          </div>
         </div>
         <div className="flex items-center gap-0.5">
           {/* Agent mode toggle */}
@@ -489,8 +494,8 @@ export function AIChatPanel() {
             onClick={() => setAgentMode(!agentMode)}
             className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
               agentMode
-                ? "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
-                : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40"
+                ? "bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/30"
+                : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
             }`}
             title={agentMode ? t("chat.auto") : t("chat.confirm")}
           >
@@ -500,7 +505,7 @@ export function AIChatPanel() {
           <button
             onClick={() => setShowMaterials(!showMaterials)}
             className={`p-1.5 rounded-lg text-xs transition-colors ${
-              showMaterials ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20" : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/40"
+              showMaterials ? "text-emerald-400 bg-emerald-500/10" : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
             }`}
             title={t("chat.materials")}
           >
@@ -509,7 +514,7 @@ export function AIChatPanel() {
           {chatMessages.length > 0 && (
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v1"); } catch { /**/ } }}
-              className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/40 transition-colors"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors"
               title={t("chat.clear")}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -542,11 +547,11 @@ export function AIChatPanel() {
       )}
 
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0 bg-[#f2f3f5] dark:bg-[#16181c]">
         {chatMessages.length === 0 && !showMaterials && (
           <div className="flex flex-col items-center justify-center h-full gap-5 py-8 select-none">
-            <div className="h-14 w-14 rounded-2xl bg-violet-600/10 dark:bg-violet-600/20 flex items-center justify-center">
-              <Bot className="h-7 w-7 text-violet-500" />
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-violet-600/15 dark:from-indigo-500/20 dark:to-violet-600/20 flex items-center justify-center ring-1 ring-indigo-400/20 shadow-lg shadow-indigo-900/10">
+              <Bot className="h-7 w-7 text-indigo-400" />
             </div>
             <div className="text-center space-y-1">
               <p className="text-sm font-medium text-foreground/60">{t("chat.empty.title")}</p>
@@ -562,7 +567,7 @@ export function AIChatPanel() {
                 <button
                   key={s}
                   onClick={() => { setInput(s); textareaRef.current?.focus(); }}
-                  className="text-left text-xs px-3.5 py-2.5 rounded-xl border border-border/40 bg-white dark:bg-slate-800/60 text-foreground/60 hover:text-violet-700 dark:hover:text-violet-300 hover:border-violet-300/60 hover:bg-violet-50/50 dark:hover:bg-violet-950/20 transition-all shadow-sm"
+                  className="text-left text-xs px-3.5 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-white dark:bg-[#1e2027] text-foreground/60 hover:text-indigo-600 dark:hover:text-indigo-300 hover:border-indigo-300/50 dark:hover:border-indigo-700/50 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 transition-all shadow-sm"
                 >
                   {s}
                 </button>
@@ -582,10 +587,10 @@ export function AIChatPanel() {
 
         {isChatLoading && (
           <div className="flex items-end gap-2">
-            <div className="h-7 w-7 rounded-full bg-violet-600 flex items-center justify-center shrink-0">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center shrink-0 shadow-md shadow-indigo-900/30 ring-1 ring-white/10">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-            <div className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
+            <div className="bg-white dark:bg-[#23262e] border border-slate-200/60 dark:border-slate-700/40 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
               <div className="flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0ms" }} />
                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -609,10 +614,10 @@ export function AIChatPanel() {
         </div>
       )}
 
-      {/* Input area — iMessage style */}
-      <div className="border-t border-border/15 px-3 py-3 shrink-0 bg-white dark:bg-[#242424]">
+      {/* Input area */}
+      <div className="border-t border-slate-200/40 dark:border-slate-700/30 px-3 py-3 shrink-0 bg-white dark:bg-[#1a1c22] shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
         {agentMode && (
-          <div className="flex items-center gap-1 text-[10px] text-violet-500/70 mb-2 px-1">
+          <div className="flex items-center gap-1 text-[10px] text-indigo-500/80 mb-2 px-1">
             <Zap className="h-2.5 w-2.5" />
             {t("chat.agent.mode")}
           </div>
@@ -624,14 +629,14 @@ export function AIChatPanel() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isChatLoading}
-              className="p-1.5 rounded-full text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/40 transition-colors disabled:opacity-30"
+              className="p-1.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-30"
               title="画像をアップロード (OMR)"
             >
               <Paperclip className="h-4 w-4" />
             </button>
             <button
               onClick={() => setShowMaterials(!showMaterials)}
-              className={`p-1.5 rounded-full transition-colors ${showMaterials ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20" : "text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/40"}`}
+              className={`p-1.5 rounded-full transition-colors ${showMaterials ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50"}`}
               title="教材DB"
             >
               <BookOpen className="h-4 w-4" />
@@ -639,14 +644,14 @@ export function AIChatPanel() {
           </div>
 
           {/* Text input bubble */}
-          <div className="flex-1 flex items-end gap-2 rounded-2xl border border-border/40 bg-[#f0f0f0] dark:bg-slate-800/60 px-3 py-2 focus-within:border-violet-300/60 focus-within:ring-1 focus-within:ring-violet-200/40 transition-all">
+          <div className="flex-1 flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-[#23262e] px-3 py-2 focus-within:border-indigo-400/60 dark:focus-within:border-indigo-600/50 focus-within:ring-2 focus-within:ring-indigo-200/30 dark:focus-within:ring-indigo-900/30 transition-all shadow-sm">
             <Textarea
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.placeholder")}
-              className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 font-sans bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-muted-foreground/35"
+              className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 font-sans bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-slate-400/60 dark:placeholder:text-slate-500/60"
               disabled={isChatLoading}
             />
             <button
@@ -654,8 +659,8 @@ export function AIChatPanel() {
               disabled={isChatLoading || !input.trim()}
               className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 transition-all ${
                 input.trim() && !isChatLoading
-                  ? "bg-violet-600 text-white hover:bg-violet-700 shadow-sm"
-                  : "bg-muted/60 text-muted-foreground/30"
+                  ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white hover:from-indigo-400 hover:to-violet-500 shadow-md shadow-indigo-900/25"
+                  : "bg-slate-100 dark:bg-slate-700/50 text-slate-300 dark:text-slate-600"
               }`}
               title="送信 (Enter)"
             >
@@ -666,7 +671,7 @@ export function AIChatPanel() {
             </button>
           </div>
         </div>
-        <p className="text-[9px] text-muted-foreground/25 text-center mt-2">{t("chat.hint")}</p>
+        <p className="text-[9px] text-slate-400/50 dark:text-slate-600/60 text-center mt-2">{t("chat.hint")}</p>
       </div>
     </div>
   );

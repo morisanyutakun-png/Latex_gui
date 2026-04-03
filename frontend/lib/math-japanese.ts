@@ -1618,6 +1618,36 @@ export function highlightMathTokens(input: string): MathHighlightToken[] {
       continue;
     }
 
+    // 1項前置演算子 + 引数がスペースなしで結合されたトークン (例: ルート3, ルートx)
+    // OPERATOR_LOOKUP の prefix エントリを走査して前方一致を探す
+    {
+      let matched = false;
+      for (const [normKey, opInfo] of OPERATOR_LOOKUP) {
+        if (opInfo.kind !== "prefix") continue;
+        if (norm.startsWith(normKey) && norm.length > normKey.length) {
+          // 正規化後の長さは元文字列と同じ(カタカナ→ひらがな変換は1:1)
+          const splitAt = normKey.length;
+          const prefixOriginal = part.slice(0, splitAt);
+          const remainder = part.slice(splitAt);
+          result.push({ text: prefixOriginal, kind: "unary" });
+          // 残り部分を分類
+          const remNorm = normalizeForMatch(remainder);
+          if (/^[\d.]+$/.test(remainder) || /^[零〇一二三四五六七八九十百千万]+$/.test(remainder)) {
+            result.push({ text: remainder, kind: "number" });
+          } else if (/^[a-zA-Z]$/.test(remainder)) {
+            result.push({ text: remainder, kind: "variable" });
+          } else if (GREEK_NAMES.has(remNorm)) {
+            result.push({ text: remainder, kind: "greek" });
+          } else {
+            result.push({ text: remainder, kind: "text" });
+          }
+          matched = true;
+          break;
+        }
+      }
+      if (matched) continue;
+    }
+
     // デフォルト
     result.push({ text: part, kind: "text" });
   }

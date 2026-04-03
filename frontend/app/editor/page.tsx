@@ -106,7 +106,7 @@ export default function EditorPage() {
 
   // パネルタイトルと色設定
   const panelMeta: Record<SidebarTab, { label: string; bg: string; textColor: string; indicator: string }> = {
-    ai:       { label: isJa ? "AIアシスタント" : "AI Assistant",    bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/70",          indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
+    ai:       { label: "EddivomAI",                                    bg: "bg-slate-900/5 dark:bg-[#0f1117]/60",    textColor: "text-indigo-400/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-indigo-500/70 to-violet-500/30" },
     advanced: { label: isJa ? "LaTeX拡張"      : "LaTeX Extensions", bg: "bg-amber-950/8 dark:bg-amber-950/15",   textColor: "text-amber-500/70 font-mono", indicator: "bg-amber-400" },
     latex:    { label: isJa ? "LaTeXソース"    : "LaTeX Source",     bg: "bg-muted/10",                           textColor: "text-muted-foreground/50",    indicator: "" },
     guide:    { label: isJa ? "編集ガイド"      : "Editing Guide",    bg: "bg-sky-950/8 dark:bg-sky-950/15",       textColor: "text-sky-400/80",             indicator: "bg-gradient-to-b from-sky-500/60 to-sky-400/20" },
@@ -239,8 +239,8 @@ export default function EditorPage() {
           {/* AI アシスタント */}
           {(["ai", "latex"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Bot : FileCode2;
-            const color = tab === "ai" ? "text-violet-500 dark:text-violet-400" : "text-slate-400";
-            const ind   = tab === "ai" ? "bg-violet-500" : "bg-slate-400";
+            const color = tab === "ai" ? "text-indigo-500 dark:text-indigo-400" : "text-slate-400";
+            const ind   = tab === "ai" ? "bg-indigo-500" : "bg-slate-400";
             const label = tab === "ai"
               ? (isJa ? "AIアシスタント" : "AI Assistant")
               : (isJa ? "LaTeXソース" : "LaTeX Source");
@@ -254,7 +254,7 @@ export default function EditorPage() {
                 {isActive && <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full ${ind} opacity-80`} />}
                 <Icon className="h-4 w-4" />
                 {tab === "ai" && isChatLoading && (
-                  <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+                  <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
                 )}
               </button>
             );

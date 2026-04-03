@@ -130,15 +130,8 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
   return (
     <header
-      className={`relative flex items-center gap-1.5 px-3 h-11 border-b sticky top-0 z-40 shrink-0 transition-all duration-300 ${
-        isAIActive
-          ? "border-violet-500/20 bg-violet-950/10 dark:bg-violet-950/20"
-          : "border-border/20 bg-background"
-      }`}
+      className="relative flex items-center gap-1.5 px-3 h-11 border-b border-border/20 bg-background sticky top-0 z-40 shrink-0"
     >
-      {isAIActive && (
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/40 to-transparent pointer-events-none" />
-      )}
 
       {/* Logo + Back */}
       <button
