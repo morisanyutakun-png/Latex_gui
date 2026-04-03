@@ -147,7 +147,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         title={t("header.home")}
       >
         <div className="h-6 w-6 rounded-md bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-sm shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
-          <span className="text-white text-[8px] font-bold tracking-tighter leading-none">Lx</span>
+          <span className="text-white text-[8px] font-bold tracking-tighter leading-none">Ed</span>
         </div>
         <ArrowLeft className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors" />
       </button>

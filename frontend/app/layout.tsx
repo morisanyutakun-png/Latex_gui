@@ -6,8 +6,8 @@ import { I18nProvider } from "@/lib/i18n";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Eddivom — Math Worksheets That Just Work",
-  description: "Turn PDFs into editable math worksheets. Equations stay perfect. Variants multiply. Answer keys export themselves. No LaTeX needed.",
+  title: "Eddivom — AI教材作成IDE",
+  description: "AIが問題を生成し、類題を量産し、解答付きPDFを自動で作成。教師・塾講師・教材作成者のためのプロフェッショナル教材ツール。",
 };
 
 export default function RootLayout({

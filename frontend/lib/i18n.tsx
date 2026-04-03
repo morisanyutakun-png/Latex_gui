@@ -60,10 +60,10 @@ const ja = {
   "nav.start": "今すぐ始める",
   "nav.resume": "を続ける",
   // Hero
-  "hero.badge": "LaTeX × モダンUI",
-  "hero.h1.line1": "プロ品質の文書を、",
-  "hero.h1.line2": "驚くほど簡単に。",
-  "hero.sub": "Word感覚の直感的な操作で、LaTeX品質のPDFを生成。\n数式・回路図・グラフ・化学式、そして一括量産まで。",
+  "hero.badge": "Eddivom — AI教材作成IDE",
+  "hero.h1.line1": "教材を、",
+  "hero.h1.line2": "もっと速く。",
+  "hero.sub": "AIが問題を生成し、類題を量産し、\n解答付きPDFを自動で作成。",
   "hero.cta": "今すぐ始める",
   "hero.scroll": "Scroll",
   // Stats
@@ -83,7 +83,7 @@ const ja = {
   // Features
   "features.label": "Features",
   "features.h2": "なぜ Eddivom？",
-  "features.sub": "複雑な環境構築なしで、プロフェッショナルな文書を",
+  "features.sub": "教師・塾講師・教材作成者のためのプロ品質ツール",
   "feat.ai.title": "AI エージェント",
   "feat.ai.desc": "「問題を5つ追加して」と話すだけ。Claude が文書を自動生成・編集",
   "feat.db.title": "教材データベース",
@@ -210,10 +210,10 @@ const en = {
   "nav.start": "Get started",
   "nav.resume": "Resume",
   // Hero
-  "hero.badge": "LaTeX × Modern UI",
-  "hero.h1.line1": "Professional documents,",
-  "hero.h1.line2": "effortlessly.",
-  "hero.sub": "Craft LaTeX-quality PDFs with an intuitive, Word-like interface.\nMath, circuits, charts, chemistry — and batch production.",
+  "hero.badge": "Eddivom — AI-powered worksheet IDE",
+  "hero.h1.line1": "Worksheets,",
+  "hero.h1.line2": "faster.",
+  "hero.sub": "AI generates problems, multiplies variants,\nand auto-creates answer-key PDFs.",
   "hero.cta": "Get started",
   "hero.scroll": "Scroll",
   // Stats
@@ -233,7 +233,7 @@ const en = {
   // Features
   "features.label": "Features",
   "features.h2": "Why Eddivom?",
-  "features.sub": "Professional documents without the setup complexity",
+  "features.sub": "A professional tool for teachers, tutors, and content creators",
   "feat.ai.title": "AI Agent",
   "feat.ai.desc": "Just say \"Add 5 problems.\" Claude automatically generates and edits your document.",
   "feat.db.title": "Materials Database",

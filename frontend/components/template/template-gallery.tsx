@@ -362,23 +362,23 @@ export function TemplateGallery() {
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/[0.07] dark:bg-primary/[0.12] border border-primary/[0.10] mb-8">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span className="text-primary text-[12px] font-semibold tracking-wide">
-                Eddivom — {isJa ? "数式がきれいな教材を、自分の手で" : "math worksheets that just work"}
+                Eddivom — {isJa ? "AI教材作成IDE" : "AI-powered worksheet IDE"}
               </span>
             </div>
 
             <h1 className="text-[clamp(2.4rem,6vw,4.5rem)] leading-[1.08] font-bold tracking-[-0.03em] mb-6">
               <span className="block">
-                {isJa ? "教材を、もっと速く" : "Your worksheets,"}
+                {isJa ? "教材を、" : "Worksheets,"}
               </span>
               <span className="bg-gradient-to-r from-blue-600 via-violet-500 to-fuchsia-500 dark:from-blue-400 dark:via-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">
-                {isJa ? "もっときれいに。" : "done right."}
+                {isJa ? "もっと速く。" : "faster."}
               </span>
             </h1>
 
             <p className="text-muted-foreground text-[16px] sm:text-[18px] leading-relaxed max-w-xl mx-auto mb-10 font-light">
               {isJa
-                ? "Eddivom なら、PDFを取り込んで問題ごとに編集。\n類題を一瞬で増やし、解答付きPDFですぐ配布。"
-                : "Eddivom turns your PDFs into editable problems.\nGenerate variants. Export with answer keys. Equations always look perfect."}
+                ? "AIが問題を生成し、類題を量産し、\n解答付きPDFを自動で作成。"
+                : "AI generates problems, multiplies variants,\nand auto-creates answer-key PDFs."}
             </p>
 
             {/* CTAs */}
@@ -430,12 +430,12 @@ export function TemplateGallery() {
               {isJa ? "Eddivom はこんな方に" : "Who uses Eddivom"}
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
-              {isJa ? "教材を自分で作る、すべての先生へ。" : "For math educators who make their own worksheets."}
+              {isJa ? "教材を自分で作る、すべての先生へ。" : "For educators who build their own materials."}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
               {isJa
-                ? "演習プリント・小テスト・宿題・模試。自分で作るからこそ、速く作りたい。"
-                : "Algebra, geometry, precalc — whether for your classes or for sale. Eddivom makes the build-part fast."}
+                ? "教師・塾講師・教材作成者のための、プロ品質の教材作成ツール。"
+                : "A professional worksheet tool for teachers, tutors, and content creators."}
             </p>
           </div>
 
@@ -456,10 +456,10 @@ export function TemplateGallery() {
             />
             <PersonaCard
               icon={<GraduationCap className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "個人塾・家庭教師" : "Tutors & Test Prep"}
+              title={isJa ? "個人塾・家庭教師" : "Tutors & Private Instructors"}
               desc={isJa
-                ? "生徒に合わせたオリジナル教材を毎週作る先生。過去問の再利用や類題の量産に。"
-                : "Custom problem sets for each student. Generate fresh variants to keep practice materials from going stale."}
+                ? "生徒に合わせたオリジナル教材を毎週作る先生。過去問の再利用や類題の量産に最適。"
+                : "Build custom problem sets for each student every week. Reuse past materials and mass-produce variants effortlessly."}
             />
           </div>
         </div>
@@ -850,7 +850,7 @@ export function TemplateGallery() {
             </span>
           </div>
           <p className="text-[10px] text-muted-foreground/30 tracking-wide">
-            Powered by LuaLaTeX & AI
+            AI教材作成IDE · Powered by LuaLaTeX
           </p>
         </div>
       </footer>
