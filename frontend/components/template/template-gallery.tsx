@@ -29,54 +29,33 @@ import {
   Pencil,
 } from "lucide-react";
 
-/* ── Scrolling background — worksheet problems (bilingual) ── */
-const SCROLL_ITEMS_A = [
-  "Solve x² + 3x - 4 = 0",
-  "二次方程式 x²+3x-4=0 を解け",
-  "Find the slope through (2, 3) and (5, 9)",
-  "三角形ABCの面積を求めよ",
-  "Simplify √(48) + √(27)",
-  "連立方程式を解け: 2x+y=5, x-y=1",
-  "Factor 6x² - 7x - 3",
-  "確率: コインを3回投げて表が2回出る確率は？",
-  "Find m∠ABC if △ABC is isosceles",
-  "Graph y = 2(x − 3)² + 1",
+/* ── Floating math formulas background ── */
+const FLOAT_FORMULAS = [
+  "x²+3x−4=0", "∫₀^π sin x dx", "∑ₙ₌₁^∞ 1/n²", "√(a²+b²)",
+  "lim x→0", "f'(x)=2x", "Δy/Δx", "∂f/∂x",
+  "∠ABC=60°", "πr²", "eⁱᶿ", "log₂8=3",
+  "sin²θ+cos²θ=1", "n!", "∇×F", "∮",
 ];
 
-const SCROLL_ITEMS_B = [
-  "Worksheet: Quadratic Equations (20 problems)",
-  "小テスト: 二次関数の基本（10問）",
-  "Quiz: Systems of Linear Equations",
-  "演習プリント: 三角比の応用",
-  "Assessment: Polynomial Operations",
-  "確認テスト: 微分の計算",
-  "Practice Set: Solving Proportions",
-  "宿題プリント: 図形の証明（5問）",
-  "Exit Ticket: Solving Inequalities",
-  "Unit Test: Congruent Triangles",
-];
-
-/* ── Scroll column ── */
-function ScrollColumn({
-  items, speed, direction, className,
-}: {
-  items: string[]; speed: number; direction: "up" | "down"; className?: string;
-}) {
-  const tripled = [...items, ...items, ...items];
+function FloatingFormulas() {
   return (
-    <div className={`scroll-column-mask relative overflow-hidden ${className}`}>
-      <div
-        className={`flex flex-col gap-3 ${direction === "up" ? "animate-scroll-up" : "animate-scroll-down"}`}
-        style={{ animationDuration: `${speed}s` }}
-      >
-        {tripled.map((item, i) => (
-          <div key={i} className="px-3 py-2 rounded-lg bg-foreground/[0.025] dark:bg-white/[0.03] border border-foreground/[0.04] dark:border-white/[0.05]">
-            <p className="text-[10px] font-medium text-foreground/15 dark:text-white/12 whitespace-nowrap leading-relaxed select-none">
-              {item}
-            </p>
-          </div>
-        ))}
-      </div>
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {FLOAT_FORMULAS.map((formula, i) => (
+        <div
+          key={i}
+          className="absolute animate-float-formula select-none"
+          style={{
+            left: `${(i * 17 + 5) % 90}%`,
+            top: `${(i * 23 + 10) % 85}%`,
+            animationDelay: `${i * 0.8}s`,
+            animationDuration: `${18 + (i % 5) * 4}s`,
+          }}
+        >
+          <span className="text-[11px] sm:text-[13px] font-mono text-foreground/[0.06] dark:text-white/[0.05] font-medium whitespace-nowrap">
+            {formula}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -129,8 +108,11 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
           <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
           <div className="w-2.5 h-2.5 rounded-full bg-green-400/60" />
         </div>
-        <div className="h-5 w-5 rounded bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center ml-2">
-          <span className="text-white text-[7px] font-bold">Ed</span>
+        <div className="h-5 w-5 rounded-md bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center ml-2">
+          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none">
+            <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+            <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
+          </svg>
         </div>
         <span className="text-[11px] text-muted-foreground/50 font-medium">Eddivom</span>
         <div className="ml-auto flex items-center gap-2">
@@ -323,8 +305,11 @@ export function TemplateGallery() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-foreground/[0.06]">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 h-12">
           <div className="flex items-center gap-3">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <span className="text-white text-[10px] font-bold tracking-tighter leading-none">Ed</span>
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
+                <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+                <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
+              </svg>
             </div>
             <span className="text-[15px] font-bold tracking-tight">
               Eddivom
@@ -346,13 +331,8 @@ export function TemplateGallery() {
           <div className="absolute inset-0 opacity-[0.012] dark:opacity-[0.025]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '40px 40px' }} />
         </div>
 
-        {/* Scrolling background */}
-        <div className="absolute inset-0 flex justify-between px-2 sm:px-6 pointer-events-none">
-          <ScrollColumn items={SCROLL_ITEMS_A} speed={50} direction="up" className="w-28 sm:w-40 lg:w-56 opacity-70 sm:opacity-100" />
-          <ScrollColumn items={SCROLL_ITEMS_B} speed={60} direction="down" className="w-40 lg:w-56 hidden md:block opacity-70" />
-          <ScrollColumn items={SCROLL_ITEMS_A.slice(5)} speed={55} direction="up" className="w-40 lg:w-56 hidden md:block opacity-60" />
-          <ScrollColumn items={SCROLL_ITEMS_B.slice(5)} speed={45} direction="down" className="w-28 sm:w-40 lg:w-56 opacity-70 sm:opacity-100" />
-        </div>
+        {/* Floating formulas background */}
+        <FloatingFormulas />
 
         {/* Hero content */}
         <div className="relative z-10 max-w-3xl mx-auto text-center px-6 pt-20">
@@ -842,8 +822,11 @@ export function TemplateGallery() {
       <footer className="border-t border-foreground/[0.05] py-10 text-center">
         <div className="max-w-5xl mx-auto px-6">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="h-6 w-6 rounded-md bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center">
-              <span className="text-white text-[8px] font-bold tracking-tighter">Ed</span>
+            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none">
+                <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+                <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
+              </svg>
             </div>
             <span className="text-[13px] font-bold tracking-tight opacity-60">
               Eddivom

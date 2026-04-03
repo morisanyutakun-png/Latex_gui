@@ -532,8 +532,8 @@ export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMat
 
             <div className="px-3 py-1.5 bg-muted/30 border-t text-[9px] text-muted-foreground flex items-center gap-3">
               <span><kbd className="px-1 rounded bg-muted font-mono">Space</kbd> 変換</span>
-              <span><kbd className="px-1 rounded bg-muted font-mono">↑↓</kbd> 候補移動</span>
-              <span><kbd className="px-1 rounded bg-muted font-mono">Enter</kbd> 反映</span>
+              <span><kbd className="px-1 rounded bg-muted font-mono">↑↓</kbd> 選択</span>
+              <span><kbd className="px-1 rounded bg-muted font-mono">Enter</kbd> 確定</span>
             </div>
           </div>
         )}

@@ -419,10 +419,10 @@ export function MathAutocompleteInput({
               )}
             </button>
           ))}
-          <div className="px-3 py-1.5 bg-muted/30 border-t text-[9px] text-muted-foreground flex items-center gap-2">
-            <kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> で確定
-            <kbd className="px-1 rounded bg-muted font-mono">↑↓</kbd> で選択
-            <kbd className="px-1 rounded bg-muted font-mono">Esc</kbd> で閉じる
+          <div className="px-3 py-1.5 bg-muted/30 border-t text-[9px] text-muted-foreground flex items-center gap-3">
+            <span><kbd className="px-1 rounded bg-muted font-mono">↑↓</kbd> 選択</span>
+            <span><kbd className="px-1 rounded bg-muted font-mono">Space</kbd> 適用</span>
+            <span><kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> 終了</span>
           </div>
         </div>
       )}

@@ -250,7 +250,7 @@ function HeadingBlockEditor({ block }: { block: Block }) {
     }
     if (e.key === "Tab") {
       e.preventDefault();
-      // Tab inserts math delimiters in the heading text
+      // Tab inserts inline math delimiters $...$ in the heading text
       const pos = el.selectionStart ?? 0;
       const text = content.text;
       const newText = text.slice(0, pos) + "$$" + text.slice(pos);
@@ -641,17 +641,12 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">
                 {isJa ? "数式モード" : "Math mode"}
               </span>
-              {/* トークン凡例 */}
-              <div className="hidden sm:flex items-center gap-2 ml-3">
-                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "変数" : "var"}</span></span>
-                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "数字" : "num"}</span></span>
-                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-pink-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "演算" : "op"}</span></span>
-                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "1項" : "fn"}</span></span>
-                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "3項" : "3-arg"}</span></span>
-              </div>
+              <span className="hidden sm:inline text-[9px] text-muted-foreground/30 ml-2">
+                {isJa ? "日本語で入力 → 自動変換" : "type naturally → auto-convert"}
+              </span>
             </div>
             <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/40">
-              <span><kbd className="px-1 py-0.5 rounded bg-muted/60 border border-border/30 text-[8px]">Tab</kbd> {isJa ? "確定" : "done"}</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted/60 border border-border/30 text-[8px]">Tab</kbd> {isJa ? "終了" : "exit"}</span>
               <span><kbd className="px-1 py-0.5 rounded bg-muted/60 border border-border/30 text-[8px]">Esc</kbd> {isJa ? "破棄" : "cancel"}</span>
             </div>
           </div>
@@ -1039,7 +1034,7 @@ function GlobalCommandPalette() {
   const handleSelect = (type: BlockType) => {
     setGlobalPalette(false);
 
-    // 数式: paragraph を作って $$ を挿入（インライン数式モード）
+    // 数式: paragraph を作って数式モードに入る
     if (type === "math") {
       const blocks = useDocumentStore.getState().document?.blocks ?? [];
       const afterIdx = selectedBlockId
@@ -1047,7 +1042,6 @@ function GlobalCommandPalette() {
         : blocks.length;
       const newId = addBlock("paragraph", afterIdx);
       if (newId) {
-        useDocumentStore.getState().updateBlockContent(newId, { text: "$$" });
         selectBlock(newId);
         setEditingBlock(newId);
         useUIStore.getState().setMathEditing(true);
