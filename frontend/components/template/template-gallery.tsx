@@ -23,13 +23,10 @@ import {
   PenLine,
   GraduationCap,
   Users,
-  LayoutGrid,
-  Eye,
   RefreshCw,
   FileDown,
   Layers,
   Pencil,
-  Plus,
 } from "lucide-react";
 
 /* ── Scrolling background — worksheet problems (bilingual) ── */
@@ -121,120 +118,145 @@ function StepCard({ num, icon, title, desc, color }: {
   );
 }
 
-/* ── Editor Workspace Mockup ── */
+/* ── Editor Workspace Mockup — 実際のアプリに合わせた2ペイン+アクティビティバー ── */
 function EditorMockup({ isJa }: { isJa: boolean }) {
   return (
     <div className="relative w-full max-w-4xl mx-auto rounded-2xl border border-foreground/[0.08] bg-card/80 backdrop-blur-xl shadow-2xl shadow-foreground/[0.04] overflow-hidden">
       {/* Title bar */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-foreground/[0.06] bg-foreground/[0.02]">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-foreground/[0.06] bg-foreground/[0.02]">
         <div className="flex gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-red-400/60" />
           <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
           <div className="w-2.5 h-2.5 rounded-full bg-green-400/60" />
         </div>
-        <span className="text-[11px] text-muted-foreground/50 ml-2 font-medium">
-          Eddivom — {isJa ? "二次方程式 演習プリント.pdf" : "Quadratic Equations Worksheet.pdf"}
-        </span>
+        <div className="h-5 w-5 rounded bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center ml-2">
+          <span className="text-white text-[7px] font-bold">Ed</span>
+        </div>
+        <span className="text-[11px] text-muted-foreground/50 font-medium">Eddivom</span>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-            {isJa ? "生徒用PDF" : "Student PDF"}
+            {isJa ? "PDF出力" : "Export PDF"}
           </span>
           <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
-            {isJa ? "解答付きPDF" : "Answer Key PDF"}
+            {isJa ? "印刷" : "Print"}
           </span>
         </div>
       </div>
 
-      {/* 3-pane layout */}
-      <div className="grid grid-cols-12 min-h-[280px] sm:min-h-[320px]">
-        {/* Left: Problem list */}
-        <div className="col-span-3 border-r border-foreground/[0.06] p-3 space-y-2">
-          <p className="text-[9px] text-muted-foreground/40 font-semibold tracking-wider uppercase mb-2">
-            {isJa ? "問題一覧" : "Problems"}
-          </p>
-          {[
-            { n: "Q1", label: isJa ? "因数分解" : "Factoring" },
-            { n: "Q2", label: isJa ? "解の公式" : "Quadratic formula" },
-            { n: "Q3", label: isJa ? "判別式" : "Discriminant" },
-            { n: "Q4", label: isJa ? "文章題" : "Word problem" },
-            { n: "Q5", label: isJa ? "応用" : "Application" },
-          ].map((q, i) => (
-            <div
-              key={q.n}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] transition-colors ${
-                i === 1
-                  ? "bg-primary/[0.08] border border-primary/[0.15] text-primary font-medium"
-                  : "text-muted-foreground/60 hover:bg-foreground/[0.03]"
-              }`}
-            >
-              <span className="font-mono text-[9px] opacity-50">{q.n}</span>
-              <span className="truncate">{q.label}</span>
+      {/* 2-pane + activity bar */}
+      <div className="flex min-h-[300px] sm:min-h-[340px]">
+        {/* ━━ Left: 紙面エディタ (コンパイル済みPDF表示) ━━ */}
+        <div className="flex-1 bg-gray-50/50 dark:bg-gray-950/30 p-4 flex justify-center overflow-hidden">
+          {/* PDF紙面 */}
+          <div className="bg-white dark:bg-white/[0.97] rounded shadow-lg border border-gray-200/60 dark:border-gray-700/40 w-full max-w-[320px] p-5 space-y-3">
+            {/* タイトル */}
+            <div className="text-center space-y-1 pb-2 border-b border-gray-100 dark:border-gray-300/30">
+              <div className="h-2.5 w-3/4 bg-gray-800 dark:bg-gray-700 rounded-full mx-auto" />
+              <div className="h-1.5 w-1/2 bg-gray-300 dark:bg-gray-400 rounded-full mx-auto" />
             </div>
-          ))}
-          <button className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] text-primary/60 hover:text-primary hover:bg-primary/[0.05] transition-colors w-full">
-            <Plus className="h-3 w-3" />
-            <span>{isJa ? "問題を追加" : "Add problem"}</span>
-          </button>
-        </div>
-
-        {/* Center: Editor */}
-        <div className="col-span-5 p-4 space-y-3">
-          <div className="space-y-2">
-            <p className="text-[9px] text-muted-foreground/40 font-semibold tracking-wider uppercase">
-              Q2 — {isJa ? "解の公式" : "Quadratic Formula"}
-            </p>
-            <div className="rounded-lg bg-foreground/[0.02] border border-foreground/[0.05] p-3 space-y-2">
-              <p className="text-[11px] text-foreground/80 leading-relaxed">
-                {isJa
-                  ? "次の二次方程式を解の公式を用いて解け。"
-                  : "Solve the following using the quadratic formula."}
-              </p>
-              <div className="bg-foreground/[0.03] rounded px-3 py-2 text-center">
-                <span className="text-[13px] font-medium text-foreground/70 font-mono">
-                  2x² - 5x + 3 = 0
-                </span>
+            {/* 問題1 */}
+            <div className="space-y-1.5">
+              <div className="flex items-start gap-2">
+                <span className="text-[9px] font-bold text-gray-700 dark:text-gray-600 mt-0.5">1.</span>
+                <div className="flex-1 space-y-1">
+                  <div className="h-1 bg-gray-200 dark:bg-gray-300 rounded-full w-full" />
+                  <div className="h-1 bg-gray-200 dark:bg-gray-300 rounded-full w-4/5" />
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 pt-1">
-                <span className="text-[9px] text-muted-foreground/30">{isJa ? "配点" : "Points"}:</span>
-                <span className="text-[9px] text-muted-foreground/50">5</span>
+              <div className="ml-4 bg-gray-50 dark:bg-gray-100 rounded px-2 py-1.5 text-center">
+                <span className="text-[11px] font-medium text-gray-600 font-mono">2x² − 5x + 3 = 0</span>
+              </div>
+            </div>
+            {/* 問題2 */}
+            <div className="space-y-1.5">
+              <div className="flex items-start gap-2">
+                <span className="text-[9px] font-bold text-gray-700 dark:text-gray-600 mt-0.5">2.</span>
+                <div className="flex-1 space-y-1">
+                  <div className="h-1 bg-gray-200 dark:bg-gray-300 rounded-full w-full" />
+                  <div className="h-1 bg-gray-200 dark:bg-gray-300 rounded-full w-3/5" />
+                </div>
+              </div>
+              <div className="ml-4 bg-gray-50 dark:bg-gray-100 rounded px-2 py-1.5 text-center">
+                <span className="text-[11px] font-medium text-gray-600 font-mono">x² + 4x − 12 = 0</span>
+              </div>
+            </div>
+            {/* 問題3 */}
+            <div className="flex items-start gap-2">
+              <span className="text-[9px] font-bold text-gray-700 dark:text-gray-600 mt-0.5">3.</span>
+              <div className="flex-1 space-y-1">
+                <div className="h-1 bg-gray-200 dark:bg-gray-300 rounded-full w-full" />
+                <div className="h-1 bg-gray-200 dark:bg-gray-300 rounded-full w-2/3" />
+                <div className="h-1 bg-gray-200 dark:bg-gray-300 rounded-full w-1/2" />
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-medium hover:bg-violet-500/15 transition-colors">
-              <RefreshCw className="h-3 w-3" />
-              {isJa ? "類題を作る" : "Make variants"}
-            </button>
-            <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-foreground/[0.04] text-muted-foreground text-[10px] hover:bg-foreground/[0.06] transition-colors">
-              <Pencil className="h-3 w-3" />
-              {isJa ? "編集" : "Edit"}
-            </button>
+        {/* ━━ Right: AI チャットサイドバー ━━ */}
+        <div className="w-[200px] sm:w-[240px] border-l border-foreground/[0.06] flex flex-col bg-foreground/[0.01]">
+          {/* パネルヘッダー */}
+          <div className="px-3 py-2 border-b border-foreground/[0.06] flex items-center gap-2">
+            <div className="h-4 w-4 rounded bg-violet-500/20 flex items-center justify-center">
+              <Sparkles className="h-2.5 w-2.5 text-violet-500" />
+            </div>
+            <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">AI Assistant</span>
+          </div>
+          {/* チャット履歴 */}
+          <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
+            {/* ユーザーメッセージ */}
+            <div className="flex justify-end">
+              <div className="bg-primary/[0.08] rounded-xl rounded-tr-sm px-2.5 py-1.5 max-w-[90%]">
+                <p className="text-[9px] text-foreground/70 leading-relaxed">
+                  {isJa ? "二次方程式の練習問題を5問作って" : "Make 5 quadratic equation problems"}
+                </p>
+              </div>
+            </div>
+            {/* AIレスポンス */}
+            <div className="flex justify-start">
+              <div className="bg-foreground/[0.03] rounded-xl rounded-tl-sm px-2.5 py-1.5 max-w-[90%]">
+                <p className="text-[9px] text-foreground/60 leading-relaxed">
+                  {isJa ? "5問作成しました。紙面に反映しています。" : "Done — 5 problems added to your worksheet."}
+                </p>
+                <div className="flex gap-1 mt-1.5">
+                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                    {isJa ? "✓ 反映済み" : "✓ Applied"}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {/* 2回目のユーザーメッセージ */}
+            <div className="flex justify-end">
+              <div className="bg-primary/[0.08] rounded-xl rounded-tr-sm px-2.5 py-1.5 max-w-[90%]">
+                <p className="text-[9px] text-foreground/70 leading-relaxed">
+                  {isJa ? "もう少し難しくして" : "Make them a bit harder"}
+                </p>
+              </div>
+            </div>
+          </div>
+          {/* 入力欄 */}
+          <div className="p-2 border-t border-foreground/[0.06]">
+            <div className="flex items-center gap-1.5 bg-foreground/[0.03] rounded-lg px-2.5 py-1.5 border border-foreground/[0.05]">
+              <span className="text-[9px] text-muted-foreground/30 flex-1 truncate">
+                {isJa ? "指示を入力…" : "Type a prompt…"}
+              </span>
+              <ArrowRight className="h-3 w-3 text-muted-foreground/20" />
+            </div>
           </div>
         </div>
 
-        {/* Right: PDF Preview */}
-        <div className="col-span-4 border-l border-foreground/[0.06] bg-foreground/[0.015] p-3">
-          <p className="text-[9px] text-muted-foreground/40 font-semibold tracking-wider uppercase mb-2">
-            {isJa ? "PDFプレビュー" : "PDF Preview"}
-          </p>
-          <div className="bg-white dark:bg-white/[0.95] rounded-lg shadow-sm border border-foreground/[0.08] p-3 aspect-[1/1.2]">
-            <div className="space-y-2">
-              <div className="h-2 w-3/4 bg-gray-200 dark:bg-gray-300 rounded-full mx-auto" />
-              <div className="h-1 w-1/2 bg-gray-100 dark:bg-gray-200 rounded-full mx-auto" />
-              <div className="mt-3 space-y-3">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <div key={n} className="flex gap-2">
-                    <span className="text-[8px] text-gray-400 font-mono">{n}.</span>
-                    <div className="flex-1 space-y-1">
-                      <div className="h-1 bg-gray-100 dark:bg-gray-200 rounded-full w-full" />
-                      <div className="h-1 bg-gray-100 dark:bg-gray-200 rounded-full w-2/3" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* ━━ Activity Bar (far right) ━━ */}
+        <div className="w-8 border-l border-foreground/[0.06] bg-foreground/[0.02] flex flex-col items-center py-2 gap-2">
+          <div className="w-5 h-5 rounded bg-violet-500/15 flex items-center justify-center border-l-2 border-violet-500">
+            <Sparkles className="h-3 w-3 text-violet-500" />
+          </div>
+          <div className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60">
+            <Code2 className="h-3 w-3" />
+          </div>
+          <div className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60 relative">
+            <PenLine className="h-3 w-3" />
+          </div>
+          <div className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60">
+            <BookOpen className="h-3 w-3" />
           </div>
         </div>
       </div>
@@ -455,12 +477,12 @@ export function TemplateGallery() {
               {isJa ? "Eddivom のワークスペース" : "The Eddivom workspace"}
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
-              {isJa ? "チャットではなく、教材エディタ。" : "Not a chatbot. A worksheet workbench."}
+              {isJa ? "AIに頼んで、紙面にすぐ反映。" : "Tell the AI what you need. See it on the page."}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
               {isJa
-                ? "問題一覧・編集エリア・PDFプレビューの3ペイン。\n問題ごとに編集でき、類題も1クリックで作れます。"
-                : "Problem list, editor, and live PDF preview — side by side.\nEdit each problem individually. Generate variants in one click."}
+                ? "AIに指示を出すと、コンパイル済みのPDFが紙面にそのまま表示。\n数式も図もきれいに組版された状態で、直接編集できます。"
+                : "Type a prompt, and Eddivom renders the finished PDF right on the page.\nEquations and layout are print-ready. Edit anything directly."}
             </p>
           </div>
 
@@ -468,10 +490,10 @@ export function TemplateGallery() {
 
           <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
             {[
-              { icon: <LayoutGrid className="h-3.5 w-3.5" />, label: isJa ? "問題ごとに管理" : "Per-problem management" },
-              { icon: <Pencil className="h-3.5 w-3.5" />, label: isJa ? "Word感覚で編集" : "Edit like Word" },
-              { icon: <Eye className="h-3.5 w-3.5" />, label: isJa ? "リアルタイムプレビュー" : "Live PDF preview" },
-              { icon: <RefreshCw className="h-3.5 w-3.5" />, label: isJa ? "類題を1クリックで" : "Variants in one click" },
+              { icon: <Sparkles className="h-3.5 w-3.5" />, label: isJa ? "AIに指示→即反映" : "Prompt AI → instant result" },
+              { icon: <FileText className="h-3.5 w-3.5" />, label: isJa ? "コンパイル済みPDF表示" : "Compiled PDF on page" },
+              { icon: <Pencil className="h-3.5 w-3.5" />, label: isJa ? "紙面を直接編集" : "Edit directly on page" },
+              { icon: <RefreshCw className="h-3.5 w-3.5" />, label: isJa ? "類題を一瞬で量産" : "Variants in one click" },
             ].map((chip) => (
               <div key={chip.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[11px] text-muted-foreground">
                 {chip.icon}

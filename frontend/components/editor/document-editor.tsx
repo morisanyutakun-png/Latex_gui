@@ -8,7 +8,7 @@ import { Block, BlockType, BLOCK_TYPES, createBlock } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
 import { JapaneseMathInput, type JapaneseMathInputHandle } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
-import { parseInlineText, getJapaneseSuggestions, parseJapanesemath, type JapaneseSuggestion } from "@/lib/math-japanese";
+import { parseInlineText, parseJapanesemath, highlightMathTokens, type MathTokenKind } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
 import {
   Trash2,
@@ -343,12 +343,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const composingText = mathMode ? content.text.slice(mathAnchor) : "";
   // リアルタイム変換結果（IME変換中はパースをスキップ）
   const composingLatex = composingText && !imeComposing ? parseJapanesemath(composingText) : "";
-  // 候補リスト（補助）— IME変換中はスキップ
-  const mathSuggs = mathMode && composingText.length >= 1 && !imeComposing ? getJapaneseSuggestions(composingText) : [];
-  const [mathSuggIdx, setMathSuggIdx] = useState(0);
-  // suggIdx がはみ出ないように
-  const clampedSuggIdx = mathSuggs.length > 0 ? Math.min(mathSuggIdx, mathSuggs.length - 1) : 0;
-
   // Command palette state (triggered by ;; double semicolon)
   const [showPalette, setShowPalette] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
@@ -365,7 +359,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const enterMathMode = useCallback((anchor: number) => {
     setMathMode(true);
     setMathAnchor(anchor);
-    setMathSuggIdx(0);
     setMathEditing(true);
     setTimeout(() => {
       if (textareaRef.current) {
@@ -394,26 +387,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       }, 0);
     }
     setMathMode(false);
-    setMathSuggIdx(0);
     setMathEditing(false);
   }, [content.text, mathAnchor, block.id, updateContent, setMathEditing]);
-
-  // ── 候補から確定（候補を選んで確定し、数式モードに留まる） ──
-  const acceptSugg = useCallback((sugg: JapaneseSuggestion) => {
-    const before = content.text.slice(0, mathAnchor);
-    const newText = before + "$" + sugg.latex + "$";
-    updateContent(block.id, { text: newText });
-    const newAnchor = newText.length;
-    setMathAnchor(newAnchor);
-    setMathSuggIdx(0);
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.selectionStart = newAnchor;
-        textareaRef.current.selectionEnd = newAnchor;
-        textareaRef.current.focus();
-      }
-    }, 0);
-  }, [content.text, mathAnchor, block.id, updateContent]);
 
   const handleSelectPaletteItem = useCallback((type: BlockType) => {
     setShowPalette(false);
@@ -462,9 +437,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     if (!isEditing && mathMode) { finishMathMode(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing]);
-
-  // suggIdx リセット
-  useEffect(() => { setMathSuggIdx(0); }, [composingText]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -516,7 +488,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         const before = content.text.slice(0, mathAnchor);
         updateContent(block.id, { text: before });
         setMathMode(false);
-        setMathSuggIdx(0);
         setMathEditing(false);
         setTimeout(() => {
           if (textareaRef.current) {
@@ -605,11 +576,28 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   // 編集中かどうかでカーソル表示
   const showCursor = showTextarea && isEditing;
 
+  // IDE風トークンハイライトの色マップ
+  const TOKEN_COLORS: Record<MathTokenKind, string> = {
+    variable:  "text-cyan-500 dark:text-cyan-400",           // 変数 → シアン
+    number:    "text-orange-500 dark:text-orange-400",        // 数字 → オレンジ
+    operator:  "text-pink-500 dark:text-pink-400",            // 演算子 → ピンク
+    unary:     "text-emerald-500 dark:text-emerald-400",      // 単項 → グリーン
+    ternary:   "text-purple-500 dark:text-purple-400",        // 三項 → パープル
+    greek:     "text-teal-500 dark:text-teal-400",            // ギリシャ → ティール
+    structure: "text-yellow-600 dark:text-yellow-400",        // 構造語 → イエロー
+    text:      "text-foreground/70",                          // その他 → デフォルト
+  };
+
+  // ハイライト済みトークン列
+  const highlightedTokens = mathMode && composingText && !imeComposing
+    ? highlightMathTokens(composingText)
+    : [];
+
   return (
     <div className="relative">
-      {/* ── 紙面: 常にレンダリング済み表示のみ（LaTeXコードは絶対に見せない） ── */}
+      {/* ── 紙面: 常にレンダリング済み表示のみ ── */}
       <div
-        className={`px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] ${showTextarea ? "cursor-text" : "cursor-text"}`}
+        className={`px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text`}
         style={baseStyle}
         onClick={() => textareaRef.current?.focus()}
       >
@@ -622,30 +610,74 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           <span className="text-muted-foreground/20 select-none">{t("block.ph.paragraph")}</span>
         ) : null}
 
-        {/* 数式モード: リアルタイム変換プレビュー */}
-        {mathMode && (
-          composingText ? (
-            imeComposing ? (
-              <span className="text-violet-500/60">{composingText}</span>
-            ) : composingLatex ? (
-              <span className="inline-block mx-0.5 align-middle">
-                <MathRenderer latex={composingLatex} displayMode={false} />
-              </span>
-            ) : (
-              <span className="text-violet-500/60">{composingText}</span>
-            )
-          ) : null
+        {/* 数式モード 上段: LaTeXレンダリング結果 */}
+        {mathMode && composingLatex && !imeComposing && (
+          <span className="inline-block mx-0.5 align-middle">
+            <MathRenderer latex={composingLatex} displayMode={false} />
+          </span>
+        )}
+        {/* IME変換中はそのまま表示 */}
+        {mathMode && imeComposing && composingText && (
+          <span className="text-violet-500/60">{composingText}</span>
+        )}
+        {/* 入力がまだLaTeXに変換できない短いテキストの場合 */}
+        {mathMode && composingText && !imeComposing && !composingLatex && (
+          <span className="text-violet-500/60">{composingText}</span>
         )}
 
-        {/* 擬似カーソル（点滅バー） */}
+        {/* 擬似カーソル */}
         {showCursor && (
-          <span
-            className={`inline-block w-[2px] h-[1.1em] align-middle animate-pulse ${
-              mathMode ? "bg-violet-500" : "bg-foreground"
-            }`}
-          />
+          <span className={`inline-block w-[2px] h-[1.1em] align-middle animate-pulse ${mathMode ? "bg-violet-500" : "bg-foreground"}`} />
         )}
       </div>
+
+      {/* ── 数式モード 下段: 自然言語入力 (IDE風シンタックスハイライト) ── */}
+      {mathMode && (
+        <div className="relative mt-0.5 rounded-lg border border-violet-300/30 dark:border-violet-700/30 bg-gray-950/[0.03] dark:bg-gray-950/40 overflow-hidden">
+          {/* ヘッダー: モード表示 + キーバインド */}
+          <div className="flex items-center justify-between px-2.5 py-1 border-b border-violet-200/20 dark:border-violet-800/20 bg-violet-50/30 dark:bg-violet-950/20">
+            <div className="flex items-center gap-1.5">
+              <Sigma className="h-3 w-3 text-violet-500" />
+              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">
+                {isJa ? "数式モード" : "Math mode"}
+              </span>
+              {/* トークン凡例 */}
+              <div className="hidden sm:flex items-center gap-2 ml-3">
+                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "変数" : "var"}</span></span>
+                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "数字" : "num"}</span></span>
+                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-pink-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "演算" : "op"}</span></span>
+                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "1項" : "fn"}</span></span>
+                <span className="flex items-center gap-0.5 text-[8px]"><span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" /><span className="text-muted-foreground/40">{isJa ? "3項" : "3-arg"}</span></span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/40">
+              <span><kbd className="px-1 py-0.5 rounded bg-muted/60 border border-border/30 text-[8px]">Tab</kbd> {isJa ? "確定" : "done"}</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted/60 border border-border/30 text-[8px]">Esc</kbd> {isJa ? "破棄" : "cancel"}</span>
+            </div>
+          </div>
+
+          {/* IDE風コード行: シンタックスハイライト表示 */}
+          <div className="px-3 py-2 font-mono text-[13px] leading-relaxed min-h-[2em] flex items-center flex-wrap gap-0">
+            {/* 行番号風 */}
+            <span className="text-[10px] text-muted-foreground/20 mr-2 select-none font-mono">1</span>
+            {highlightedTokens.length > 0 ? (
+              highlightedTokens.map((tok, i) => (
+                <span key={i} className={`${TOKEN_COLORS[tok.kind]} ${tok.kind !== "text" ? "font-medium" : ""}`}>
+                  {tok.text}
+                </span>
+              ))
+            ) : composingText ? (
+              <span className="text-foreground/50">{composingText}</span>
+            ) : (
+              <span className="text-muted-foreground/25 italic text-[12px]">
+                {isJa ? "数式を入力… (例: a たす b, ルート x)" : "type math… (e.g. a plus b, sqrt x)"}
+              </span>
+            )}
+            {/* 点滅カーソル */}
+            <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-pulse ml-px" />
+          </div>
+        </div>
+      )}
 
       {/* ── textarea（画面外に隠蔽 — キー入力のみ受け取る） ── */}
       {showTextarea && (
@@ -659,42 +691,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           className="sr-only"
           rows={1}
         />
-      )}
-
-      {/* ── 数式候補リスト ── */}
-      {mathMode && mathSuggs.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-popover border border-violet-200/40 dark:border-violet-800/40 rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100">
-          <div className="px-3 py-1 border-b border-border/10 flex items-center justify-between bg-violet-50/40 dark:bg-violet-950/20">
-            <div className="flex items-center gap-1.5">
-              <Sigma className="h-3 w-3 text-violet-500" />
-              <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">数式変換</span>
-            </div>
-            <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/50">
-              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> {isJa ? "確定&終了" : "done"}</span>
-              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> {isJa ? "破棄" : "cancel"}</span>
-            </div>
-          </div>
-          {mathSuggs.slice(0, 6).map((sugg, i) => (
-            <button
-              key={i}
-              onMouseDown={(e) => { e.preventDefault(); acceptSugg(sugg); }}
-              className={`w-full text-left px-3 py-2 flex items-center gap-3 transition-colors ${
-                i === clampedSuggIdx ? "bg-violet-50/70 dark:bg-violet-950/25" : "hover:bg-muted/40"
-              }`}
-            >
-              <div className="min-w-[56px] flex justify-center">
-                <MathRenderer latex={sugg.latex} displayMode={false} />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[11px] font-medium text-foreground/80 truncate">{sugg.reading}</span>
-                <span className="text-[9px] text-muted-foreground/50">{sugg.category}</span>
-              </div>
-              {i === clampedSuggIdx && (
-                <span className="ml-auto text-[9px] font-mono text-violet-400/70">Tab</span>
-              )}
-            </button>
-          ))}
-        </div>
       )}
 
       {/* ── コマンドパレット (;; トリガー) ── */}
@@ -712,7 +708,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               <span className={`shrink-0 text-[10px] font-medium ${item.color}`}>{item.name}</span>
               <span className="text-muted-foreground text-[10px]">{item.description}</span>
               {item.type === "math" && (
-                <span className="ml-auto shrink-0 px-1.5 py-0.5 rounded text-[8px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300">モード</span>
+                <span className="ml-auto shrink-0 px-1.5 py-0.5 rounded text-[8px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300">{isJa ? "モード" : "mode"}</span>
               )}
             </button>
           ))}

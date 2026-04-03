@@ -1516,6 +1516,115 @@ for (const [names, template] of TERNARY_OPS) {
   }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §4c. シンタックスハイライト (IDE風トークン色分け)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// トークン種別:
+//   variable  — 英字1文字の変数 (x, y, a, b)        → シアン
+//   number    — 数字 (1, 2, 3.14)                    → オレンジ
+//   operator  — 演算子 (たす, plus, かける, times)    → ピンク
+//   unary     — 単項演算子 (ルート, sqrt, ベクトル)    → グリーン
+//   ternary   — 三項演算子 (積分, integral, 総和)     → パープル
+//   greek     — ギリシャ文字 (アルファ, パイ)          → エメラルド
+//   structure — 構造語 (分の, 乗, 添字)              → イエロー
+//   text      — その他テキスト                        → デフォルト
+
+export type MathTokenKind = "variable" | "number" | "operator" | "unary" | "ternary" | "greek" | "structure" | "text";
+
+export interface MathHighlightToken {
+  text: string;
+  kind: MathTokenKind;
+}
+
+/** ギリシャ文字の正規化済み名前セット */
+const GREEK_NAMES = new Set([
+  "あるふぁ","べーた","がんま","でるた","いぷしろん","ぜーた","いーた","しーた",
+  "いおた","かっぱ","らむだ","みゅー","にゅー","くさい","ぱい","ろー","しぐま",
+  "たう","うぷしろん","ふぁい","かい","ぷさい","おめが",
+  "alpha","beta","gamma","delta","epsilon","zeta","eta","theta",
+  "iota","kappa","lambda","mu","nu","xi","pi","rho","sigma",
+  "tau","upsilon","phi","chi","psi","omega",
+]);
+
+/** 構造語 (日本語+英語) */
+const STRUCTURE_WORDS = new Set([
+  "ぶんの","分の","じょう","乗","そえじ","添え字","添字","うえつき","上付き",
+  "したつき","下付き","かっこ","括弧","なみかっこ","かくかっこ",
+  "of","squared","cubed","sub","sup",
+]);
+
+/**
+ * 数式入力テキストをIDE風にトークン色分けする
+ * スペースで区切ったトークンをそれぞれ分類
+ */
+export function highlightMathTokens(input: string): MathHighlightToken[] {
+  if (!input) return [];
+
+  // スペース区切りでトークン化（スペース自体もトークンとして保持）
+  const parts = input.split(/(\s+)/);
+  const result: MathHighlightToken[] = [];
+
+  for (const part of parts) {
+    if (!part) continue;
+    // スペースはそのまま
+    if (/^\s+$/.test(part)) {
+      result.push({ text: part, kind: "text" });
+      continue;
+    }
+
+    const norm = normalizeForMatch(part);
+
+    // OPERATOR_LOOKUP で判定
+    const opInfo = OPERATOR_LOOKUP.get(norm);
+    if (opInfo) {
+      if (opInfo.kind === "ternary_infix") {
+        result.push({ text: part, kind: "ternary" });
+      } else if (opInfo.kind === "prefix") {
+        result.push({ text: part, kind: "unary" });
+      } else {
+        result.push({ text: part, kind: "operator" });
+      }
+      continue;
+    }
+
+    // ギリシャ文字
+    if (GREEK_NAMES.has(norm)) {
+      result.push({ text: part, kind: "greek" });
+      continue;
+    }
+
+    // 構造語
+    if (STRUCTURE_WORDS.has(norm)) {
+      result.push({ text: part, kind: "structure" });
+      continue;
+    }
+
+    // 数字（半角・漢数字・ひらがな数字パターン）
+    if (/^[\d.]+$/.test(part) || /^[零〇一二三四五六七八九十百千万]+$/.test(part)) {
+      result.push({ text: part, kind: "number" });
+      continue;
+    }
+
+    // 英字1文字 = 変数
+    if (/^[a-zA-Z]$/.test(part)) {
+      result.push({ text: part, kind: "variable" });
+      continue;
+    }
+
+    // 変数+数字混合 (a_1, x^2 など) は分割してハイライト
+    if (/^[a-zA-Z]/.test(part) && part.length <= 5) {
+      result.push({ text: part, kind: "variable" });
+      continue;
+    }
+
+    // デフォルト
+    result.push({ text: part, kind: "text" });
+  }
+
+  return result;
+}
+
 /**
  * 厳密な演算規則に基づくスペース区切りトークン解析
  *
