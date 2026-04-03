@@ -198,11 +198,35 @@ export function normalizeForMatch(s: string): string {
 }
 
 /**
- * パーサー用正規化: 全角→半角 + カタカナ→ひらがな
+ * ひらがな数字 → 半角数字
+ * 数式モードで「いち」「に」「さん」等と入力されたとき半角数字に変換
+ */
+const HIRAGANA_DIGITS: [RegExp, string][] = [
+  [/じゅう/g, "10"],
+  [/ひゃく/g, "100"],
+  [/せん/g, "1000"],
+  [/まん/g, "10000"],
+  [/いち/g, "1"], [/に(?![じゅうかいかかいぶ])/g, "2"], [/さん(?![かく])/g, "3"],
+  [/よん/g, "4"], [/し(?![ー])/g, "4"],
+  [/ご(?![う])/g, "5"], [/ろく/g, "6"], [/なな/g, "7"],
+  [/はち/g, "8"], [/きゅう/g, "9"], [/れい/g, "0"], [/ぜろ/g, "0"],
+];
+
+function hiraganaDigitsToNumber(s: string): string {
+  for (const [re, digit] of HIRAGANA_DIGITS) {
+    s = s.replace(re, digit);
+  }
+  return s;
+}
+
+/**
+ * パーサー用正規化: 全角→半角 + カタカナ→ひらがな + ひらがな数字→半角数字
  * パーサーの Phase 0 で適用
  */
 function normalizeForParse(s: string): string {
-  return katakanaToHiragana(zenkakuToHankaku(s));
+  let r = katakanaToHiragana(zenkakuToHankaku(s));
+  r = hiraganaDigitsToNumber(r);
+  return r;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1382,8 +1406,13 @@ interface OperatorInfo {
  */
 const OPERATOR_LOOKUP: Map<string, OperatorInfo> = new Map();
 
+// ═══════════════════════════════════════════════════════════════
+// 日本語 + 英語 自然言語演算子テーブル
+// ═══════════════════════════════════════════════════════════════
+
 // --- 1項前置演算子 (arity=1) ---
 const UNARY_PREFIX_OPS: [string[], (a: string) => string][] = [
+  // 日本語
   [["るーと", "平方根", "根号", "√"], (a) => `\\sqrt{${a}}`],
   [["ぜったいち", "絶対値"], (a) => `\\left| ${a} \\right|`],
   [["のるむ"], (a) => `\\left\\| ${a} \\right\\|`],
@@ -1399,6 +1428,16 @@ const UNARY_PREFIX_OPS: [string[], (a: string) => string][] = [
   [["下括弧", "したかっこ", "あんだーぶれーす"], (a) => `\\underbrace{${a}}`],
   [["天井関数", "てんじょうかんすう", "切り上げ", "きりあげ"], (a) => `\\lceil ${a} \\rceil`],
   [["床関数", "ゆかかんすう", "切り捨て", "きりすて", "がうす"], (a) => `\\lfloor ${a} \\rfloor`],
+  // 英語
+  [["sqrt", "root", "squareroot"], (a) => `\\sqrt{${a}}`],
+  [["abs", "absolute"], (a) => `\\left| ${a} \\right|`],
+  [["norm"], (a) => `\\left\\| ${a} \\right\\|`],
+  [["vector"], (a) => `\\vec{${a}}`],
+  [["underline"], (a) => `\\underline{${a}}`],
+  [["overbrace"], (a) => `\\overbrace{${a}}`],
+  [["underbrace"], (a) => `\\underbrace{${a}}`],
+  [["ceil", "ceiling"], (a) => `\\lceil ${a} \\rceil`],
+  [["floor"], (a) => `\\lfloor ${a} \\rfloor`],
 ];
 
 for (const [names, template] of UNARY_PREFIX_OPS) {
@@ -1411,6 +1450,7 @@ for (const [names, template] of UNARY_PREFIX_OPS) {
 
 // --- 2項中置演算子 (arity=2, infix) ---
 const BINARY_INFIX_OPS: [string[], string][] = [
+  // 日本語
   [["たす", "たして", "足す", "足して", "ぷらす", "加算", "かさん"], "+ "],
   [["ひく", "ひいて", "引く", "引いて", "まいなす", "減算", "げんざん"], "- "],
   [["かける", "かけて", "掛ける", "掛けて", "乗算", "じょうざん"], "\\times "],
@@ -1422,6 +1462,19 @@ const BINARY_INFIX_OPS: [string[], string][] = [
   [["みまん", "未満"], "< "],
   [["ならば"], "\\Rightarrow "],
   [["どうち", "同値"], "\\Leftrightarrow "],
+  // 英語
+  [["plus", "add"], "+ "],
+  [["minus", "subtract"], "- "],
+  [["times", "multiply", "multiplied"], "\\times "],
+  [["divide", "divided", "over"], "\\div "],
+  [["equals", "equal", "is"], "= "],
+  [["notequal", "notequals"], "\\neq "],
+  [["leq", "lessequal", "atmost"], "\\leq "],
+  [["geq", "greaterequal", "atleast"], "\\geq "],
+  [["lessthan", "less"], "< "],
+  [["greaterthan", "greater"], "> "],
+  [["implies"], "\\Rightarrow "],
+  [["iff"], "\\Leftrightarrow "],
 ];
 
 for (const [names, latex] of BINARY_INFIX_OPS) {
@@ -1435,13 +1488,23 @@ for (const [names, latex] of BINARY_INFIX_OPS) {
 // --- 3項演算子 (arity=3, ternary_infix) ---
 // 形式: arg1 arg2 OP arg3  →  LaTeX(arg1, arg2, arg3)
 const TERNARY_OPS: [string[], (a: string, b: string, c: string) => string][] = [
+  // 日本語
   [["せきぶん", "積分", "いんてぐらる"],
     (lo, hi, body) => `\\int_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
-  [["そうわ", "総和", "合計", "ごうけい", "sum"],
+  [["そうわ", "総和", "合計", "ごうけい"],
     (lo, hi, body) => `\\sum_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
-  [["そうじょう", "総乗", "prod"],
+  [["そうじょう", "総乗"],
     (lo, hi, body) => `\\prod_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
-  [["きょくげん", "極限", "りみっと", "lim"],
+  [["きょくげん", "極限", "りみっと"],
+    (v, target, body) => `\\lim_{${resolveTerm(v)} \\to ${resolveTerm(target)}} ${resolveTerm(body)}`],
+  // 英語
+  [["integral", "integrate", "int"],
+    (lo, hi, body) => `\\int_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
+  [["sum", "summation"],
+    (lo, hi, body) => `\\sum_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
+  [["prod", "product"],
+    (lo, hi, body) => `\\prod_{${resolveTerm(lo)}}^{${resolveTerm(hi)}} ${resolveTerm(body)}`],
+  [["lim", "limit"],
     (v, target, body) => `\\lim_{${resolveTerm(v)} \\to ${resolveTerm(target)}} ${resolveTerm(body)}`],
 ];
 
@@ -1991,18 +2054,33 @@ export function parseJapanesemath(input: string): string {
   // 演算子パターン: (?<=^|[\s]|[a-zA-Z0-9)])OPERATOR(?=$|[\s]|[a-zA-Z0-9(])
 
   // 長いパターンを先に処理（部分マッチ防止）
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:のっといこーる|等しくない|ひとしくない)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\neq ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:たす|たして|足す|足して|ぷらす|加算|かさん)(?=$|[\sa-zA-Z0-9(\[{])/g, "+ ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:ひく|ひいて|引く|引いて|まいなす|減算|げんざん)(?=$|[\sa-zA-Z0-9(\[{])/g, "- ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:かける|かけて|掛ける|掛けて|乗算|じょうざん)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\times ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:わる|わって|割る|割って|除算|じょざん)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\div ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:いこーる|等しい|ひとしい)(?=$|[\sa-zA-Z0-9(\[{])/g, "= ");
+  // B = 境界: (?<=^|[\sa-zA-Z0-9)\]}])  ...  (?=$|[\sa-zA-Z0-9(\[{])
+  const B_L = "(?<=^|[\\sa-zA-Z0-9)\\]\\}])";
+  const B_R = "(?=$|[\\sa-zA-Z0-9(\\[\\{])";
+
+  // 日本語演算子
+  result = result.replace(new RegExp(`${B_L}(?:のっといこーる|等しくない|ひとしくない)${B_R}`, "g"), "\\neq ");
+  result = result.replace(new RegExp(`${B_L}(?:たす|たして|足す|足して|ぷらす|加算|かさん)${B_R}`, "g"), "+ ");
+  result = result.replace(new RegExp(`${B_L}(?:ひく|ひいて|引く|引いて|まいなす|減算|げんざん)${B_R}`, "g"), "- ");
+  result = result.replace(new RegExp(`${B_L}(?:かける|かけて|掛ける|掛けて|乗算|じょうざん)${B_R}`, "g"), "\\times ");
+  result = result.replace(new RegExp(`${B_L}(?:わる|わって|割る|割って|除算|じょざん)${B_R}`, "g"), "\\div ");
+  result = result.replace(new RegExp(`${B_L}(?:いこーる|等しい|ひとしい)${B_R}`, "g"), "= ");
   result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])いか(?!ら)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\leq ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])以下(?=$|[\sa-zA-Z0-9(\[{])/g, "\\leq ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:いじょう|以上)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\geq ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:みまん|未満)(?=$|[\sa-zA-Z0-9(\[{])/g, "< ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])ならば(?=$|[\sa-zA-Z0-9(\[{])/g, "\\Rightarrow ");
-  result = result.replace(/(?<=^|[\sa-zA-Z0-9)\]}])(?:どうち|同値)(?=$|[\sa-zA-Z0-9(\[{])/g, "\\Leftrightarrow ");
+  result = result.replace(new RegExp(`${B_L}以下${B_R}`, "g"), "\\leq ");
+  result = result.replace(new RegExp(`${B_L}(?:いじょう|以上)${B_R}`, "g"), "\\geq ");
+  result = result.replace(new RegExp(`${B_L}(?:みまん|未満)${B_R}`, "g"), "< ");
+  result = result.replace(new RegExp(`${B_L}ならば${B_R}`, "g"), "\\Rightarrow ");
+  result = result.replace(new RegExp(`${B_L}(?:どうち|同値)${B_R}`, "g"), "\\Leftrightarrow ");
+
+  // 英語演算子 (単語境界 \b を使用)
+  result = result.replace(/\bplus\b/gi, "+ ");
+  result = result.replace(/\bminus\b/gi, "- ");
+  result = result.replace(/\btimes\b/gi, "\\times ");
+  result = result.replace(/\bdivided\b/gi, "\\div ");
+  result = result.replace(/\bequals?\b/gi, "= ");
+  result = result.replace(/\bnotequals?\b/gi, "\\neq ");
+  result = result.replace(/\bimplies\b/gi, "\\Rightarrow ");
+  result = result.replace(/\biff\b/gi, "\\Leftrightarrow ");
 
   // ── Phase 4: 辞書引き (残りの記号・関数) ──
   for (const entry of MATH_DICTIONARY) {

@@ -316,7 +316,8 @@ function RenderedInlineText({ text, style }: { text: string; style?: React.CSSPr
 }
 
 function ParagraphBlockEditor({ block }: { block: Block }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isJa = locale !== "en";
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const addBlock = useDocumentStore((s) => s.addBlock);
   const convertBlock = useDocumentStore((s) => s.convertBlock);
@@ -512,7 +513,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       // Esc → 未確定テキストを破棄して数式モード終了
       if (e.key === "Escape") {
         e.preventDefault();
-        // 未確定分を削除
         const before = content.text.slice(0, mathAnchor);
         updateContent(block.id, { text: before });
         setMathMode(false);
@@ -527,43 +527,14 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         }, 0);
         return;
       }
-      // ; (セミコロン) → 現在の入力を変換確定して数式モード終了
-      if (e.key === ";") {
+      // Tab → 変換確定して数式モード終了
+      if (e.key === "Tab") {
         e.preventDefault();
         finishMathMode();
         return;
       }
-      // Tab → 候補があれば候補で確定、なければ変換確定（数式モードに留まる）
-      if (e.key === "Tab") {
-        e.preventDefault();
-        if (mathSuggs.length > 0) {
-          acceptSugg(mathSuggs[clampedSuggIdx]);
-        } else if (composingText.trim()) {
-          const latex = parseJapanesemath(composingText);
-          const before = content.text.slice(0, mathAnchor);
-          const newText = before + "$" + latex + "$";
-          updateContent(block.id, { text: newText });
-          const newAnchor = newText.length;
-          setMathAnchor(newAnchor);
-          setTimeout(() => {
-            if (textareaRef.current) {
-              textareaRef.current.selectionStart = newAnchor;
-              textareaRef.current.selectionEnd = newAnchor;
-              textareaRef.current.focus();
-            }
-          }, 0);
-        }
-        return;
-      }
-      // Enter → 数式モード中は何もしない（誤確定防止）
-      if (e.key === "Enter") {
-        e.preventDefault();
-        return;
-      }
-      // 候補ナビゲーション
-      if (mathSuggs.length > 0 && e.key === "ArrowDown") { e.preventDefault(); setMathSuggIdx((i) => Math.min(i + 1, mathSuggs.length - 1)); return; }
-      if (mathSuggs.length > 0 && e.key === "ArrowUp")   { e.preventDefault(); setMathSuggIdx((i) => Math.max(i - 1, 0)); return; }
-      // その他はそのままtextareaに自然言語入力
+      // Enter, 矢印キー → 通常の日本語入力と同じ動作（何も奪わない）
+      // その他のキーもそのままtextareaに自然言語入力
       return;
     }
 
@@ -615,7 +586,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       if (newId) { sel(newId); setEdit(newId); }
       return;
     }
-  }, [mathMode, mathSuggs, clampedSuggIdx, acceptSugg, finishMathMode, composingText, mathAnchor, showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, block.id, addBlock, content.text, enterMathMode, updateContent]);
+  }, [mathMode, finishMathMode, mathAnchor, showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, block.id, addBlock, content.text, enterMathMode, updateContent, setMathEditing]);
 
   const baseStyle: React.CSSProperties = {
     fontSize: block.style.fontSize ? `${block.style.fontSize}pt` : undefined,
@@ -699,9 +670,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">数式変換</span>
             </div>
             <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/50">
-              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> 確定</span>
-              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">;</kbd> 確定&終了</span>
-              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> 破棄</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Tab</kbd> {isJa ? "確定&終了" : "done"}</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border text-[8px]">Esc</kbd> {isJa ? "破棄" : "cancel"}</span>
             </div>
           </div>
           {mathSuggs.slice(0, 6).map((sugg, i) => (

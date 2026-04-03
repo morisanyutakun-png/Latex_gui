@@ -133,7 +133,7 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
           <div className="w-2.5 h-2.5 rounded-full bg-green-400/60" />
         </div>
         <span className="text-[11px] text-muted-foreground/50 ml-2 font-medium">
-          {isJa ? "二次方程式 演習プリント.pdf" : "Quadratic Equations Worksheet.pdf"}
+          Eddivom — {isJa ? "二次方程式 演習プリント.pdf" : "Quadratic Equations Worksheet.pdf"}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
@@ -340,7 +340,7 @@ export function TemplateGallery() {
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/[0.07] dark:bg-primary/[0.12] border border-primary/[0.10] mb-8">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span className="text-primary text-[12px] font-semibold tracking-wide">
-                {isJa ? "数式がきれいな教材を、自分の手で。" : "Math worksheets that just work."}
+                Eddivom — {isJa ? "数式がきれいな教材を、自分の手で" : "math worksheets that just work"}
               </span>
             </div>
 
@@ -355,8 +355,8 @@ export function TemplateGallery() {
 
             <p className="text-muted-foreground text-[16px] sm:text-[18px] leading-relaxed max-w-xl mx-auto mb-10 font-light">
               {isJa
-                ? "PDFや画像を取り込んで、問題ごとに編集。\n類題を一瞬で増やし、解答付きPDFですぐ配布。"
-                : "Import a PDF. Edit each problem. Generate variants.\nExport with answer keys. Equations always look perfect."}
+                ? "Eddivom なら、PDFを取り込んで問題ごとに編集。\n類題を一瞬で増やし、解答付きPDFですぐ配布。"
+                : "Eddivom turns your PDFs into editable problems.\nGenerate variants. Export with answer keys. Equations always look perfect."}
             </p>
 
             {/* CTAs */}
@@ -365,7 +365,7 @@ export function TemplateGallery() {
                 onClick={handleStart}
                 className="group flex items-center gap-3 px-8 py-4 rounded-full bg-foreground text-background font-semibold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
               >
-                {isJa ? "無料で試してみる" : "Try it free"}
+                {isJa ? "Eddivom を無料で試す" : "Try Eddivom free"}
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
               {saved && (
@@ -405,7 +405,7 @@ export function TemplateGallery() {
         >
           <div className="text-center mb-12">
             <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
-              {isJa ? "こんな方に" : "Built for"}
+              {isJa ? "Eddivom はこんな方に" : "Who uses Eddivom"}
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
               {isJa ? "教材を自分で作る、すべての先生へ。" : "For math educators who make their own worksheets."}
@@ -413,7 +413,7 @@ export function TemplateGallery() {
             <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
               {isJa
                 ? "演習プリント・小テスト・宿題・模試。自分で作るからこそ、速く作りたい。"
-                : "Algebra, geometry, precalc — whether for your classes or for sale. You build them, so you need them built fast."}
+                : "Algebra, geometry, precalc — whether for your classes or for sale. Eddivom makes the build-part fast."}
             </p>
           </div>
 
@@ -452,7 +452,7 @@ export function TemplateGallery() {
         >
           <div className="text-center mb-12">
             <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
-              {isJa ? "ワークスペース" : "Workspace"}
+              {isJa ? "Eddivom のワークスペース" : "The Eddivom workspace"}
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
               {isJa ? "チャットではなく、教材エディタ。" : "Not a chatbot. A worksheet workbench."}
@@ -485,6 +485,9 @@ export function TemplateGallery() {
       {/* ━━ Outcome stats ━━ */}
       <section className="relative border-y border-foreground/[0.04] bg-foreground/[0.01] dark:bg-white/[0.015]">
         <div className="max-w-4xl mx-auto px-6 py-10">
+          <p className="text-center text-[11px] font-semibold tracking-[0.15em] uppercase text-primary/60 mb-6">
+            {isJa ? "Eddivom なら" : "With Eddivom"}
+          </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
               { value: isJa ? "30秒" : "30s", label: isJa ? "で問題セットを生成" : "to generate a problem set" },
@@ -512,7 +515,7 @@ export function TemplateGallery() {
         >
           <div className="text-center mb-14">
             <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
-              {isJa ? "ワークフロー" : "Workflow"}
+              {isJa ? "Eddivom のワークフロー" : "How Eddivom works"}
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
               {isJa ? "入力から配布まで、5ステップ。" : "PDF to printable worksheet in 5 steps."}
@@ -584,12 +587,14 @@ export function TemplateGallery() {
           className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${featuresFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
           <div className="text-center mb-14">
-            <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">Features</p>
+            <p className="text-primary text-[12px] font-semibold tracking-[0.2em] uppercase mb-4">
+              {isJa ? "Eddivom の機能" : "Eddivom features"}
+            </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
               {isJa ? "問題作成から配布まで、全部ここで。" : "Everything between \"I need a worksheet\" and \"it's printing.\""}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
-              {isJa ? "LaTeXの知識は不要。入力すれば、プロ品質の教材が出来上がります。" : "No LaTeX knowledge needed. Equations render perfectly — you just focus on the math."}
+              {isJa ? "LaTeXの知識は不要。Eddivom が数式をきれいに仕上げます。" : "No LaTeX knowledge needed. Eddivom handles the typesetting — you just focus on the math."}
             </p>
           </div>
 
@@ -679,12 +684,12 @@ export function TemplateGallery() {
         >
           <div className="text-center mb-12">
             <h2 className="text-[clamp(1.3rem,3.5vw,2rem)] font-bold tracking-tight mb-4">
-              {isJa ? "テンプレートツールでも、LaTeX専用ツールでもない。" : "Canva can't do equations. Overleaf is overkill."}
+              {isJa ? "Canva でもない、Overleaf でもない。" : "Canva can't do equations. Overleaf is overkill."}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
               {isJa
-                ? "教材の「運用」を速くする、ワークフロー特化のツールです。"
-                : "This is the tool in between — built specifically for math worksheet workflows."}
+                ? "Eddivom は、数式教材の「運用」を速くする専用ツールです。"
+                : "Eddivom sits right in between — built specifically for math worksheet workflows."}
             </p>
           </div>
 
@@ -774,8 +779,8 @@ export function TemplateGallery() {
             </div>
             <p className="text-center text-[11px] text-muted-foreground/40 mt-4 px-4">
               {isJa
-                ? "知らなくても使える。知っていればもっと自由。"
-                : "You don't need to know it. But if you do, you'll love it."}
+                ? "知らなくても使える。知っていれば Eddivom はもっと自由に。"
+                : "You don't need to know it. But if you do, Eddivom goes even further."}
             </p>
           </div>
         </div>
@@ -789,19 +794,19 @@ export function TemplateGallery() {
           className={`relative max-w-2xl mx-auto text-center px-6 transition-all duration-1000 ${ctaFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
           <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-5">
-            {isJa ? "教材づくりを、今夜から変えよう。" : "Your next worksheet, done tonight."}
+            {isJa ? "Eddivom で、教材づくりを今夜から変えよう。" : "Try Eddivom tonight. Your worksheet will be done before bed."}
           </h2>
           <p className="text-muted-foreground text-[15px] mb-10 max-w-md mx-auto leading-relaxed whitespace-pre-line">
             {isJa
               ? "手持ちのPDFでも、ゼロからでも。\n登録なし、30秒で最初の1枚。"
-              : "Bring a PDF you already have, or start from scratch.\nNo signup — just open it and go."}
+              : "Bring a PDF you already have, or start from scratch.\nNo signup — just open Eddivom and go."}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
               onClick={handleStart}
               className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-[15px] shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
             >
-              {isJa ? "無料で試してみる" : "Try Eddivom free"}
+              {isJa ? "Eddivom を無料で試す" : "Try Eddivom free"}
               <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
           </div>
