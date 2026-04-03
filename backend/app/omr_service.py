@@ -1,11 +1,9 @@
 """OMR service — image/PDF → structured document blocks via Gemini Vision
-(開発用: Gemini Vision を使用。将来的には Claude Vision に戻す。)
+開発用: Gemini Vision を使用。将来的には Claude Vision に戻す。
 """
-import base64
 import logging
-from typing import Any
 
-from .ai_service import configure_gemini, GEMINI_TOOL_DEF, _proto_args_to_dict
+from .ai_service import get_client, GEMINI_TOOL_DEF
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +47,9 @@ async def analyze_image(
     Returns { description: str, patches: dict | None }
     """
     import asyncio
+    from google.genai import types  # type: ignore
 
-    genai = configure_gemini()
-
-    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+    client = get_client()
 
     prompt_text = (
         f"この画像からドキュメント構造を抽出してください。{hint}"
@@ -60,23 +57,28 @@ async def analyze_image(
         else "この画像からドキュメント構造を抽出して、ブロックとして追加してください。"
     )
 
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
+    config = types.GenerateContentConfig(
         system_instruction=OMR_SYSTEM_PROMPT,
         tools=[GEMINI_TOOL_DEF],
     )
 
+    contents = [
+        types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    inline_data=types.Blob(mime_type=media_type, data=image_bytes)
+                ),
+                types.Part(text=prompt_text),
+            ],
+        )
+    ]
+
     def _call():
-        return model.generate_content(
-            contents=[
-                {
-                    "role": "user",
-                    "parts": [
-                        {"inline_data": {"mime_type": media_type, "data": image_b64}},
-                        {"text": prompt_text},
-                    ],
-                }
-            ]
+        return client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=contents,
+            config=config,
         )
 
     response = await asyncio.to_thread(_call)
@@ -87,10 +89,10 @@ async def analyze_image(
     try:
         parts = response.candidates[0].content.parts
         for part in parts:
-            if hasattr(part, "text") and part.text:
+            if part.text:
                 text_parts.append(part.text)
-            if hasattr(part, "function_call") and part.function_call.name == "edit_document":
-                patches = _proto_args_to_dict(part.function_call.args)
+            if part.function_call and part.function_call.name == "edit_document":
+                patches = dict(part.function_call.args)
     except (IndexError, AttributeError) as e:
         logger.warning("Gemini OMR レスポンスのパースに失敗: %s", e)
 

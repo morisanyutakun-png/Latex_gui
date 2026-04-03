@@ -1,16 +1,14 @@
-"""AI service — Google Gemini API integration for document editing assistance
-(開発用: ANTHROPIC_API_KEY 環境変数を Gemini API キーとして使用)
+"""AI service — Google Gemini API (google-genai SDK) integration
+開発用: ANTHROPIC_API_KEY 環境変数を Gemini API キーとして使用。
 将来的には Anthropic Claude に戻す予定。
 """
 import os
-import json
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # ─── Gemini tool definition ───────────────────────────────────────────────────
-# Anthropic の oneOf スキーマは Gemini 非対応のため、フラットな定義に変換
 
 GEMINI_TOOL_DEF = {
     "function_declarations": [
@@ -39,11 +37,11 @@ GEMINI_TOOL_DEF = {
                                 },
                                 "afterId": {
                                     "type": "string",
-                                    "description": "(add_block) ID of block to insert after. Omit or null for beginning.",
+                                    "description": "(add_block) ID of block to insert after. Omit for beginning.",
                                 },
                                 "block": {
                                     "type": "object",
-                                    "description": "(add_block) Full block object: {id, content: {type, ...}, style: {...}}",
+                                    "description": "(add_block) Full block: {id, content: {type, ...}, style: {...}}",
                                 },
                                 "blockId": {
                                     "type": "string",
@@ -77,64 +75,13 @@ GEMINI_TOOL_DEF = {
 TOOLS: list[dict[str, Any]] = [
     {
         "name": "edit_document",
-        "description": (
-            "Apply structured edits to the LaTeX document. "
-            "Use this when the user asks to add, modify, or remove content from the document. "
-            "Each operation in 'ops' is applied in order."
-        ),
+        "description": "Apply structured edits to the LaTeX document.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "ops": {
                     "type": "array",
-                    "description": "List of document patch operations to apply",
-                    "items": {
-                        "oneOf": [
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "op": {"type": "string", "enum": ["add_block"]},
-                                    "afterId": {"type": ["string", "null"]},
-                                    "block": {
-                                        "type": "object",
-                                        "properties": {
-                                            "id": {"type": "string"},
-                                            "content": {"type": "object"},
-                                            "style": {"type": "object"},
-                                        },
-                                        "required": ["id", "content", "style"],
-                                    },
-                                },
-                                "required": ["op", "afterId", "block"],
-                            },
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "op": {"type": "string", "enum": ["update_block"]},
-                                    "blockId": {"type": "string"},
-                                    "content": {"type": "object"},
-                                    "style": {"type": "object"},
-                                },
-                                "required": ["op", "blockId"],
-                            },
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "op": {"type": "string", "enum": ["delete_block"]},
-                                    "blockId": {"type": "string"},
-                                },
-                                "required": ["op", "blockId"],
-                            },
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "op": {"type": "string", "enum": ["reorder"]},
-                                    "blockIds": {"type": "array", "items": {"type": "string"}},
-                                },
-                                "required": ["op", "blockIds"],
-                            },
-                        ]
-                    },
+                    "items": {"type": "object"},
                 }
             },
             "required": ["ops"],
@@ -174,50 +121,46 @@ When creating math problems:
 - Use LaTeX notation in math blocks: fractions as \\frac{a}{b}, roots as \\sqrt{x}, etc.
 - For inline math in paragraphs, use $...$ notation
 - Ensure all equations are mathematically correct and properly formatted
-- Vary difficulty and problem types unless specified
 
 ## Document Block Types
 - heading: { type: "heading", text: string, level: 1|2|3 }
-- paragraph: { type: "paragraph", text: string }  ← supports inline $math$
+- paragraph: { type: "paragraph", text: string }
 - math: { type: "math", latex: string, displayMode: boolean }
-- list: { type: "list", style: "bullet"|"numbered", items: string[] }  ← items support $math$
+- list: { type: "list", style: "bullet"|"numbered", items: string[] }
 - table: { type: "table", headers: string[], rows: string[][] }
-- image: { type: "image", url: string, caption: string, width: number (10-100) }
 - divider: { type: "divider", style: "solid"|"dashed"|"dotted" }
 - code: { type: "code", language: string, code: string }
 - quote: { type: "quote", text: string, attribution: string }
-- circuit: { type: "circuit", code: string, caption: string } (circuitikz TikZ code)
-- diagram: { type: "diagram", diagramType: string, code: string, caption: string } (TikZ)
+- circuit: { type: "circuit", code: string, caption: string }
+- diagram: { type: "diagram", diagramType: string, code: string, caption: string }
 - chemistry: { type: "chemistry", formula: string, caption: string, displayMode: boolean }
 - chart: { type: "chart", chartType: "line"|"bar"|"scatter"|"histogram", code: string, caption: string }
 
 ## Block Style Object
 { textAlign: "left"|"center"|"right", fontSize: number, fontFamily: "serif"|"sans", bold: boolean, italic: boolean, underline: boolean }
-Default style: { textAlign: "left", fontSize: 12, fontFamily: "serif", bold: false, italic: false, underline: false }
+Default: { textAlign: "left", fontSize: 12, fontFamily: "serif", bold: false, italic: false, underline: false }
 
 ## ID Generation
-Generate IDs as "ai-" + 8 random hex chars (e.g. "ai-3f8a1b2c"). Every new block must have a unique ID.
+Generate IDs as "ai-" + 8 random hex chars (e.g. "ai-3f8a1b2c"). Every new block needs a unique ID.
 
 ## Output Rules
 - After using the tool, write a brief 1-2 sentence Japanese summary of what was created/changed.
-- Keep styles consistent with surrounding blocks.
-- When updating a document with many blocks, use update_block for targeted edits; use add_block for new content.
 - Respond in Japanese by default unless the user writes in English.
 - Be decisive. Be complete. Deliver exactly what was asked.
 """
 
 
-def configure_gemini():
+def get_client():
     """
-    Google Generative AI を設定して返す。
+    google-genai Client を返す。
     API キーは ANTHROPIC_API_KEY 環境変数から読み込む（開発用）。
     """
     try:
-        import google.generativeai as genai  # type: ignore
+        from google import genai  # type: ignore
     except ImportError:
         raise RuntimeError(
-            "google-generativeai パッケージがインストールされていません。"
-            "pip install google-generativeai を実行してください。"
+            "google-genai パッケージがインストールされていません。"
+            "pip install google-genai を実行してください。"
         )
 
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
@@ -227,38 +170,7 @@ def configure_gemini():
             "バックエンドの環境変数に ANTHROPIC_API_KEY (= Gemini API キー) を設定してください。"
         )
 
-    genai.configure(api_key=key)
-    return genai
-
-
-# 後方互換性のため get_client も提供（omr_service から使用）
-def get_client():
-    return configure_gemini()
-
-
-def _proto_args_to_dict(args) -> dict:
-    """Gemini function_call.args (proto MapComposite) を Python dict に変換する。"""
-    # proto-plus の to_dict を試みる
-    try:
-        if hasattr(type(args), "to_dict"):
-            return type(args).to_dict(args)
-    except Exception:
-        pass
-
-    # protobuf JSON 経由で変換
-    try:
-        from google.protobuf.json_format import MessageToJson  # type: ignore
-        pb = getattr(args, "_pb", args)
-        return json.loads(MessageToJson(pb))
-    except Exception:
-        pass
-
-    # 最終フォールバック
-    try:
-        return dict(args)
-    except Exception as e:
-        logger.warning("function_call.args の変換に失敗しました: %s", e)
-        return {}
+    return genai.Client(api_key=key)
 
 
 def _document_context(document: dict) -> str:
@@ -294,8 +206,6 @@ def _document_context(document: dict) -> str:
         elif btype == "table":
             rows = content.get("rows", [])
             preview = f'表: {len(content.get("headers", []))}列 × {len(rows)}行'
-        elif btype == "image":
-            preview = f'画像: {content.get("caption", "(caption無し)")}'
         elif btype == "code":
             preview = f'コード({content.get("language", "text")})'
         elif btype == "circuit":
@@ -324,12 +234,13 @@ def _document_context(document: dict) -> str:
 
 async def chat(messages: list[dict], document: dict) -> dict:
     """
-    Gemini を使ってチャットメッセージを送信し、ドキュメント編集パッチを返す。
+    Gemini を使ってチャットし、ドキュメント編集パッチを返す。
     Returns { message: str, patches: dict | None, usage: dict }
     """
     import asyncio
+    from google.genai import types  # type: ignore
 
-    genai = configure_gemini()
+    client = get_client()
     doc_context = _document_context(document)
 
     # 最後のユーザーメッセージのインデックスを特定
@@ -338,11 +249,9 @@ async def chat(messages: list[dict], document: dict) -> dict:
         default=0,
     )
 
-    # Gemini 形式の履歴とカレントメッセージを構築
+    # Gemini 形式の contents を構築
     # Gemini は role: "user" | "model" を使う（assistant → model）
-    history = []
-    current_msg_text = ""
-
+    contents = []
     for i, msg in enumerate(messages):
         role = msg.get("role", "user")
         content = msg.get("content", "")
@@ -352,22 +261,21 @@ async def chat(messages: list[dict], document: dict) -> dict:
             content = f"## 現在の文書情報\n{doc_context}\n\n## ユーザーの依頼\n{content}"
 
         gemini_role = "model" if role == "assistant" else "user"
+        contents.append(
+            types.Content(role=gemini_role, parts=[types.Part(text=content)])
+        )
 
-        if i == len(messages) - 1 and role == "user":
-            # 最後のユーザーメッセージはカレントメッセージとして送る
-            current_msg_text = content
-        else:
-            history.append({"role": gemini_role, "parts": [{"text": content}]})
-
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
+    config = types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
         tools=[GEMINI_TOOL_DEF],
     )
 
     def _call():
-        chat_session = model.start_chat(history=history)
-        return chat_session.send_message(current_msg_text)
+        return client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=contents,
+            config=config,
+        )
 
     response = await asyncio.to_thread(_call)
 
@@ -378,23 +286,23 @@ async def chat(messages: list[dict], document: dict) -> dict:
     try:
         parts = response.candidates[0].content.parts
         for part in parts:
-            if hasattr(part, "text") and part.text:
+            if part.text:
                 text_parts.append(part.text)
-            if hasattr(part, "function_call") and part.function_call.name == "edit_document":
-                patches = _proto_args_to_dict(part.function_call.args)
+            if part.function_call and part.function_call.name == "edit_document":
+                patches = dict(part.function_call.args)
     except (IndexError, AttributeError) as e:
         logger.warning("Gemini レスポンスのパースに失敗: %s", e)
 
     message = "\n".join(text_parts).strip()
     if not message and patches:
-        message = f"{len(patches.get('ops', []))}件の変更を提案しました。内容を確認して「適用する」を押してください。"
+        message = f"{len(patches.get('ops', []))}件の変更を提案しました。"
 
-    # usage_metadata があれば取得
+    # usage_metadata
     usage = {"inputTokens": 0, "outputTokens": 0}
     try:
         um = response.usage_metadata
-        usage["inputTokens"] = um.prompt_token_count
-        usage["outputTokens"] = um.candidates_token_count
+        usage["inputTokens"] = um.prompt_token_count or 0
+        usage["outputTokens"] = um.candidates_token_count or 0
     except Exception:
         pass
 
