@@ -201,25 +201,27 @@ export default function EditorPage() {
           <div className={`overflow-hidden flex flex-col transition-all duration-200 ${sidebarOpen ? "w-96" : "w-0"}`}>
             {sidebarOpen && (
               <div className="w-96 h-full flex flex-col">
-                {/* Panel title bar */}
-                <div className={`relative flex items-center px-3 h-9 border-b border-border/15 shrink-0 select-none ${meta.bg}`}>
-                  {meta.indicator && (
-                    <div className={`absolute left-0 top-0 h-full w-[2px] ${meta.indicator} rounded-r`} />
-                  )}
-                  <span className={`text-[10px] font-semibold uppercase tracking-widest flex-1 ${meta.textColor}`}>
-                    {meta.label}
-                  </span>
-                  {activeTab === "advanced" && advancedEnabled && (
-                    <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-amber-600 text-white rounded-full font-bold tracking-wide font-mono">ACTIVE</span>
-                  )}
-                  <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
-                    title={t("panel.close")}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
+                {/* Panel title bar — ai タブはチャットパネル自身がヘッダーを持つため非表示 */}
+                {activeTab !== "ai" && (
+                  <div className={`relative flex items-center px-3 h-9 border-b border-border/15 shrink-0 select-none ${meta.bg}`}>
+                    {meta.indicator && (
+                      <div className={`absolute left-0 top-0 h-full w-[2px] ${meta.indicator} rounded-r`} />
+                    )}
+                    <span className={`text-[10px] font-semibold uppercase tracking-widest flex-1 ${meta.textColor}`}>
+                      {meta.label}
+                    </span>
+                    {activeTab === "advanced" && advancedEnabled && (
+                      <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-amber-600 text-white rounded-full font-bold tracking-wide font-mono">ACTIVE</span>
+                    )}
+                    <button
+                      onClick={() => setSidebarOpen(false)}
+                      className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+                      title={t("panel.close")}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
                 {/* Panel body */}
                 <div className={`flex-1 min-h-0 ${
                   activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto"

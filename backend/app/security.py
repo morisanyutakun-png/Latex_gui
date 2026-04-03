@@ -296,7 +296,7 @@ def get_compile_args(base_cmd: str, output_dir: str, tex_path: str) -> list[str]
     ]
 
 
-def validate_input_size(blocks: list, max_blocks: int = 500, max_total_chars: int = 500_000) -> Optional[str]:
+def validate_input_size(blocks: list, max_blocks: int = 5000, max_total_chars: int = 5_000_000) -> Optional[str]:
     """入力サイズの制限チェック"""
     if len(blocks) > max_blocks:
         return f"ブロック数が上限({max_blocks})を超えています: {len(blocks)}"

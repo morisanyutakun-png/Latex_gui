@@ -1033,6 +1033,30 @@ const PAPER_SIZES: Record<string, { w: number; label: string }> = {
 };
 
 // ──── Global Command Palette (Cmd+K) ────
+// ブロックカテゴリ定義
+const PALETTE_CATEGORIES = [
+  {
+    label: "基本",
+    color: "text-slate-500",
+    types: ["heading", "paragraph", "divider"],
+  },
+  {
+    label: "コンテンツ",
+    color: "text-blue-500",
+    types: ["list", "table", "quote", "code", "image"],
+  },
+  {
+    label: "数式・理系",
+    color: "text-violet-500",
+    types: ["math", "chemistry"],
+  },
+  {
+    label: "図形・グラフ",
+    color: "text-indigo-500",
+    types: ["circuit", "diagram", "chart"],
+  },
+];
+
 function GlobalCommandPalette() {
   const { t } = useI18n();
   const { showGlobalPalette, setGlobalPalette, selectedBlockId, selectBlock, setEditingBlock } = useUIStore();
@@ -1085,18 +1109,21 @@ function GlobalCommandPalette() {
 
   if (!showGlobalPalette) return null;
 
+  // カテゴリ表示 or フラット検索
+  const showCategories = !query;
+
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center pt-[20vh]"
+      className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh] bg-black/30 backdrop-blur-[2px]"
       onClick={() => setGlobalPalette(false)}
     >
       <div
-        className="w-[480px] bg-background border border-border/40 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.2)] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="w-[520px] bg-background border border-border/30 rounded-2xl shadow-[0_32px_80px_rgba(0,0,0,0.28)] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search */}
-        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border/20">
-          <Search className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+        {/* Search header */}
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border/15 bg-muted/20">
+          <Search className="h-4.5 w-4.5 text-muted-foreground/50 shrink-0" style={{ width: 18, height: 18 }} />
           <input
             ref={inputRef}
             value={query}
@@ -1107,33 +1134,97 @@ function GlobalCommandPalette() {
               else if (e.key === "Enter") { e.preventDefault(); if (filtered[idx]) handleSelect(filtered[idx].type); }
               else if (e.key === "Escape") { e.preventDefault(); setGlobalPalette(false); }
             }}
-            placeholder={t("cmd.palette.search")}
-            className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground/30"
+            placeholder="ブロックを検索…　リスト、数式、表、コード…"
+            className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground/35 font-medium"
           />
-          <span className="text-[10px] font-mono text-muted-foreground/30 shrink-0">Esc</span>
+          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted border border-border/40 text-muted-foreground/50 shrink-0">Esc</kbd>
         </div>
-        {/* Block list */}
-        <div className="max-h-72 overflow-y-auto py-1">
-          {filtered.map((info, i) => {
-            const Icon = BLOCK_ICONS[info.type];
-            return (
-              <button
-                key={info.type}
-                onClick={() => handleSelect(info.type)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left ${
-                  i === idx ? "bg-primary/8 text-primary" : "hover:bg-muted/40"
-                }`}
-              >
-                <Icon className={`h-4 w-4 shrink-0 ${info.color}`} />
-                <span className="font-medium text-[13px]">{info.name}</span>
-                <span className="text-muted-foreground/50 text-[11px] ml-1">{info.description}</span>
-              </button>
-            );
-          })}
+
+        {/* Content */}
+        <div className="max-h-[400px] overflow-y-auto">
+          {showCategories ? (
+            /* カテゴリ別グリッド表示 */
+            <div className="p-3 space-y-4">
+              {PALETTE_CATEGORIES.map((cat) => {
+                const items = cat.types.map((t) => BLOCK_TYPES.find((b) => b.type === t)!).filter(Boolean);
+                const globalIdx = BLOCK_TYPES.findIndex; // unused
+                return (
+                  <div key={cat.label}>
+                    <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 px-1 ${cat.color}`}>{cat.label}</p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {items.map((info) => {
+                        const Icon = BLOCK_ICONS[info.type];
+                        const flatIdx = filtered.findIndex((b) => b.type === info.type);
+                        const isSelected = flatIdx === idx;
+                        return (
+                          <button
+                            key={info.type}
+                            onClick={() => handleSelect(info.type)}
+                            onMouseEnter={() => setIdx(flatIdx)}
+                            className={`flex flex-col items-start gap-1.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                              isSelected
+                                ? "border-primary/30 bg-primary/8 shadow-sm"
+                                : "border-border/20 hover:border-border/40 hover:bg-muted/40"
+                            }`}
+                          >
+                            <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${
+                              isSelected ? "bg-primary/15" : "bg-muted/60"
+                            }`}>
+                              <Icon className={`h-3.5 w-3.5 ${info.color}`} />
+                            </div>
+                            <div>
+                              <p className="text-[12px] font-semibold text-foreground/80 leading-none">{info.name}</p>
+                              <p className="text-[9px] text-muted-foreground/50 mt-0.5 leading-tight">{info.description}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* 検索結果フラットリスト */
+            <div className="py-1.5">
+              {filtered.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground/40 py-8">「{query}」に一致するブロックはありません</p>
+              ) : filtered.map((info, i) => {
+                const Icon = BLOCK_ICONS[info.type];
+                return (
+                  <button
+                    key={info.type}
+                    onClick={() => handleSelect(info.type)}
+                    onMouseEnter={() => setIdx(i)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                      i === idx ? "bg-primary/8" : "hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      i === idx ? "bg-primary/15" : "bg-muted/60"
+                    }`}>
+                      <Icon className={`h-4 w-4 ${info.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[13px] font-semibold leading-none ${i === idx ? "text-primary" : "text-foreground/80"}`}>{info.name}</p>
+                      <p className="text-[11px] text-muted-foreground/50 mt-0.5">{info.description}</p>
+                    </div>
+                    {i === idx && (
+                      <kbd className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary font-mono shrink-0">↵</kbd>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-        {/* Hint */}
-        <div className="px-4 py-2 border-t border-border/10 text-[10px] text-muted-foreground/30 font-mono">
-          {t("cmd.palette.hint")}
+
+        {/* Footer */}
+        <div className="px-4 py-2 border-t border-border/10 bg-muted/10 flex items-center gap-4 text-[10px] text-muted-foreground/40 font-mono">
+          <span><kbd className="px-1 rounded bg-muted border border-border/30">↑↓</kbd> 移動</span>
+          <span><kbd className="px-1 rounded bg-muted border border-border/30">↵</kbd> 挿入</span>
+          <span><kbd className="px-1 rounded bg-muted border border-border/30">Esc</kbd> 閉じる</span>
+          <span className="ml-auto opacity-60">;; でもインラインで開けます</span>
         </div>
       </div>
     </div>

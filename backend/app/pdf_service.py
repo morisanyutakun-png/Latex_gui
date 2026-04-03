@@ -46,7 +46,7 @@ MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "1"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
 # コンパイルタイムアウト (秒) — ビルド時キャッシュ済みなので通常3-10秒で完了
-COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "120"))
+COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "300"))
 
 
 def _log_memory(label: str) -> None:
@@ -255,6 +255,30 @@ def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
 
     gc.collect()
     return pdf_bytes
+
+
+async def compile_raw_latex(latex_source: str) -> bytes:
+    """生のLaTeXソースをそのままコンパイルしてPDFバイト列を返す（LaTeXソースビューワ編集用）"""
+    async with _compile_semaphore:
+        return await asyncio.get_event_loop().run_in_executor(
+            None, _compile_raw_latex_sync, latex_source
+        )
+
+
+def _compile_raw_latex_sync(latex_source: str) -> bytes:
+    """同期版: 生LaTeXソースをコンパイル"""
+    if len(latex_source) > 1_000_000:
+        raise PDFGenerationError("LaTeXソースが大きすぎます (上限: 1MB)")
+    # 危険なコマンドのみ簡易チェック
+    _DANGEROUS = ["\\write18", "\\immediate\\write18", "\\input{/", "\\include{/"]
+    for cmd in _DANGEROUS:
+        if cmd in latex_source:
+            raise PDFGenerationError(f"使用禁止のコマンドが含まれています: {cmd}")
+    gc.collect()
+    timeout = COMPILE_TIMEOUT
+    pdf = _compile_latex(latex_source, timeout=timeout)
+    gc.collect()
+    return pdf
 
 
 def _parse_latex_error(log: str) -> str:

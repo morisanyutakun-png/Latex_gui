@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
   Bot, Send, Paperclip, Trash2, Loader2, Check, X,
@@ -289,6 +289,80 @@ function MaterialsPanel({ onAttach }: { onAttach: (context: string) => void }) {
       {results.length === 0 && query && !loading && (
         <p className="text-xs text-slate-400 text-center py-1">該当なし</p>
       )}
+    </div>
+  );
+}
+
+// ─── Thinking Indicator (Claude Code / Codex style) ──────────────────────────
+
+const THINKING_LINES = [
+  "Analyzing document structure...",
+  "Parsing LaTeX block model...",
+  "Running semantic analysis...",
+  "Generating patch candidates...",
+  "Evaluating block dependencies...",
+  "Resolving math expressions...",
+  "Checking layout constraints...",
+  "Applying document transformations...",
+  "Optimizing output blocks...",
+  "Finalizing response...",
+];
+
+function ThinkingIndicator() {
+  const [lineIdx, setLineIdx] = React.useState(0);
+  const [charCount, setCharCount] = React.useState(0);
+
+  // タイプライター効果でラインを切り替え
+  React.useEffect(() => {
+    const line = THINKING_LINES[lineIdx];
+    if (charCount < line.length) {
+      const t = setTimeout(() => setCharCount((c) => c + 1), 18);
+      return () => clearTimeout(t);
+    } else {
+      const t = setTimeout(() => {
+        setLineIdx((i) => (i + 1) % THINKING_LINES.length);
+        setCharCount(0);
+      }, 600);
+      return () => clearTimeout(t);
+    }
+  }, [lineIdx, charCount]);
+
+  const currentLine = THINKING_LINES[lineIdx].slice(0, charCount);
+
+  return (
+    <div className="flex items-start gap-2">
+      <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-indigo-900/30 ring-1 ring-white/10">
+        <Bot className="h-3.5 w-3.5 text-white" />
+      </div>
+      <div className="flex-1 min-w-0">
+        {/* コードライン風の思考表示 */}
+        <div className="rounded-xl bg-[#0d1117] dark:bg-[#060810] border border-slate-700/60 overflow-hidden shadow-lg shadow-black/20">
+          {/* ターミナルヘッダー */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#161b22] border-b border-slate-700/40">
+            <span className="h-2 w-2 rounded-full bg-red-500/70" />
+            <span className="h-2 w-2 rounded-full bg-yellow-500/70" />
+            <span className="h-2 w-2 rounded-full bg-emerald-500/70" />
+            <span className="ml-2 text-[9px] font-mono text-slate-500">eddivom-agent · thinking</span>
+            <span className="ml-auto flex items-center gap-1 text-[9px] font-mono text-indigo-400/70">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
+              running
+            </span>
+          </div>
+          {/* 出力ライン */}
+          <div className="px-3 py-2.5 font-mono text-[11px] space-y-0.5 min-h-[52px]">
+            <div className="flex items-center gap-2 text-slate-500">
+              <span className="text-indigo-400/60 shrink-0">$</span>
+              <span className="text-emerald-400/70">eddivom</span>
+              <span className="text-slate-500">analyze</span>
+              <span className="text-amber-400/60">--stream</span>
+            </div>
+            <div className="flex items-center gap-1 pl-4">
+              <span className="text-slate-400">{currentLine}</span>
+              <span className="inline-block w-[6px] h-[12px] bg-indigo-400/80 animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -585,20 +659,7 @@ export function AIChatPanel() {
           />
         ))}
 
-        {isChatLoading && (
-          <div className="flex items-end gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center shrink-0 shadow-md shadow-indigo-900/30 ring-1 ring-white/10">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
-            <div className="bg-white dark:bg-[#23262e] border border-slate-200/60 dark:border-slate-700/40 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
-              <div className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
-            </div>
-          </div>
-        )}
+        {isChatLoading && <ThinkingIndicator />}
 
         <div ref={bottomRef} />
       </div>

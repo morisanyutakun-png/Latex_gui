@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
 
 from .models import DocumentModel, ErrorResponse, BatchRequest, BatchResponse, BatchResultItem
-from .pdf_service import compile_pdf, generate_latex, PDFGenerationError
+from .pdf_service import compile_pdf, compile_raw_latex, generate_latex, PDFGenerationError
 from .preview_service import preview_block_svg
 from .security import (
     validate_document_security, validate_input_size,
@@ -352,6 +352,36 @@ async def generate_pdf(doc: DocumentModel):
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}",
         },
+    )
+
+
+class RawLatexRequest(pydantic.BaseModel):
+    latex: str
+    filename: str = "document"
+
+
+@app.post("/api/compile-raw")
+async def compile_raw(req: RawLatexRequest):
+    """生のLaTeXソースを直接コンパイルしてPDFを返す（LaTeXソースビューワ用）"""
+    try:
+        pdf_bytes = await compile_raw_latex(req.latex)
+    except PDFGenerationError as e:
+        raise HTTPException(status_code=422, detail={
+            "success": False,
+            "message": e.user_message,
+        })
+    except Exception as e:
+        logger.exception("Unexpected error during raw LaTeX compilation")
+        raise HTTPException(status_code=500, detail={
+            "success": False,
+            "message": f"コンパイルエラー: {str(e)[:200]}",
+        })
+    from urllib.parse import quote
+    safe_filename = quote((req.filename or "document").replace(" ", "_") + ".pdf", safe="")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"},
     )
 
 

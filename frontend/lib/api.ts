@@ -79,6 +79,19 @@ export async function previewLatex(doc: DocumentModel): Promise<string> {
   return data.latex;
 }
 
+export async function compileRawLatex(latex: string, filename?: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/compile-raw`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latex, filename: filename ?? "document" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { message?: string }).message ?? "LaTeXコンパイルに失敗しました");
+  }
+  return res.blob();
+}
+
 export async function healthCheck(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(5000) });

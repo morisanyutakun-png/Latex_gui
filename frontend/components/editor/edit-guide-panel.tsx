@@ -3,24 +3,25 @@
 import { Keyboard, MousePointer2, PenLine, Sigma, Command, Heading, List, Table, Code } from "lucide-react";
 import type { GuideContext } from "@/store/ui-store";
 
+// 実装に合わせた正確なショートカット一覧
 const shortcuts = [
-  { keys: ["Enter"],        desc: "新しい段落を追加" },
-  { keys: ["⌫"],           desc: "空行 → 行を削除して前に戻る" },
-  { keys: ["Tab"],          desc: "数式モードに入る" },
-  { keys: [";"],            desc: "数式モード終了（確定）" },
-  { keys: ["/"],            desc: "要素挿入メニューを開く" },
-  { keys: ["⌘", "K"],      desc: "要素挿入パレット" },
-  { keys: ["↑", "↓"],     desc: "段落間を移動" },
-  { keys: ["⌘", "Z"],      desc: "元に戻す" },
-  { keys: ["⌘", "Shift", "Z"], desc: "やり直す" },
-  { keys: ["⌘", "B"],      desc: "太字" },
+  { keys: ["Enter"],              desc: "新しい段落を追加" },
+  { keys: ["⌫"],                 desc: "空行 → 行を削除して前に戻る" },
+  { keys: ["Tab"],                desc: "数式モードに入る（段落内）" },
+  { keys: ["Tab"],                desc: "数式モードを終了して確定" },
+  { keys: ["Esc"],                desc: "数式モードをキャンセル（未確定テキストを破棄）" },
+  { keys: ["↑", "↓"],           desc: "段落間を移動" },
+  { keys: ["⌘", "Z"],            desc: "元に戻す" },
+  { keys: ["⌘", "Shift", "Z"],   desc: "やり直す" },
+  { keys: ["⌘", "K"],            desc: "ブロック挿入パレットを開く" },
+  { keys: [";;"],                 desc: "ブロック挿入パレットをインラインで開く" },
 ];
 
 const writingTips = [
   { icon: MousePointer2, color: "text-sky-500",    text: "クリックしてすぐ書ける — 選択ステップ不要" },
-  { icon: PenLine,       color: "text-blue-400",   text: "見出しはツールバーから H1/H2/H3 を選択" },
-  { icon: Sigma,         color: "text-violet-500", text: "Tab or /数式 で数式モード → 日本語入力 → ; で終了" },
-  { icon: Command,       color: "text-slate-400",  text: "右クリックで 削除・移動・種類変更" },
+  { icon: PenLine,       color: "text-blue-400",   text: "見出しはツールバーの H1/H2/H3 ボタンで変更" },
+  { icon: Sigma,         color: "text-violet-500", text: "Tab で数式モード → 日本語で入力 → Tab で確定 / Esc でキャンセル" },
+  { icon: Command,       color: "text-slate-400",  text: "右クリック → 削除・移動・種類変更" },
 ];
 
 // コンテキスト別ガイド
@@ -34,7 +35,8 @@ const CONTEXT_GUIDES: Record<string, { icon: React.ElementType; color: string; t
       "H2: セクション見出しに使用",
       "H3: サブセクションに使用",
       "ツールバーで見出しレベルを変更可能",
-      "右クリック → 種類変更 で段落に戻せます",
+      "Enter で続きに段落を追加",
+      "右クリック → 種類変更 で段落に変換",
     ],
   },
   list: {
@@ -44,7 +46,7 @@ const CONTEXT_GUIDES: Record<string, { icon: React.ElementType; color: string; t
     tips: [
       "Enter で新しい項目を追加",
       "Backspace で空の項目を削除",
-      "箇条書き（•）と番号付き（1.）を切替可能",
+      "箇条書き（•）と番号付き（1.）をツールバーで切替",
       "右クリック → 種類変更 でリスト形式を変更",
       "「+ 追加」ボタンで項目を末尾に追加",
     ],
@@ -117,7 +119,7 @@ export function EditGuidePanel({ context = "none" }: { context?: GuideContext })
         <div className="space-y-2">
           {shortcuts.map((s, i) => (
             <div key={i} className="flex items-center gap-2">
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0 min-w-[80px]">
                 {s.keys.map((k, j) => <KeyBadge key={j} k={k} />)}
               </div>
               <span className="text-[11px] text-muted-foreground/70 leading-tight">{s.desc}</span>
@@ -149,14 +151,14 @@ export function EditGuidePanel({ context = "none" }: { context?: GuideContext })
 
       <div className="h-px bg-border/20" />
 
-      {/* 要素の種類 */}
+      {/* ブロック挿入 */}
       <section>
         <div className="flex items-center gap-2 mb-2">
           <Command className="h-3.5 w-3.5 text-sky-500 shrink-0" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">要素の種類</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">ブロック挿入</span>
         </div>
         <p className="text-[11px] text-muted-foreground/50 mb-3 leading-relaxed">
-          テキスト入力中に <KeyBadge k="/" /> を押して要素の種類を選択できます
+          <KeyBadge k="⌘" /><KeyBadge k="K" /> または テキスト入力中に <KeyBadge k=";;" /> を入力してブロックを挿入
         </p>
         <div className="grid grid-cols-2 gap-1.5">
           {[
