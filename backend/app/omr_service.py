@@ -1,9 +1,11 @@
-"""OMR service — image/PDF → structured document blocks via Claude Vision"""
+"""OMR service — image/PDF → structured document blocks via Gemini Vision
+(開発用: Gemini Vision を使用。将来的には Claude Vision に戻す。)
+"""
 import base64
 import logging
 from typing import Any
 
-from .ai_service import get_client, TOOLS
+from .ai_service import configure_gemini, GEMINI_TOOL_DEF, _proto_args_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -43,53 +45,54 @@ async def analyze_image(
     hint: str = "",
 ) -> dict:
     """
-    Analyze an image using Claude Vision and return document patches.
+    Gemini Vision で画像を解析し、ドキュメントパッチを返す。
     Returns { description: str, patches: dict | None }
     """
     import asyncio
 
-    client = get_client()
+    genai = configure_gemini()
 
     image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
 
-    user_content: list[Any] = [
-        {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": media_type,
-                "data": image_b64,
-            },
-        },
-        {
-            "type": "text",
-            "text": (
-                f"この画像からドキュメント構造を抽出してください。{hint}"
-                if hint
-                else "この画像からドキュメント構造を抽出して、ブロックとして追加してください。"
-            ),
-        },
-    ]
+    prompt_text = (
+        f"この画像からドキュメント構造を抽出してください。{hint}"
+        if hint
+        else "この画像からドキュメント構造を抽出して、ブロックとして追加してください。"
+    )
+
+    model = genai.GenerativeModel(
+        model_name="gemini-2.0-flash",
+        system_instruction=OMR_SYSTEM_PROMPT,
+        tools=[GEMINI_TOOL_DEF],
+    )
 
     def _call():
-        return client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=4096,
-            system=OMR_SYSTEM_PROMPT,
-            tools=TOOLS,
-            messages=[{"role": "user", "content": user_content}],
+        return model.generate_content(
+            contents=[
+                {
+                    "role": "user",
+                    "parts": [
+                        {"inline_data": {"mime_type": media_type, "data": image_b64}},
+                        {"text": prompt_text},
+                    ],
+                }
+            ]
         )
 
     response = await asyncio.to_thread(_call)
 
-    text_parts = []
+    text_parts: list[str] = []
     patches = None
 
-    for block in response.content:
-        if block.type == "text":
-            text_parts.append(block.text)
-        elif block.type == "tool_use" and block.name == "edit_document":
-            patches = block.input
+    try:
+        parts = response.candidates[0].content.parts
+        for part in parts:
+            if hasattr(part, "text") and part.text:
+                text_parts.append(part.text)
+            if hasattr(part, "function_call") and part.function_call.name == "edit_document":
+                patches = _proto_args_to_dict(part.function_call.args)
+    except (IndexError, AttributeError) as e:
+        logger.warning("Gemini OMR レスポンスのパースに失敗: %s", e)
 
     description = "\n".join(text_parts).strip()
     if not description and patches:

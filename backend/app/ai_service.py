@@ -1,4 +1,7 @@
-"""AI service — Claude API integration for document editing assistance"""
+"""AI service — Google Gemini API integration for document editing assistance
+(開発用: ANTHROPIC_API_KEY 環境変数を Gemini API キーとして使用)
+将来的には Anthropic Claude に戻す予定。
+"""
 import os
 import json
 import logging
@@ -6,8 +9,71 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# ─── Tool definition for structured document edits ───
+# ─── Gemini tool definition ───────────────────────────────────────────────────
+# Anthropic の oneOf スキーマは Gemini 非対応のため、フラットな定義に変換
 
+GEMINI_TOOL_DEF = {
+    "function_declarations": [
+        {
+            "name": "edit_document",
+            "description": (
+                "Apply structured edits to the LaTeX document. "
+                "Use when the user asks to add, modify, or remove content. "
+                "Each op in 'ops' is applied in order."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ops": {
+                        "type": "array",
+                        "description": (
+                            "List of patch operations. Each op has an 'op' field: "
+                            "add_block | update_block | delete_block | reorder."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "op": {
+                                    "type": "string",
+                                    "description": "add_block | update_block | delete_block | reorder",
+                                },
+                                "afterId": {
+                                    "type": "string",
+                                    "description": "(add_block) ID of block to insert after. Omit or null for beginning.",
+                                },
+                                "block": {
+                                    "type": "object",
+                                    "description": "(add_block) Full block object: {id, content: {type, ...}, style: {...}}",
+                                },
+                                "blockId": {
+                                    "type": "string",
+                                    "description": "(update_block / delete_block) Target block ID",
+                                },
+                                "content": {
+                                    "type": "object",
+                                    "description": "(update_block) Partial content fields to merge",
+                                },
+                                "style": {
+                                    "type": "object",
+                                    "description": "(update_block) Partial style fields to merge",
+                                },
+                                "blockIds": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "(reorder) All block IDs in desired new order",
+                                },
+                            },
+                            "required": ["op"],
+                        },
+                    }
+                },
+                "required": ["ops"],
+            },
+        }
+    ]
+}
+
+# Anthropic 形式の TOOLS 定義 (将来の復帰用に保持)
 TOOLS: list[dict[str, Any]] = [
     {
         "name": "edit_document",
@@ -26,16 +92,11 @@ TOOLS: list[dict[str, Any]] = [
                         "oneOf": [
                             {
                                 "type": "object",
-                                "description": "Add a new block after the specified block (or at start if afterId is null)",
                                 "properties": {
                                     "op": {"type": "string", "enum": ["add_block"]},
-                                    "afterId": {
-                                        "type": ["string", "null"],
-                                        "description": "ID of the block to insert after. null = insert at beginning.",
-                                    },
+                                    "afterId": {"type": ["string", "null"]},
                                     "block": {
                                         "type": "object",
-                                        "description": "Full Block object. Must include id (use crypto.randomUUID format), content (with type field), and style.",
                                         "properties": {
                                             "id": {"type": "string"},
                                             "content": {"type": "object"},
@@ -48,27 +109,16 @@ TOOLS: list[dict[str, Any]] = [
                             },
                             {
                                 "type": "object",
-                                "description": "Update an existing block's content or style",
                                 "properties": {
                                     "op": {"type": "string", "enum": ["update_block"]},
-                                    "blockId": {
-                                        "type": "string",
-                                        "description": "ID of the block to update",
-                                    },
-                                    "content": {
-                                        "type": "object",
-                                        "description": "Partial content fields to merge into the block",
-                                    },
-                                    "style": {
-                                        "type": "object",
-                                        "description": "Partial style fields to merge into the block",
-                                    },
+                                    "blockId": {"type": "string"},
+                                    "content": {"type": "object"},
+                                    "style": {"type": "object"},
                                 },
                                 "required": ["op", "blockId"],
                             },
                             {
                                 "type": "object",
-                                "description": "Delete a block",
                                 "properties": {
                                     "op": {"type": "string", "enum": ["delete_block"]},
                                     "blockId": {"type": "string"},
@@ -77,14 +127,9 @@ TOOLS: list[dict[str, Any]] = [
                             },
                             {
                                 "type": "object",
-                                "description": "Reorder all blocks by providing the complete new order",
                                 "properties": {
                                     "op": {"type": "string", "enum": ["reorder"]},
-                                    "blockIds": {
-                                        "type": "array",
-                                        "items": {"type": "string"},
-                                        "description": "All block IDs in the desired new order",
-                                    },
+                                    "blockIds": {"type": "array", "items": {"type": "string"}},
                                 },
                                 "required": ["op", "blockIds"],
                             },
@@ -162,24 +207,62 @@ Generate IDs as "ai-" + 8 random hex chars (e.g. "ai-3f8a1b2c"). Every new block
 """
 
 
-def get_client():
-    """Lazy Anthropic client initialization."""
+def configure_gemini():
+    """
+    Google Generative AI を設定して返す。
+    API キーは ANTHROPIC_API_KEY 環境変数から読み込む（開発用）。
+    """
     try:
-        import anthropic  # type: ignore
+        import google.generativeai as genai  # type: ignore
     except ImportError:
-        raise RuntimeError("anthropicパッケージがインストールされていません。pip install anthropic を実行してください。")
+        raise RuntimeError(
+            "google-generativeai パッケージがインストールされていません。"
+            "pip install google-generativeai を実行してください。"
+        )
 
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not key:
         raise ValueError(
             "ANTHROPIC_API_KEY が設定されていません。"
-            "バックエンドの環境変数に ANTHROPIC_API_KEY を設定してください。"
+            "バックエンドの環境変数に ANTHROPIC_API_KEY (= Gemini API キー) を設定してください。"
         )
-    return anthropic.Anthropic(api_key=key)
+
+    genai.configure(api_key=key)
+    return genai
+
+
+# 後方互換性のため get_client も提供（omr_service から使用）
+def get_client():
+    return configure_gemini()
+
+
+def _proto_args_to_dict(args) -> dict:
+    """Gemini function_call.args (proto MapComposite) を Python dict に変換する。"""
+    # proto-plus の to_dict を試みる
+    try:
+        if hasattr(type(args), "to_dict"):
+            return type(args).to_dict(args)
+    except Exception:
+        pass
+
+    # protobuf JSON 経由で変換
+    try:
+        from google.protobuf.json_format import MessageToJson  # type: ignore
+        pb = getattr(args, "_pb", args)
+        return json.loads(MessageToJson(pb))
+    except Exception:
+        pass
+
+    # 最終フォールバック
+    try:
+        return dict(args)
+    except Exception as e:
+        logger.warning("function_call.args の変換に失敗しました: %s", e)
+        return {}
 
 
 def _document_context(document: dict) -> str:
-    """Serialize document as context string (max 20 blocks to stay within token limits)."""
+    """Serialize document as context string (max 50 blocks)."""
     blocks = document.get("blocks", [])
     meta = document.get("metadata", {})
     settings = document.get("settings", {})
@@ -229,7 +312,7 @@ def _document_context(document: dict) -> str:
         elif btype == "divider":
             preview = f'区切り線({content.get("style", "solid")})'
         else:
-            preview = f'{btype}'
+            preview = f"{btype}"
 
         lines.append(f"  [{i + 1}] id={blk_id} | {preview}")
 
@@ -241,56 +324,82 @@ def _document_context(document: dict) -> str:
 
 async def chat(messages: list[dict], document: dict) -> dict:
     """
-    Send a chat message to Claude with document context.
+    Gemini を使ってチャットメッセージを送信し、ドキュメント編集パッチを返す。
     Returns { message: str, patches: dict | None, usage: dict }
     """
     import asyncio
 
-    client = get_client()
+    genai = configure_gemini()
     doc_context = _document_context(document)
 
-    # Build the message list with document context injected into the last user message
-    # (most recent doc state is most important for autonomous editing)
-    api_messages = []
-    last_user_idx = max((i for i, m in enumerate(messages) if m.get("role") == "user"), default=0)
+    # 最後のユーザーメッセージのインデックスを特定
+    last_user_idx = max(
+        (i for i, m in enumerate(messages) if m.get("role") == "user"),
+        default=0,
+    )
+
+    # Gemini 形式の履歴とカレントメッセージを構築
+    # Gemini は role: "user" | "model" を使う（assistant → model）
+    history = []
+    current_msg_text = ""
+
     for i, msg in enumerate(messages):
         role = msg.get("role", "user")
         content = msg.get("content", "")
+
+        # 最後のユーザーメッセージにドキュメントコンテキストを注入
         if i == last_user_idx and role == "user":
             content = f"## 現在の文書情報\n{doc_context}\n\n## ユーザーの依頼\n{content}"
-        api_messages.append({"role": role, "content": content})
+
+        gemini_role = "model" if role == "assistant" else "user"
+
+        if i == len(messages) - 1 and role == "user":
+            # 最後のユーザーメッセージはカレントメッセージとして送る
+            current_msg_text = content
+        else:
+            history.append({"role": gemini_role, "parts": [{"text": content}]})
+
+    model = genai.GenerativeModel(
+        model_name="gemini-2.0-flash",
+        system_instruction=SYSTEM_PROMPT,
+        tools=[GEMINI_TOOL_DEF],
+    )
 
     def _call():
-        return client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=8192,
-            system=SYSTEM_PROMPT,
-            tools=TOOLS,
-            messages=api_messages,
-        )
+        chat_session = model.start_chat(history=history)
+        return chat_session.send_message(current_msg_text)
 
     response = await asyncio.to_thread(_call)
 
-    # Extract text and tool use from response
-    text_parts = []
+    # レスポンスからテキストとツール呼び出しを抽出
+    text_parts: list[str] = []
     patches = None
 
-    for block in response.content:
-        if block.type == "text":
-            text_parts.append(block.text)
-        elif block.type == "tool_use" and block.name == "edit_document":
-            patches = block.input  # dict with "ops" key
+    try:
+        parts = response.candidates[0].content.parts
+        for part in parts:
+            if hasattr(part, "text") and part.text:
+                text_parts.append(part.text)
+            if hasattr(part, "function_call") and part.function_call.name == "edit_document":
+                patches = _proto_args_to_dict(part.function_call.args)
+    except (IndexError, AttributeError) as e:
+        logger.warning("Gemini レスポンスのパースに失敗: %s", e)
 
     message = "\n".join(text_parts).strip()
     if not message and patches:
-        # Claude only used the tool without a text explanation — generate a fallback
         message = f"{len(patches.get('ops', []))}件の変更を提案しました。内容を確認して「適用する」を押してください。"
+
+    # usage_metadata があれば取得
+    usage = {"inputTokens": 0, "outputTokens": 0}
+    try:
+        um = response.usage_metadata
+        usage["inputTokens"] = um.prompt_token_count
+        usage["outputTokens"] = um.candidates_token_count
+    except Exception:
+        pass
 
     return {
         "message": message,
         "patches": patches,
-        "usage": {
-            "inputTokens": response.usage.input_tokens,
-            "outputTokens": response.usage.output_tokens,
-        },
+        "usage": usage,
     }
