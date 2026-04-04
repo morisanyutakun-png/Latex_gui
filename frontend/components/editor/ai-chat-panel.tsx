@@ -6,6 +6,7 @@ import {
   Bot, Send, Paperclip, Trash2, Loader2, Check, X,
   ChevronDown, ChevronUp, KeyRound, Zap, ZapOff,
   BookOpen, Search, X as XIcon,
+  ThumbsUp, ThumbsDown, FileEdit, Sparkles,
 } from "lucide-react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, LastAIAction } from "@/store/ui-store";
@@ -86,6 +87,8 @@ function describeOp(op: PatchOp): { icon: string; label: string; color: string }
       return { icon: "−", label: `ブロックを削除 (${op.blockId.slice(0, 8)}...)`, color: "text-red-600 dark:text-red-400" };
     case "reorder":
       return { icon: "↕", label: `${op.blockIds.length}件のブロックを並び替え`, color: "text-amber-600 dark:text-amber-400" };
+    case "update_design":
+      return { icon: "🎨", label: "紙のデザインを変更", color: "text-violet-600 dark:text-violet-400" };
   }
 }
 
@@ -225,14 +228,43 @@ function ChatMarkdown({ content, isUser }: { content: string; isUser: boolean })
   );
 }
 
+// ─── Change Summary Badge ���───────────────────────────────────────────────────
+
+function ChangeSummaryBadge({ patches }: { patches: DocumentPatch }) {
+  const ops = patches.ops;
+  let added = 0, updated = 0, deleted = 0;
+  for (const op of ops) {
+    if (op.op === "add_block") added++;
+    else if (op.op === "update_block") updated++;
+    else if (op.op === "delete_block") deleted++;
+  }
+  const parts: string[] = [];
+  if (added) parts.push(`+${added}`);
+  if (updated) parts.push(`~${updated}`);
+  if (deleted) parts.push(`-${deleted}`);
+
+  return (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/40">
+      <FileEdit className="h-3 w-3 text-indigo-500" />
+      <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400">
+        {parts.join(" ")}
+      </span>
+      <span className="text-[10px] text-slate-400 dark:text-slate-500">
+        {ops.length}件の編集
+      </span>
+    </div>
+  );
+}
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
 function MessageBubble({
-  msg, onApplyPatches, onRetryPatches,
+  msg, onApplyPatches, onRetryPatches, onFeedback,
 }: {
   msg: ChatMessage;
   onApplyPatches: (patch: DocumentPatch, msgId: string) => void;
   onRetryPatches: (patch: DocumentPatch, msgId: string) => void;
+  onFeedback: (msgId: string, feedback: "good" | "bad") => void;
 }) {
   const { t } = useI18n();
   const isUser = msg.role === "user";
@@ -247,6 +279,7 @@ function MessageBubble({
       )}
 
       <div className={`max-w-[82%] flex flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
+        {/* ���ッセージバブル */}
         <div className={`rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed break-words shadow-sm ${
           isUser
             ? "bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-br-sm shadow-indigo-900/30"
@@ -261,9 +294,10 @@ function MessageBubble({
           )}
         </div>
 
-        {/* Patch actions */}
+        {/* 変更サマリー + パッチアクション */}
         {!isUser && msg.patches && msg.patches.ops.length > 0 && (
-          <div className="w-full">
+          <div className="w-full space-y-1">
+            <ChangeSummaryBadge patches={msg.patches} />
             {msg.appliedAt ? (
               <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 px-1">
                 <Check className="h-3 w-3" />
@@ -277,10 +311,38 @@ function MessageBubble({
                 onClick={() => msg.patches && onApplyPatches(msg.patches, msg.id)}
                 className="flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 px-1 transition-colors"
               >
-                <ChevronDown className="h-3 w-3" />
+                <Sparkles className="h-3 w-3" />
                 {`${msg.patches.ops.length} ${t("chat.changes")}`}
               </button>
             )}
+          </div>
+        )}
+
+        {/* フィードバックボタン (AIメッセージのみ) */}
+        {!isUser && (
+          <div className="flex items-center gap-0.5 px-1 -mt-0.5">
+            <button
+              onClick={() => onFeedback(msg.id, "good")}
+              className={`p-1 rounded transition-colors ${
+                msg.feedback === "good"
+                  ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
+                  : "text-slate-300 dark:text-slate-600 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+              }`}
+              title="良い���答"
+            >
+              <ThumbsUp className="h-3 w-3" />
+            </button>
+            <button
+              onClick={() => onFeedback(msg.id, "bad")}
+              className={`p-1 rounded transition-colors ${
+                msg.feedback === "bad"
+                  ? "text-red-500 bg-red-50 dark:bg-red-900/20"
+                  : "text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+              }`}
+              title="改善が必要"
+            >
+              <ThumbsDown className="h-3 w-3" />
+            </button>
           </div>
         )}
       </div>
@@ -517,6 +579,28 @@ export function AIChatPanel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, isChatLoading]);
 
+  // フィードバック処理
+  const handleFeedback = (msgId: string, feedback: "good" | "bad") => {
+    const existing = chatMessages.find((m) => m.id === msgId);
+    // toggle: 同じボタンをもう一度押したらクリア
+    const newFeedback = existing?.feedback === feedback ? null : feedback;
+    updateChatMessage(msgId, { feedback: newFeedback });
+  };
+
+  // 直近のフィードバックをコンテキストに組み立て
+  const buildFeedbackContext = (): string => {
+    const recent = chatMessages.slice(-10);
+    const feedbacks = recent
+      .filter((m) => m.role === "assistant" && m.feedback)
+      .map((m) => {
+        const label = m.feedback === "good" ? "GOOD" : "NEEDS_IMPROVEMENT";
+        const summary = m.content.slice(0, 80);
+        return `[${label}] "${summary}..."`;
+      });
+    if (feedbacks.length === 0) return "";
+    return `\n\n[ユーザーフィードバック]\n${feedbacks.join("\n")}\n上記を参考に応答を改善してください。`;
+  };
+
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isChatLoading || !document) return;
@@ -528,7 +612,12 @@ export function AIChatPanel() {
     setChatLoading(true);
 
     try {
-      const history = [...chatMessages, userMsg].map((m) => ({ role: m.role, content: m.content }));
+      // フィードバックコンテキストを最後のユーザーメッセージに付加
+      const feedbackCtx = buildFeedbackContext();
+      const history = [...chatMessages, userMsg].map((m) => ({
+        role: m.role,
+        content: m.role === "user" && m.id === userMsgId ? m.content + feedbackCtx : m.content,
+      }));
       const result = await sendAIMessage(history, document);
 
       const assistantMsgId = crypto.randomUUID();
@@ -751,6 +840,7 @@ export function AIChatPanel() {
             msg={msg}
             onApplyPatches={handleApplyPatches}
             onRetryPatches={handleRetryPatches}
+            onFeedback={handleFeedback}
           />
         ))}
 

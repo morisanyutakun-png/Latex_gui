@@ -218,6 +218,24 @@ export const DOCUMENT_CLASSES: DocumentClassInfo[] = [
 
 // ──── Document Settings ────
 
+export type PaperTheme = "plain" | "grid" | "lined" | "dot-grid" | "elegant" | "modern";
+
+export interface PaperDesign {
+  theme: PaperTheme;
+  paperColor: string;       // hex color (e.g. "#ffffff")
+  accentColor: string;      // hex color for headings/borders
+  headerBorder: boolean;    // show border under title
+  sectionDividers: boolean; // auto dividers between sections
+}
+
+export const DEFAULT_PAPER_DESIGN: PaperDesign = {
+  theme: "plain",
+  paperColor: "#ffffff",
+  accentColor: "#4f46e5",
+  headerBorder: false,
+  sectionDividers: false,
+};
+
 export interface DocumentSettings {
   paperSize: "a4" | "letter" | "b5";
   margins: { top: number; bottom: number; left: number; right: number };
@@ -225,6 +243,7 @@ export interface DocumentSettings {
   pageNumbers: boolean;
   twoColumn: boolean;
   documentClass: LaTeXDocumentClass;
+  paperDesign?: PaperDesign;
 }
 
 // ──── Advanced Mode (上級者モード) ────
@@ -358,7 +377,8 @@ export type PatchOp =
   | { op: "add_block"; afterId: string | null; block: Block }
   | { op: "update_block"; blockId: string; content?: Partial<BlockContent>; style?: Partial<BlockStyle> }
   | { op: "delete_block"; blockId: string }
-  | { op: "reorder"; blockIds: string[] };
+  | { op: "reorder"; blockIds: string[] }
+  | { op: "update_design"; paperDesign: Partial<PaperDesign> };
 
 export interface DocumentPatch {
   ops: PatchOp[];
@@ -370,6 +390,8 @@ export interface ChatMessage {
   content: string;
   patches?: DocumentPatch | null;
   appliedAt?: number;
+  feedback?: "good" | "bad" | null;
+  changeSummary?: string;            // AI が何をしたかの要約
 }
 
 export function createDefaultDocument(template: string, blocks: Block[]): DocumentModel {

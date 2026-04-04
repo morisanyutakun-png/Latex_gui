@@ -1279,6 +1279,30 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
   if (!document) return null;
 
   const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
+  const design = document.settings.paperDesign;
+  const paperBg = design?.paperColor || "#ffffff";
+  const accentColor = design?.accentColor || "#4f46e5";
+
+  // テーマベースの背景パターン
+  const themeBackground = (() => {
+    const theme = design?.theme || "plain";
+    switch (theme) {
+      case "grid":
+        return `linear-gradient(${accentColor}08 1px, transparent 1px), linear-gradient(90deg, ${accentColor}08 1px, transparent 1px)`;
+      case "lined":
+        return `repeating-linear-gradient(transparent, transparent 27px, ${accentColor}12 27px, ${accentColor}12 28px)`;
+      case "dot-grid":
+        return `radial-gradient(circle, ${accentColor}15 0.8px, transparent 0.8px)`;
+      default:
+        return undefined;
+    }
+  })();
+  const themeBgSize = (() => {
+    const theme = design?.theme || "plain";
+    if (theme === "grid") return "28px 28px";
+    if (theme === "dot-grid") return "20px 20px";
+    return undefined;
+  })();
 
   return (
     <EditModeContext.Provider value={editMode}>
@@ -1298,7 +1322,7 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
 
         {/* Paper card */}
         <div
-          className={`latex-paper bg-white dark:bg-[#fafafa] flex-shrink-0 relative shadow-[0_4px_24px_rgba(0,0,0,0.18)] ${editMode ? "cursor-text" : ""}`}
+          className={`latex-paper flex-shrink-0 relative shadow-[0_4px_24px_rgba(0,0,0,0.18)] ${editMode ? "cursor-text" : ""}`}
           style={{
             width: paper.w,
             minHeight: Math.round(paper.w * 1.4142),
@@ -1306,6 +1330,9 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
             zoom: zoom,
             color: "#1a1a1a",
             fontFamily: '-apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif',
+            backgroundColor: paperBg,
+            backgroundImage: themeBackground,
+            backgroundSize: themeBgSize,
           }}
           onClick={(e) => e.stopPropagation()}
         >

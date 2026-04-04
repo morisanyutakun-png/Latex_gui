@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, DocumentPatch, createBlock, createDefaultDocument } from "@/lib/types";
+import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, DocumentPatch, PaperDesign, createBlock, createDefaultDocument } from "@/lib/types";
 
 interface DocumentState {
   document: DocumentModel | null;
@@ -174,11 +174,13 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   },
 
   applyPatch: (patch) => {
-    const { document, _pushHistory } = get();
-    if (!document) return;
-    _pushHistory();
+    const state = get();
+    const currentDoc = state.document;
+    if (!currentDoc) return;
+    state._pushHistory();
 
-    let blocks = [...document.blocks];
+    let blocks = [...currentDoc.blocks];
+    let settings = { ...currentDoc.settings };
 
     for (const op of patch.ops) {
       if (op.op === "add_block") {
@@ -212,10 +214,14 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         const mentioned = new Set(op.blockIds);
         const remainder = blocks.filter((b) => !mentioned.has(b.id));
         blocks = [...reordered, ...remainder];
+      } else if (op.op === "update_design") {
+        const defaultDesign: PaperDesign = { theme: "plain", paperColor: "#ffffff", accentColor: "#4f46e5", headerBorder: false, sectionDividers: false };
+        const current = settings.paperDesign || defaultDesign;
+        settings = { ...settings, paperDesign: { ...current, ...op.paperDesign } };
       }
     }
 
-    set({ document: { ...document, blocks } });
+    set({ document: { ...currentDoc, blocks, settings } });
   },
 
   updateAdvanced: (updates) => {

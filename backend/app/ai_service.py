@@ -27,14 +27,14 @@ GEMINI_TOOL_DEF = {
                         "type": "array",
                         "description": (
                             "List of patch operations. Each item has 'op': "
-                            "add_block | update_block | delete_block | reorder"
+                            "add_block | update_block | delete_block | reorder | update_design"
                         ),
                         "items": {
                             "type": "object",
                             "properties": {
                                 "op": {
                                     "type": "string",
-                                    "description": "Operation type: add_block | update_block | delete_block | reorder",
+                                    "description": "Operation type: add_block | update_block | delete_block | reorder | update_design",
                                 },
                                 "afterId": {
                                     "type": "string",
@@ -65,6 +65,17 @@ GEMINI_TOOL_DEF = {
                                     "type": "array",
                                     "items": {"type": "string"},
                                     "description": "(reorder only) All block IDs in the desired new order",
+                                },
+                                "paperDesign": {
+                                    "type": "object",
+                                    "description": (
+                                        "(update_design only) Paper design settings. Fields: "
+                                        "theme (plain/grid/lined/dot-grid/elegant/modern), "
+                                        "paperColor (hex like #ffffff), "
+                                        "accentColor (hex like #4f46e5), "
+                                        "headerBorder (boolean), "
+                                        "sectionDividers (boolean)"
+                                    ),
                                 },
                             },
                             "required": ["op"],
@@ -149,6 +160,12 @@ SYSTEM_PROMPT = """\
 - **update_block**: `blockId` のブロックの content / style を部分更新
 - **delete_block**: `blockId` のブロックを削除
 - **reorder**: `blockIds` 配列で全ブロックの順序を指定
+- **update_design**: 紙のデザインを変更。`paperDesign` オブジェクトを指定:
+  - `theme`: "plain" / "grid" / "lined" / "dot-grid"
+  - `paperColor`: 紙の色（hex）例: "#fffff0"（クリーム）, "#f0f4ff"（淡い青）
+  - `accentColor`: アクセントカラー（hex）見出しの色調に影響
+  - `headerBorder`: タイトル下にボーダーを表示するか
+  - `sectionDividers`: セクション間に自動区切り線
 
 ### 重要: 数式の正しい使い方
 - **独立した数式は必ず math ブロック** (`type: "math", displayMode: true`) を使う
