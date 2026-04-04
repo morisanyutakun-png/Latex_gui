@@ -36,7 +36,7 @@ export function DiffViewer({ patches }: { patches: DocumentPatch }) {
 
       {/* Expanded diff lines */}
       {expanded && (
-        <div className="mt-1 rounded-lg bg-[#0d1117] dark:bg-[#060810] border border-slate-700/60 overflow-hidden font-mono text-[11px]">
+        <div className="mt-1 rounded-lg bg-surface-0 dark:bg-surface-0 border border-slate-700/60 overflow-hidden font-mono text-[11px]">
           <div className="px-3 py-2 space-y-0.5">
             {ops.map((op, i) => {
               const { icon, label, color } = describeOp(op);

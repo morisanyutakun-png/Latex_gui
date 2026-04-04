@@ -37,41 +37,41 @@ export function StatusBar() {
     : null;
 
   return (
-    <div className="flex items-center justify-between h-5 px-3 shrink-0 select-none bg-[#0f1117] dark:bg-[#0a0c10] text-white/50 border-t border-foreground/[0.04]">
+    <div className="flex items-center justify-between h-6 px-3 shrink-0 select-none bg-surface-1 dark:bg-surface-0 text-foreground/50 border-t border-border/30">
       {/* Left */}
-      <div className="flex items-center gap-3 text-[10px] font-mono">
-        <span className="text-white/40">
+      <div className="flex items-center gap-3 text-[11px] font-mono">
+        <span className="text-foreground/40">
           {blockCount} {isJa ? "要素" : "elements"}
         </span>
         {selectedBlock && selectedIdx >= 0 && typeLabel && (
-          <span className="text-white/30">
+          <span className="text-foreground/30">
             {selectedIdx + 1}行目 · {typeLabel}
           </span>
         )}
       </div>
 
       {/* Right — zoom */}
-      <div className="flex items-center gap-1 text-[10px] font-mono text-white/40">
+      <div className="flex items-center gap-1 text-[11px] font-mono text-foreground/40">
         <button
           onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-          className="hover:text-white/70 transition-colors px-0.5"
+          className="hover:text-foreground/70 transition-colors px-0.5"
           title={isJa ? "縮小" : "Zoom out"}
         >
-          <ZoomOut className="h-2.5 w-2.5" />
+          <ZoomOut className="h-3 w-3" />
         </button>
         <button
           onClick={() => setZoom(1)}
-          className="w-8 text-center hover:text-white/70 transition-colors tabular-nums"
+          className="w-8 text-center hover:text-foreground/70 transition-colors tabular-nums"
           title={isJa ? "100%にリセット" : "Reset zoom"}
         >
           {Math.round(zoom * 100)}%
         </button>
         <button
           onClick={() => setZoom(Math.min(2, zoom + 0.1))}
-          className="hover:text-white/70 transition-colors px-0.5"
+          className="hover:text-foreground/70 transition-colors px-0.5"
           title={isJa ? "拡大" : "Zoom in"}
         >
-          <ZoomIn className="h-2.5 w-2.5" />
+          <ZoomIn className="h-3 w-3" />
         </button>
       </div>
     </div>

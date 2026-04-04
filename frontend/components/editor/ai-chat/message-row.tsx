@@ -27,9 +27,9 @@ export function MessageRow({
           <div className="h-5 w-5 rounded-md bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center">
             <AlertCircle className="h-3 w-3 text-white" />
           </div>
-          <span className="text-[11px] font-semibold text-red-400">Error</span>
+          <span className="text-xs font-semibold text-red-400">Error</span>
           {msg.timestamp && (
-            <span className="text-[10px] font-mono text-slate-500 ml-auto">{formatRelativeTime(msg.timestamp)}</span>
+            <span className="text-[11px] font-mono text-slate-500 ml-auto">{formatRelativeTime(msg.timestamp)}</span>
           )}
         </div>
         <div className="ml-7 border-l-2 border-red-400/50 pl-3">
@@ -37,14 +37,14 @@ export function MessageRow({
           {msg.requestId && (
             <button
               onClick={() => setShowErrorDetails(!showErrorDetails)}
-              className="flex items-center gap-1 mt-1 text-[10px] font-mono text-slate-500 hover:text-slate-400 transition-colors"
+              className="flex items-center gap-1 mt-1 text-[11px] font-mono text-slate-500 hover:text-slate-400 transition-colors"
             >
               <ChevronDown className={`h-2.5 w-2.5 transition-transform ${showErrorDetails ? "rotate-180" : ""}`} />
               詳細
             </button>
           )}
           {showErrorDetails && msg.requestId && (
-            <p className="text-[10px] font-mono text-slate-500 mt-1">Request ID: {msg.requestId.slice(0, 8)}</p>
+            <p className="text-[11px] font-mono text-slate-500 mt-1">Request ID: {msg.requestId.slice(0, 8)}</p>
           )}
           <div className="flex items-center gap-2 mt-2">
             {onRetryError && (
@@ -68,9 +68,9 @@ export function MessageRow({
       <div className="flex items-center gap-2 mb-1.5">
         {isUser ? (
           <>
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">You</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">You</span>
             {msg.timestamp && (
-              <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 ml-auto">
+              <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 ml-auto">
                 {formatRelativeTime(msg.timestamp)}
               </span>
             )}
@@ -80,20 +80,20 @@ export function MessageRow({
             <div className="h-5 w-5 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm shadow-violet-500/20">
               <Sparkles className="h-3 w-3 text-white" />
             </div>
-            <span className="text-[11px] font-semibold text-indigo-400">Eddivom AI</span>
+            <span className="text-xs font-semibold text-indigo-400">Eddivom AI</span>
             {msg.isStreaming && (
-              <span className="flex items-center gap-1 text-[10px] font-mono text-indigo-400/70">
+              <span className="flex items-center gap-1 text-[11px] font-mono text-indigo-400/70">
                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
                 生成中...
               </span>
             )}
             {msg.duration != null && !msg.isStreaming && (
-              <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+              <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
                 {formatDuration(msg.duration)}
               </span>
             )}
             {msg.timestamp && (
-              <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 ml-auto">
+              <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 ml-auto">
                 {formatRelativeTime(msg.timestamp)}
               </span>
             )}
@@ -107,14 +107,14 @@ export function MessageRow({
         : "ml-7"
       }`}>
         {isUser ? (
-          <span className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap">
+          <span className="text-sm leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap">
             {msg.content}
           </span>
         ) : msg.isStreaming && !msg.content ? (
           /* ストリーミング中でまだテキストが無い場合は非表示（ThinkingIndicatorが別で表示される） */
           null
         ) : (
-          <div className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-100">
+          <div className="text-sm leading-relaxed text-slate-800 dark:text-slate-100">
             <ChatMarkdown content={msg.content} />
             {msg.isStreaming && (
               <span className="inline-block w-[6px] h-[14px] bg-indigo-400/80 animate-pulse ml-0.5 align-text-bottom" />
@@ -177,7 +177,7 @@ export function MessageRow({
 
             {/* Token usage */}
             {msg.usage && (
-              <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 ml-auto">
+              <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 ml-auto">
                 {formatTokens(msg.usage.inputTokens)} in / {formatTokens(msg.usage.outputTokens)} out
               </span>
             )}

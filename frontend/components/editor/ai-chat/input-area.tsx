@@ -20,7 +20,7 @@ export function InputArea({
   const { t } = useI18n();
 
   return (
-    <div className="border-t border-slate-200/40 dark:border-slate-700/30 px-3 py-3 shrink-0 bg-white dark:bg-[#1a1c22] shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
+    <div className="border-t border-slate-200/40 dark:border-slate-700/30 px-3 py-3 shrink-0 bg-white dark:bg-surface-3 shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
       <div className="flex items-end gap-2">
         <div className="flex flex-col gap-1 pb-1">
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={onOMRUpload} />
@@ -34,14 +34,14 @@ export function InputArea({
           </button>
         </div>
 
-        <div className="flex-1 flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-[#23262e] px-3 py-2 focus-within:border-indigo-400/60 dark:focus-within:border-indigo-600/50 focus-within:ring-2 focus-within:ring-indigo-200/30 dark:focus-within:ring-indigo-900/30 transition-all shadow-sm">
+        <div className="flex-1 flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-surface-5 px-3 py-2 focus-within:border-indigo-400/60 dark:focus-within:border-indigo-600/50 focus-within:ring-2 focus-within:ring-indigo-200/30 dark:focus-within:ring-indigo-900/30 transition-all shadow-sm">
           <Textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder={agentMode ? "AIエージェントに指示..." : t("chat.placeholder")}
-            className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 font-sans bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-slate-400/60 dark:placeholder:text-slate-500/60"
+            className="min-h-[20px] max-h-32 text-sm resize-none flex-1 font-sans bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-slate-400/60 dark:placeholder:text-slate-500/60"
             disabled={isChatLoading}
           />
           <button
@@ -65,12 +65,12 @@ export function InputArea({
       {/* Agent mode indicator */}
       <div className="flex items-center justify-center gap-1.5 mt-2">
         {agentMode && (
-          <span className="flex items-center gap-1 text-[9px] text-indigo-400/60">
+          <span className="flex items-center gap-1 text-[10px] text-indigo-400/60">
             <Zap className="h-2.5 w-2.5" />
             Agent Mode
           </span>
         )}
-        <span className="text-[9px] text-slate-400/40 dark:text-slate-600/50">
+        <span className="text-[10px] text-slate-400/40 dark:text-slate-600/50">
           自動で文書を読み取り・編集・検証します / Esc で中断
         </span>
       </div>

@@ -13,6 +13,7 @@ import { MathReferencePanel } from "@/components/editor/math-reference-panel";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useResizePanel } from "@/hooks/use-resize-panel";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
@@ -41,6 +42,7 @@ export default function EditorPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
   const [editMode, setEditMode] = useState(false);
+  const { width: sidebarWidth, isDragging, handleMouseDown } = useResizePanel();
   // 前の非editモードタブを記憶してeditMode OFF時に戻せるようにする
   const [preEditTab, setPreEditTab] = useState<SidebarTab>("ai");
 
@@ -92,7 +94,40 @@ export default function EditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMathEditing, activeGuideContext, editMode]);
 
-  if (!doc) return null;
+  if (!doc) return (
+    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
+      {/* Skeleton header */}
+      <div className="flex items-center gap-3 px-3 h-12 border-b border-border/40 bg-background/80 shrink-0">
+        <div className="h-7 w-7 rounded-lg bg-muted animate-skeleton-pulse" />
+        <div className="h-5 w-24 rounded bg-muted animate-skeleton-pulse" />
+        <div className="flex-1" />
+        <div className="h-8 w-24 rounded-full bg-muted animate-skeleton-pulse" />
+      </div>
+      {/* Skeleton body */}
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex-1 flex flex-col items-center py-10">
+          <div className="w-[700px] max-w-full space-y-4 px-4">
+            <div className="h-8 w-2/3 rounded bg-muted animate-skeleton-pulse" />
+            <div className="h-4 w-full rounded bg-muted/60 animate-skeleton-pulse" />
+            <div className="h-4 w-5/6 rounded bg-muted/60 animate-skeleton-pulse" />
+            <div className="h-4 w-4/5 rounded bg-muted/60 animate-skeleton-pulse" />
+            <div className="h-20 w-full rounded-lg bg-muted/40 animate-skeleton-pulse mt-6" />
+            <div className="h-4 w-3/4 rounded bg-muted/60 animate-skeleton-pulse" />
+            <div className="h-4 w-full rounded bg-muted/60 animate-skeleton-pulse" />
+          </div>
+        </div>
+        <div className="w-11 border-l border-foreground/[0.04] bg-background/50 dark:bg-surface-0/60">
+          <div className="flex flex-col items-center gap-2 pt-3">
+            <div className="h-6 w-6 rounded bg-muted animate-skeleton-pulse" />
+            <div className="h-6 w-6 rounded bg-muted animate-skeleton-pulse" />
+            <div className="h-6 w-6 rounded bg-muted animate-skeleton-pulse" />
+          </div>
+        </div>
+      </div>
+      {/* Skeleton status bar */}
+      <div className="h-6 bg-surface-1 dark:bg-surface-0 border-t border-border/30" />
+    </div>
+  );
 
   const isAIActive = (sidebarOpen && activeTab === "ai") || isChatLoading;
 
@@ -107,7 +142,7 @@ export default function EditorPage() {
 
   // パネルタイトルと色設定
   const panelMeta: Record<SidebarTab, { label: string; bg: string; textColor: string; indicator: string }> = {
-    ai:       { label: "EddivomAI",                                    bg: "bg-slate-900/5 dark:bg-[#0f1117]/60",    textColor: "text-indigo-400/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-indigo-500/70 to-violet-500/30" },
+    ai:       { label: "EddivomAI",                                    bg: "bg-slate-900/5 dark:bg-surface-1/60",    textColor: "text-indigo-400/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-indigo-500/70 to-violet-500/30" },
     advanced: { label: isJa ? "LaTeX拡張"      : "LaTeX Extensions", bg: "bg-amber-950/8 dark:bg-amber-950/15",   textColor: "text-amber-500/70 font-mono", indicator: "bg-amber-400" },
     latex:    { label: isJa ? "LaTeXソース"    : "LaTeX Source",     bg: "bg-muted/10",                           textColor: "text-muted-foreground/50",    indicator: "" },
     guide:    { label: isJa ? "編集ガイド"      : "Editing Guide",    bg: "bg-sky-950/8 dark:bg-sky-950/15",       textColor: "text-sky-400/80",             indicator: "bg-gradient-to-b from-sky-500/60 to-sky-400/20" },
@@ -184,7 +219,7 @@ export default function EditorPage() {
   const meta = panelMeta[activeTab];
 
   return (
-    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-[#0a0c10] overflow-hidden">
+    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden">
       {/* Header — spans full width */}
       <AppHeader isAIActive={isAIActive} />
 
@@ -197,19 +232,33 @@ export default function EditorPage() {
           <DocumentEditor editMode={editMode} />
         </div>
 
+        {/* ── Resize handle ── */}
+        {sidebarOpen && (
+          <div
+            className={`resize-handle ${isDragging ? "is-dragging" : ""}`}
+            onMouseDown={handleMouseDown}
+          />
+        )}
+
         {/* ── Sidebar (panel + activity bar) — unified column ── */}
-        <div className="flex flex-shrink-0 border-l border-foreground/[0.06] bg-background/80 dark:bg-[#0f1117]/80 backdrop-blur-xl">
+        <div className="flex flex-shrink-0 border-l border-foreground/[0.06] bg-background/80 dark:bg-surface-1/80 backdrop-blur-xl">
           {/* Panel content */}
-          <div className={`overflow-hidden flex flex-col transition-all duration-200 ${sidebarOpen ? "w-96" : "w-0"}`}>
+          <div
+            className="overflow-hidden flex flex-col"
+            style={{
+              width: sidebarOpen ? sidebarWidth : 0,
+              transition: isDragging ? "none" : "width 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
             {sidebarOpen && (
-              <div className="w-96 h-full flex flex-col">
+              <div className="h-full flex flex-col min-w-0" style={{ width: sidebarWidth }}>
                 {/* Panel title bar — ai タブはチャットパネル自身がヘッダーを持つため非表示 */}
                 {activeTab !== "ai" && (
                   <div className={`relative flex items-center px-3 h-9 border-b border-foreground/[0.06] shrink-0 select-none ${meta.bg}`}>
                     {meta.indicator && (
                       <div className={`absolute left-0 top-0 h-full w-[2.5px] ${meta.indicator} rounded-r`} />
                     )}
-                    <span className={`text-[10px] font-semibold uppercase tracking-[0.15em] flex-1 ${meta.textColor}`}>
+                    <span className={`text-[11px] font-semibold uppercase tracking-[0.15em] flex-1 ${meta.textColor}`}>
                       {meta.label}
                     </span>
                     {activeTab === "advanced" && advancedEnabled && (
@@ -217,17 +266,17 @@ export default function EditorPage() {
                     )}
                     <button
                       onClick={() => setSidebarOpen(false)}
-                      className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-colors"
+                      className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground/30 hover:text-foreground hover:bg-muted/60 transition-all"
                       title={t("panel.close")}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 )}
                 {/* Panel body */}
-                <div className={`flex-1 min-h-0 ${
+                <div className={`flex-1 min-h-0 animate-slide-in-right ${
                   activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto"
-                }`}>
+                }`} key={activeTab}>
                   {activeTab === "ai"       && <AIChatPanel />}
                   {activeTab === "advanced" && <AdvancedModePanel />}
                   {activeTab === "latex"    && <LaTeXSourceViewer />}
@@ -239,7 +288,7 @@ export default function EditorPage() {
           </div>
 
           {/* Activity bar — right edge */}
-          <div className="w-10 flex flex-col items-center pt-1 pb-1 border-l border-foreground/[0.04] bg-background/50 dark:bg-[#0a0c10]/60 shrink-0">
+          <div className="w-11 flex flex-col items-center pt-1 pb-1 border-l border-foreground/[0.04] bg-background/50 dark:bg-surface-0/60 shrink-0">
           {/* AI アシスタント */}
           {(["ai", "latex"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Bot : FileCode2;
@@ -251,12 +300,12 @@ export default function EditorPage() {
             const isActive = sidebarOpen && activeTab === tab;
             return (
               <button key={tab} onClick={() => handleTabClick(tab)} title={label}
-                className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
-                  isActive ? `${color} bg-foreground/[0.06]` : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-foreground/[0.04]"
+                className={`relative h-10 w-full flex items-center justify-center rounded-md mx-0.5 transition-all duration-150 ${
+                  isActive ? `${color} bg-foreground/[0.06]` : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-foreground/[0.06]"
                 }`}
               >
-                {isActive && <span className={`absolute left-0 inset-y-2 w-[2.5px] rounded-r-full ${ind} shadow-sm shadow-current`} />}
-                <Icon className="h-4 w-4" />
+                {isActive && <span className={`absolute left-0 inset-y-2 w-[2.5px] rounded-r-full ${ind} shadow-sm shadow-current transition-all duration-200`} />}
+                <Icon className="h-[18px] w-[18px]" />
                 {tab === "ai" && isChatLoading && (
                   <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
                 )}
@@ -270,12 +319,12 @@ export default function EditorPage() {
             title={editMode
               ? (isJa ? "編集モードをOFF" : "Exit edit mode")
               : (isJa ? "編集モードをON — クリックして書き込む" : "Edit mode — click to write")}
-            className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
-              editMode ? "text-sky-500 dark:text-sky-400 bg-foreground/[0.06]" : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-foreground/[0.04]"
+            className={`relative h-10 w-full flex items-center justify-center rounded-md mx-0.5 transition-all duration-150 ${
+              editMode ? "text-sky-500 dark:text-sky-400 bg-foreground/[0.06]" : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-foreground/[0.06]"
             }`}
           >
-            {editMode && <span className="absolute left-0 inset-y-2 w-[2.5px] rounded-r-full bg-gradient-to-b from-sky-500 to-sky-400/30 shadow-sm shadow-sky-500/30" />}
-            <PenLine className="h-4 w-4" />
+            {editMode && <span className="absolute left-0 inset-y-2 w-[2.5px] rounded-r-full bg-gradient-to-b from-sky-500 to-sky-400/30 shadow-sm shadow-sky-500/30 transition-all duration-200" />}
+            <PenLine className="h-[18px] w-[18px]" />
             {editMode && (
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-sky-400" />
             )}
@@ -288,18 +337,18 @@ export default function EditorPage() {
               title={isMathEditing
                 ? (isJa ? "数式入力ガイド" : "Math reference")
                 : (isJa ? "編集ガイド" : "Editing guide")}
-              className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
+              className={`relative h-10 w-full flex items-center justify-center rounded-md mx-0.5 transition-all duration-150 ${
                 sidebarOpen && (activeTab === "guide" || activeTab === "math")
                   ? isMathEditing ? "text-violet-500 bg-foreground/[0.06]" : "text-sky-500 bg-foreground/[0.06]"
-                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-foreground/[0.04]"
+                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-foreground/[0.06]"
               }`}
             >
               {sidebarOpen && (activeTab === "guide" || activeTab === "math") && (
-                <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full opacity-80 ${isMathEditing ? "bg-violet-500" : "bg-sky-400"}`} />
+                <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full opacity-80 transition-all duration-200 ${isMathEditing ? "bg-violet-500" : "bg-sky-400"}`} />
               )}
               {isMathEditing
-                ? <Sigma className="h-3.5 w-3.5" />
-                : <BookOpen className="h-3.5 w-3.5" />
+                ? <Sigma className="h-4 w-4" />
+                : <BookOpen className="h-4 w-4" />
               }
             </button>
           )}
@@ -314,12 +363,12 @@ export default function EditorPage() {
               <button
                 onClick={() => handleTabClick("advanced")}
                 title={isJa ? "LaTeX拡張（上級者向け）" : "LaTeX Extensions (advanced)"}
-                className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
-                  isActive ? "text-amber-500 dark:text-amber-400 bg-foreground/[0.06]" : "text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-foreground/[0.04]"
+                className={`relative h-10 w-full flex items-center justify-center rounded-md mx-0.5 transition-all duration-150 ${
+                  isActive ? "text-amber-500 dark:text-amber-400 bg-foreground/[0.06]" : "text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-foreground/[0.06]"
                 }`}
               >
-                {isActive && <span className="absolute left-0 inset-y-2 w-[2.5px] rounded-r-full bg-gradient-to-b from-amber-500 to-amber-400/30 shadow-sm shadow-amber-500/20" />}
-                <Terminal className="h-3.5 w-3.5" />
+                {isActive && <span className="absolute left-0 inset-y-2 w-[2.5px] rounded-r-full bg-gradient-to-b from-amber-500 to-amber-400/30 shadow-sm shadow-amber-500/20 transition-all duration-200" />}
+                <Terminal className="h-4 w-4" />
                 {advancedEnabled && !isActive && (
                   <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-amber-500" />
                 )}
@@ -331,10 +380,10 @@ export default function EditorPage() {
           <button
             onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
             title={locale === "ja" ? "Switch to English" : "日本語に切り替え"}
-            className="h-10 w-full flex flex-col items-center justify-center gap-0.5 text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-foreground/[0.04] transition-all duration-200"
+            className="h-10 w-full flex flex-col items-center justify-center gap-0.5 rounded-md mx-0.5 text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-foreground/[0.06] transition-all duration-150"
           >
-            <Globe className="h-3.5 w-3.5" />
-            <span className="text-[7px] font-mono uppercase">{locale === "ja" ? "EN" : "JA"}</span>
+            <Globe className="h-4 w-4" />
+            <span className="text-[8px] font-mono uppercase">{locale === "ja" ? "EN" : "JA"}</span>
           </button>
           </div>{/* end activity bar */}
         </div>{/* end sidebar column */}

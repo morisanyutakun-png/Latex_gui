@@ -71,7 +71,7 @@ export function ThinkingIndicator({
       </div>
 
       {/* Agent activity terminal */}
-      <div className="ml-7 rounded-lg bg-[#0d1117] dark:bg-[#060810] border border-slate-700/60 overflow-hidden">
+      <div className="ml-7 rounded-lg bg-surface-0 dark:bg-surface-0 border border-slate-700/60 overflow-hidden">
         <div className="px-3 py-2 font-mono text-[11px] space-y-1 min-h-[40px] max-h-[320px] overflow-y-auto scroll-smooth">
           {/* Header line */}
           <div className="flex items-center gap-2 text-slate-500">

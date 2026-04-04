@@ -523,9 +523,9 @@ export function AIChatPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f2f3f5] dark:bg-[#16181c]">
+    <div className="flex flex-col h-full bg-surface-2 dark:bg-surface-2">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-[#0f1117]/95 dark:bg-[#0a0c10]/95 backdrop-blur-xl shrink-0 shadow-[0_2px_16px_rgba(0,0,0,0.3)]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-surface-1/95 dark:bg-surface-0/95 backdrop-blur-xl shrink-0 shadow-[0_2px_16px_rgba(0,0,0,0.3)]">
         <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0 ring-1 ring-white/10">
           <Sparkles className="h-4 w-4 text-white" />
         </div>
@@ -579,7 +579,7 @@ export function AIChatPanel() {
       )}
 
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-[#f2f3f5] dark:bg-[#16181c]">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-surface-2 dark:bg-surface-2">
         {chatMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-5 py-8 select-none">
             <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-violet-600/15 dark:from-indigo-500/20 dark:to-violet-600/20 flex items-center justify-center ring-1 ring-indigo-400/20 shadow-lg shadow-indigo-900/10">
@@ -599,7 +599,7 @@ export function AIChatPanel() {
                 <button
                   key={s}
                   onClick={() => { setInput(s); textareaRef.current?.focus(); }}
-                  className="text-left text-xs px-3.5 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-white dark:bg-[#1e2027] text-foreground/60 hover:text-indigo-600 dark:hover:text-indigo-300 hover:border-indigo-300/50 dark:hover:border-indigo-700/50 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 transition-all shadow-sm"
+                  className="text-left text-xs px-3.5 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/40 bg-white dark:bg-surface-4 text-foreground/60 hover:text-indigo-600 dark:hover:text-indigo-300 hover:border-indigo-300/50 dark:hover:border-indigo-700/50 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 transition-all shadow-sm hover:shadow-md animate-scale-in"
                 >
                   {s}
                 </button>

@@ -87,7 +87,7 @@ export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
             return (
               <div key={i} className="relative flex items-start gap-2 py-1">
                 {/* Timeline dot */}
-                <div className={`absolute -left-[13.5px] top-[7px] h-2 w-2 rounded-full ${baseConfig.dotColor} ring-2 ring-white dark:ring-[#16181c]`} />
+                <div className={`absolute -left-[13.5px] top-[7px] h-2 w-2 rounded-full ${baseConfig.dotColor} ring-2 ring-white dark:ring-surface-2`} />
                 {/* Content */}
                 <Icon className={`h-3 w-3 mt-0.5 shrink-0 ${color}`} />
                 <div className="flex-1 min-w-0">

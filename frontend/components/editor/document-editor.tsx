@@ -1397,7 +1397,7 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
     <GlobalCommandPalette />
     {/* Canvas */}
     <div
-      className="flex-1 overflow-auto bg-[#e8e8e8] dark:bg-[#1e1e1e]"
+      className="flex-1 overflow-auto bg-surface-0 dark:bg-surface-2"
       onClick={() => selectBlock(null)}
     >
       <div className="py-10 flex flex-col items-center min-h-full">

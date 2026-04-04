@@ -21,7 +21,9 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <I18nProvider>
             <TooltipProvider>
-              {children}
+              <div className="animate-page-fade-in">
+                {children}
+              </div>
             </TooltipProvider>
             <Toaster richColors position="bottom-center" />
           </I18nProvider>

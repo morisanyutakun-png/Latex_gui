@@ -266,9 +266,9 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
           </div>
 
           {/* Right: AI chat */}
-          <div className="w-[200px] sm:w-[240px] border-l border-foreground/[0.06] flex flex-col bg-[#0f1117]/[0.02] dark:bg-[#0f1117]/60">
+          <div className="w-[200px] sm:w-[240px] border-l border-foreground/[0.06] flex flex-col bg-surface-1/[0.02] dark:bg-surface-1/60">
             {/* Panel header */}
-            <div className="px-3 py-2 border-b border-foreground/[0.06] bg-[#0f1117]/[0.04] dark:bg-[#0f1117]/80 flex items-center gap-2">
+            <div className="px-3 py-2 border-b border-foreground/[0.06] bg-surface-1/[0.04] dark:bg-surface-1/80 flex items-center gap-2">
               <div className="h-4 w-4 rounded bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
                 <Sparkles className="h-2.5 w-2.5 text-white" />
               </div>

@@ -11,7 +11,7 @@ export function ChatMarkdown({ content }: { content: string }) {
       rehypePlugins={[rehypeKatex]}
       components={{
         pre: ({ children }) => (
-          <pre className="rounded-lg p-3 my-2 overflow-x-auto text-[12px] font-mono bg-slate-100 dark:bg-[#1a1d24] text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/40">
+          <pre className="rounded-lg p-3 my-2 overflow-x-auto text-[12px] font-mono bg-slate-100 dark:bg-surface-3 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/40">
             {children}
           </pre>
         ),

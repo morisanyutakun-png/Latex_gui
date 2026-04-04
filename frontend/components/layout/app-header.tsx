@@ -230,31 +230,31 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
   return (
     <header
-      className="relative flex items-center gap-1.5 px-3 h-11 border-b border-foreground/[0.06] bg-background/80 backdrop-blur-xl sticky top-0 z-40 shrink-0"
+      className="relative flex items-center gap-2 px-3 h-12 border-b border-border/40 bg-background/80 backdrop-blur-xl sticky top-0 z-40 shrink-0"
     >
 
       {/* Logo + Back */}
       <button
         onClick={() => router.push("/")}
-        className="flex items-center gap-2 group shrink-0 mr-1"
+        className="flex items-center gap-2 group shrink-0 mr-0.5"
         title={t("header.home")}
       >
-        <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-sm shadow-blue-500/20 group-hover:shadow-blue-500/40 group-hover:scale-105 transition-all">
-          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none">
+        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md shadow-blue-500/20 group-hover:shadow-blue-500/40 group-hover:scale-105 transition-all">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
             <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
             <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
           </svg>
         </div>
-        <span className="text-[13px] font-semibold text-foreground/50 group-hover:text-foreground/70 transition-colors tracking-tight hidden sm:inline">Eddivom</span>
+        <span className="text-sm font-semibold text-foreground/50 group-hover:text-foreground/70 transition-colors tracking-tight hidden sm:inline">Eddivom</span>
       </button>
 
-      <div className="w-px h-4 bg-foreground/[0.06] mx-0.5 shrink-0" />
+      <div className="w-px h-5 bg-border/40 mx-0.5 shrink-0" />
 
       {/* Title */}
       <input
         value={doc.metadata.title}
         onChange={(e) => updateMetadata({ title: e.target.value })}
-        className={`h-7 px-2 text-[13px] font-medium bg-transparent border border-transparent hover:border-border/30 focus:border-primary/30 focus:outline-none rounded-md w-48 sm:w-56 transition-colors placeholder:text-muted-foreground/20 ${
+        className={`h-8 px-2.5 text-sm font-medium bg-transparent border border-transparent hover:border-border/40 focus:border-primary/30 focus:bg-accent/30 focus:outline-none rounded-lg w-52 sm:w-64 transition-all placeholder:text-muted-foreground/20 ${
           isAIActive ? "text-foreground/80" : "text-foreground/70"
         }`}
         placeholder={isJa ? "無題の教材" : "Untitled worksheet"}
@@ -265,99 +265,100 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         <button
           onClick={undo}
           disabled={past.length === 0}
-          className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+          className="btn-icon h-8 w-8"
           title={t("header.undo")}
         >
-          <Undo2 className="h-3.5 w-3.5" />
+          <Undo2 className="h-4 w-4" />
         </button>
         <button
           onClick={redo}
           disabled={future.length === 0}
-          className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+          className="btn-icon h-8 w-8"
           title={t("header.redo")}
         >
-          <Redo2 className="h-3.5 w-3.5" />
+          <Redo2 className="h-4 w-4" />
         </button>
       </div>
 
       {/* Center — AI status */}
       <div className="flex-1 flex items-center justify-center min-w-0 px-2">
         {isAIActive && isChatLoading ? (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-500/15 to-indigo-500/15 text-violet-500 dark:text-violet-300 text-[11px] font-medium animate-pulse border border-violet-500/10">
-            <Bot className="h-3 w-3 shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-violet-500/12 to-indigo-500/12 text-violet-500 dark:text-violet-300 text-xs font-medium animate-pulse border border-violet-500/10 shadow-sm">
+            <Bot className="h-3.5 w-3.5 shrink-0" />
             <span>{isJa ? "AIが考え中…" : "AI thinking…"}</span>
           </div>
         ) : lastAIAction && indicatorVisible ? (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-500/8 dark:bg-violet-950/40 text-violet-600 dark:text-violet-300 text-[11px] font-medium animate-in fade-in duration-300 max-w-sm overflow-hidden">
-            <Sparkles className="h-3 w-3 shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/8 dark:bg-violet-950/40 text-violet-600 dark:text-violet-300 text-xs font-medium animate-in fade-in duration-300 max-w-sm overflow-hidden shadow-sm">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{lastAIAction.description}</span>
             <OpCountIcons counts={lastAIAction.opCounts} />
           </div>
         ) : null}
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-0.5">
+      {/* Actions — file operations */}
+      <div className="flex items-center gap-0.5 px-1 py-1 rounded-lg">
         <button
           onClick={handleSave}
-          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-colors"
+          className="btn-icon h-8 w-8"
           title={isJa ? "保存" : "Save"}
         >
-          <Save className="h-3.5 w-3.5" />
+          <Save className="h-4 w-4" />
         </button>
         <button
           onClick={handleExportJSON}
-          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-colors"
+          className="btn-icon h-8 w-8"
           title={isJa ? "JSON書き出し" : "Export JSON"}
         >
-          <FileDown className="h-3.5 w-3.5" />
+          <FileDown className="h-4 w-4" />
         </button>
         <button
           onClick={handleImportJSON}
-          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-colors"
+          className="btn-icon h-8 w-8"
           title={isJa ? "ファイルを開く" : "Open file"}
         >
-          <FileUp className="h-3.5 w-3.5" />
+          <FileUp className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="w-px h-4 bg-foreground/[0.06] mx-1 shrink-0" />
+      <div className="w-px h-5 bg-border/40 mx-0.5 shrink-0" />
 
-      {/* OMR — 画像→LaTeX変換 */}
-      <input ref={omrFileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleOMRFromToolbar} />
-      <button
-        onClick={() => omrFileRef.current?.click()}
-        disabled={isOMRProcessing || isGenerating}
-        className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 disabled:opacity-30 transition-colors"
-        title={isJa ? "画像から読み取り (OMR)" : "Scan image (OMR)"}
-      >
-        {isOMRProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanLine className="h-3.5 w-3.5" />}
-      </button>
+      {/* Tools */}
+      <div className="flex items-center gap-0.5">
+        {/* OMR — 画像→LaTeX変換 */}
+        <input ref={omrFileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleOMRFromToolbar} />
+        <button
+          onClick={() => omrFileRef.current?.click()}
+          disabled={isOMRProcessing || isGenerating}
+          className="btn-icon h-8 w-8"
+          title={isJa ? "画像から読み取り (OMR)" : "Scan image (OMR)"}
+        >
+          {isOMRProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
+        </button>
 
-      <button
-        onClick={toggleOutline}
-        className={`h-7 w-7 flex items-center justify-center rounded-md transition-colors ${
-          isOutlineOpen
-            ? "text-primary bg-primary/10"
-            : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/50"
-        }`}
-        title={isJa ? "構成を表示" : "Show outline"}
-      >
-        <LayoutList className="h-3.5 w-3.5" />
-      </button>
+        <button
+          onClick={toggleOutline}
+          className={`btn-icon h-8 w-8 ${
+            isOutlineOpen ? "!text-primary !bg-primary/10" : ""
+          }`}
+          title={isJa ? "構成を表示" : "Show outline"}
+        >
+          <LayoutList className="h-4 w-4" />
+        </button>
 
-      <ThemeToggle />
+        <ThemeToggle />
+      </div>
 
-      {/* PDF export — Canva-style prominent button */}
+      {/* PDF export — prominent button */}
       <button
         onClick={handleGeneratePDF}
         disabled={isGenerating}
-        className="flex items-center gap-2 h-7 px-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[12px] font-semibold hover:from-blue-500 hover:to-violet-500 hover:shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97] ml-1 shrink-0"
+        className="flex items-center gap-2 h-8 px-5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[13px] font-semibold shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-violet-500 hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97] ml-1 shrink-0"
       >
         {isGenerating ? (
-          <><Loader2 className="h-3 w-3 animate-spin" /><span>{isJa ? "生成中…" : "Generating…"}</span></>
+          <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>{isJa ? "生成中…" : "Generating…"}</span></>
         ) : (
-          <><Printer className="h-3 w-3" /><span>{isJa ? "PDF出力" : "Export PDF"}</span></>
+          <><Printer className="h-3.5 w-3.5" /><span>{isJa ? "PDF出力" : "Export PDF"}</span></>
         )}
       </button>
 
@@ -365,14 +366,15 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
       {/* PDF Save As ダイアログ（showSaveFilePicker 非対応ブラウザ用） */}
       {showSaveDialog && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={() => { setShowSaveDialog(false); setPdfBlob(null); }}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setShowSaveDialog(false); setPdfBlob(null); }}>
           <div
-            className="bg-background rounded-xl shadow-2xl border p-5 w-[360px] space-y-4"
+            className="bg-background rounded-xl border p-6 w-[380px] space-y-4 animate-scale-in"
+            style={{ boxShadow: "var(--shadow-float)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-sm font-semibold">{isJa ? "PDFを保存" : "Save PDF"}</h3>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">{isJa ? "ファイル名" : "Filename"}</label>
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground font-medium">{isJa ? "ファイル名" : "Filename"}</label>
               <input
                 value={pdfFilename}
                 onChange={(e) => setPdfFilename(e.target.value)}
@@ -381,16 +383,16 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
                 autoFocus
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-1">
               <button
                 onClick={() => { setShowSaveDialog(false); setPdfBlob(null); }}
-                className="px-3 py-1.5 text-xs rounded-lg border hover:bg-muted transition-colors"
+                className="px-4 py-2 text-xs rounded-lg border hover:bg-muted transition-all font-medium"
               >
                 {isJa ? "キャンセル" : "Cancel"}
               </button>
               <button
                 onClick={handleSavePDF}
-                className="px-4 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium"
+                className="px-5 py-2 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-all font-semibold shadow-sm"
               >
                 {isJa ? "保存" : "Save"}
               </button>
