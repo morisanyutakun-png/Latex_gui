@@ -998,6 +998,19 @@ async def chat_stream(messages: list[dict], document: dict):
                     continue
                 logger.error("Agent stream error (turn %d): %s", turn, e, exc_info=True)
                 yield _sse({"type": "error", "message": user_msg})
+                # Still send "done" so frontend knows stream is finished
+                message = user_msg
+                if all_patches:
+                    op_summary = _ops_summary(all_patches)
+                    message = f"{op_summary}\n\n（エラー: {user_msg}）"
+                patches_result = {"ops": all_patches} if all_patches else None
+                yield _sse({
+                    "type": "done",
+                    "message": message,
+                    "patches": patches_result,
+                    "thinking": all_thinking,
+                    "usage": total_usage,
+                })
                 return
 
             # Accumulate usage
@@ -1139,6 +1152,15 @@ async def chat_stream(messages: list[dict], document: dict):
         user_msg, _ = _parse_api_error(e)
         logger.error("Agent loop fatal error [%s]: %s", type(e).__name__, e, exc_info=True)
         yield _sse({"type": "error", "message": user_msg})
+        # Always send "done" so the frontend can finalize the message
+        patches_result = {"ops": all_patches} if all_patches else None
+        yield _sse({
+            "type": "done",
+            "message": user_msg,
+            "patches": patches_result,
+            "thinking": all_thinking,
+            "usage": total_usage,
+        })
 
 
 

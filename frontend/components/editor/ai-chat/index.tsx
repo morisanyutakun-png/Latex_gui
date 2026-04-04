@@ -181,6 +181,7 @@ export function AIChatPanel() {
       let streamDiag: StreamDiagnostics | null = null;
       const accumulatedSteps: ThinkingStep[] = [];
       const accumulatedOps: Record<string, unknown>[] = [];
+      let lastStreamError: string | null = null;
 
       try {
         streamDiag = await streamAIMessage(history, document, (event: StreamEvent) => {
@@ -255,7 +256,10 @@ export function AIChatPanel() {
               break;
 
             case "error":
-              throw new Error(event.message);
+              // Don't throw immediately — backend will send "done" after error.
+              // Record the error and keep listening for the "done" event.
+              lastStreamError = event.message;
+              break;
           }
         }, controller.signal);
       } catch (streamErr) {
@@ -381,8 +385,8 @@ export function AIChatPanel() {
         } else if (streamDiag) {
           if (streamDiag.eventsReceived === 0) {
             errorDetail = "バックエンドからの応答がありませんでした。サーバーが起動中か、接続に問題がある可能性があります。";
-          } else if (streamDiag.errorMessage) {
-            errorDetail = streamDiag.errorMessage;
+          } else if (lastStreamError || streamDiag.errorMessage) {
+            errorDetail = lastStreamError || streamDiag.errorMessage!;
           } else if (streamDiag.lastEventType === "thinking") {
             errorDetail = "AIの思考中に接続が切断されました。サーバー側でエラーが発生した可能性があります（APIの使用量超過・レート制限等）。";
           } else if (streamDiag.lastEventType === "tool_call" || streamDiag.lastEventType === "tool_result") {
