@@ -62,6 +62,15 @@ export default function EditorPage() {
     }
   }, [advancedEnabled, isMobile]);
 
+  // 類題作成などでpendingChatMessageがセットされたらAIパネルを自動で開く
+  const pendingChatMessage = useUIStore((s) => s.pendingChatMessage);
+  useEffect(() => {
+    if (pendingChatMessage) {
+      setSidebarOpen(true);
+      setActiveTab("ai");
+    }
+  }, [pendingChatMessage]);
+
   // 数式編集コンテキストに応じてガイドパネル自動切替
   useEffect(() => {
     if (isMathEditing || activeGuideContext === "math") {
