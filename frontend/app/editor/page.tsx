@@ -184,7 +184,7 @@ export default function EditorPage() {
   const meta = panelMeta[activeTab];
 
   return (
-    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-background overflow-hidden">
+    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-[#0a0c10] overflow-hidden">
       {/* Header — spans full width */}
       <AppHeader isAIActive={isAIActive} />
 
@@ -198,18 +198,18 @@ export default function EditorPage() {
         </div>
 
         {/* ── Sidebar (panel + activity bar) — unified column ── */}
-        <div className="flex flex-shrink-0 border-l border-border/20 bg-background">
+        <div className="flex flex-shrink-0 border-l border-foreground/[0.06] bg-background/80 dark:bg-[#0f1117]/80 backdrop-blur-xl">
           {/* Panel content */}
           <div className={`overflow-hidden flex flex-col transition-all duration-200 ${sidebarOpen ? "w-96" : "w-0"}`}>
             {sidebarOpen && (
               <div className="w-96 h-full flex flex-col">
                 {/* Panel title bar — ai タブはチャットパネル自身がヘッダーを持つため非表示 */}
                 {activeTab !== "ai" && (
-                  <div className={`relative flex items-center px-3 h-9 border-b border-border/15 shrink-0 select-none ${meta.bg}`}>
+                  <div className={`relative flex items-center px-3 h-9 border-b border-foreground/[0.06] shrink-0 select-none ${meta.bg}`}>
                     {meta.indicator && (
-                      <div className={`absolute left-0 top-0 h-full w-[2px] ${meta.indicator} rounded-r`} />
+                      <div className={`absolute left-0 top-0 h-full w-[2.5px] ${meta.indicator} rounded-r`} />
                     )}
-                    <span className={`text-[10px] font-semibold uppercase tracking-widest flex-1 ${meta.textColor}`}>
+                    <span className={`text-[10px] font-semibold uppercase tracking-[0.15em] flex-1 ${meta.textColor}`}>
                       {meta.label}
                     </span>
                     {activeTab === "advanced" && advancedEnabled && (
@@ -238,8 +238,8 @@ export default function EditorPage() {
             )}
           </div>
 
-          {/* Activity bar — right edge, no extra border */}
-          <div className="w-10 flex flex-col items-center pt-1 pb-1 border-l border-border/10 shrink-0">
+          {/* Activity bar — right edge */}
+          <div className="w-10 flex flex-col items-center pt-1 pb-1 border-l border-foreground/[0.04] bg-background/50 dark:bg-[#0a0c10]/60 shrink-0">
           {/* AI アシスタント */}
           {(["ai", "latex"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Bot : FileCode2;
@@ -251,11 +251,11 @@ export default function EditorPage() {
             const isActive = sidebarOpen && activeTab === tab;
             return (
               <button key={tab} onClick={() => handleTabClick(tab)} title={label}
-                className={`relative h-10 w-full flex items-center justify-center transition-all ${
-                  isActive ? `${color} bg-muted/30` : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
+                className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
+                  isActive ? `${color} bg-foreground/[0.06]` : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-foreground/[0.04]"
                 }`}
               >
-                {isActive && <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full ${ind} opacity-80`} />}
+                {isActive && <span className={`absolute left-0 inset-y-2 w-[2.5px] rounded-r-full ${ind} shadow-sm shadow-current`} />}
                 <Icon className="h-4 w-4" />
                 {tab === "ai" && isChatLoading && (
                   <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
@@ -270,11 +270,11 @@ export default function EditorPage() {
             title={editMode
               ? (isJa ? "編集モードをOFF" : "Exit edit mode")
               : (isJa ? "編集モードをON — クリックして書き込む" : "Edit mode — click to write")}
-            className={`relative h-10 w-full flex items-center justify-center transition-all ${
-              editMode ? "text-sky-500 dark:text-sky-400 bg-muted/30" : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-muted/15"
+            className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
+              editMode ? "text-sky-500 dark:text-sky-400 bg-foreground/[0.06]" : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-foreground/[0.04]"
             }`}
           >
-            {editMode && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-sky-500 opacity-80" />}
+            {editMode && <span className="absolute left-0 inset-y-2 w-[2.5px] rounded-r-full bg-gradient-to-b from-sky-500 to-sky-400/30 shadow-sm shadow-sky-500/30" />}
             <PenLine className="h-4 w-4" />
             {editMode && (
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-sky-400" />
@@ -288,10 +288,10 @@ export default function EditorPage() {
               title={isMathEditing
                 ? (isJa ? "数式入力ガイド" : "Math reference")
                 : (isJa ? "編集ガイド" : "Editing guide")}
-              className={`relative h-10 w-full flex items-center justify-center transition-all ${
+              className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
                 sidebarOpen && (activeTab === "guide" || activeTab === "math")
-                  ? isMathEditing ? "text-violet-500 bg-muted/30" : "text-sky-500 bg-muted/30"
-                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/15"
+                  ? isMathEditing ? "text-violet-500 bg-foreground/[0.06]" : "text-sky-500 bg-foreground/[0.06]"
+                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-foreground/[0.04]"
               }`}
             >
               {sidebarOpen && (activeTab === "guide" || activeTab === "math") && (
@@ -305,7 +305,7 @@ export default function EditorPage() {
           )}
 
           <div className="flex-1" />
-          <div className="w-5 h-px bg-border/30 mb-1" />
+          <div className="w-5 h-px bg-foreground/[0.06] mb-1" />
 
           {/* LaTeX拡張 — 上級者向け、下部に配置 */}
           {(() => {
@@ -314,11 +314,11 @@ export default function EditorPage() {
               <button
                 onClick={() => handleTabClick("advanced")}
                 title={isJa ? "LaTeX拡張（上級者向け）" : "LaTeX Extensions (advanced)"}
-                className={`relative h-10 w-full flex items-center justify-center transition-all ${
-                  isActive ? "text-amber-500 dark:text-amber-400 bg-muted/30" : "text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/15"
+                className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
+                  isActive ? "text-amber-500 dark:text-amber-400 bg-foreground/[0.06]" : "text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-foreground/[0.04]"
                 }`}
               >
-                {isActive && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-amber-500 opacity-80" />}
+                {isActive && <span className="absolute left-0 inset-y-2 w-[2.5px] rounded-r-full bg-gradient-to-b from-amber-500 to-amber-400/30 shadow-sm shadow-amber-500/20" />}
                 <Terminal className="h-3.5 w-3.5" />
                 {advancedEnabled && !isActive && (
                   <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-amber-500" />
@@ -331,7 +331,7 @@ export default function EditorPage() {
           <button
             onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
             title={locale === "ja" ? "Switch to English" : "日本語に切り替え"}
-            className="h-10 w-full flex flex-col items-center justify-center gap-0.5 text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/15 transition-all"
+            className="h-10 w-full flex flex-col items-center justify-center gap-0.5 text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-foreground/[0.04] transition-all duration-200"
           >
             <Globe className="h-3.5 w-3.5" />
             <span className="text-[7px] font-mono uppercase">{locale === "ja" ? "EN" : "JA"}</span>

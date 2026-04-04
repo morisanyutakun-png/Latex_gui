@@ -168,7 +168,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
   return (
     <header
-      className="relative flex items-center gap-1.5 px-3 h-11 border-b border-border/20 bg-background sticky top-0 z-40 shrink-0"
+      className="relative flex items-center gap-1.5 px-3 h-11 border-b border-foreground/[0.06] bg-background/80 backdrop-blur-xl sticky top-0 z-40 shrink-0"
     >
 
       {/* Logo + Back */}
@@ -186,7 +186,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         <ArrowLeft className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors" />
       </button>
 
-      <div className="w-px h-4 bg-border/25 mx-0.5 shrink-0" />
+      <div className="w-px h-4 bg-foreground/[0.06] mx-0.5 shrink-0" />
 
       {/* Title */}
       <input
@@ -221,7 +221,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       {/* Center — AI status */}
       <div className="flex-1 flex items-center justify-center min-w-0 px-2">
         {isAIActive && isChatLoading ? (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-500/12 text-violet-500 dark:text-violet-300 text-[11px] font-medium animate-pulse">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-500/15 to-indigo-500/15 text-violet-500 dark:text-violet-300 text-[11px] font-medium animate-pulse border border-violet-500/10">
             <Bot className="h-3 w-3 shrink-0" />
             <span>{isJa ? "AIが考え中…" : "AI thinking…"}</span>
           </div>
@@ -259,7 +259,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         </button>
       </div>
 
-      <div className="w-px h-4 bg-border/25 mx-1 shrink-0" />
+      <div className="w-px h-4 bg-foreground/[0.06] mx-1 shrink-0" />
 
       <button
         onClick={toggleOutline}
