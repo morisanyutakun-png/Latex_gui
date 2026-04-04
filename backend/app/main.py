@@ -6,7 +6,7 @@ from pathlib import Path
 import pydantic
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response, JSONResponse, StreamingResponse
 
 from .models import DocumentModel, ErrorResponse, BatchRequest, BatchResponse, BatchResultItem
 from .pdf_service import compile_pdf, compile_raw_latex, generate_latex, PDFGenerationError
@@ -24,7 +24,7 @@ from .batch_service import (
     detect_placeholders, generate_batch_pdfs,
     create_batch_zip, parse_csv_variables, parse_json_variables,
 )
-from .ai_service import chat as ai_chat
+from .ai_service import chat as ai_chat, chat_stream as ai_chat_stream
 from .omr_service import analyze_image as omr_analyze_image
 from .materials_service import search_materials, get_all_subjects, get_all_levels
 
@@ -568,6 +568,32 @@ async def ai_chat_endpoint(request: ChatRequest):
             status_code=500,
             detail={"message": f"AIエラー: {type(e).__name__}: {str(e)[:200]}"},
         )
+
+
+@app.post("/api/ai/chat/stream")
+async def ai_chat_stream_endpoint(request: ChatRequest):
+    """AIチャット (SSEストリーミング) — リアルタイムでトークンを返す"""
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "code": "MISSING_API_KEY",
+            },
+        )
+
+    if not request.messages:
+        raise HTTPException(status_code=400, detail={"message": "messages が空です"})
+
+    return StreamingResponse(
+        ai_chat_stream(request.messages, request.document),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ═══ OMR エンドポイント ═══

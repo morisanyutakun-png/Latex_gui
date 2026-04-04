@@ -904,29 +904,29 @@ export function TemplateGallery() {
           </div>
 
           {/* Plans */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
             {/* Free */}
-            <div className="relative p-7 rounded-[20px] bg-card/70 backdrop-blur-xl border border-foreground/[0.06] hover:border-foreground/[0.1] transition-all duration-300">
+            <div className="relative p-6 rounded-[20px] bg-card/70 backdrop-blur-xl border border-foreground/[0.06] hover:border-foreground/[0.1] transition-all duration-300">
               <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground/50 mb-3">Free</p>
               <div className="flex items-baseline gap-1 mb-1">
-                <span className="text-[36px] font-black tracking-tight">¥0</span>
+                <span className="text-[32px] font-black tracking-tight">¥0</span>
               </div>
-              <p className="text-[12px] text-muted-foreground mb-6">{isJa ? "ずっと無料・カード不要" : "Free forever · No credit card"}</p>
+              <p className="text-[12px] text-muted-foreground mb-5">{isJa ? "ずっと無料・カード不要" : "Free forever · No credit card"}</p>
               <button
                 onClick={handleStart}
-                className="w-full py-3 rounded-xl border border-foreground/[0.1] text-foreground font-semibold text-[14px] hover:bg-foreground/[0.04] transition-all duration-300 mb-6"
+                className="w-full py-2.5 rounded-xl border border-foreground/[0.1] text-foreground font-semibold text-[13px] hover:bg-foreground/[0.04] transition-all duration-300 mb-5"
               >
                 {isJa ? "無料で始める" : "Get started free"}
               </button>
-              <ul className="space-y-3">
+              <ul className="space-y-2.5">
                 {[
                   isJa ? "月3枚までワークシート作成" : "Up to 3 worksheets / month",
                   isJa ? "AI問題生成（基本）" : "Basic AI problem generation",
                   isJa ? "PDF出力" : "PDF export",
                   isJa ? "テキストから問題生成" : "Generate from text prompts",
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2.5 text-[12.5px] text-muted-foreground">
-                    <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                  <li key={f} className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                     {f}
                   </li>
                 ))}
@@ -934,7 +934,7 @@ export function TemplateGallery() {
             </div>
 
             {/* Pro */}
-            <div className="relative p-7 rounded-[20px] bg-gradient-to-b from-violet-500/[0.06] to-blue-500/[0.03] border-2 border-violet-500/[0.25] shadow-2xl shadow-violet-500/[0.08] hover:shadow-violet-500/[0.15] transition-all duration-300">
+            <div className="relative p-6 rounded-[20px] bg-gradient-to-b from-violet-500/[0.06] to-blue-500/[0.03] border-2 border-violet-500/[0.25] shadow-2xl shadow-violet-500/[0.08] hover:shadow-violet-500/[0.15] transition-all duration-300">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold shadow-lg flex items-center gap-1">
                   <Crown className="h-3 w-3" />
@@ -943,21 +943,21 @@ export function TemplateGallery() {
               </div>
               <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-3">Pro</p>
               <div className="flex items-baseline gap-1 mb-1">
-                <span className="text-[36px] font-black tracking-tight">¥{annual ? "980" : "1,480"}</span>
-                <span className="text-[14px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
+                <span className="text-[32px] font-black tracking-tight">¥{annual ? "980" : "1,480"}</span>
+                <span className="text-[13px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
               </div>
-              <p className="text-[12px] text-muted-foreground mb-6">
+              <p className="text-[12px] text-muted-foreground mb-5">
                 {annual
                   ? (isJa ? "年払い ¥11,760/年（月あたり¥980）" : "Billed annually at ¥11,760/yr")
                   : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
               </p>
               <button
                 onClick={handleStart}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[14px] shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-6"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[13px] shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
               >
                 {isJa ? "7日間無料で試す" : "Start 7-day free trial"}
               </button>
-              <ul className="space-y-3">
+              <ul className="space-y-2.5">
                 {[
                   isJa ? "ワークシート無制限" : "Unlimited worksheets",
                   isJa ? "AI類題生成（無制限）" : "Unlimited AI variant generation",
@@ -966,8 +966,50 @@ export function TemplateGallery() {
                   isJa ? "問題ごとの編集・並べ替え" : "Per-problem editing & reorder",
                   isJa ? "優先AIレスポンス" : "Priority AI responses",
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2.5 text-[12.5px] text-foreground/80 font-medium">
-                    <Check className="h-4 w-4 text-violet-500 shrink-0" />
+                  <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
+                    <Check className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Premium */}
+            <div className="relative p-6 rounded-[20px] bg-gradient-to-b from-amber-500/[0.08] to-orange-500/[0.04] border-2 border-amber-400/[0.3] shadow-2xl shadow-amber-500/[0.08] hover:shadow-amber-500/[0.15] transition-all duration-300">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold shadow-lg flex items-center gap-1">
+                  <Crown className="h-3 w-3" />
+                  {isJa ? "最上位" : "Best value"}
+                </span>
+              </div>
+              <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent mb-3">Premium</p>
+              <div className="flex items-baseline gap-1 mb-1">
+                <span className="text-[32px] font-black tracking-tight">¥{annual ? "9,800" : "12,800"}</span>
+                <span className="text-[13px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
+              </div>
+              <p className="text-[12px] text-muted-foreground mb-5">
+                {annual
+                  ? (isJa ? "年払い ¥117,600/年（月あたり¥9,800）" : "Billed annually at ¥117,600/yr")
+                  : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
+              </p>
+              <button
+                onClick={handleStart}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-[13px] shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
+              >
+                {isJa ? "14日間無料で試す" : "Start 14-day free trial"}
+              </button>
+              <ul className="space-y-2.5">
+                {[
+                  isJa ? "Proの全機能を含む" : "Everything in Pro",
+                  isJa ? "AIリクエスト ほぼ無制限" : "Virtually unlimited AI requests",
+                  isJa ? "紙デザインそのままPDF出力" : "Paper design preserved in PDF",
+                  isJa ? "バッチ処理（最大200行）" : "Batch processing (up to 200 rows)",
+                  isJa ? "カスタムテンプレート作成" : "Custom template creation",
+                  isJa ? "APIアクセス（近日公開）" : "API access (coming soon)",
+                  isJa ? "最優先サポート" : "Priority support",
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
+                    <Check className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                     {f}
                   </li>
                 ))}

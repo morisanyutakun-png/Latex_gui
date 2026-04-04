@@ -909,6 +909,116 @@ def _parse_api_error(e: Exception) -> tuple[str, float]:
     return f"AI APIの呼び出しに失敗しました。しばらく待ってから再度お試しください。", 0
 
 
+async def chat_stream(messages: list[dict], document: dict):
+    """
+    Gemini でチャットし、SSE イベントをジェネレータとして yield する。
+    各イベントは JSON 文字列:
+      {"type": "thinking", "text": "..."}
+      {"type": "text", "delta": "..."}
+      {"type": "tool_call", "name": "edit_document", "args": {...}}
+      {"type": "done", "usage": {...}, "patches": {...}, "thinking": [...]}
+      {"type": "error", "message": "..."}
+    """
+    import asyncio
+    import json
+    from google.genai import types  # type: ignore
+
+    client = get_client()
+    doc_context = _document_context(document)
+    contents = _build_contents(messages, doc_context)
+
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        tools=[GEMINI_TOOL_DEF],
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+        ),
+        thinking_config=types.ThinkingConfig(thinking_budget=2048),
+    )
+
+    def _sse(data: dict) -> str:
+        return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+    try:
+        def _call_stream():
+            return client.models.generate_content_stream(
+                model="gemini-2.5-flash",
+                contents=contents,
+                config=config,
+            )
+
+        stream = await asyncio.to_thread(_call_stream)
+
+        text_parts: list[str] = []
+        thought_parts: list[str] = []
+        patches = None
+        last_response = None
+
+        for chunk in stream:
+            last_response = chunk
+            if not chunk.candidates:
+                continue
+            candidate = chunk.candidates[0]
+            if not candidate.content or not candidate.content.parts:
+                continue
+
+            for part in candidate.content.parts:
+                if getattr(part, "thought", False):
+                    if part.text:
+                        thought_parts.append(part.text)
+                        yield _sse({"type": "thinking", "text": part.text[:200]})
+                    continue
+
+                if part.text:
+                    text_parts.append(part.text)
+                    yield _sse({"type": "text", "delta": part.text})
+
+                if part.function_call and part.function_call.name == "edit_document":
+                    raw_args = part.function_call.args
+                    patches = _deep_to_dict(raw_args)
+                    if "ops" in patches:
+                        patches["ops"] = _normalize_ops(patches["ops"])
+                    ops_count = len(patches.get("ops", []))
+                    logger.info("edit_document called (stream), ops count: %d", ops_count)
+                    yield _sse({"type": "tool_call", "name": "edit_document", "ops_count": ops_count})
+
+        # テキスト内JSON抽出
+        message = "\n".join(text_parts).strip()
+        if message and not patches:
+            extracted = _extract_json_patches(message)
+            if extracted:
+                patches = extracted
+                cleaned = _re.sub(r'```(?:json)?\s*\n?[\s\S]*?```', '', message).strip()
+                cleaned = _re.sub(r'(?:^|\n)\s*[\[{][\s\S]*?[\]}]\s*(?:\n|$)', '', cleaned).strip()
+                ops_count = len(patches.get("ops", []))
+                message = cleaned if cleaned else f"{ops_count}件の変更を適用します。"
+
+        if not message and patches:
+            ops = patches.get("ops", [])
+            message = f"{len(ops)}件の変更を適用しました。"
+        elif not message and not patches:
+            if thought_parts:
+                message = "\n".join(thought_parts).strip()
+            else:
+                message = "応答を取得できませんでした。"
+
+        thinking_steps = _build_thinking_steps(thought_parts, patches)
+        usage = _extract_usage(last_response) if last_response else {"inputTokens": 0, "outputTokens": 0}
+
+        yield _sse({
+            "type": "done",
+            "message": message,
+            "patches": patches,
+            "thinking": thinking_steps,
+            "usage": usage,
+        })
+
+    except Exception as e:
+        user_msg, _ = _parse_api_error(e)
+        logger.error("Gemini streaming error: %s", e, exc_info=True)
+        yield _sse({"type": "error", "message": user_msg})
+
+
 async def chat(messages: list[dict], document: dict) -> dict:
     """
     Gemini でチャットし、ドキュメント編集パッチを返す。

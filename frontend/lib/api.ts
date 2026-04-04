@@ -200,6 +200,75 @@ export async function sendAIMessage(
   };
 }
 
+// ═══ AI チャット SSE ストリーミング ═══
+
+export type StreamEvent =
+  | { type: "thinking"; text: string }
+  | { type: "text"; delta: string }
+  | { type: "tool_call"; name: string; ops_count: number }
+  | { type: "done"; message: string; patches: DocumentPatch | null; thinking: AIChatResponse["thinking"]; usage: AIChatResponse["usage"] }
+  | { type: "error"; message: string };
+
+export async function streamAIMessage(
+  messages: Pick<ChatMessage, "role" | "content">[],
+  doc: DocumentModel,
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/ai/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, document: doc, requestPatches: true }),
+    signal: signal || AbortSignal.timeout(120000),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    const msg = err?.detail?.message || err?.detail || `AIの応答取得に失敗しました (HTTP ${res.status})`;
+    throw new Error(msg);
+  }
+
+  if (!res.body) throw new Error("ストリーミングレスポンスが空です");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const event = JSON.parse(line.slice(6)) as StreamEvent;
+            onEvent(event);
+          } catch {
+            // ignore malformed SSE lines
+          }
+        }
+      }
+    }
+
+    // Process remaining buffer
+    if (buffer.startsWith("data: ")) {
+      try {
+        const event = JSON.parse(buffer.slice(6)) as StreamEvent;
+        onEvent(event);
+      } catch {
+        // ignore
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 // ═══ OMR 解析 API ═══
 
 export interface OMRAnalyzeResponse {

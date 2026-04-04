@@ -33,6 +33,7 @@ interface UIState {
   chatMessages: ChatMessage[];
   pendingPatch: DocumentPatch | null;
   isChatLoading: boolean;
+  streamingMessageId: string | null;
 
   selectBlock: (id: string | null) => void;
   setEditingBlock: (id: string | null) => void;
@@ -56,6 +57,8 @@ interface UIState {
   setPendingPatch: (patch: DocumentPatch | null) => void;
   setChatLoading: (v: boolean) => void;
   clearChat: () => void;
+  updateStreamingContent: (id: string, content: string) => void;
+  setStreamingComplete: (id: string) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -72,6 +75,7 @@ export const useUIStore = create<UIState>((set) => ({
   chatMessages: [],
   pendingPatch: null,
   isChatLoading: false,
+  streamingMessageId: null,
 
   selectBlock: (id) => set(
     id === null
@@ -97,5 +101,16 @@ export const useUIStore = create<UIState>((set) => ({
   })),
   setPendingPatch: (patch) => set({ pendingPatch: patch }),
   setChatLoading: (v) => set({ isChatLoading: v }),
-  clearChat: () => set({ chatMessages: [], pendingPatch: null }),
+  clearChat: () => set({ chatMessages: [], pendingPatch: null, streamingMessageId: null }),
+  updateStreamingContent: (id, content) => set((state) => ({
+    chatMessages: state.chatMessages.map((m) =>
+      m.id === id ? { ...m, content: m.content + content } : m
+    ),
+  })),
+  setStreamingComplete: (id) => set((state) => ({
+    chatMessages: state.chatMessages.map((m) =>
+      m.id === id ? { ...m, isStreaming: false } : m
+    ),
+    streamingMessageId: null,
+  })),
 }));

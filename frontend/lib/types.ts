@@ -385,8 +385,10 @@ export interface DocumentPatch {
 }
 
 export interface ThinkingStep {
-  type: "thinking" | "action" | "result";
+  type: "thinking" | "tool_call" | "tool_result" | "error";
   text: string;
+  tool?: string;       // e.g. "edit_document"
+  duration?: number;   // ms
 }
 
 export interface ChatMessage {
@@ -396,8 +398,14 @@ export interface ChatMessage {
   patches?: DocumentPatch | null;
   appliedAt?: number;
   feedback?: "good" | "bad" | null;
-  changeSummary?: string;            // AI が何をしたかの要約
+  changeSummary?: string;            // AI が��をしたかの要約
   thinkingSteps?: ThinkingStep[];    // AI の思考ログ
+  requestId?: string;                // デバッグ用リクエストID
+  timestamp?: number;                // メッセージ作成時刻 (epoch ms)
+  duration?: number;                 // レスポンス所要時間 (ms)
+  usage?: { inputTokens: number; outputTokens: number };
+  error?: string;                    // エラーメッセージ
+  isStreaming?: boolean;             // ストリーミング中フラグ
 }
 
 export function createDefaultDocument(template: string, blocks: Block[]): DocumentModel {
