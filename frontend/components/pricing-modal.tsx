@@ -125,36 +125,31 @@ export function PricingModal() {
                     ? "bg-amber-50/80 dark:bg-amber-900/20 border-amber-200/60 dark:border-amber-700/50"
                     : "bg-white/60 dark:bg-black/20 border-slate-200/50 dark:border-slate-700/50"
                 }`}>
-                  {isPremium ? (
-                    <>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                          {isJa ? "ほぼ無制限" : "Virtually Unlimited"}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        {isJa ? `${plan.requestsPerDay.toLocaleString()}/日 · ${plan.requestsPerMonth.toLocaleString()}/月` : `${plan.requestsPerDay.toLocaleString()}/day · ${plan.requestsPerMonth.toLocaleString()}/mo`}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                          {plan.requestsPerDay.toLocaleString()}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {isJa ? "回/日" : "/day"}
-                        </span>
-                      </div>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          {plan.requestsPerMonth.toLocaleString()}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {isJa ? "回/月" : "/mo"}
-                        </span>
-                      </div>
-                    </>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-lg font-bold ${isPremium ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 dark:text-indigo-400"}`}>
+                      {plan.requestsPerDay.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {isJa ? "回/日" : "/day"}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      {plan.requestsPerMonth.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {isJa ? "回/月" : "/mo"}
+                    </span>
+                  </div>
+                  {plan.sonnetPerMonth > 0 && (
+                    <div className="flex items-baseline gap-1 mt-1 pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
+                      <span className={`text-sm font-semibold ${isPremium ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 dark:text-indigo-400"}`}>
+                        Sonnet {plan.sonnetPerMonth.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {isJa ? "回/月" : "/mo"}
+                      </span>
+                    </div>
                   )}
                 </div>
 
