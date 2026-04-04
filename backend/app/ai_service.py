@@ -841,8 +841,6 @@ async def chat_stream(messages: list[dict], document: dict):
                 types.FunctionDeclaration(**fd) for fd in AGENT_TOOLS["function_declarations"]
             ])],
             thinking_config=types.ThinkingConfig(thinking_budget=8192),
-            # Allow the model to call tools automatically
-            automatic_function_calling=False,
         )
 
         yield _sse({"type": "thinking", "text": "エージェント起動..."})
@@ -1234,7 +1232,6 @@ async def chat(messages: list[dict], document: dict) -> dict:
             types.FunctionDeclaration(**fd) for fd in AGENT_TOOLS["function_declarations"]
         ])],
         thinking_config=types.ThinkingConfig(thinking_budget=8192),
-        automatic_function_calling=False,
     )
 
     all_patches: list[dict] = []
