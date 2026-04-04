@@ -301,7 +301,24 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
             elif op_type == "reorder":
                 ops.append({"op": "reorder", "blockIds": normalized.get("blockIds", [])})
             elif op_type == "add_block":
-                ops.append(normalized)
+                # 正規形式 (block フィールドあり) ならそのまま
+                if "block" in normalized and isinstance(normalized["block"], dict):
+                    ops.append(normalized)
+                else:
+                    # フラット形式: {tool_code, afterId, blockId, content, style} → 正規化
+                    block_id = normalized.get("blockId") or normalized.get("id") or f"ai-{os.urandom(4).hex()}"
+                    after_id = normalized.get("afterId")
+                    content = normalized.get("content", {})
+                    style = normalized.get("style", DEFAULT_STYLE.copy())
+                    ops.append({
+                        "op": "add_block",
+                        "afterId": after_id,
+                        "block": {
+                            "id": block_id,
+                            "content": content,
+                            "style": style,
+                        },
+                    })
             else:
                 # 未知の op → そのまま通す
                 ops.append(normalized)
