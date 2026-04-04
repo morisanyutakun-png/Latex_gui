@@ -8,7 +8,6 @@ import { generatePDF } from "@/lib/api";
 import { saveToLocalStorage, downloadAsJSON, loadFromJSONFile } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
-  ArrowLeft,
   FileUp,
   Save,
   Undo2,
@@ -183,7 +182,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
             <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
           </svg>
         </div>
-        <ArrowLeft className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors" />
+        <span className="text-[13px] font-semibold text-foreground/50 group-hover:text-foreground/70 transition-colors tracking-tight hidden sm:inline">Eddivom</span>
       </button>
 
       <div className="w-px h-4 bg-foreground/[0.06] mx-0.5 shrink-0" />

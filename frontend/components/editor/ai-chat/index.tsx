@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
-  Bot, Trash2, KeyRound,
+  Sparkles, Trash2, KeyRound,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
@@ -522,17 +522,17 @@ export function AIChatPanel() {
   return (
     <div className="flex flex-col h-full bg-[#f2f3f5] dark:bg-[#16181c]">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-[#0f1117] dark:bg-[#0a0c10] shrink-0 shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-600 to-purple-700 flex items-center justify-center shadow-lg shadow-indigo-900/40 shrink-0 ring-1 ring-white/10">
-          <Bot className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-[#0f1117]/95 dark:bg-[#0a0c10]/95 backdrop-blur-xl shrink-0 shadow-[0_2px_16px_rgba(0,0,0,0.3)]">
+        <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0 ring-1 ring-white/10">
+          <Sparkles className="h-4 w-4 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold tracking-tight leading-none bg-gradient-to-r from-indigo-300 to-violet-300 bg-clip-text text-transparent">
-            {t("chat.title")}
+          <p className="text-[13px] font-bold tracking-wide leading-none text-indigo-300">
+            EddivomAI
           </p>
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div className="flex items-center gap-1.5 mt-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <p className="text-[10px] text-slate-400">Agent Mode</p>
+            <p className="text-[10px] text-slate-400/70">Agent Mode</p>
           </div>
         </div>
         <div className="flex items-center gap-0.5">
@@ -580,7 +580,7 @@ export function AIChatPanel() {
         {chatMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-5 py-8 select-none">
             <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-violet-600/15 dark:from-indigo-500/20 dark:to-violet-600/20 flex items-center justify-center ring-1 ring-indigo-400/20 shadow-lg shadow-indigo-900/10">
-              <Bot className="h-7 w-7 text-indigo-400" />
+              <Sparkles className="h-7 w-7 text-indigo-400" />
             </div>
             <div className="text-center space-y-1">
               <p className="text-sm font-medium text-foreground/60">{t("chat.empty.title")}</p>

@@ -1,7 +1,7 @@
 import React from "react";
 import { ChatMessage } from "@/lib/types";
 import {
-  Bot, ThumbsUp, ThumbsDown,
+  Sparkles, ThumbsUp, ThumbsDown,
   AlertCircle, RotateCcw, ChevronDown,
   CheckCircle2, FileEdit,
 } from "lucide-react";
@@ -77,8 +77,8 @@ export function MessageRow({
           </>
         ) : (
           <>
-            <div className="h-5 w-5 rounded-md bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center">
-              <Bot className="h-3 w-3 text-white" />
+            <div className="h-5 w-5 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm shadow-violet-500/20">
+              <Sparkles className="h-3 w-3 text-white" />
             </div>
             <span className="text-[11px] font-semibold text-indigo-400">Eddivom AI</span>
             {msg.isStreaming && (
