@@ -3,7 +3,7 @@
 """
 import logging
 
-from .ai_service import get_client, GEMINI_TOOL_DEF
+from .ai_service import get_client, get_gemini_tool_def
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ async def analyze_image(
 
     config = types.GenerateContentConfig(
         system_instruction=OMR_SYSTEM_PROMPT,
-        tools=[GEMINI_TOOL_DEF],
+        tools=[get_gemini_tool_def()],
     )
 
     contents = [
