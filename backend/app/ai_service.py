@@ -1015,11 +1015,16 @@ async def chat_stream(messages: list[dict], document: dict):
                 })
                 return
 
+            # ストリームが何もチャンクを返さなかった場合（API障害やキー失効）
+            if last_response is None:
+                logger.error("Agent stream: no chunks received from Gemini API (turn %d)", turn)
+                yield _sse({"type": "error", "message": "AIサービスから応答がありませんでした。APIキーの有効性・残高を確認してください。"})
+                break
+
             # Accumulate usage
-            if last_response:
-                usage = _extract_usage(last_response)
-                total_usage["inputTokens"] += usage["inputTokens"]
-                total_usage["outputTokens"] += usage["outputTokens"]
+            usage = _extract_usage(last_response)
+            total_usage["inputTokens"] += usage["inputTokens"]
+            total_usage["outputTokens"] += usage["outputTokens"]
 
             # Accumulate thinking
             for t in thought_parts:
@@ -1028,6 +1033,19 @@ async def chat_stream(messages: list[dict], document: dict):
             # If no tool calls, we're done — this is the final text response
             if not tool_calls:
                 final_text_parts.extend(text_parts)
+
+                # 空レスポンスの検出: テキストもツールも思考もない場合
+                if not text_parts and not thought_parts and last_response:
+                    # finish_reason をチェック（SAFETY, RECITATION, etc.）
+                    try:
+                        candidate = last_response.candidates[0] if last_response.candidates else None
+                        finish = getattr(candidate, "finish_reason", None) if candidate else None
+                        if finish and str(finish) != "STOP":
+                            logger.warning("Empty response with finish_reason=%s", finish)
+                            yield _sse({"type": "error", "message": f"AIが応答を生成できませんでした（理由: {finish}）。プロンプトを変えて再試行してください。"})
+                    except Exception:
+                        pass
+
                 break
 
             # Process tool calls and feed results back for next turn
@@ -1129,9 +1147,13 @@ async def chat_stream(messages: list[dict], document: dict):
                 op_summary = _ops_summary(all_patches)
                 message = f"完了しました。{op_summary}"
             elif all_thinking:
-                message = "\n".join(t["text"] for t in all_thinking if t["type"] == "thinking")[:500]
+                thinking_text = "\n".join(t["text"] for t in all_thinking if t["type"] == "thinking")[:500]
+                if thinking_text.strip():
+                    message = thinking_text
+                else:
+                    message = "AIが思考しましたが、テキスト応答を生成できませんでした。もう一度お試しください。"
             else:
-                message = "応答を取得できませんでした。"
+                message = "応答を取得できませんでした。APIキーの残高・レート制限を確認してください。"
 
         patches_result = {"ops": all_patches} if all_patches else None
 
