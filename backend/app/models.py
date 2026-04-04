@@ -158,6 +158,15 @@ class Margins(CamelModel):
     right: int = 20
 
 
+class PaperDesign(CamelModel):
+    """紙のデザイン設定 — PDF出力にも反映される"""
+    theme: str = "plain"           # plain, grid, lined, dot-grid, elegant, modern
+    paper_color: str = "#ffffff"    # 紙の背景色 (hex)
+    accent_color: str = "#4f46e5"   # アクセントカラー (hex)
+    header_border: bool = False     # タイトル下ボーダー
+    section_dividers: bool = False  # セクション間区切り線
+
+
 class DocumentSettings(CamelModel):
     paper_size: str = "a4"
     margins: Margins = Field(default_factory=Margins)
@@ -165,6 +174,7 @@ class DocumentSettings(CamelModel):
     page_numbers: bool = True
     two_column: bool = False
     document_class: str = "article"
+    paper_design: Optional[PaperDesign] = None
 
 
 # --------------- Metadata ---------------

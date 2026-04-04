@@ -643,6 +643,54 @@ def _build_contents(messages: list[dict], doc_context: str):
     return contents
 
 
+def _build_thinking_steps(thought_parts: list[str], patches: dict | None) -> list[dict]:
+    """Gemini の thinking テキストを Claude Code 風のステップに分解する。
+
+    各ステップは { type: "thinking"|"action"|"result", text: str } の形式。
+    コストを増やさず、既存の thinking 出力を構造化するだけ。
+    """
+    steps: list[dict] = []
+    if not thought_parts:
+        # thinking が空でも patches があれば最低限のステップを生成
+        if patches and patches.get("ops"):
+            ops = patches["ops"]
+            add_count = sum(1 for o in ops if o.get("op") == "add_block")
+            update_count = sum(1 for o in ops if o.get("op") == "update_block")
+            delete_count = sum(1 for o in ops if o.get("op") == "delete_block")
+            parts = []
+            if add_count: parts.append(f"{add_count}ブロック追加")
+            if update_count: parts.append(f"{update_count}ブロック更新")
+            if delete_count: parts.append(f"{delete_count}ブロック削除")
+            steps.append({"type": "action", "text": f"edit_document: {', '.join(parts) or f'{len(ops)}件の操作'}"})
+        return steps
+
+    raw = "\n".join(thought_parts).strip()
+    # 段落ごとに分割 (空行区切り or 改行区切り)
+    paragraphs = [p.strip() for p in _re.split(r'\n{2,}', raw) if p.strip()]
+    if len(paragraphs) <= 1 and raw:
+        # 空行区切りがなければ改行で分割
+        paragraphs = [p.strip() for p in raw.split("\n") if p.strip()]
+
+    for para in paragraphs:
+        # 200文字で切って省コンテキスト化
+        text = para[:200] + ("..." if len(para) > 200 else "")
+        steps.append({"type": "thinking", "text": text})
+
+    # パッチがあれば最後にアクションステップ
+    if patches and patches.get("ops"):
+        ops = patches["ops"]
+        add_count = sum(1 for o in ops if o.get("op") == "add_block")
+        update_count = sum(1 for o in ops if o.get("op") == "update_block")
+        delete_count = sum(1 for o in ops if o.get("op") == "delete_block")
+        parts = []
+        if add_count: parts.append(f"{add_count}ブロック追加")
+        if update_count: parts.append(f"{update_count}ブロック更新")
+        if delete_count: parts.append(f"{delete_count}ブロック削除")
+        steps.append({"type": "action", "text": f"edit_document: {', '.join(parts) or f'{len(ops)}件の操作'}"})
+
+    return steps
+
+
 def _parse_response(response) -> dict:
     """Gemini レスポンスをパースして {message, patches, usage} を返す。
     MALFORMED_FUNCTION_CALL の場合は None を返してリトライを促す。
@@ -761,9 +809,13 @@ def _parse_response(response) -> dict:
             logger.warning("Gemini returned empty response. Full response: %s", response)
             message = "応答を取得できませんでした。ログを確認してください。"
 
+    # 思考ログをステップに分解して返す
+    thinking_steps = _build_thinking_steps(thought_parts, patches)
+
     return {
         "message": message,
         "patches": patches,
+        "thinking": thinking_steps,
         "usage": _extract_usage(response),
     }
 
@@ -841,7 +893,7 @@ async def chat(messages: list[dict], document: dict) -> dict:
         tool_config=types.ToolConfig(
             function_calling_config=types.FunctionCallingConfig(mode="AUTO")
         ),
-        thinking_config=types.ThinkingConfig(thinking_budget=4096),
+        thinking_config=types.ThinkingConfig(thinking_budget=2048),
     )
 
     def _call(cfg):

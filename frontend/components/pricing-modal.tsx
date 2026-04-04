@@ -16,6 +16,7 @@ import { useI18n } from "@/lib/i18n";
 
 const PLAN_ICONS: Record<PlanId, React.ReactNode> = {
   free: <Zap className="h-5 w-5" />,
+  starter: <Zap className="h-5 w-5" />,
   pro: <Sparkles className="h-5 w-5" />,
   premium: <Crown className="h-5 w-5" />,
 };
@@ -26,6 +27,12 @@ const PLAN_COLORS: Record<PlanId, { bg: string; border: string; badge: string; b
     border: "border-slate-200 dark:border-slate-700",
     badge: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
     btn: "bg-slate-600 hover:bg-slate-700 text-white",
+  },
+  starter: {
+    bg: "bg-emerald-50/50 dark:bg-emerald-950/30",
+    border: "border-emerald-300 dark:border-emerald-600",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+    btn: "bg-emerald-600 hover:bg-emerald-700 text-white",
   },
   pro: {
     bg: "bg-indigo-50/50 dark:bg-indigo-950/30",

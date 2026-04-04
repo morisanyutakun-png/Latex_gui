@@ -107,10 +107,35 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
     setGenerating(true);
     try {
       const blob = await generatePDF(doc);
+      const filename = `${doc.metadata.title || "document"}.pdf`;
+
+      // File System Access API が使えるなら保存ダイアログを表示
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: "PDF Document",
+              accept: { "application/pdf": [".pdf"] },
+            }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          toast.success(t("toast.pdf.done"));
+          return;
+        } catch (e) {
+          // ユーザーがキャンセルした場合は何もしない
+          if (e instanceof DOMException && e.name === "AbortError") return;
+          // showSaveFilePicker が失敗した場合はフォールバック
+        }
+      }
+
+      // フォールバック: 従来のダウンロード方式
       const url = URL.createObjectURL(blob);
       const a = window.document.createElement("a");
       a.href = url;
-      a.download = `${doc.metadata.title || "document"}.pdf`;
+      a.download = filename;
       window.document.body.appendChild(a);
       a.click();
       window.document.body.removeChild(a);

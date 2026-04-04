@@ -384,6 +384,11 @@ export interface DocumentPatch {
   ops: PatchOp[];
 }
 
+export interface ThinkingStep {
+  type: "thinking" | "action" | "result";
+  text: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -392,6 +397,7 @@ export interface ChatMessage {
   appliedAt?: number;
   feedback?: "good" | "bad" | null;
   changeSummary?: string;            // AI が何をしたかの要約
+  thinkingSteps?: ThinkingStep[];    // AI の思考ログ
 }
 
 export function createDefaultDocument(template: string, blocks: Block[]): DocumentModel {

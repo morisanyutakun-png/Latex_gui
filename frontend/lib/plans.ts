@@ -2,10 +2,11 @@
  * EddivomAI 料金プラン定義
  *
  * リクエスト数ベースの制限で利益計算を容易にする。
- * Gemini 2.5 Flash のコスト: ~$0.003/req → 1リクエスト ≈ 0.45円
+ * Gemini 2.5 Flash のコスト: ~$0.003/req → 1リクエスト ≈ 0.40円
+ * (thinking_budget=2048 で思考トークンを最適化)
  */
 
-export type PlanId = "free" | "pro" | "premium";
+export type PlanId = "free" | "starter" | "pro" | "premium";
 
 export interface PlanDef {
   id: PlanId;
@@ -45,6 +46,32 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "LaTeX source export",
     ],
   },
+  starter: {
+    id: "starter",
+    name: "Starter",
+    nameEn: "Starter",
+    price: 980,
+    priceLabel: "¥980",
+    requestsPerDay: 30,
+    requestsPerMonth: 500,
+    features: [
+      "AIリクエスト 30回/日",
+      "月間500リクエストまで",
+      "基本テンプレート",
+      "思考ログ表示",
+      "PDF出力",
+      "LaTeXソースエクスポート",
+    ],
+    featuresEn: [
+      "30 AI requests/day",
+      "Up to 500 requests/month",
+      "Basic templates",
+      "Thinking log display",
+      "PDF export",
+      "LaTeX source export",
+    ],
+    badge: "お手頃",
+  },
   pro: {
     id: "pro",
     name: "Pro",
@@ -80,11 +107,11 @@ export const PLANS: Record<PlanId, PlanDef> = {
     nameEn: "Premium",
     price: 12800,
     priceLabel: "¥12,800",
-    requestsPerDay: 1000,
-    requestsPerMonth: 20000,
+    requestsPerDay: 5000,
+    requestsPerMonth: 100000,
     features: [
-      "AIリクエスト 1,000回/日",
-      "月間20,000リクエストまで",
+      "AIリクエスト ほぼ無制限",
+      "月間100,000リクエスト",
       "全テンプレート利用可",
       "PDF出力 (最優先)",
       "バッチ処理 (上限200行)",
@@ -92,10 +119,11 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "優先サポート",
       "API アクセス (近日公開)",
       "カスタムテンプレート作成",
+      "紙デザインそのままPDF出力",
     ],
     featuresEn: [
-      "1,000 AI requests/day",
-      "Up to 20,000 requests/month",
+      "AI requests: virtually unlimited",
+      "100,000 requests/month",
       "All templates",
       "PDF export (highest priority)",
       "Batch processing (up to 200 rows)",
@@ -103,12 +131,13 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "Priority support",
       "API access (coming soon)",
       "Custom template creation",
+      "Paper design preserved in PDF",
     ],
     badge: "最上位",
   },
 };
 
-export const PLAN_ORDER: PlanId[] = ["free", "pro", "premium"];
+export const PLAN_ORDER: PlanId[] = ["free", "starter", "pro", "premium"];
 
 /** 利益試算ヘルパー (内部用) */
 export function estimateMargin(planId: PlanId): {
@@ -124,6 +153,8 @@ export function estimateMargin(planId: PlanId): {
   const margin = revenue - maxMonthlyCost;
   return { costPerReq, maxMonthlyCost, revenue, margin };
 }
-// free:    max cost ¥45,    revenue ¥0      → margin -¥45
-// pro:     max cost ¥900,   revenue ¥2,980  → margin +¥2,080
-// premium: max cost ¥9,000, revenue ¥12,800 → margin +¥3,800
+// free:    max cost ¥40,     revenue ¥0      → margin -¥40
+// starter: max cost ¥200,    revenue ¥980    → margin +¥780
+// pro:     max cost ¥800,    revenue ¥2,980  → margin +¥2,180
+// premium: max cost ¥40,000, revenue ¥12,800 → margin -¥27,200 (理論最大, 実使用は~¥2,000程度)
+// ※ premium は "ほぼ無制限" の体験を提供。実際の平均利用は月2,000-5,000リクエスト程度を想定

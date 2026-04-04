@@ -6,6 +6,7 @@ Auto-detects required packages from blocks used in the document.
 from ..models import (
     DocumentModel,
     Block,
+    PaperDesign,
     HeadingContent,
     ParagraphContent,
     MathContent,
@@ -122,6 +123,87 @@ def _detect_required_packages(doc: DocumentModel, engine: str = "lualatex") -> l
                 add(pkg)
 
     return packages
+
+
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """#rrggbb → (r, g, b) 0-255"""
+    h = hex_color.lstrip("#")
+    if len(h) != 6:
+        return (255, 255, 255)
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def _generate_paper_design_latex(design: PaperDesign) -> list[str]:
+    """PaperDesign を LaTeX プリアンブルコマンドに変換する。
+
+    紙の背景色、アクセントカラー、テーマ（罫線/方眼/ドット）、
+    ヘッダーボーダー、セクション区切り線を PDF に反映する。
+    """
+    lines: list[str] = []
+    lines.append("% ── Paper Design ──")
+
+    # --- 背景色 ---
+    paper_color = design.paper_color or "#ffffff"
+    if paper_color.lower() != "#ffffff":
+        r, g, b = _hex_to_rgb(paper_color)
+        lines.append(f"\\definecolor{{paperbg}}{{RGB}}{{{r},{g},{b}}}")
+        lines.append("\\usepackage{pagecolor}")
+        lines.append("\\pagecolor{paperbg}")
+
+    # --- アクセントカラー定義 ---
+    accent = design.accent_color or "#4f46e5"
+    ar, ag, ab = _hex_to_rgb(accent)
+    lines.append(f"\\definecolor{{accentcolor}}{{RGB}}{{{ar},{ag},{ab}}}")
+
+    # --- アクセントカラーを見出しに適用 ---
+    lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\color{accentcolor}}{\\thesection}{0.8em}{}")
+    lines.append("\\titleformat{\\subsection}{\\large\\bfseries\\sffamily\\color{accentcolor!80!black}}{\\thesubsection}{0.6em}{}")
+
+    # --- テーマ背景パターン (TikZ で描画) ---
+    theme = design.theme or "plain"
+    if theme in ("grid", "lined", "dot-grid"):
+        lines.append("\\usepackage{tikz}")
+        lines.append("\\usepackage{eso-pic}")
+        if theme == "grid":
+            lines.append("\\AddToShipoutPictureBG{%")
+            lines.append("  \\begin{tikzpicture}[remember picture, overlay]")
+            lines.append(f"    \\draw[accentcolor!8, step=5mm, line width=0.2pt] "
+                         f"(current page.south west) grid (current page.north east);")
+            lines.append("  \\end{tikzpicture}%")
+            lines.append("}")
+        elif theme == "lined":
+            lines.append("\\AddToShipoutPictureBG{%")
+            lines.append("  \\begin{tikzpicture}[remember picture, overlay]")
+            lines.append(f"    \\foreach \\y in {{0,7mm,...,\\paperheight}} {{")
+            lines.append(f"      \\draw[accentcolor!10, line width=0.2pt] "
+                         f"([yshift=-\\y]current page.north west) -- ([yshift=-\\y]current page.north east);")
+            lines.append("    }")
+            lines.append("  \\end{tikzpicture}%")
+            lines.append("}")
+        elif theme == "dot-grid":
+            lines.append("\\AddToShipoutPictureBG{%")
+            lines.append("  \\begin{tikzpicture}[remember picture, overlay]")
+            lines.append(f"    \\foreach \\x in {{0,5mm,...,\\paperwidth}} {{")
+            lines.append(f"      \\foreach \\y in {{0,5mm,...,\\paperheight}} {{")
+            lines.append(f"        \\fill[accentcolor!12] ([xshift=\\x, yshift=-\\y]current page.north west) circle (0.3pt);")
+            lines.append("      }")
+            lines.append("    }")
+            lines.append("  \\end{tikzpicture}%")
+            lines.append("}")
+
+    # --- ヘッダーボーダー (タイトル下に線) ---
+    if design.header_border:
+        lines.append("% Header border under title")
+        lines.append("\\usepackage{etoolbox}")
+        lines.append("\\apptocmd{\\maketitle}{\\vspace{-1em}\\noindent\\textcolor{accentcolor}{\\rule{\\textwidth}{1.2pt}}\\vspace{0.5em}}{}{}")
+
+    # --- セクション区切り線 ---
+    if design.section_dividers:
+        lines.append("% Section dividers")
+        lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\color{accentcolor}}{\\thesection}{0.8em}{}"
+                      "[\\vspace{0.2em}\\textcolor{accentcolor!40}{\\rule{\\textwidth}{0.5pt}}]")
+
+    return lines
 
 
 def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str:
@@ -243,6 +325,12 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     lines.append("  pdfstartview=FitH,")
     lines.append("}")
     lines.append("")
+
+    # ──── Paper Design (紙デザイン → PDF反映) ────
+    design = getattr(settings, 'paper_design', None)
+    if design:
+        lines.extend(_generate_paper_design_latex(design))
+        lines.append("")
 
     # ──── 上級者モード: カスタムプリアンブル ────
     advanced = getattr(doc, 'advanced', None)

@@ -170,6 +170,7 @@ export async function batchPreview(req: BatchRequest): Promise<{
 export interface AIChatResponse {
   message: string;
   patches: DocumentPatch | null;
+  thinking: Array<{ type: "thinking" | "action" | "result"; text: string }>;
   usage: { inputTokens: number; outputTokens: number };
 }
 
@@ -194,6 +195,7 @@ export async function sendAIMessage(
   return {
     message: data.message || "",
     patches: data.patches || null,
+    thinking: data.thinking || [],
     usage: data.usage || { inputTokens: 0, outputTokens: 0 },
   };
 }

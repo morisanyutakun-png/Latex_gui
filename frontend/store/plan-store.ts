@@ -52,7 +52,7 @@ function loadPlan(): PlanId {
   if (typeof window === "undefined") return "free";
   try {
     const raw = localStorage.getItem(LS_PLAN_KEY);
-    if (raw && (raw === "free" || raw === "pro" || raw === "premium")) return raw;
+    if (raw && (raw === "free" || raw === "starter" || raw === "pro" || raw === "premium")) return raw as PlanId;
   } catch { /* ignore */ }
   return "free";
 }

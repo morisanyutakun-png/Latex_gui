@@ -13,7 +13,7 @@ import { useUIStore, LastAIAction } from "@/store/ui-store";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
 import { sendAIMessage, analyzeImageOMR } from "@/lib/api";
-import { ChatMessage, DocumentPatch, PatchOp } from "@/lib/types";
+import { ChatMessage, DocumentPatch, PatchOp, ThinkingStep } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import ReactMarkdown from "react-markdown";
@@ -277,6 +277,76 @@ function cleanAIContent(content: string, hasPatches: boolean): string {
   return cleaned;
 }
 
+// ─── Thinking Log (Claude Code style) ────────────────────────────────────────
+
+function ThinkingLog({ steps }: { steps: Array<{ type: string; text: string }> }) {
+  const [expanded, setExpanded] = React.useState(false);
+  if (!steps || steps.length === 0) return null;
+
+  const thinkingCount = steps.filter(s => s.type === "thinking").length;
+  const actionCount = steps.filter(s => s.type === "action").length;
+  const summaryParts: string[] = [];
+  if (thinkingCount) summaryParts.push(`${thinkingCount}ステップ思考`);
+  if (actionCount) summaryParts.push(`${actionCount}件実行`);
+  const summary = summaryParts.join(" · ") || `${steps.length}ステップ`;
+
+  return (
+    <div className="w-full">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-mono text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors w-full"
+      >
+        <span className="text-indigo-400/70">▸</span>
+        <span className={`transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}>
+          {expanded ? "▾" : "▸"}
+        </span>
+        <span className="text-slate-400 dark:text-slate-500">思考ログ</span>
+        <span className="text-slate-300 dark:text-slate-600">—</span>
+        <span>{summary}</span>
+      </button>
+      {expanded && (
+        <div className="mt-1 rounded-lg bg-[#0d1117] dark:bg-[#060810] border border-slate-700/60 overflow-hidden">
+          {/* Terminal header */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#161b22] border-b border-slate-700/40">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-500/70" />
+            <span className="h-1.5 w-1.5 rounded-full bg-yellow-500/70" />
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/70" />
+            <span className="ml-1.5 text-[9px] font-mono text-slate-500">eddivom-agent · thinking-log</span>
+          </div>
+          {/* Steps */}
+          <div className="px-2.5 py-2 font-mono text-[10px] space-y-1 max-h-[200px] overflow-y-auto">
+            {steps.map((step, i) => (
+              <div key={i} className="flex items-start gap-1.5">
+                {step.type === "thinking" && (
+                  <>
+                    <span className="text-slate-600 shrink-0 select-none">{String(i + 1).padStart(2, " ")}.</span>
+                    <span className="text-slate-500">💭</span>
+                    <span className="text-slate-400 break-all">{step.text}</span>
+                  </>
+                )}
+                {step.type === "action" && (
+                  <>
+                    <span className="text-slate-600 shrink-0 select-none">{String(i + 1).padStart(2, " ")}.</span>
+                    <span className="text-emerald-400/80">⚡</span>
+                    <span className="text-emerald-300/90 break-all">{step.text}</span>
+                  </>
+                )}
+                {step.type === "result" && (
+                  <>
+                    <span className="text-slate-600 shrink-0 select-none">{String(i + 1).padStart(2, " ")}.</span>
+                    <span className="text-amber-400/80">✓</span>
+                    <span className="text-amber-300/80 break-all">{step.text}</span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
 function MessageBubble({
@@ -314,6 +384,11 @@ function MessageBubble({
             </div>
           )}
         </div>
+
+        {/* 思考ログ (Claude Code 風) */}
+        {!isUser && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
+          <ThinkingLog steps={msg.thinkingSteps} />
+        )}
 
         {/* 変更サマリー + パッチアクション */}
         {!isUser && msg.patches && msg.patches.ops.length > 0 && (
@@ -716,9 +791,9 @@ export function AIChatPanel() {
     try {
       const saved = localStorage.getItem("latex-gui-chat-v1");
       if (saved) {
-        const parsed: Array<{ id: string; role: "user" | "assistant"; content: string; appliedAt?: number }> = JSON.parse(saved);
+        const parsed: Array<{ id: string; role: "user" | "assistant"; content: string; appliedAt?: number; thinkingSteps?: ThinkingStep[] }> = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0 && chatMessages.length === 0) {
-          parsed.forEach((m) => addChatMessage({ id: m.id, role: m.role, content: m.content, appliedAt: m.appliedAt }));
+          parsed.forEach((m) => addChatMessage({ id: m.id, role: m.role, content: m.content, appliedAt: m.appliedAt, thinkingSteps: m.thinkingSteps }));
         }
       }
     } catch { /* ignore */ }
@@ -729,7 +804,7 @@ export function AIChatPanel() {
   useEffect(() => {
     if (chatMessages.length === 0) return;
     try {
-      const toSave = chatMessages.slice(-50).map(({ id, role, content, appliedAt }) => ({ id, role, content, appliedAt }));
+      const toSave = chatMessages.slice(-50).map(({ id, role, content, appliedAt, thinkingSteps }) => ({ id, role, content, appliedAt, thinkingSteps }));
       localStorage.setItem("latex-gui-chat-v1", JSON.stringify(toSave));
     } catch { /* ignore */ }
   }, [chatMessages]);
@@ -800,6 +875,7 @@ export function AIChatPanel() {
         role: "assistant",
         content: result.message,
         patches: result.patches,
+        thinkingSteps: result.thinking,
       };
       addChatMessage(assistantMsg);
 
