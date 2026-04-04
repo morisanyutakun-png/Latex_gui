@@ -283,6 +283,9 @@ async def chat(messages: list[dict], document: dict) -> dict:
         tool_config=types.ToolConfig(
             function_calling_config=types.FunctionCallingConfig(mode="AUTO")
         ),
+        # gemini-2.5-flash は thinking モデル。budget を設定して
+        # 思考に全トークンを使い切って本文が空になるのを防ぐ
+        thinking_config=types.ThinkingConfig(thinking_budget=1024),
     )
 
     def _call():
@@ -292,20 +295,75 @@ async def chat(messages: list[dict], document: dict) -> dict:
             config=config,
         )
 
-    response = await asyncio.to_thread(_call)
+    try:
+        response = await asyncio.to_thread(_call)
+    except Exception as e:
+        logger.error("Gemini API call failed: %s", e, exc_info=True)
+        return {
+            "message": f"AI APIの呼び出しに失敗しました: {type(e).__name__}: {e}",
+            "patches": None,
+            "usage": {"inputTokens": 0, "outputTokens": 0},
+        }
 
     # ─── レスポンスのパース ───
     text_parts: list[str] = []
+    thought_parts: list[str] = []
     patches = None
+
+    # prompt_feedback でブロックされたかチェック
+    try:
+        pf = getattr(response, "prompt_feedback", None)
+        if pf:
+            block_reason = getattr(pf, "block_reason", None)
+            if block_reason and str(block_reason) not in ("", "BLOCK_REASON_UNSPECIFIED"):
+                logger.warning("Gemini prompt blocked: %s", block_reason)
+                return {
+                    "message": f"リクエストがセーフティフィルターによりブロックされました（理由: {block_reason}）。内容を変えてお試しください。",
+                    "patches": None,
+                    "usage": {"inputTokens": 0, "outputTokens": 0},
+                }
+    except Exception as e:
+        logger.warning("prompt_feedback check error: %s", e)
+
+    # candidates が空かチェック
+    if not response.candidates:
+        logger.error("Gemini returned no candidates. Full response: %s", response)
+        return {
+            "message": "AIからの応答が空でした。APIキーやモデル設定を確認してください。",
+            "patches": None,
+            "usage": {"inputTokens": 0, "outputTokens": 0},
+        }
 
     try:
         candidate = response.candidates[0]
         finish_reason = str(candidate.finish_reason) if candidate.finish_reason else ""
         logger.info("Gemini finish_reason: %s", finish_reason)
 
+        # セーフティ等で中断された場合
+        if "SAFETY" in finish_reason:
+            safety_ratings = getattr(candidate, "safety_ratings", [])
+            logger.warning("Gemini blocked by safety. ratings: %s", safety_ratings)
+            return {
+                "message": "セーフティフィルターにより応答が中断されました。内容を変えてお試しください。",
+                "patches": None,
+                "usage": {"inputTokens": 0, "outputTokens": 0},
+            }
+
+        if not candidate.content or not candidate.content.parts:
+            logger.error("Gemini candidate has no content/parts. finish_reason=%s, candidate=%s", finish_reason, candidate)
+            return {
+                "message": f"AIからの応答が空でした（finish_reason: {finish_reason}）。もう一度お試しください。",
+                "patches": None,
+                "usage": {"inputTokens": 0, "outputTokens": 0},
+            }
+
         for part in candidate.content.parts:
-            # thought パーツ（gemini-2.5 の内部思考）はスキップ
-            if getattr(part, "thought", False):
+            is_thought = getattr(part, "thought", False)
+
+            if is_thought:
+                # 思考パーツはスキップするが、フォールバック用に保持
+                if part.text:
+                    thought_parts.append(part.text)
                 continue
 
             if part.text:
@@ -317,7 +375,7 @@ async def chat(messages: list[dict], document: dict) -> dict:
                 logger.info("edit_document called, ops count: %d", len(patches.get("ops", [])))
 
     except (IndexError, AttributeError) as e:
-        logger.error("Gemini レスポンスのパースに失敗: %s", e, exc_info=True)
+        logger.error("Gemini レスポンスのパースに失敗: %s  response=%s", e, response, exc_info=True)
 
     message = "\n".join(text_parts).strip()
 
@@ -325,9 +383,13 @@ async def chat(messages: list[dict], document: dict) -> dict:
         ops = patches.get("ops", [])
         message = f"{len(ops)}件の変更を適用しました。"
     elif not message and not patches:
-        # 何も返ってこなかった場合のフォールバック
-        logger.warning("Gemini returned empty response (no text, no function call)")
-        message = "応答を取得できませんでした。もう一度お試しください。"
+        # 思考パーツしかない場合 → 思考内容を返す（空応答より有益）
+        if thought_parts:
+            logger.warning("Gemini returned only thought parts, using as response")
+            message = "\n".join(thought_parts).strip()
+        else:
+            logger.warning("Gemini returned empty response (no text, no function call). Full response: %s", response)
+            message = "応答を取得できませんでした。Geminiが空のレスポンスを返しました。ログを確認してください。"
 
     # usage_metadata
     usage = {"inputTokens": 0, "outputTokens": 0}
