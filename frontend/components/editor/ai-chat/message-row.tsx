@@ -84,7 +84,7 @@ export function MessageRow({
             {msg.isStreaming && (
               <span className="flex items-center gap-1 text-[10px] font-mono text-indigo-400/70">
                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                streaming
+                生成中...
               </span>
             )}
             {msg.duration != null && !msg.isStreaming && (
@@ -110,9 +110,15 @@ export function MessageRow({
           <span className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap">
             {msg.content}
           </span>
+        ) : msg.isStreaming && !msg.content ? (
+          /* ストリーミング中でまだテキストが無い場合は非表示（ThinkingIndicatorが別で表示される） */
+          null
         ) : (
           <div className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-100">
             <ChatMarkdown content={msg.content} />
+            {msg.isStreaming && (
+              <span className="inline-block w-[6px] h-[14px] bg-indigo-400/80 animate-pulse ml-0.5 align-text-bottom" />
+            )}
           </div>
         )}
 

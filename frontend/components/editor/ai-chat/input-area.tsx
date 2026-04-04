@@ -1,11 +1,11 @@
 import React from "react";
 import { useI18n } from "@/lib/i18n";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, Paperclip, BookOpen, Zap } from "lucide-react";
+import { Send, Loader2, Paperclip, Zap } from "lucide-react";
 
 export function InputArea({
   input, setInput, onSend, onKeyDown, isChatLoading, agentMode,
-  textareaRef, fileInputRef, onOMRUpload, showMaterials, setShowMaterials,
+  textareaRef, fileInputRef, onOMRUpload,
 }: {
   input: string;
   setInput: (v: string) => void;
@@ -16,8 +16,6 @@ export function InputArea({
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onOMRUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  showMaterials: boolean;
-  setShowMaterials: (v: boolean) => void;
 }) {
   const { t } = useI18n();
 
@@ -33,13 +31,6 @@ export function InputArea({
             title="画像をアップロード (OMR)"
           >
             <Paperclip className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setShowMaterials(!showMaterials)}
-            className={`p-1.5 rounded-full transition-colors ${showMaterials ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50"}`}
-            title="教材DB"
-          >
-            <BookOpen className="h-4 w-4" />
           </button>
         </div>
 

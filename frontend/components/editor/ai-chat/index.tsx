@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
-  Bot, Trash2, BookOpen, KeyRound,
+  Bot, Trash2, KeyRound,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
@@ -17,7 +17,6 @@ import { buildLastAIAction } from "./utils";
 import { MessageRow } from "./message-row";
 import { ThinkingIndicator } from "./thinking-indicator";
 import { UsageBar } from "./usage-bar";
-import { MaterialsPanel } from "./materials-panel";
 import { InputArea } from "./input-area";
 
 export function AIChatPanel() {
@@ -38,7 +37,6 @@ export function AIChatPanel() {
 
   const [input, setInput] = useState("");
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
-  const [showMaterials, setShowMaterials] = useState(false);
   // Live agent state — displayed during streaming
   const [liveSteps, setLiveSteps] = useState<ThinkingStep[]>([]);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
@@ -428,12 +426,6 @@ export function AIChatPanel() {
     }
   };
 
-  const handleMaterialsAttach = (context: string) => {
-    setInput((prev) => (prev ? prev + "\n\n" + context : context));
-    setShowMaterials(false);
-    textareaRef.current?.focus();
-  };
-
   return (
     <div className="flex flex-col h-full bg-[#f2f3f5] dark:bg-[#16181c]">
       {/* Header */}
@@ -451,15 +443,6 @@ export function AIChatPanel() {
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => setShowMaterials(!showMaterials)}
-            className={`p-1.5 rounded-lg text-xs transition-colors ${
-              showMaterials ? "text-emerald-400 bg-emerald-500/10" : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-            }`}
-            title={t("chat.materials")}
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-          </button>
           {chatMessages.length > 0 && (
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v2"); } catch { /**/ } }}
@@ -499,16 +482,9 @@ export function AIChatPanel() {
         </div>
       )}
 
-      {/* Materials panel */}
-      {showMaterials && (
-        <div className="px-3 pt-2 shrink-0">
-          <MaterialsPanel onAttach={handleMaterialsAttach} />
-        </div>
-      )}
-
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-[#f2f3f5] dark:bg-[#16181c]">
-        {chatMessages.length === 0 && !showMaterials && (
+        {chatMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-5 py-8 select-none">
             <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-violet-600/15 dark:from-indigo-500/20 dark:to-violet-600/20 flex items-center justify-center ring-1 ring-indigo-400/20 shadow-lg shadow-indigo-900/10">
               <Bot className="h-7 w-7 text-indigo-400" />
@@ -567,8 +543,6 @@ export function AIChatPanel() {
         textareaRef={textareaRef}
         fileInputRef={fileInputRef}
         onOMRUpload={handleOMRUpload}
-        showMaterials={showMaterials}
-        setShowMaterials={setShowMaterials}
       />
     </div>
   );
@@ -581,8 +555,6 @@ function _summarizeToolResult(name: string, result: Record<string, unknown>): st
       return `${result.blockCount || 0}ブロックの文書を読み込み`;
     case "search_blocks":
       return `${result.count || 0}件の一致`;
-    case "search_materials":
-      return `教材DB: ${result.count || 0}件ヒット`;
     case "edit_document": {
       const summary = (result.summary as string) || "適用完了";
       const bc = result.current_block_count;
