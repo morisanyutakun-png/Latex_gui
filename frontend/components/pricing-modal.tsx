@@ -1,0 +1,172 @@
+"use client";
+
+import React from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Check, Crown, Zap, Sparkles } from "lucide-react";
+import { usePlanStore } from "@/store/plan-store";
+import { PLANS, PLAN_ORDER, PlanId } from "@/lib/plans";
+import { useI18n } from "@/lib/i18n";
+
+const PLAN_ICONS: Record<PlanId, React.ReactNode> = {
+  free: <Zap className="h-5 w-5" />,
+  pro: <Sparkles className="h-5 w-5" />,
+  premium: <Crown className="h-5 w-5" />,
+};
+
+const PLAN_COLORS: Record<PlanId, { bg: string; border: string; badge: string; btn: string }> = {
+  free: {
+    bg: "bg-slate-50 dark:bg-slate-900/40",
+    border: "border-slate-200 dark:border-slate-700",
+    badge: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
+    btn: "bg-slate-600 hover:bg-slate-700 text-white",
+  },
+  pro: {
+    bg: "bg-indigo-50/50 dark:bg-indigo-950/30",
+    border: "border-indigo-300 dark:border-indigo-600 ring-2 ring-indigo-200 dark:ring-indigo-800",
+    badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
+    btn: "bg-indigo-600 hover:bg-indigo-700 text-white",
+  },
+  premium: {
+    bg: "bg-gradient-to-br from-amber-50/60 to-orange-50/60 dark:from-amber-950/20 dark:to-orange-950/20",
+    border: "border-amber-300 dark:border-amber-600 ring-2 ring-amber-200 dark:ring-amber-800",
+    badge: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+    btn: "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white",
+  },
+};
+
+export function PricingModal() {
+  const { showPricing, setShowPricing, currentPlan, setPlan } = usePlanStore();
+  const { locale } = useI18n();
+  const isJa = locale === "ja";
+
+  const handleSelect = (planId: PlanId) => {
+    if (planId === "free") {
+      setPlan(planId);
+      setShowPricing(false);
+      return;
+    }
+    // Pro / Premium: 将来的にStripe決済へ遷移
+    // 現段階ではデモ用にプラン切り替えを許可
+    setPlan(planId);
+    setShowPricing(false);
+  };
+
+  return (
+    <Dialog open={showPricing} onOpenChange={setShowPricing}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
+          <DialogTitle className="text-xl font-bold text-center">
+            {isJa ? "料金プラン" : "Pricing Plans"}
+          </DialogTitle>
+          <DialogDescription className="text-center text-sm text-slate-500">
+            {isJa
+              ? "AIリクエスト数に基づくシンプルな料金体系"
+              : "Simple pricing based on AI request count"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-6 pb-6 pt-2">
+          {PLAN_ORDER.map((planId) => {
+            const plan = PLANS[planId];
+            const colors = PLAN_COLORS[planId];
+            const isActive = currentPlan === planId;
+            const features = isJa ? plan.features : plan.featuresEn;
+
+            return (
+              <div
+                key={planId}
+                className={`relative rounded-xl border p-5 flex flex-col ${colors.bg} ${colors.border} ${
+                  plan.highlight ? "scale-[1.02] shadow-lg" : "shadow-sm"
+                } transition-all`}
+              >
+                {/* バッジ */}
+                {plan.badge && (
+                  <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold ${colors.badge}`}>
+                    {plan.badge}
+                  </span>
+                )}
+
+                {/* ヘッダー */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`p-1.5 rounded-lg ${colors.badge}`}>
+                    {PLAN_ICONS[planId]}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base">{plan.name}</h3>
+                  </div>
+                </div>
+
+                {/* 価格 */}
+                <div className="mb-4">
+                  <span className="text-2xl font-extrabold tracking-tight">
+                    {plan.priceLabel}
+                  </span>
+                  <span className="text-sm text-slate-500 ml-1">
+                    {plan.price > 0 ? (isJa ? "/月 (税込)" : "/mo") : ""}
+                  </span>
+                </div>
+
+                {/* リクエスト制限ハイライト */}
+                <div className="rounded-lg bg-white/60 dark:bg-black/20 border border-slate-200/50 dark:border-slate-700/50 px-3 py-2 mb-4">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                      {plan.requestsPerDay.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {isJa ? "リクエスト/日" : "requests/day"}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      {plan.requestsPerMonth.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {isJa ? "リクエスト/月" : "requests/mo"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 機能一覧 */}
+                <ul className="space-y-2 mb-5 flex-1">
+                  {features.map((f, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[13px]">
+                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* ボタン */}
+                <Button
+                  className={`w-full ${colors.btn} ${isActive ? "opacity-60 cursor-default" : ""}`}
+                  onClick={() => handleSelect(planId)}
+                  disabled={isActive}
+                >
+                  {isActive
+                    ? (isJa ? "現在のプラン" : "Current Plan")
+                    : planId === "free"
+                    ? (isJa ? "Freeを使う" : "Use Free")
+                    : (isJa ? "このプランを選択" : "Select Plan")}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 注記 */}
+        <div className="px-6 pb-5 text-center text-[11px] text-slate-400">
+          {isJa
+            ? "※ 現在はベータ版のため、全プランを無料でお試しいただけます。正式リリース時にStripe決済が有効になります。"
+            : "* All plans are free during beta. Stripe billing will be enabled at official launch."}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -328,8 +328,15 @@ export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMat
     [suggestions, inputText]
   );
 
-  // ── キーボード操作（IME風：スペースで変換確定） ──
+  // ── IME変換中フラグ ──
+  const [isComposing, setIsComposing] = useState(false);
+
+  // ── キーボード操作（IME変換中は全てスキップ） ──
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME変換中は全てのキー操作をブラウザ/IMEに委譲
+    // （矢印キーでの候補選択、Enterでの文字確定など）
+    if (e.nativeEvent.isComposing || isComposing) return;
+
     if (suggestions.length > 0) {
       if (e.key === " ") {
         // スペースキーで候補を確定（日本語IME風）
@@ -348,6 +355,7 @@ export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMat
         return;
       }
     }
+    // 文字確定済みの状態でEnter → 数式として反映（コンパイル実行）
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleApply();
@@ -442,6 +450,8 @@ export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMat
             setShowGuide(false);
           }}
           onKeyDown={handleKeyDown}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
           placeholder="日本語で数式を入力 — ルートx, a/b, かっこa+b, 0からπまで積分 …"
           className={`w-full pl-8 pr-4 py-2.5 text-sm rounded-xl border-2 focus:ring-2 focus:outline-none bg-background resize-none overflow-hidden font-sans transition-all ${
             overrideLatex

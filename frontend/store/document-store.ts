@@ -1,7 +1,80 @@
 "use client";
 
 import { create } from "zustand";
-import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, DocumentPatch, PaperDesign, createBlock, createDefaultDocument } from "@/lib/types";
+import { Block, BlockContent, BlockStyle, BlockType, DocumentModel, DocumentSettings, DocumentMetadata, AdvancedHooks, DocumentPatch, PaperDesign, createBlock, createDefaultDocument, DEFAULT_BLOCK_STYLE } from "@/lib/types";
+
+// ── AIパッチのブロック正規化 ──
+// AIが返すブロックは必須フィールドが欠落していることがある。
+// レンダラーが "Hundefined" 等を表示しないよう、ここで補完する。
+
+const CONTENT_DEFAULTS: Record<string, () => BlockContent> = {
+  heading:   () => ({ type: "heading", text: "", level: 2 }),
+  paragraph: () => ({ type: "paragraph", text: "" }),
+  math:      () => ({ type: "math", latex: "", displayMode: true }),
+  list:      () => ({ type: "list", style: "bullet" as const, items: [""] }),
+  table:     () => ({ type: "table", headers: ["列1", "列2"], rows: [["", ""]] }),
+  image:     () => ({ type: "image", url: "", caption: "" }),
+  divider:   () => ({ type: "divider", style: "solid" as const }),
+  code:      () => ({ type: "code", language: "", code: "" }),
+  quote:     () => ({ type: "quote", text: "" }),
+  circuit:   () => ({ type: "circuit", code: "", caption: "" }),
+  diagram:   () => ({ type: "diagram", code: "", diagramType: "flowchart", caption: "" }),
+  chemistry: () => ({ type: "chemistry", formula: "", displayMode: true }),
+  chart:     () => ({ type: "chart", chartType: "line" as const, code: "", caption: "" }),
+};
+
+function normalizeAIBlock(raw: Block): Block {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawAny = raw as any;
+  const id = rawAny.id || crypto.randomUUID();
+
+  // style が欠落 or 不完全な場合はデフォルトで補完
+  const style: BlockStyle = {
+    ...DEFAULT_BLOCK_STYLE,
+    ...(rawAny.style && typeof rawAny.style === "object" ? rawAny.style : {}),
+  };
+
+  // content が無い or type が無い場合の処理
+  let content = rawAny.content;
+  if (!content || typeof content !== "object" || !("type" in content)) {
+    // フラット形式: { id, type: "heading", text: "...", level: 2, style: {...} }
+    // → content を再構成する
+    if (rawAny.type && typeof rawAny.type === "string") {
+      const metaKeys = new Set(["id", "style"]);
+      const contentObj: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(rawAny)) {
+        if (!metaKeys.has(k)) contentObj[k] = v;
+      }
+      content = contentObj;
+    } else {
+      content = { type: "paragraph", text: "" };
+    }
+  }
+
+  const btype = (content as { type: string }).type;
+  const defaults = CONTENT_DEFAULTS[btype]?.();
+
+  if (defaults) {
+    // defaults の全キーが content に存在することを保証
+    content = { ...defaults, ...content } as BlockContent;
+  }
+
+  // math ブロック: latex の $$ ラッパー除去
+  if (btype === "math") {
+    const mc = content as unknown as { type: "math"; latex: string; displayMode: boolean };
+    if (typeof mc.latex === "string") {
+      let latex = mc.latex;
+      if (latex.startsWith("$$") && latex.endsWith("$$")) latex = latex.slice(2, -2).trim();
+      else if (latex.startsWith("$") && latex.endsWith("$") && !latex.startsWith("$$")) latex = latex.slice(1, -1).trim();
+      (content as unknown as Record<string, unknown>).latex = latex;
+    }
+    if (mc.displayMode === undefined) {
+      (content as unknown as Record<string, unknown>).displayMode = true;
+    }
+  }
+
+  return { id, content: content as BlockContent, style };
+}
 
 interface DocumentState {
   document: DocumentModel | null;
@@ -184,7 +257,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
     for (const op of patch.ops) {
       if (op.op === "add_block") {
-        const newBlock = { ...op.block, id: op.block.id || crypto.randomUUID() };
+        const newBlock = normalizeAIBlock(op.block);
         if (op.afterId === null) {
           blocks = [newBlock, ...blocks];
         } else {

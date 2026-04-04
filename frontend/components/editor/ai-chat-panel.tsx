@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, LastAIAction } from "@/store/ui-store";
+import { usePlanStore } from "@/store/plan-store";
+import { PLANS } from "@/lib/plans";
 import { sendAIMessage, analyzeImageOMR } from "@/lib/api";
 import { ChatMessage, DocumentPatch, PatchOp } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -626,6 +628,56 @@ function ThinkingIndicator({ userMessage }: { userMessage: string }) {
   );
 }
 
+// ─── Usage Indicator Bar ─────────────────────────────────────────────────────
+
+function UsageBar({
+  todayUsage, dailyLimit, monthUsage, monthlyLimit, planName, dailyPercent, onUpgrade,
+}: {
+  todayUsage: number; dailyLimit: number; monthUsage: number; monthlyLimit: number;
+  planName: string; dailyPercent: number; onUpgrade: () => void;
+}) {
+  const isNearLimit = dailyPercent >= 80;
+  const isAtLimit = dailyPercent >= 100;
+  const barColor = isAtLimit
+    ? "bg-red-500"
+    : isNearLimit
+    ? "bg-amber-400"
+    : "bg-indigo-500";
+
+  return (
+    <div className="mx-3 mt-2 shrink-0">
+      <div className="flex items-center justify-between text-[10px] mb-1">
+        <div className="flex items-center gap-1.5">
+          <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 font-bold text-[9px]">
+            {planName}
+          </span>
+          <span className="text-slate-500">
+            {todayUsage}/{dailyLimit} today
+          </span>
+          <span className="text-slate-600">·</span>
+          <span className="text-slate-500">
+            {monthUsage}/{monthlyLimit.toLocaleString()} mo
+          </span>
+        </div>
+        {dailyPercent >= 60 && (
+          <button
+            onClick={onUpgrade}
+            className="text-[9px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+          >
+            Upgrade
+          </button>
+        )}
+      </div>
+      <div className="h-1 rounded-full bg-slate-700/50 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+          style={{ width: `${Math.min(100, dailyPercent)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Chat Panel ──────────────────────────────────────────────────────────
 
 export function AIChatPanel() {
@@ -644,6 +696,9 @@ export function AIChatPanel() {
     setLastAIAction,
   } = useUIStore();
 
+  // Plan / usage
+  const { canMakeRequest, incrementUsage, setShowPricing, initFromStorage, todayUsage, dailyLimit, monthUsage, monthlyLimit, currentPlan, usagePercent } = usePlanStore();
+
   const [input, setInput] = useState("");
   const [pendingMsgId, setPendingMsgId] = useState<string | null>(null);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
@@ -652,6 +707,9 @@ export function AIChatPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Plan store をストレージから初期化
+  useEffect(() => { initFromStorage(); }, [initFromStorage]);
 
   // Restore chat history from localStorage on mount
   useEffect(() => {
@@ -707,6 +765,19 @@ export function AIChatPanel() {
     const text = input.trim();
     if (!text || isChatLoading || !document) return;
 
+    // ─── プランのリクエスト制限チェック ───
+    const limitCheck = canMakeRequest();
+    if (!limitCheck.allowed) {
+      addChatMessage({
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `⚠️ ${limitCheck.reason}\n\nプランをアップグレードするとリクエスト上限を増やせます。`,
+        patches: null,
+      });
+      setShowPricing(true);
+      return;
+    }
+
     const userMsgId = crypto.randomUUID();
     const userMsg: ChatMessage = { id: userMsgId, role: "user", content: text };
     addChatMessage(userMsg);
@@ -721,6 +792,7 @@ export function AIChatPanel() {
         content: m.role === "user" && m.id === userMsgId ? m.content + feedbackCtx : m.content,
       }));
       const result = await sendAIMessage(history, document);
+      incrementUsage(); // リクエスト使用量をカウント
 
       const assistantMsgId = crypto.randomUUID();
       const assistantMsg: ChatMessage = {
@@ -792,10 +864,24 @@ export function AIChatPanel() {
     const file = e.target.files?.[0];
     if (!file || !document) return;
     e.target.value = "";
+
+    // プラン制限チェック
+    const limitCheck = canMakeRequest();
+    if (!limitCheck.allowed) {
+      addChatMessage({
+        id: crypto.randomUUID(), role: "assistant",
+        content: `⚠️ ${limitCheck.reason}\n\nプランをアップグレードするとリクエスト上限を増やせます。`,
+        patches: null,
+      });
+      setShowPricing(true);
+      return;
+    }
+
     addChatMessage({ id: crypto.randomUUID(), role: "user", content: `📎 ${file.name}` });
     setChatLoading(true);
     try {
       const result = await analyzeImageOMR(file, document);
+      incrementUsage();
       const assistantMsgId = crypto.randomUUID();
       const assistantMsg: ChatMessage = {
         id: assistantMsgId,
@@ -882,6 +968,17 @@ export function AIChatPanel() {
           )}
         </div>
       </div>
+
+      {/* Usage indicator bar */}
+      <UsageBar
+        todayUsage={todayUsage()}
+        dailyLimit={dailyLimit()}
+        monthUsage={monthUsage()}
+        monthlyLimit={monthlyLimit()}
+        planName={PLANS[currentPlan].name}
+        dailyPercent={usagePercent().daily}
+        onUpgrade={() => setShowPricing(true)}
+      />
 
       {/* API Key banner */}
       {apiKeyMissing && (

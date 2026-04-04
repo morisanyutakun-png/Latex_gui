@@ -6,6 +6,7 @@ import { StatusBar } from "@/components/layout/status-bar";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { AdvancedModePanel } from "@/components/editor/advanced-mode";
 import { AIChatPanel } from "@/components/editor/ai-chat-panel";
+import { PricingModal } from "@/components/pricing-modal";
 import { LaTeXSourceViewer } from "@/components/editor/latex-source-viewer";
 import { EditGuidePanel } from "@/components/editor/edit-guide-panel";
 import { MathReferencePanel } from "@/components/editor/math-reference-panel";
@@ -153,6 +154,7 @@ export default function EditorPage() {
           )}
         </div>
 
+        <PricingModal />
         <div className="flex border-t border-border/20 bg-background/95 backdrop-blur-sm shrink-0">
           {(["ai", "preview"] as const).map((tab) => {
             const isActive = mobileTab === tab;
@@ -339,6 +341,7 @@ export default function EditorPage() {
       </div>{/* end flex-1 */}
 
       <StatusBar />
+      <PricingModal />
     </div>
   );
 }

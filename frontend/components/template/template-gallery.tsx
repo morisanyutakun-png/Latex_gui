@@ -144,7 +144,21 @@ function TypingLine({ lines }: { lines: string[] }) {
   const [lineIdx, setLineIdx] = useState(0);
   const [charIdx, setCharIdx] = useState(0);
   const [deleting, setDeleting] = useState(false);
-  const current = lines[lineIdx];
+  // lines の参照を追跡し、言語切り替え時にアニメーションをリセット
+  const prevLinesRef = useRef(lines);
+
+  useEffect(() => {
+    if (prevLinesRef.current !== lines) {
+      prevLinesRef.current = lines;
+      setLineIdx(0);
+      setCharIdx(0);
+      setDeleting(false);
+    }
+  }, [lines]);
+
+  // lineIdx が範囲外にならないよう安全にクランプ
+  const safeLineIdx = lineIdx < lines.length ? lineIdx : 0;
+  const current = lines[safeLineIdx] ?? "";
 
   useEffect(() => {
     const delay = deleting ? 30 : charIdx === current.length ? 2200 : 45;
@@ -161,7 +175,7 @@ function TypingLine({ lines }: { lines: string[] }) {
       }
     }, delay);
     return () => clearTimeout(t);
-  }, [charIdx, deleting, current, lines, lineIdx]);
+  }, [charIdx, deleting, current, lines, safeLineIdx]);
 
   return (
     <span className="inline-block">
@@ -376,9 +390,10 @@ export function TemplateGallery() {
   const saved = typeof window !== "undefined" ? loadFromLocalStorage() : null;
   const isJa = locale !== "en";
 
-  const heroTypingLines = isJa
+  const heroTypingLines = React.useMemo(() => isJa
     ? ["教材を、もっと速く。", "ワークシートを、今夜中に。", "問題集を、AIと一緒に。"]
-    : ["Worksheets, faster.", "Answer keys, automatic.", "Variants, one click."];
+    : ["Worksheets, faster.", "Answer keys, automatic.", "Variants, one click."],
+    [isJa]);
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
