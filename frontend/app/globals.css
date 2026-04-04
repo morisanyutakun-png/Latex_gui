@@ -283,6 +283,12 @@ html {
   animation: badge-pop 0.3s ease-out;
 }
 
+/* ── Cursor blink (真の点滅 — テキストエディタ風) ── */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* ── Focus ring consistency ── */
 .focus-ring {
   @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background;

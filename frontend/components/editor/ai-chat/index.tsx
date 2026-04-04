@@ -111,16 +111,10 @@ export function AIChatPanel() {
     const text = input.trim();
     if (!text || isChatLoading || !document) return;
 
+    // 制限チェック（開発中: 警告のみ、ブロックしない）
     const limitCheck = canMakeRequest();
-    if (!limitCheck.allowed) {
-      addChatMessage({
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `${limitCheck.reason}\n\nプランをアップグレードするとリクエスト上限を増やせます。`,
-        timestamp: Date.now(),
-      });
-      setShowPricing(true);
-      return;
+    if (limitCheck.reason) {
+      console.warn("[chat:limit]", limitCheck.reason);
     }
 
     const requestId = crypto.randomUUID();
@@ -285,17 +279,6 @@ export function AIChatPanel() {
     const file = e.target.files?.[0];
     if (!file || !document) return;
     e.target.value = "";
-
-    const limitCheck = canMakeRequest();
-    if (!limitCheck.allowed) {
-      addChatMessage({
-        id: crypto.randomUUID(), role: "assistant",
-        content: `${limitCheck.reason}\n\nプランをアップグレードするとリクエスト上限を増やせます。`,
-        timestamp: Date.now(),
-      });
-      setShowPricing(true);
-      return;
-    }
 
     addChatMessage({ id: crypto.randomUUID(), role: "user", content: `📎 ${file.name}`, timestamp: Date.now() });
     setChatLoading(true);

@@ -91,6 +91,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   monthlyLimit: () => PLANS[get().currentPlan].requestsPerMonth,
 
   canMakeRequest: () => {
+    // 開発段階: 制限超過は警告のみ、ブロックしない
     const state = get();
     const plan = PLANS[state.currentPlan];
     const daily = state.usage.daily[todayKey()] || 0;
@@ -98,14 +99,14 @@ export const usePlanStore = create<PlanState>((set, get) => ({
 
     if (daily >= plan.requestsPerDay) {
       return {
-        allowed: false,
-        reason: `本日のAIリクエスト上限 (${plan.requestsPerDay}回) に達しました。明日リセットされます。`,
+        allowed: true,  // TODO: リリース時に false に変更
+        reason: `⚠️ 本日のAIリクエスト上限 (${plan.requestsPerDay}回) を超えています。開発中のため引き続き利用可能です。`,
       };
     }
     if (monthly >= plan.requestsPerMonth) {
       return {
-        allowed: false,
-        reason: `今月のAIリクエスト上限 (${plan.requestsPerMonth.toLocaleString()}回) に達しました。来月リセットされます。`,
+        allowed: true,  // TODO: リリース時に false に変更
+        reason: `⚠️ 今月のAIリクエスト上限 (${plan.requestsPerMonth.toLocaleString()}回) を超えています。開発中のため引き続き利用可能です。`,
       };
     }
     return { allowed: true, reason: "" };

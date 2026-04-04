@@ -104,12 +104,19 @@ function BlockWrapper({
             e.stopPropagation();
             if (editMode) {
               setEditingBlock(block.id);
-              // ブロック種別に応じてサイドバーガイドを切替
               const t = block.content.type;
               const guideMap: Record<string, string> = { heading: "heading", list: "list", table: "table", code: "code", math: "math" };
               setActiveGuideContext((guideMap[t] || "general") as import("@/store/ui-store").GuideContext);
             }
             else selectBlock(block.id);
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            // ダブルクリックで常に編集モードに入る
+            setEditingBlock(block.id);
+            const t = block.content.type;
+            const guideMap: Record<string, string> = { heading: "heading", list: "list", table: "table", code: "code", math: "math" };
+            setActiveGuideContext((guideMap[t] || "general") as import("@/store/ui-store").GuideContext);
           }}
         >
           {isAIHighlighted && (
@@ -634,7 +641,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 
         {/* 擬似カーソル */}
         {showCursor && (
-          <span className={`inline-block w-[2px] h-[1.1em] align-middle animate-pulse ${mathMode ? "bg-violet-500" : "bg-foreground"}`} />
+          <span className={`inline-block w-[2px] h-[1.1em] align-middle animate-[cursor-blink_1s_step-end_infinite] ${mathMode ? "bg-violet-500" : "bg-foreground"}`} />
         )}
       </div>
 
@@ -649,7 +656,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                 {isJa ? "数式モード" : "Math mode"}
               </span>
               <span className="hidden sm:inline text-[9px] text-muted-foreground/30 ml-2">
-                {isJa ? "例: a たす b、ルート x" : "e.g. a plus b, sqrt x"}
+                {isJa ? "例: a たす b、ルート x、x^2+1" : "e.g. a plus b, sqrt x, x^2+1"}
               </span>
             </div>
             <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground/40">
@@ -674,7 +681,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
                   </span>
                 ))}
                 {/* カーソル（位置連動） */}
-                <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-pulse mx-px align-middle" />
+                <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-[cursor-blink_1s_step-end_infinite] mx-px align-middle" />
                 {/* カーソル後のトークン */}
                 {tokensAfterCursor.map((tok, i) => (
                   <span key={`a${i}`} className={`${TOKEN_COLORS[tok.kind]} ${tok.kind !== "text" ? "font-medium" : ""}`}>
@@ -684,7 +691,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
               </>
             ) : (
               /* 未入力: カーソルのみ（プレースホルダーは非表示） */
-              <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-pulse align-middle" />
+              <span className="inline-block w-[1.5px] h-[1.1em] bg-violet-500 animate-[cursor-blink_1s_step-end_infinite] align-middle" />
             )}
           </div>
         </div>
@@ -735,6 +742,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 }
 
 function MathBlockEditor({ block }: { block: Block }) {
+  const { locale } = useI18n();
+  const isJa = locale === "ja";
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const { editingBlockId, setMathEditing } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
@@ -760,7 +769,7 @@ function MathBlockEditor({ block }: { block: Block }) {
         </div>
       ) : !isEditing ? (
         <div className="py-2 text-center text-muted-foreground/30 text-xs select-none">
-          クリックして数式を入力
+          {isJa ? "クリックして数式を入力" : "Click to enter math"}
         </div>
       ) : null}
 
