@@ -1352,35 +1352,25 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
   const paperSize = useUIStore((s) => s.paperSize);
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Fit-to-page: auto-calculate zoom so the full paper fits within the canvas
+  // Fit-to-width: auto-calculate zoom so the paper width fits the canvas (scroll vertically)
   useEffect(() => {
     if (!zoomFitMode) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
-    const paperHeight = Math.round(paper.w * 1.4142);
-    // py-6 top(24) + paper label(28) + py-6 bottom(24) = 76, plus safety margin
-    const verticalPadding = 80;
     const horizontalPadding = 80;
 
     const calculateFitZoom = () => {
-      // Use getBoundingClientRect for reliable viewport dimensions (unaffected by CSS zoom)
       const rect = canvas.getBoundingClientRect();
-      const availableHeight = rect.height - verticalPadding;
       const availableWidth = rect.width - horizontalPadding;
-      if (availableHeight <= 0 || availableWidth <= 0) return;
+      if (availableWidth <= 0) return;
 
-      const fitByHeight = availableHeight / paperHeight;
-      const fitByWidth = availableWidth / paper.w;
-      // Use the smaller ratio so the full page fits, then apply 0.95 safety factor
-      const fitZoom = Math.min(fitByHeight, fitByWidth) * 0.95;
+      const fitZoom = availableWidth / paper.w;
       const clamped = Math.max(0.3, Math.min(2, Math.round(fitZoom * 100) / 100));
 
-      // Only update if significantly different to avoid loops
       const currentZoom = useUIStore.getState().zoom;
       if (Math.abs(clamped - currentZoom) > 0.005) {
-        // Directly set zoom without disabling fitMode
         useUIStore.setState({ zoom: clamped });
       }
     };
@@ -1440,10 +1430,10 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
     {/* Canvas */}
     <div
       ref={canvasRef}
-      className={`flex-1 ${zoomFitMode ? "overflow-hidden" : "overflow-auto"} bg-surface-0 dark:bg-surface-2`}
+      className="flex-1 overflow-auto bg-surface-0 dark:bg-surface-2"
       onClick={() => selectBlock(null)}
     >
-      <div className={`flex flex-col items-center ${zoomFitMode ? "py-6 min-h-0" : "py-10 min-h-full"}`}>
+      <div className="flex flex-col items-center py-6">
 
         {/* Paper size label */}
         <div className="mb-2 text-[10px] font-mono text-[#aaa] dark:text-[#555] select-none self-start" style={{ marginLeft: `calc(50% - ${paper.w / 2}px)` }}>
@@ -1455,9 +1445,7 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
           className={`latex-paper flex-shrink-0 relative shadow-[0_4px_24px_rgba(0,0,0,0.18)] ${editMode ? "cursor-text" : ""}`}
           style={{
             width: paper.w,
-            ...(zoomFitMode
-              ? { height: Math.round(paper.w * 1.4142), overflow: "hidden" as const }
-              : { minHeight: Math.round(paper.w * 1.4142) }),
+            minHeight: Math.round(paper.w * 1.4142),
             padding: "64px 72px 80px",
             zoom: zoom,
             color: activePreset?.colors.text ?? "#1a1a1a",
@@ -1516,7 +1504,7 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
           )}
         </div>
 
-        {!zoomFitMode && <div className="h-16" />}
+        <div className="h-16" />
       </div>
     </div>
     </>
