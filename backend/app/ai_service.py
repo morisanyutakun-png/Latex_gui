@@ -93,55 +93,76 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 SYSTEM_PROMPT = """\
-You are EddivomAI, an autonomous AI agent embedded inside a Japanese LaTeX document editor called Eddivom.
-Users create educational materials, worksheets, and exams using a block-based editor.
+あなたは **EddivomAI** — 日本語 LaTeX ドキュメントエディタ「Eddivom」に組み込まれた自律型 AI エージェントです。
+ユーザーは教育資料・ワークシート・試験問題などをブロックベースのエディタで作成しています。
 
-## CRITICAL: ALWAYS USE THE TOOL
-- When the user asks to create or edit any document content, you MUST call the edit_document tool.
-- NEVER respond with only text when the user wants content created.
-- Do not ask for clarification — make reasonable assumptions and build immediately.
-- Do not explain what you are about to do — just do it via the tool.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 行動原則（Claude Code スタイル）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## Document Block Types
-- heading: { type: "heading", text: string, level: 1|2|3 }
-- paragraph: { type: "paragraph", text: string }  (supports inline $math$)
-- math: { type: "math", latex: string, displayMode: boolean }  (displayMode: true for standalone equations)
-- list: { type: "list", style: "bullet"|"numbered", items: string[] }
-- table: { type: "table", headers: string[], rows: string[][] }
-- divider: { type: "divider", style: "solid"|"dashed"|"dotted" }
-- code: { type: "code", language: string, code: string }
-- quote: { type: "quote", text: string, attribution: string }
-- circuit: { type: "circuit", code: string, caption: string }
-- diagram: { type: "diagram", diagramType: string, code: string, caption: string }
-- chemistry: { type: "chemistry", formula: string, caption: string, displayMode: boolean }
-- chart: { type: "chart", chartType: "line"|"bar"|"scatter"|"histogram", code: string, caption: string }
+1. **まず現状を把握する** — 「現在の文書情報」を必ず読み、既存のブロック構造・内容を理解してから行動する。
+2. **的確に編集する** — 必要最小限の変更で最大の効果を出す。既存ブロックを活かし、不要な削除や重複追加をしない。
+3. **即座に実行する** — 確認を求めず、合理的な判断で edit_document ツールを呼ぶ。テキストだけの返答は避ける。
+4. **結果を簡潔に報告する** — ツール実行後、何をしたかを1〜2文で日本語で伝える。
 
-## Block Style Object
-{ textAlign: "left"|"center"|"right", fontSize: number, fontFamily: "serif"|"sans", bold: boolean, italic: boolean, underline: boolean }
-Default: { textAlign: "left", fontSize: 12, fontFamily: "serif", bold: false, italic: false, underline: false }
+## レスポンスの書式
+- 日本語で応答する（ユーザーが英語の場合は英語で）
+- **数式は `$...$` や `$$...$$` で囲んで** Markdown 形式で書く（チャット UI が KaTeX でレンダリングする）
+- コードブロック、リスト、太字などの Markdown 記法を活用して見やすく整形する
+- 長い説明は避け、簡潔に要点を伝える
 
-## ID Generation
-Every new block needs a unique ID in the format "ai-" + 8 hex chars (e.g. "ai-3f8a1b2c").
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## ドキュメントブロック仕様
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## How to build a full worksheet
-When asked to create a worksheet or problem set:
-1. Add a heading block (level 1) for the title
-2. Add a paragraph block with instructions
-3. Add math blocks (displayMode: true) for each equation
-4. Use numbered list blocks for problem sets
-5. Add a divider between sections if needed
-6. For afterId: use null for the first block, then use the previous block's ID for each subsequent block
+### ブロックタイプ
+| type | content フィールド |
+|------|-------------------|
+| heading | `{ type: "heading", text: string, level: 1/2/3 }` |
+| paragraph | `{ type: "paragraph", text: string }` — インライン `$数式$` 対応 |
+| math | `{ type: "math", latex: string, displayMode: boolean }` — `displayMode: true` で独立数式 |
+| list | `{ type: "list", style: "bullet"/"numbered", items: string[] }` |
+| table | `{ type: "table", headers: string[], rows: string[][] }` |
+| divider | `{ type: "divider", style: "solid"/"dashed"/"dotted" }` |
+| code | `{ type: "code", language: string, code: string }` |
+| quote | `{ type: "quote", text: string, attribution: string }` |
+| circuit | `{ type: "circuit", code: string, caption: string }` |
+| diagram | `{ type: "diagram", diagramType: string, code: string, caption: string }` |
+| chemistry | `{ type: "chemistry", formula: string, caption: string, displayMode: boolean }` |
+| chart | `{ type: "chart", chartType: "line"/"bar"/"scatter"/"histogram", code: string, caption: string }` |
 
-## LaTeX examples
-- Quadratic: \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
-- Fraction: \\frac{a}{b}
-- Square root: \\sqrt{x}
-- Power: x^{2}
-- Subscript: x_{1}
+### スタイルオブジェクト
+```json
+{ "textAlign": "left"/"center"/"right", "fontSize": 12, "fontFamily": "serif"/"sans",
+  "bold": false, "italic": false, "underline": false }
+```
 
-## After calling the tool
-Write 1 short sentence in Japanese summarizing what was created.
-Respond in Japanese unless the user writes in English.
+### ID 生成規則
+新規ブロックの ID: `"ai-"` + 8桁 hex（例: `"ai-3f8a1b2c"`）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## edit_document ツールの使い方
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### 操作タイプ
+- **add_block**: `afterId` の後ろに新ブロックを挿入（先頭に入れるなら `afterId: null`）
+- **update_block**: `blockId` のブロックの content / style を部分更新
+- **delete_block**: `blockId` のブロックを削除
+- **reorder**: `blockIds` 配列で全ブロックの順序を指定
+
+### ワークシート作成パターン
+1. 見出し (level 1) → タイトル
+2. 段落 → 指示文
+3. math (displayMode: true) → 数式問題
+4. numbered list → 問題番号付き
+5. divider → セクション区切り
+6. `afterId`: 最初は `null`、以降は直前のブロック ID を指定
+
+### LaTeX 数式の例
+- 二次方程式の解の公式: `\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}`
+- 積分: `\\int_{a}^{b} f(x)\\,dx`
+- 行列: `\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}`
+- 総和: `\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}`
 """
 
 
@@ -186,60 +207,86 @@ def _deep_to_dict(obj: Any) -> Any:
 
 
 def _document_context(document: dict) -> str:
-    """Serialize document as context string (max 50 blocks)."""
+    """Serialize document as rich context string for AI analysis."""
     blocks = document.get("blocks", [])
     meta = document.get("metadata", {})
     settings = document.get("settings", {})
 
+    n_blocks = len(blocks)
+    # ブロックタイプの統計
+    type_counts: dict[str, int] = {}
+    for blk in blocks:
+        btype = blk.get("content", {}).get("type", "unknown")
+        type_counts[btype] = type_counts.get(btype, 0) + 1
+    stats = ", ".join(f"{t}×{c}" for t, c in sorted(type_counts.items(), key=lambda x: -x[1]))
+
     lines = [
+        "━━━ 文書メタデータ ━━━",
         f"タイトル: {meta.get('title', '(未設定)')}",
         f"著者: {meta.get('author', '(未設定)')}",
         f"文書クラス: {settings.get('documentClass', 'article')}",
-        f"ブロック数: {len(blocks)}",
-        "",
-        "## 現在のブロック一覧:",
+        f"ブロック数: {n_blocks}  構成: [{stats}]",
     ]
 
-    for i, blk in enumerate(blocks[:50]):
+    if n_blocks == 0:
+        lines.append("")
+        lines.append("※ 文書は空です。新しいコンテンツを自由に追加してください。")
+        return "\n".join(lines)
+
+    lines.append("")
+    lines.append("━━━ ブロック一覧 ━━━")
+
+    max_blocks = 60
+    for i, blk in enumerate(blocks[:max_blocks]):
         content = blk.get("content", {})
         btype = content.get("type", "unknown")
         blk_id = blk.get("id", "?")
 
         if btype == "heading":
-            preview = f'見出し{content.get("level", 1)}: "{content.get("text", "")}"'
+            lvl = content.get("level", 1)
+            indent = "  " * (lvl - 1)
+            preview = f'{indent}H{lvl} "{content.get("text", "")}"'
         elif btype == "paragraph":
             text = content.get("text", "")
-            preview = f'段落: "{text[:60]}{"..." if len(text) > 60 else ""}"'
+            preview = f'P  "{text[:80]}{"…" if len(text) > 80 else ""}"'
         elif btype == "math":
-            preview = f'数式: ${content.get("latex", "")}$'
+            latex = content.get("latex", "")
+            mode = "display" if content.get("displayMode") else "inline"
+            preview = f'M[{mode}] ${latex[:80]}{"…" if len(latex) > 80 else ""}$'
         elif btype == "list":
             items = content.get("items", [])
-            preview = f'リスト({content.get("style", "bullet")}): {len(items)}項目'
+            style = content.get("style", "bullet")
+            item_preview = "; ".join(str(it)[:30] for it in items[:3])
+            more = f"… +{len(items)-3}" if len(items) > 3 else ""
+            preview = f'L[{style}] {len(items)}項目: {item_preview}{more}'
         elif btype == "table":
+            headers = content.get("headers", [])
             rows = content.get("rows", [])
-            preview = f'表: {len(content.get("headers", []))}列 × {len(rows)}行'
+            preview = f'T  {len(headers)}列×{len(rows)}行 headers={headers}'
         elif btype == "code":
-            preview = f'コード({content.get("language", "text")})'
+            lang = content.get("language", "text")
+            code = content.get("code", "")
+            preview = f'CODE[{lang}] {code[:60]}{"…" if len(code) > 60 else ""}'
         elif btype == "circuit":
-            preview = f'回路図: {content.get("caption", "")}'
+            preview = f'CIRCUIT "{content.get("caption", "")}"'
         elif btype == "diagram":
-            preview = f'図({content.get("diagramType", "custom")}): {content.get("caption", "")}'
+            preview = f'DIAG[{content.get("diagramType", "custom")}] "{content.get("caption", "")}"'
         elif btype == "chemistry":
-            preview = f'化学式: {content.get("formula", "")}'
+            preview = f'CHEM {content.get("formula", "")}'
         elif btype == "chart":
-            preview = f'グラフ({content.get("chartType", "line")}): {content.get("caption", "")}'
+            preview = f'CHART[{content.get("chartType", "line")}] "{content.get("caption", "")}"'
         elif btype == "quote":
             text = content.get("text", "")
-            preview = f'引用: "{text[:40]}{"..." if len(text) > 40 else ""}"'
+            preview = f'Q  "{text[:50]}{"…" if len(text) > 50 else ""}"'
         elif btype == "divider":
-            preview = f'区切り線({content.get("style", "solid")})'
+            preview = f'── {content.get("style", "solid")} ──'
         else:
-            preview = f"{btype}"
+            preview = f"[{btype}]"
 
-        lines.append(f"  [{i + 1}] id={blk_id} | {preview}")
+        lines.append(f"  {i+1:>2}. id={blk_id} | {preview}")
 
-    if len(blocks) > 50:
-        lines.append(f"  ... （他 {len(blocks) - 50} ブロック省略）")
+    if n_blocks > max_blocks:
+        lines.append(f"  ... 他 {n_blocks - max_blocks} ブロック省略")
 
     return "\n".join(lines)
 

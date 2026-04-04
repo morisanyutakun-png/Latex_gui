@@ -290,7 +290,28 @@ html {
 
 /* ── Smooth sidebar transition ── */
 .sidebar-transition {
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
-              padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               opacity 0.2s ease;
+}
+
+/* ── Chat Markdown + KaTeX rendering ── */
+.chat-markdown .katex-display {
+  margin: 0.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.4em 0;
+}
+.chat-markdown .katex {
+  font-size: 1em;
+}
+.chat-markdown .katex-display > .katex {
+  font-size: 1.05em;
+}
+/* 最初/最後の p のマージンを除去してバブル内の余白を整える */
+.chat-markdown > :first-child {
+  margin-top: 0;
+}
+.chat-markdown > :last-child {
+  margin-bottom: 0;
 }

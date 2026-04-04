@@ -182,19 +182,33 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     lines.append("% ── luatexja-preset[haranoaji]: fonts pre-configured ──")
     lines.append("")
 
-    # ──── Line spacing ────
+    # ──── Typography enhancements ────
+    lines.append("% ── Typography ──")
     spacing = settings.line_spacing
-    if spacing and spacing != 1.0:
-        lines.append(f"\\renewcommand{{\\baselinestretch}}{{{spacing:.2f}}}")
-        lines.append("")
+    effective_spacing = spacing if spacing and spacing != 1.0 else 1.18
+    lines.append(f"\\renewcommand{{\\baselinestretch}}{{{effective_spacing:.2f}}}")
+    lines.append("\\setlength{\\parindent}{1em}")
+    lines.append("\\setlength{\\parskip}{0.3em plus 0.1em minus 0.05em}")
+    lines.append("")
+
+    # ──── Section styling (titlesec) ────
+    lines.append("\\usepackage{titlesec}")
+    lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily}{\\thesection}{0.8em}{}")
+    lines.append("\\titleformat{\\subsection}{\\large\\bfseries\\sffamily}{\\thesubsection}{0.6em}{}")
+    lines.append("\\titleformat{\\subsubsection}{\\normalsize\\bfseries\\sffamily}{\\thesubsubsection}{0.5em}{}")
+    lines.append("\\titlespacing*{\\section}{0pt}{1.8em plus 0.4em minus 0.2em}{0.8em plus 0.2em}")
+    lines.append("\\titlespacing*{\\subsection}{0pt}{1.4em plus 0.3em minus 0.1em}{0.6em plus 0.1em}")
+    lines.append("\\titlespacing*{\\subsubsection}{0pt}{1.0em plus 0.2em minus 0.1em}{0.4em plus 0.1em}")
+    lines.append("")
 
     # ──── Header / Footer ────
     if settings.page_numbers:
         lines.append("\\usepackage{fancyhdr}")
         lines.append("\\pagestyle{fancy}")
         lines.append("\\fancyhf{}")
-        lines.append("\\fancyfoot[C]{\\thepage}")
+        lines.append("\\fancyfoot[C]{\\textcolor{gray}{\\small\\thepage}}")
         lines.append("\\renewcommand{\\headrulewidth}{0pt}")
+        lines.append("\\renewcommand{\\footrulewidth}{0pt}")
         lines.append("")
     else:
         lines.append("\\pagestyle{empty}")
@@ -203,12 +217,31 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     # ──── Listings style (only if code blocks used) ────
     block_types_used = {b.content.type for b in doc.blocks}
     if "code" in block_types_used:
-        lines.append("\\lstset{basicstyle=\\ttfamily\\small,breaklines=true,frame=single,"
-                      "backgroundcolor=\\color{gray!5},rulecolor=\\color{gray!30}}")
+        lines.append("\\lstset{")
+        lines.append("  basicstyle=\\ttfamily\\small,")
+        lines.append("  breaklines=true,")
+        lines.append("  frame=l,")
+        lines.append("  framerule=2pt,")
+        lines.append("  rulecolor=\\color{blue!30},")
+        lines.append("  backgroundcolor=\\color{gray!3},")
+        lines.append("  xleftmargin=12pt,")
+        lines.append("  numberstyle=\\tiny\\color{gray},")
+        lines.append("  keywordstyle=\\color{blue!70!black}\\bfseries,")
+        lines.append("  commentstyle=\\color{green!50!black}\\itshape,")
+        lines.append("  stringstyle=\\color{red!60!black},")
+        lines.append("  tabsize=2,")
+        lines.append("  showstringspaces=false,")
+        lines.append("}")
         lines.append("")
 
     # ──── Hyperref setup ────
-    lines.append("\\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}")
+    lines.append("\\hypersetup{")
+    lines.append("  colorlinks=true,")
+    lines.append("  linkcolor={blue!50!black},")
+    lines.append("  urlcolor={blue!50!black},")
+    lines.append("  citecolor={green!50!black},")
+    lines.append("  pdfstartview=FitH,")
+    lines.append("}")
     lines.append("")
 
     # ──── 上級者モード: カスタムプリアンブル ────
@@ -484,11 +517,11 @@ def _render_quote(c: QuoteContent) -> str:
         return ""
     text = escape_latex(c.text)
     lines = [
-        "\\begin{tcolorbox}[colback=gray!5,colframe=gray!40,left=8pt,right=8pt,top=6pt,bottom=6pt,boxrule=0pt,leftrule=3pt]",
+        "\\begin{tcolorbox}[colback=blue!2,colframe=blue!25,left=10pt,right=10pt,top=8pt,bottom=8pt,boxrule=0pt,leftrule=3pt,arc=2pt]",
         f"\\textit{{{text}}}",
     ]
     if c.attribution:
-        lines.append(f"\\par\\raggedleft\\small--- {escape_latex(c.attribution)}")
+        lines.append(f"\\par\\raggedleft\\small\\textcolor{{gray}}{{--- {escape_latex(c.attribution)}}}")
     lines.append("\\end{tcolorbox}")
     return "\n".join(lines)
 

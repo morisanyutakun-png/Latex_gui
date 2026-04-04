@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
   Bot, Send, Paperclip, Trash2, Loader2, Check, X,
@@ -13,6 +13,11 @@ import { sendAIMessage, analyzeImageOMR } from "@/lib/api";
 import { ChatMessage, DocumentPatch, PatchOp } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import remarkGfm from "remark-gfm";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,6 +141,90 @@ function PatchPreviewDrawer({
   );
 }
 
+// ─── Markdown Renderer for chat messages ─────────────────────────────────────
+
+function ChatMarkdown({ content, isUser }: { content: string; isUser: boolean }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkMath, remarkGfm]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        // コードブロック
+        pre: ({ children }) => (
+          <pre className={`rounded-lg p-3 my-2 overflow-x-auto text-[12px] font-mono ${
+            isUser
+              ? "bg-white/10 text-indigo-100"
+              : "bg-slate-100 dark:bg-[#1a1d24] text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/40"
+          }`}>{children}</pre>
+        ),
+        code: ({ children, className }) => {
+          const isInline = !className;
+          if (isInline) {
+            return (
+              <code className={`px-1.5 py-0.5 rounded text-[12px] font-mono ${
+                isUser
+                  ? "bg-white/15 text-white"
+                  : "bg-slate-100 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300"
+              }`}>{children}</code>
+            );
+          }
+          return <code className={className}>{children}</code>;
+        },
+        // リンク
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer"
+            className={isUser ? "underline text-indigo-200" : "text-indigo-600 dark:text-indigo-400 hover:underline"}>
+            {children}
+          </a>
+        ),
+        // リスト
+        ul: ({ children }) => <ul className="list-disc pl-4 my-1.5 space-y-0.5">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-4 my-1.5 space-y-0.5">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        // 強調
+        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        // 見出し (チャット内なのでサイズ控えめ)
+        h1: ({ children }) => <p className="font-bold text-[14px] mt-2 mb-1">{children}</p>,
+        h2: ({ children }) => <p className="font-bold text-[13px] mt-2 mb-1">{children}</p>,
+        h3: ({ children }) => <p className="font-semibold text-[13px] mt-1.5 mb-0.5">{children}</p>,
+        // 段落
+        p: ({ children }) => <p className="leading-relaxed my-0.5">{children}</p>,
+        // 引用
+        blockquote: ({ children }) => (
+          <blockquote className={`border-l-2 pl-3 my-1.5 italic ${
+            isUser ? "border-indigo-300/50 text-indigo-100" : "border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400"
+          }`}>{children}</blockquote>
+        ),
+        // テーブル
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table className={`text-[11px] border-collapse w-full ${
+              isUser ? "text-indigo-100" : ""
+            }`}>{children}</table>
+          </div>
+        ),
+        th: ({ children }) => (
+          <th className={`px-2 py-1 text-left font-semibold border-b ${
+            isUser ? "border-indigo-400/30" : "border-slate-300 dark:border-slate-600"
+          }`}>{children}</th>
+        ),
+        td: ({ children }) => (
+          <td className={`px-2 py-1 border-b ${
+            isUser ? "border-indigo-400/20" : "border-slate-200 dark:border-slate-700"
+          }`}>{children}</td>
+        ),
+        // 水平線
+        hr: () => (
+          <hr className={`my-2 ${isUser ? "border-indigo-400/30" : "border-slate-200 dark:border-slate-700"}`} />
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
 function MessageBubble({
@@ -158,12 +247,18 @@ function MessageBubble({
       )}
 
       <div className={`max-w-[82%] flex flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
-        <div className={`rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
+        <div className={`rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed break-words shadow-sm ${
           isUser
             ? "bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-br-sm shadow-indigo-900/30"
             : "bg-white dark:bg-[#23262e] border border-slate-200/60 dark:border-slate-700/40 text-slate-800 dark:text-slate-100 rounded-bl-sm"
         }`}>
-          {msg.content}
+          {isUser ? (
+            <span className="whitespace-pre-wrap">{msg.content}</span>
+          ) : (
+            <div className="chat-markdown">
+              <ChatMarkdown content={msg.content} isUser={false} />
+            </div>
+          )}
         </div>
 
         {/* Patch actions */}
