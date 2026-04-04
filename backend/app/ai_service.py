@@ -3,6 +3,7 @@
 将来的には Anthropic Claude に戻す予定。
 """
 import os
+import json
 import logging
 from typing import Any
 
@@ -16,7 +17,7 @@ GEMINI_TOOL_DEF = {
             "name": "edit_document",
             "description": (
                 "Apply structured edits to the LaTeX document. "
-                "Use when the user asks to add, modify, or remove content. "
+                "Use this tool whenever the user asks to create, add, modify, or remove content. "
                 "Each op in 'ops' is applied in order."
             ),
             "parameters": {
@@ -25,40 +26,45 @@ GEMINI_TOOL_DEF = {
                     "ops": {
                         "type": "array",
                         "description": (
-                            "List of patch operations. Each op has an 'op' field: "
-                            "add_block | update_block | delete_block | reorder."
+                            "List of patch operations. Each item has 'op': "
+                            "add_block | update_block | delete_block | reorder"
                         ),
                         "items": {
                             "type": "object",
                             "properties": {
                                 "op": {
                                     "type": "string",
-                                    "description": "add_block | update_block | delete_block | reorder",
+                                    "description": "Operation type: add_block | update_block | delete_block | reorder",
                                 },
                                 "afterId": {
                                     "type": "string",
-                                    "description": "(add_block) ID of block to insert after. Omit for beginning.",
+                                    "description": "(add_block only) ID of block to insert after. Omit to insert at beginning.",
                                 },
                                 "block": {
                                     "type": "object",
-                                    "description": "(add_block) Full block: {id, content: {type, ...}, style: {...}}",
+                                    "description": (
+                                        "(add_block only) The block to add. Must have: "
+                                        "id (string like 'ai-xxxxxxxx'), "
+                                        "content (object with 'type' field), "
+                                        "style (object)"
+                                    ),
                                 },
                                 "blockId": {
                                     "type": "string",
-                                    "description": "(update_block / delete_block) Target block ID",
+                                    "description": "(update_block / delete_block only) ID of target block",
                                 },
                                 "content": {
                                     "type": "object",
-                                    "description": "(update_block) Partial content fields to merge",
+                                    "description": "(update_block only) Partial content fields to merge into block",
                                 },
                                 "style": {
                                     "type": "object",
-                                    "description": "(update_block) Partial style fields to merge",
+                                    "description": "(update_block only) Partial style fields to merge into block",
                                 },
                                 "blockIds": {
                                     "type": "array",
                                     "items": {"type": "string"},
-                                    "description": "(reorder) All block IDs in desired new order",
+                                    "description": "(reorder only) All block IDs in the desired new order",
                                 },
                             },
                             "required": ["op"],
@@ -79,10 +85,7 @@ TOOLS: list[dict[str, Any]] = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "ops": {
-                    "type": "array",
-                    "items": {"type": "object"},
-                }
+                "ops": {"type": "array", "items": {"type": "object"}},
             },
             "required": ["ops"],
         },
@@ -90,42 +93,19 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 SYSTEM_PROMPT = """\
-You are EddivomAI, an autonomous AI agent embedded inside a Japanese LaTeX document editor called Eddivom (かんたんPDFメーカー).
+You are EddivomAI, an autonomous AI agent embedded inside a Japanese LaTeX document editor called Eddivom.
 Users create educational materials, worksheets, and exams using a block-based editor.
-You are a proactive, autonomous document-building agent. Your primary job is to take action and build content immediately — not to ask for clarification unless truly necessary.
 
-## Core Principle: ACT FIRST
-- When asked to create content, ALWAYS use the edit_document tool immediately to build it.
-- Do NOT ask "何を作りますか？" — just start building.
-- Do NOT say "準備ができました" — just do it.
-- If the user gives a vague request, make a reasonable interpretation and execute it.
-- Produce complete, polished content on the first attempt — not skeletons or placeholders.
-
-## Role
-- You are a BUILDER: immediately use the tool to construct full, working documents.
-- You are an EDUCATOR: understand educational content deeply — math problems, exercises, exams, lesson plans.
-- You are also an ASSISTANT: when asked questions about the document or Eddivom, answer in plain Japanese.
-- Users may paste content from educational databases (marked with 【教材DB参照】) — extract and format as LaTeX blocks.
-
-## Autonomous Document Generation
-When asked to create a full document (教材, テスト, ワークシート, etc.):
-1. Create a proper heading structure (H1 title, H2 sections)
-2. Add substantive paragraph blocks with instructions
-3. Add well-formatted math blocks for all equations (displayMode: true for standalone equations)
-4. Use numbered lists for problem sets
-5. Include answer hints or answer keys if appropriate
-6. Add a divider between sections
-7. Aim for completeness: if asked for "5問", produce exactly 5 high-quality problems
-
-When creating math problems:
-- Use LaTeX notation in math blocks: fractions as \\frac{a}{b}, roots as \\sqrt{x}, etc.
-- For inline math in paragraphs, use $...$ notation
-- Ensure all equations are mathematically correct and properly formatted
+## CRITICAL: ALWAYS USE THE TOOL
+- When the user asks to create or edit any document content, you MUST call the edit_document tool.
+- NEVER respond with only text when the user wants content created.
+- Do not ask for clarification — make reasonable assumptions and build immediately.
+- Do not explain what you are about to do — just do it via the tool.
 
 ## Document Block Types
 - heading: { type: "heading", text: string, level: 1|2|3 }
-- paragraph: { type: "paragraph", text: string }
-- math: { type: "math", latex: string, displayMode: boolean }
+- paragraph: { type: "paragraph", text: string }  (supports inline $math$)
+- math: { type: "math", latex: string, displayMode: boolean }  (displayMode: true for standalone equations)
 - list: { type: "list", style: "bullet"|"numbered", items: string[] }
 - table: { type: "table", headers: string[], rows: string[][] }
 - divider: { type: "divider", style: "solid"|"dashed"|"dotted" }
@@ -141,12 +121,27 @@ When creating math problems:
 Default: { textAlign: "left", fontSize: 12, fontFamily: "serif", bold: false, italic: false, underline: false }
 
 ## ID Generation
-Generate IDs as "ai-" + 8 random hex chars (e.g. "ai-3f8a1b2c"). Every new block needs a unique ID.
+Every new block needs a unique ID in the format "ai-" + 8 hex chars (e.g. "ai-3f8a1b2c").
 
-## Output Rules
-- After using the tool, write a brief 1-2 sentence Japanese summary of what was created/changed.
-- Respond in Japanese by default unless the user writes in English.
-- Be decisive. Be complete. Deliver exactly what was asked.
+## How to build a full worksheet
+When asked to create a worksheet or problem set:
+1. Add a heading block (level 1) for the title
+2. Add a paragraph block with instructions
+3. Add math blocks (displayMode: true) for each equation
+4. Use numbered list blocks for problem sets
+5. Add a divider between sections if needed
+6. For afterId: use null for the first block, then use the previous block's ID for each subsequent block
+
+## LaTeX examples
+- Quadratic: \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
+- Fraction: \\frac{a}{b}
+- Square root: \\sqrt{x}
+- Power: x^{2}
+- Subscript: x_{1}
+
+## After calling the tool
+Write 1 short sentence in Japanese summarizing what was created.
+Respond in Japanese unless the user writes in English.
 """
 
 
@@ -171,6 +166,23 @@ def get_client():
         )
 
     return genai.Client(api_key=key)
+
+
+def _deep_to_dict(obj: Any) -> Any:
+    """
+    Gemini の function_call.args を完全な Python dict/list に変換する。
+    ネストされた proto オブジェクトも再帰的に処理する。
+    """
+    if isinstance(obj, dict):
+        return {k: _deep_to_dict(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_deep_to_dict(v) for v in obj]
+    # proto MapComposite / RepeatedComposite 対策
+    if hasattr(obj, "items"):
+        return {k: _deep_to_dict(v) for k, v in obj.items()}
+    if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes)):
+        return [_deep_to_dict(v) for v in obj]
+    return obj
 
 
 def _document_context(document: dict) -> str:
@@ -234,7 +246,7 @@ def _document_context(document: dict) -> str:
 
 async def chat(messages: list[dict], document: dict) -> dict:
     """
-    Gemini を使ってチャットし、ドキュメント編集パッチを返す。
+    Gemini でチャットし、ドキュメント編集パッチを返す。
     Returns { message: str, patches: dict | None, usage: dict }
     """
     import asyncio
@@ -249,8 +261,7 @@ async def chat(messages: list[dict], document: dict) -> dict:
         default=0,
     )
 
-    # Gemini 形式の contents を構築
-    # Gemini は role: "user" | "model" を使う（assistant → model）
+    # Gemini 形式の contents を構築（role: "user" | "model"）
     contents = []
     for i, msg in enumerate(messages):
         role = msg.get("role", "user")
@@ -268,6 +279,10 @@ async def chat(messages: list[dict], document: dict) -> dict:
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
         tools=[GEMINI_TOOL_DEF],
+        # AUTO: モデルが自由に tool か text を選ぶ（デフォルト）
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+        ),
     )
 
     def _call():
@@ -279,23 +294,40 @@ async def chat(messages: list[dict], document: dict) -> dict:
 
     response = await asyncio.to_thread(_call)
 
-    # レスポンスからテキストとツール呼び出しを抽出
+    # ─── レスポンスのパース ───
     text_parts: list[str] = []
     patches = None
 
     try:
-        parts = response.candidates[0].content.parts
-        for part in parts:
+        candidate = response.candidates[0]
+        finish_reason = str(candidate.finish_reason) if candidate.finish_reason else ""
+        logger.info("Gemini finish_reason: %s", finish_reason)
+
+        for part in candidate.content.parts:
+            # thought パーツ（gemini-2.5 の内部思考）はスキップ
+            if getattr(part, "thought", False):
+                continue
+
             if part.text:
                 text_parts.append(part.text)
+
             if part.function_call and part.function_call.name == "edit_document":
-                patches = dict(part.function_call.args)
+                raw_args = part.function_call.args
+                patches = _deep_to_dict(raw_args)
+                logger.info("edit_document called, ops count: %d", len(patches.get("ops", [])))
+
     except (IndexError, AttributeError) as e:
-        logger.warning("Gemini レスポンスのパースに失敗: %s", e)
+        logger.error("Gemini レスポンスのパースに失敗: %s", e, exc_info=True)
 
     message = "\n".join(text_parts).strip()
+
     if not message and patches:
-        message = f"{len(patches.get('ops', []))}件の変更を提案しました。"
+        ops = patches.get("ops", [])
+        message = f"{len(ops)}件の変更を適用しました。"
+    elif not message and not patches:
+        # 何も返ってこなかった場合のフォールバック
+        logger.warning("Gemini returned empty response (no text, no function call)")
+        message = "応答を取得できませんでした。もう一度お試しください。"
 
     # usage_metadata
     usage = {"inputTokens": 0, "outputTokens": 0}

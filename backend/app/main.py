@@ -563,10 +563,10 @@ async def ai_chat_endpoint(request: ChatRequest):
     except ValueError as e:
         raise HTTPException(status_code=503, detail={"message": str(e)})
     except Exception as e:
-        logger.error("AI chat error: %s", e)
+        logger.error("AI chat error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"message": "AIの応答取得中にエラーが発生しました。しばらくしてから再試行してください。"},
+            detail={"message": f"AIエラー: {type(e).__name__}: {str(e)[:200]}"},
         )
 
 
