@@ -28,7 +28,7 @@ import { MathRenderer } from "./math-editor";
 import {
   Zap, GitBranch, FlaskConical, BarChart3, Sparkles,
   Code2, ChevronRight, Search, X, Puzzle, Copy, Check,
-  Loader2, RefreshCw, AlertCircle,
+  Loader2, RefreshCw, AlertCircle, Plus, CheckCircle2,
 } from "lucide-react";
 
 // ──── Shared Preset Card ────
@@ -52,6 +52,75 @@ function PresetCard({ name, description, active, onClick, accent }: {
         </span>
       )}
     </button>
+  );
+}
+
+// ──── Shared: Block Editor Toolbar (確定ボタン + キーボード操作) ────
+
+function BlockEditorToolbar({ blockId, accentClass }: { blockId: string; accentClass: string }) {
+  const selectBlock = useUIStore((s) => s.selectBlock);
+  const addBlock = useDocumentStore((s) => s.addBlock);
+  const blocks = useDocumentStore((s) => s.document?.blocks ?? []);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleConfirm = useCallback(() => {
+    selectBlock(blockId);  // exit editing, keep selected
+  }, [blockId, selectBlock]);
+
+  const handleConfirmAndAddBelow = useCallback(() => {
+    const idx = blocks.findIndex((b) => b.id === blockId);
+    const newId = addBlock("paragraph", idx + 1);
+    if (newId) {
+      useUIStore.getState().setEditingBlock(newId);
+    }
+  }, [blockId, blocks, addBlock]);
+
+  // Keyboard: Escape=確定, Enter=確定+下に段落追加 (textarea/input内では無視)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleConfirm();
+      }
+      if (e.key === "Enter" && !isInput && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        handleConfirmAndAddBelow();
+      }
+    };
+    window.addEventListener("keydown", handleKey, true);
+    return () => window.removeEventListener("keydown", handleKey, true);
+  }, [handleConfirm, handleConfirmAndAddBelow]);
+
+  return (
+    <div ref={containerRef} className="flex items-center justify-between pt-2 border-t border-border/30">
+      <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/50">
+        <kbd className="px-1 py-0.5 rounded bg-muted/50 font-mono">Esc</kbd>
+        <span>確定</span>
+        <span className="mx-1">|</span>
+        <kbd className="px-1 py-0.5 rounded bg-muted/50 font-mono">Enter</kbd>
+        <span>確定+下に追加</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={handleConfirmAndAddBelow}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-muted-foreground hover:bg-muted/50 transition-colors"
+        >
+          <Plus className="h-3 w-3" />
+          下に追加
+        </button>
+        <button
+          onClick={handleConfirm}
+          className={`inline-flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-medium text-white ${accentClass} hover:opacity-90 transition-opacity`}
+        >
+          <CheckCircle2 className="h-3 w-3" />
+          確定
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -425,6 +494,8 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
               className="mt-2 w-full font-mono text-xs p-2 h-36 rounded-lg border border-cyan-200 dark:border-cyan-800 focus:ring-cyan-400 bg-slate-50 dark:bg-slate-900 resize-y"
             />
           </details>
+
+          <BlockEditorToolbar blockId={block.id} accentClass="bg-cyan-600" />
         </div>
       )}
     </div>
@@ -578,6 +649,8 @@ export function DiagramBlockEditor({ block }: { block: Block }) {
               className="mt-2 w-full font-mono text-xs p-2 h-28 rounded-lg border border-indigo-200 dark:border-indigo-800 focus:ring-indigo-400 bg-slate-50 dark:bg-slate-900 resize-y"
             />
           </details>
+
+          <BlockEditorToolbar blockId={block.id} accentClass="bg-indigo-600" />
         </div>
       )}
     </div>
@@ -666,6 +739,8 @@ export function ChemistryBlockEditor({ block }: { block: Block }) {
               ))}
             </div>
           </div>
+
+          <BlockEditorToolbar blockId={block.id} accentClass="bg-lime-600" />
         </div>
       )}
     </div>
@@ -768,6 +843,8 @@ export function ChartBlockEditor({ block }: { block: Block }) {
               className="mt-2 w-full font-mono text-xs p-2 h-28 rounded-lg border border-rose-200 dark:border-rose-800 focus:ring-rose-400 bg-slate-50 dark:bg-slate-900 resize-y"
             />
           </details>
+
+          <BlockEditorToolbar blockId={block.id} accentClass="bg-rose-600" />
         </div>
       )}
     </div>

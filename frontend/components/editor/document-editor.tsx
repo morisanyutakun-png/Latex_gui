@@ -59,8 +59,59 @@ const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
 };
 
 
-// Block types that enter edit mode on single click
-const TEXT_EDIT_TYPES: BlockType[] = ["paragraph", "heading", "list", "quote", "code"];
+// ──── Block Insert Line — hover で現れるブロック挿入ボタン ────
+function BlockInsertLine({ index }: { index: number }) {
+  const addBlock = useDocumentStore((s) => s.addBlock);
+  const setEditingBlock = useUIStore((s) => s.setEditingBlock);
+  const setGlobalPalette = useUIStore((s) => s.setGlobalPalette);
+  const selectBlock = useUIStore((s) => s.selectBlock);
+
+  const handleAddParagraph = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newId = addBlock("paragraph", index);
+    if (newId) {
+      selectBlock(newId);
+      setEditingBlock(newId);
+    }
+  };
+
+  const handleOpenPalette = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // 挿入位置のブロックを選択してからパレットを開く
+    const blocks = useDocumentStore.getState().document?.blocks;
+    if (blocks && index > 0 && blocks[index - 1]) {
+      selectBlock(blocks[index - 1].id);
+    }
+    setGlobalPalette(true);
+  };
+
+  return (
+    <div className="group/insert relative h-2 -my-0.5 flex items-center justify-center z-10">
+      {/* Hover line */}
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-primary/0 group-hover/insert:bg-primary/20 transition-colors" />
+      {/* Buttons */}
+      <div className="opacity-0 group-hover/insert:opacity-100 transition-opacity flex items-center gap-1 bg-background rounded-full shadow-sm border px-1 py-0.5">
+        <button
+          onClick={handleAddParagraph}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          title="段落を追加"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="5" y1="2" x2="5" y2="8"/><line x1="2" y1="5" x2="8" y2="5"/></svg>
+          テキスト
+        </button>
+        <div className="w-px h-3 bg-border/50" />
+        <button
+          onClick={handleOpenPalette}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          title="ブロックを挿入 (⌘K)"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="5" y1="2" x2="5" y2="8"/><line x1="2" y1="5" x2="8" y2="5"/></svg>
+          その他
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // Context passed down so block editors know if the global edit mode is on
 const EditModeContext = React.createContext(false);
@@ -1163,7 +1214,7 @@ function GlobalCommandPalette() {
       ? blocks.findIndex((b) => b.id === selectedBlockId) + 1
       : blocks.length;
     const newId = addBlock(type, afterIdx);
-    if (newId) { selectBlock(newId); if (TEXT_EDIT_TYPES.includes(type)) setEditingBlock(newId); }
+    if (newId) { selectBlock(newId); setEditingBlock(newId); }
   };
 
   if (!showGlobalPalette) return null;
@@ -1407,12 +1458,15 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
           {/* Blocks */}
           {document.blocks.length > 0 && (
             <div>
+              {editMode && <BlockInsertLine index={0} />}
               {document.blocks.map((block, idx) => (
-                <BlockWrapper key={block.id} block={block} index={idx}>
-                  <BlockEditor block={block} />
-                </BlockWrapper>
+                <React.Fragment key={block.id}>
+                  <BlockWrapper block={block} index={idx}>
+                    <BlockEditor block={block} />
+                  </BlockWrapper>
+                  {editMode && <BlockInsertLine index={idx + 1} />}
+                </React.Fragment>
               ))}
-
             </div>
           )}
         </div>
