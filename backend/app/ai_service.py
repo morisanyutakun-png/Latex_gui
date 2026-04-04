@@ -189,6 +189,89 @@ def get_client():
     return genai.Client(api_key=key)
 
 
+import re as _re
+
+
+def _extract_json_patches(text: str) -> dict | None:
+    """テキスト内のJSON配列/オブジェクトを検出し、edit_document パッチ形式に正規化する。
+
+    Gemini がツール呼び出しに失敗した場合、テキスト中にJSONを書くことがある。
+    正規 ops 形式 {"ops": [...]} と、簡略形式 [{type, text, ...}, ...] の両方に対応。
+    """
+    # コードブロック内のJSONを優先
+    json_candidates: list[str] = []
+    for m in _re.finditer(r'```(?:json)?\s*\n?([\s\S]*?)```', text):
+        json_candidates.append(m.group(1).strip())
+    # コードブロックがなければ、テキスト全体から [...] or {...} を探す
+    if not json_candidates:
+        for m in _re.finditer(r'(\[[\s\S]*\]|\{[\s\S]*\})', text):
+            json_candidates.append(m.group(1).strip())
+
+    for candidate in json_candidates:
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            continue
+
+        # 正規形式: {"ops": [...]}
+        if isinstance(data, dict) and "ops" in data:
+            ops = data["ops"]
+            if isinstance(ops, list) and len(ops) > 0:
+                return data
+
+        # 簡略配列形式: [{type, text, afterId, blockId}, ...]
+        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+            if "type" in data[0] or "op" in data[0]:
+                ops = _normalize_flat_blocks(data)
+                if ops:
+                    return {"ops": ops}
+
+    return None
+
+
+def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
+    """Gemini の簡略フォーマットを正規 ops 形式に変換する。
+
+    入力例: [{"type":"heading","text":"...","afterId":null,"blockId":"ai-xxx"}, ...]
+    出力: [{"op":"add_block","afterId":null,"block":{"id":"ai-xxx","content":{...},"style":{...}}}, ...]
+    """
+    DEFAULT_STYLE = {
+        "textAlign": "left", "fontSize": 12, "fontFamily": "serif",
+        "bold": False, "italic": False, "underline": False,
+    }
+    ops = []
+    for blk in blocks:
+        # 既に正規 op 形式なら通す
+        if "op" in blk:
+            ops.append(blk)
+            continue
+
+        btype = blk.get("type")
+        if not btype:
+            continue
+
+        block_id = blk.get("blockId") or blk.get("id") or f"ai-{os.urandom(4).hex()}"
+        after_id = blk.get("afterId")
+
+        # content を構築 (type 以外の既知メタフィールドを除外)
+        meta_keys = {"blockId", "id", "afterId", "style"}
+        content = {k: v for k, v in blk.items() if k not in meta_keys}
+
+        style = blk.get("style", DEFAULT_STYLE.copy())
+
+        ops.append({
+            "op": "add_block",
+            "afterId": after_id,
+            "block": {
+                "id": block_id,
+                "content": content,
+                "style": style,
+            },
+        })
+
+    return ops
+
+
 def _deep_to_dict(obj: Any) -> Any:
     """
     Gemini の function_call.args を完全な Python dict/list に変換する。
@@ -402,6 +485,22 @@ def _parse_response(response) -> dict:
         logger.error("Gemini レスポンスのパースに失敗: %s  response=%s", e, response, exc_info=True)
 
     message = "\n".join(text_parts).strip()
+
+    # テキスト内にJSONパッチが含まれていたら抽出
+    if message and not patches:
+        extracted = _extract_json_patches(message)
+        if extracted:
+            patches = extracted
+            # JSON部分をメッセージから除去して要約だけ残す
+            cleaned = _re.sub(r'```(?:json)?\s*\n?[\s\S]*?```', '', message).strip()
+            # JSONの生配列/オブジェクトも除去
+            cleaned = _re.sub(r'(?:^|\n)\s*[\[{][\s\S]*?[\]}]\s*(?:\n|$)', '', cleaned).strip()
+            ops_count = len(patches.get("ops", []))
+            if cleaned:
+                message = cleaned
+            else:
+                message = f"{ops_count}件の変更を適用します。"
+            logger.info("Extracted %d ops from text response", ops_count)
 
     if not message and patches:
         ops = patches.get("ops", [])
