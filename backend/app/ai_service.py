@@ -252,9 +252,10 @@ def _extract_json_patches(text: str) -> dict | None:
             if isinstance(ops, list) and len(ops) > 0:
                 return data
 
-        # 簡略配列形式: [{type, text, afterId, blockId}, ...]
+        # 簡略配列形式: [{type, text, afterId, blockId}, ...] or [{op/tool_code, ...}]
         if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
-            if "type" in data[0] or "op" in data[0]:
+            first = data[0]
+            if any(k in first for k in ("type", "op", "tool_code")):
                 ops = _normalize_flat_blocks(data)
                 if ops:
                     return {"ops": ops}
@@ -263,10 +264,12 @@ def _extract_json_patches(text: str) -> dict | None:
 
 
 def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
-    """Gemini の簡略フォーマットを正規 ops 形式に変換する。
+    """Gemini の様々な簡略フォーマットを正規 ops 形式に変換する。
 
-    入力例: [{"type":"heading","text":"...","afterId":null,"blockId":"ai-xxx"}, ...]
-    出力: [{"op":"add_block","afterId":null,"block":{"id":"ai-xxx","content":{...},"style":{...}}}, ...]
+    対応パターン:
+    1. 正規形式: {"op": "add_block", ...} → そのまま
+    2. tool_code 形式: {"tool_code": "update_block", ...} → op に正規化
+    3. 簡略 add 形式: {"type": "heading", "text": "...", ...} → add_block に変換
     """
     DEFAULT_STYLE = {
         "textAlign": "left", "fontSize": 12, "fontFamily": "serif",
@@ -274,11 +277,37 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
     }
     ops = []
     for blk in blocks:
-        # 既に正規 op 形式なら通す
-        if "op" in blk:
-            ops.append(blk)
+        # op または tool_code を正規化
+        op_type = blk.get("op") or blk.get("tool_code")
+
+        if op_type:
+            # 既知の op タイプ → 正規形式に統一
+            normalized = dict(blk)
+            normalized["op"] = op_type
+            normalized.pop("tool_code", None)
+
+            if op_type == "update_design":
+                # update_design はそのまま
+                ops.append({"op": "update_design", "paperDesign": normalized.get("paperDesign", {})})
+            elif op_type == "update_block":
+                entry: dict = {"op": "update_block", "blockId": normalized.get("blockId", "")}
+                if "content" in normalized:
+                    entry["content"] = normalized["content"]
+                if "style" in normalized:
+                    entry["style"] = normalized["style"]
+                ops.append(entry)
+            elif op_type == "delete_block":
+                ops.append({"op": "delete_block", "blockId": normalized.get("blockId", "")})
+            elif op_type == "reorder":
+                ops.append({"op": "reorder", "blockIds": normalized.get("blockIds", [])})
+            elif op_type == "add_block":
+                ops.append(normalized)
+            else:
+                # 未知の op → そのまま通す
+                ops.append(normalized)
             continue
 
+        # op/tool_code がない → type フィールドから add_block を推定
         btype = blk.get("type")
         if not btype:
             continue
@@ -286,8 +315,8 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
         block_id = blk.get("blockId") or blk.get("id") or f"ai-{os.urandom(4).hex()}"
         after_id = blk.get("afterId")
 
-        # content を構築 (type 以外の既知メタフィールドを除外)
-        meta_keys = {"blockId", "id", "afterId", "style"}
+        # content を構築 (メタフィールドを除外)
+        meta_keys = {"blockId", "id", "afterId", "style", "op", "tool_code"}
         content = {k: v for k, v in blk.items() if k not in meta_keys}
 
         style = blk.get("style", DEFAULT_STYLE.copy())
