@@ -920,8 +920,9 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "月3枚までワークシート作成" : "Up to 3 worksheets / month",
-                  isJa ? "AI問題生成（基本）" : "Basic AI problem generation",
+                  isJa ? "AIリクエスト 3回/日（月30回）" : "3 AI requests/day (30/month)",
+                  isJa ? "AIモデル: Haiku（軽量）" : "AI model: Haiku (lightweight)",
+                  isJa ? "基本テンプレート" : "Basic templates",
                   isJa ? "PDF出力" : "PDF export",
                   isJa ? "テキストから問題生成" : "Generate from text prompts",
                 ].map((f) => (
@@ -959,12 +960,12 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "ワークシート無制限" : "Unlimited worksheets",
-                  isJa ? "AI類題生成（無制限）" : "Unlimited AI variant generation",
+                  isJa ? "AIリクエスト 25回/日（月500回）" : "25 AI requests/day (500/month)",
+                  isJa ? "高精度AI（Sonnet）月50回" : "High-quality AI (Sonnet) 50/month",
                   isJa ? "PDF・画像から問題を抽出" : "Import from PDF & images",
                   isJa ? "解答付きPDF自動生成" : "Auto answer-key PDF",
-                  isJa ? "問題ごとの編集・並べ替え" : "Per-problem editing & reorder",
-                  isJa ? "優先AIレスポンス" : "Priority AI responses",
+                  isJa ? "バッチ処理（上限50行）" : "Batch processing (up to 50 rows)",
+                  isJa ? "メールサポート" : "Email support",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
                     <Check className="h-3.5 w-3.5 text-violet-500 shrink-0" />
@@ -1000,12 +1001,12 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
+                  isJa ? "AIリクエスト 80回/日（月1,500回）" : "80 AI requests/day (1,500/month)",
+                  isJa ? "高精度AI（Sonnet）月200回" : "High-quality AI (Sonnet) 200/month",
                   isJa ? "Proの全機能を含む" : "Everything in Pro",
-                  isJa ? "AIリクエスト ほぼ無制限" : "Virtually unlimited AI requests",
                   isJa ? "紙デザインそのままPDF出力" : "Paper design preserved in PDF",
                   isJa ? "バッチ処理（最大200行）" : "Batch processing (up to 200 rows)",
                   isJa ? "カスタムテンプレート作成" : "Custom template creation",
-                  isJa ? "APIアクセス（近日公開）" : "API access (coming soon)",
                   isJa ? "最優先サポート" : "Priority support",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
