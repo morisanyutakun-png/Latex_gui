@@ -326,12 +326,12 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       {/* Tools */}
       <div className="flex items-center gap-0.5">
         {/* OMR — 画像→LaTeX変換 */}
-        <input ref={omrFileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleOMRFromToolbar} />
+        <input ref={omrFileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={handleOMRFromToolbar} />
         <button
           onClick={() => omrFileRef.current?.click()}
           disabled={isOMRProcessing || isGenerating}
           className="btn-icon h-8 w-8"
-          title={isJa ? "画像から読み取り (OMR)" : "Scan image (OMR)"}
+          title={isJa ? "画像/PDFから読み取り (OMR)" : "Scan image/PDF (OMR)"}
         >
           {isOMRProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
         </button>

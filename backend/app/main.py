@@ -624,19 +624,19 @@ async def omr_analyze_endpoint(
         )
 
     image_bytes = await image.read()
-    max_size = 5 * 1024 * 1024  # 5MB
+    max_size = 20 * 1024 * 1024  # 20MB (PDFは大きい場合がある)
     if len(image_bytes) > max_size:
         raise HTTPException(
             status_code=400,
-            detail={"message": "画像サイズは5MB以下にしてください"},
+            detail={"message": "ファイルサイズは20MB以下にしてください"},
         )
 
     media_type = image.content_type or "image/jpeg"
-    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"}
     if media_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail={"message": "JPEG, PNG, GIF, WEBP のみ対応しています"},
+            detail={"message": "JPEG, PNG, GIF, WEBP, PDF に対応しています"},
         )
 
     try:

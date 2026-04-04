@@ -506,11 +506,11 @@ export function AIChatPanel() {
       addChatMessage({
         id: crypto.randomUUID(),
         role: "assistant",
-        content: result.description || "画像を解析しました。",
+        content: result.description || "ファイルを解析しました。",
         requestId, timestamp: Date.now(), duration: Date.now() - startTime,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "画像解析中にエラーが発生しました。";
+      const msg = err instanceof Error ? err.message : "ファイル解析中にエラーが発生しました。";
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
       chatLog.error(requestId, msg);
       addChatMessage({

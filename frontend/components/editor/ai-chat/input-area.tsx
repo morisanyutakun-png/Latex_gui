@@ -23,12 +23,12 @@ export function InputArea({
     <div className="border-t border-slate-200/40 dark:border-slate-700/30 px-3 py-3 shrink-0 bg-white dark:bg-surface-3 shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
       <div className="flex items-end gap-2">
         <div className="flex flex-col gap-1 pb-1">
-          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={onOMRUpload} />
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={onOMRUpload} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isChatLoading}
             className="p-1.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-30"
-            title="画像をアップロード (OMR)"
+            title="画像/PDFをアップロード (OMR)"
           >
             <Paperclip className="h-4 w-4" />
           </button>
