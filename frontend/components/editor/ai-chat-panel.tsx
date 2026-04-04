@@ -256,6 +256,25 @@ function ChangeSummaryBadge({ patches }: { patches: DocumentPatch }) {
   );
 }
 
+// ─── Strip leaked JSON from AI message content ──────────────────────────────
+
+function cleanAIContent(content: string, hasPatches: boolean): string {
+  if (!hasPatches) return content;
+  // パッチ抽出済みの場合、残留JSONを除去
+  let cleaned = content
+    // コードブロック内のJSON除去
+    .replace(/```(?:json)?\s*\n?[\s\S]*?```/g, "")
+    // 生のJSONオブジェクト/配列除去 (50文字以上のものだけ)
+    .replace(/^\s*[\[{][\s\S]{50,}?[\]}]\s*$/gm, "")
+    .trim();
+  // 完全に空になった場合のフォールバック
+  if (!cleaned) {
+    const opsCount = content.match(/"(?:op|type)"\s*:/g)?.length || 0;
+    cleaned = `${opsCount || ""}件の変更を適用しました。`;
+  }
+  return cleaned;
+}
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
 function MessageBubble({
@@ -289,7 +308,7 @@ function MessageBubble({
             <span className="whitespace-pre-wrap">{msg.content}</span>
           ) : (
             <div className="chat-markdown">
-              <ChatMarkdown content={msg.content} isUser={false} />
+              <ChatMarkdown content={cleanAIContent(msg.content, !!(msg.patches && msg.patches.ops.length > 0))} isUser={false} />
             </div>
           )}
         </div>
@@ -452,39 +471,100 @@ function MaterialsPanel({ onAttach }: { onAttach: (context: string) => void }) {
 
 // ─── Thinking Indicator (Claude Code / Codex style) ──────────────────────────
 
-const THINKING_LINES = [
-  "Analyzing document structure...",
-  "Parsing LaTeX block model...",
-  "Running semantic analysis...",
-  "Generating patch candidates...",
-  "Evaluating block dependencies...",
-  "Resolving math expressions...",
-  "Checking layout constraints...",
-  "Applying document transformations...",
-  "Optimizing output blocks...",
-  "Finalizing response...",
-];
+/** ユーザーメッセージからコンテキストに応じた思考ラインを生成 */
+function getThinkingLines(userMessage: string): string[] {
+  const msg = userMessage.toLowerCase();
 
-function ThinkingIndicator() {
+  // キーワードマッチで日本語+英語の混合ステータスを返す
+  if (msg.includes("プリント") || msg.includes("問題") || msg.includes("テスト")) {
+    return [
+      "問題作成中... Generating problems",
+      "Analyzing difficulty level...",
+      "構成を設計中... Structuring layout",
+      "数式を生成中... Creating equations",
+      "解答欄を配置中... Adding answer fields",
+      "レイアウト最適化中... Optimizing layout",
+      "最終チェック中... Finalizing document",
+    ];
+  }
+  if (msg.includes("数式") || msg.includes("math") || msg.includes("方程式") || msg.includes("計算")) {
+    return [
+      "数式を解析中... Parsing math expressions",
+      "LaTeX記法を生成中... Generating LaTeX notation",
+      "数式ブロック構築中... Building math blocks",
+      "表示モードを確認中... Checking display modes",
+      "出力を最適化中... Optimizing output",
+    ];
+  }
+  if (msg.includes("表") || msg.includes("テーブル") || msg.includes("table")) {
+    return [
+      "表を作成中... Creating table structure",
+      "セルデータを生成中... Generating cell data",
+      "列幅を調整中... Adjusting column widths",
+      "レイアウト最適化中... Optimizing layout",
+    ];
+  }
+  if (msg.includes("グラフ") || msg.includes("chart") || msg.includes("図")) {
+    return [
+      "グラフを設計中... Designing chart",
+      "データを分析中... Analyzing data structure",
+      "描画パラメータ生成中... Generating render params",
+      "出力を最適化中... Optimizing output",
+    ];
+  }
+  if (msg.includes("修正") || msg.includes("変更") || msg.includes("編集") || msg.includes("更新")) {
+    return [
+      "変更箇所を特定中... Identifying changes",
+      "ドキュメント解析中... Analyzing document",
+      "パッチを生成中... Generating patches",
+      "変更を検証中... Validating changes",
+      "適用準備中... Preparing to apply",
+    ];
+  }
+  if (msg.includes("削除") || msg.includes("消して") || msg.includes("remove")) {
+    return [
+      "対象ブロックを検索中... Finding target blocks",
+      "依存関係を確認中... Checking dependencies",
+      "削除パッチ生成中... Generating removal patch",
+      "最終確認中... Final verification",
+    ];
+  }
+  // デフォルト
+  return [
+    "リクエストを解析中... Analyzing request",
+    "ドキュメント構造を確認中... Checking document structure",
+    "コンテンツを生成中... Generating content",
+    "ブロックを構築中... Building blocks",
+    "レイアウトを調整中... Adjusting layout",
+    "出力を最適化中... Optimizing output",
+    "最終処理中... Finalizing response",
+  ];
+}
+
+function ThinkingIndicator({ userMessage }: { userMessage: string }) {
+  const lines = React.useMemo(() => getThinkingLines(userMessage), [userMessage]);
   const [lineIdx, setLineIdx] = React.useState(0);
   const [charCount, setCharCount] = React.useState(0);
 
   // タイプライター効果でラインを切り替え
   React.useEffect(() => {
-    const line = THINKING_LINES[lineIdx];
+    const line = lines[lineIdx % lines.length];
     if (charCount < line.length) {
       const t = setTimeout(() => setCharCount((c) => c + 1), 18);
       return () => clearTimeout(t);
     } else {
       const t = setTimeout(() => {
-        setLineIdx((i) => (i + 1) % THINKING_LINES.length);
+        setLineIdx((i) => (i + 1) % lines.length);
         setCharCount(0);
       }, 600);
       return () => clearTimeout(t);
     }
-  }, [lineIdx, charCount]);
+  }, [lineIdx, charCount, lines]);
 
-  const currentLine = THINKING_LINES[lineIdx].slice(0, charCount);
+  const currentLine = lines[lineIdx % lines.length].slice(0, charCount);
+  // 日本語部分と英語部分を分離して表示
+  const jpPart = currentLine.split("...")[0];
+  const enPart = currentLine.includes("...") ? currentLine.slice(currentLine.indexOf("...") + 4) : "";
 
   return (
     <div className="flex items-start gap-2">
@@ -510,11 +590,12 @@ function ThinkingIndicator() {
             <div className="flex items-center gap-2 text-slate-500">
               <span className="text-indigo-400/60 shrink-0">$</span>
               <span className="text-emerald-400/70">eddivom</span>
-              <span className="text-slate-500">analyze</span>
-              <span className="text-amber-400/60">--stream</span>
+              <span className="text-slate-500">generate</span>
+              <span className="text-amber-400/60">--auto-apply</span>
             </div>
             <div className="flex items-center gap-1 pl-4">
-              <span className="text-slate-400">{currentLine}</span>
+              <span className="text-amber-300/90">{jpPart}</span>
+              {enPart && <span className="text-slate-500 ml-1">{enPart}</span>}
               <span className="inline-block w-[6px] h-[12px] bg-indigo-400/80 animate-pulse" />
             </div>
           </div>
@@ -844,7 +925,7 @@ export function AIChatPanel() {
           />
         ))}
 
-        {isChatLoading && <ThinkingIndicator />}
+        {isChatLoading && <ThinkingIndicator userMessage={chatMessages.filter(m => m.role === "user").at(-1)?.content || ""} />}
 
         <div ref={bottomRef} />
       </div>

@@ -250,7 +250,16 @@ def _extract_json_patches(text: str) -> dict | None:
         if isinstance(data, dict) and "ops" in data:
             ops = data["ops"]
             if isinstance(ops, list) and len(ops) > 0:
-                return data
+                normalized = _normalize_ops(ops)
+                return {"ops": normalized}
+
+        # "operations" キー形式 (Gemini が時々使う別フォーマット)
+        if isinstance(data, dict) and "operations" in data:
+            ops = data["operations"]
+            if isinstance(ops, list) and len(ops) > 0:
+                normalized = _normalize_flat_blocks(ops)
+                if normalized:
+                    return {"ops": normalized}
 
         # 簡略配列形式: [{type, text, afterId, blockId}, ...] or [{op/tool_code, ...}]
         if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
@@ -263,22 +272,61 @@ def _extract_json_patches(text: str) -> dict | None:
     return None
 
 
+def _normalize_ops(ops: list[dict]) -> list[dict]:
+    """既に ops 形式の配列に含まれるブロックのフラット構造を正規化する。"""
+    for op in ops:
+        if op.get("op") == "add_block" and "block" in op and isinstance(op["block"], dict):
+            op["block"] = _normalize_block_structure(op["block"])
+    return ops
+
+
+def _normalize_block_structure(block: dict) -> dict:
+    """ブロックの content/style 構造を正規化する。
+
+    Gemini が返すブロック形式:
+      {id, type, text, level, style: {...}}  (フラット形式)
+    正規形式:
+      {id, content: {type, text, level}, style: {...}}
+    """
+    if "content" in block and isinstance(block["content"], dict) and "type" in block["content"]:
+        # 既に正規形式
+        return block
+
+    # フラット形式 → content/style を分離
+    DEFAULT_STYLE = {
+        "textAlign": "left", "fontSize": 12, "fontFamily": "serif",
+        "bold": False, "italic": False, "underline": False,
+    }
+    meta_keys = {"id", "style"}
+    content = {k: v for k, v in block.items() if k not in meta_keys}
+    style = block.get("style", DEFAULT_STYLE.copy())
+    block_id = block.get("id") or f"ai-{os.urandom(4).hex()}"
+
+    return {"id": block_id, "content": content, "style": style}
+
+
 def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
     """Gemini の様々な簡略フォーマットを正規 ops 形式に変換する。
 
     対応パターン:
     1. 正規形式: {"op": "add_block", ...} → そのまま
     2. tool_code 形式: {"tool_code": "update_block", ...} → op に正規化
-    3. 簡略 add 形式: {"type": "heading", "text": "...", ...} → add_block に変換
+    3. "type": "add_block" 形式 (operations 配列) → op に正規化
+    4. 簡略 add 形式: {"type": "heading", "text": "...", ...} → add_block に変換
     """
+    # op として認識する type 値
+    OP_TYPES = {"add_block", "update_block", "delete_block", "reorder", "update_design"}
+
     DEFAULT_STYLE = {
         "textAlign": "left", "fontSize": 12, "fontFamily": "serif",
         "bold": False, "italic": False, "underline": False,
     }
     ops = []
     for blk in blocks:
-        # op または tool_code を正規化
+        # op, tool_code, または type がオペレーション名の場合を統合
         op_type = blk.get("op") or blk.get("tool_code")
+        if not op_type and blk.get("type") in OP_TYPES:
+            op_type = blk["type"]
 
         if op_type:
             # 既知の op タイプ → 正規形式に統一
@@ -287,7 +335,6 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
             normalized.pop("tool_code", None)
 
             if op_type == "update_design":
-                # update_design はそのまま
                 ops.append({"op": "update_design", "paperDesign": normalized.get("paperDesign", {})})
             elif op_type == "update_block":
                 entry: dict = {"op": "update_block", "blockId": normalized.get("blockId", "")}
@@ -301,11 +348,11 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
             elif op_type == "reorder":
                 ops.append({"op": "reorder", "blockIds": normalized.get("blockIds", [])})
             elif op_type == "add_block":
-                # 正規形式 (block フィールドあり) ならそのまま
                 if "block" in normalized and isinstance(normalized["block"], dict):
-                    ops.append(normalized)
+                    # ブロック構造を正規化 (フラット形式対応)
+                    normalized["block"] = _normalize_block_structure(normalized["block"])
+                    ops.append({"op": "add_block", "afterId": normalized.get("afterId"), "block": normalized["block"]})
                 else:
-                    # フラット形式: {tool_code, afterId, blockId, content, style} → 正規化
                     block_id = normalized.get("blockId") or normalized.get("id") or f"ai-{os.urandom(4).hex()}"
                     after_id = normalized.get("afterId")
                     content = normalized.get("content", {})
@@ -320,7 +367,6 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
                         },
                     })
             else:
-                # 未知の op → そのまま通す
                 ops.append(normalized)
             continue
 
@@ -332,7 +378,6 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
         block_id = blk.get("blockId") or blk.get("id") or f"ai-{os.urandom(4).hex()}"
         after_id = blk.get("afterId")
 
-        # content を構築 (メタフィールドを除外)
         meta_keys = {"blockId", "id", "afterId", "style", "op", "tool_code"}
         content = {k: v for k, v in blk.items() if k not in meta_keys}
 
@@ -558,6 +603,9 @@ def _parse_response(response) -> dict:
             if part.function_call and part.function_call.name == "edit_document":
                 raw_args = part.function_call.args
                 patches = _deep_to_dict(raw_args)
+                # ツール呼び出し経由でもブロック構造を正規化
+                if "ops" in patches:
+                    patches["ops"] = _normalize_ops(patches["ops"])
                 logger.info("edit_document called, ops count: %d", len(patches.get("ops", [])))
 
     except (IndexError, AttributeError) as e:

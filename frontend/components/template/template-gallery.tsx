@@ -30,6 +30,8 @@ import {
   Zap,
   Shield,
   Star,
+  Check,
+  Crown,
 } from "lucide-react";
 
 /* ── Floating math formulas background ── */
@@ -339,14 +341,20 @@ export function TemplateGallery() {
   const setDocument = useDocumentStore((s) => s.setDocument);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [powerOpen, setPowerOpen] = useState(false);
+  const [annual, setAnnual] = useState(true);
 
   const personaFade = useFadeIn(0);
   const mockupFade = useFadeIn(0);
   const workflowFade = useFadeIn(0);
   const featuresFade = useFadeIn(0);
   const diffFade = useFadeIn(0);
+  const pricingFade = useFadeIn(0);
   const powerFade = useFadeIn(0);
   const ctaFade = useFadeIn(0);
+
+  const scrollToPricing = () => {
+    document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
     const t = setTimeout(() => setHeroLoaded(true), 60);
@@ -388,6 +396,12 @@ export function TemplateGallery() {
             <span className="text-[15px] font-bold tracking-tight">Eddivom</span>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={scrollToPricing}
+              className="hidden sm:block text-[13px] text-muted-foreground hover:text-foreground transition-colors font-medium"
+            >
+              {isJa ? "料金" : "Pricing"}
+            </button>
             <LanguageSwitcher />
             <ThemeToggle />
             <button
@@ -445,25 +459,20 @@ export function TemplateGallery() {
                 className="group relative flex items-center gap-3 px-9 py-4 rounded-full bg-foreground text-background font-bold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300 overflow-hidden"
               >
                 <span className="absolute inset-0 bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-600 opacity-0 group-hover:opacity-[0.08] transition-opacity duration-300" />
-                {isJa ? "Eddivom を無料で試す" : "Try Eddivom free"}
+                {isJa ? "無料で試す" : "Try free"}
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
-              {saved && (
-                <button
-                  onClick={handleResume}
-                  className="group flex items-center gap-3 px-8 py-4 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
-                >
-                  <FileText className="h-4 w-4 text-primary" />
-                  {locale === "en"
-                    ? `Resume "${saved.metadata.title || "Untitled"}"`
-                    : `「${saved.metadata.title || "無題"}」を続ける`}
-                  <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-                </button>
-              )}
+              <button
+                onClick={scrollToPricing}
+                className="group flex items-center gap-3 px-8 py-4 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
+              >
+                {isJa ? "料金プランを見る" : "See plans & pricing"}
+                <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+              </button>
             </div>
 
             <p className="text-[12px] text-muted-foreground/40">
-              {isJa ? "登録不要 · クレジットカード不要 · 30秒で最初の1枚" : "No signup · No credit card · First worksheet in 30 seconds"}
+              {isJa ? "無料プランあり · カード不要 · 30秒で最初の1枚" : "Free plan available · No credit card · First worksheet in 30 seconds"}
             </p>
           </div>
 
@@ -481,7 +490,7 @@ export function TemplateGallery() {
       <section className="border-y border-foreground/[0.04] bg-foreground/[0.008] dark:bg-white/[0.01] py-5">
         <div className="max-w-5xl mx-auto px-6 flex flex-wrap items-center justify-center gap-3">
           <TrustBadge icon={<Zap className="h-3.5 w-3.5" />} label={isJa ? "LuaLaTeX 組版エンジン" : "LuaLaTeX typesetting"} />
-          <TrustBadge icon={<Shield className="h-3.5 w-3.5" />} label={isJa ? "登録不要・完全無料" : "No signup required"} />
+          <TrustBadge icon={<Shield className="h-3.5 w-3.5" />} label={isJa ? "無料プランあり・登録不要" : "Free plan · No signup"} />
           <TrustBadge icon={<Sparkles className="h-3.5 w-3.5" />} label={isJa ? "Claude AI 搭載" : "Powered by Claude AI"} />
           <TrustBadge icon={<Printer className="h-3.5 w-3.5" />} label={isJa ? "A4/B5 印刷対応" : "Print-ready PDF"} />
           <TrustBadge icon={<Star className="h-3.5 w-3.5" />} label={isJa ? "数式・図・化学式対応" : "Math, diagrams, chemistry"} />
@@ -497,42 +506,60 @@ export function TemplateGallery() {
         >
           <div className="text-center mb-14">
             <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
-              {isJa ? "Eddivom はこんな方に" : "Who uses Eddivom"}
+              {isJa ? "こんな先生に使われています" : "Built for tutors like you"}
             </p>
             <h2 className="text-[clamp(1.6rem,4vw,2.6rem)] font-bold tracking-tight mb-4">
-              {isJa ? "教材を自分で作る、すべての先生へ。" : "For educators who build their own materials."}
+              {isJa ? "毎週、生徒ごとにプリントを作る先生へ。" : "For tutors who build custom worksheets every week."}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
               {isJa
-                ? "教師・塾講師・教材作成者のための、プロ品質の教材作成ツール。"
-                : "A professional worksheet tool for teachers, tutors, and content creators."}
+                ? "生徒に合わせた教材を毎週手作りしていませんか？ Eddivom なら、過去問の再利用も類題の量産も数分で完了します。"
+                : "Tired of spending hours building custom problem sets for each student? Eddivom turns that into minutes."}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <PersonaCard
-              icon={<BookOpen className="h-5 w-5" strokeWidth={1.5} />}
-              gradient="from-blue-500 to-cyan-500"
-              title={isJa ? "テスト対策・教材制作" : "Worksheet Creators & Sellers"}
-              desc={isJa
-                ? "問題集やドリルを作って配布・販売する方。印刷品質のPDFを大量に。"
-                : "Build algebra, geometry, and more to sell or share. Reuse past materials and export print-ready PDFs with answer keys."}
-            />
+          {/* Primary persona — individual tutors */}
+          <div className="relative p-8 rounded-[24px] bg-gradient-to-b from-violet-500/[0.05] to-blue-500/[0.03] border-2 border-violet-500/[0.15] shadow-xl shadow-violet-500/[0.06] mb-6">
+            <div className="flex flex-col sm:flex-row items-start gap-6">
+              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white shadow-lg shrink-0">
+                <GraduationCap className="h-7 w-7" strokeWidth={1.5} />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-[17px] font-bold tracking-tight mb-3">{isJa ? "個人塾・家庭教師" : "Tutors & Private Instructors"}</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    isJa ? "生徒ごとに違うプリントを毎週作る" : "Custom problem sets for each student, weekly",
+                    isJa ? "過去のプリントを数値だけ変えて再利用" : "Reuse past worksheets with different numbers",
+                    isJa ? "「あと5問」で類題を一瞬で追加" : "\"5 more like this\" generates variants instantly",
+                    isJa ? "解答付きPDFで採点・保護者説明も楽" : "Answer-key PDFs make grading and parent reports easy",
+                  ].map((text) => (
+                    <div key={text} className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
+                      <span className="text-[13px] text-foreground/80">{text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary personas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <PersonaCard
               icon={<Users className="h-5 w-5" strokeWidth={1.5} />}
-              gradient="from-violet-500 to-fuchsia-500"
+              gradient="from-blue-500 to-cyan-500"
               title={isJa ? "学校の教科担当" : "Math & STEM Teachers"}
               desc={isJa
-                ? "授業用プリント・小テスト・定期テストを効率よく作成。解答付きPDFで採点も楽に。"
-                : "Create worksheets, quizzes, and assessments for your classes. Answer-key PDFs make grading painless."}
+                ? "小テスト・定期テストを効率よく作成。解答付きPDFで採点も楽に。"
+                : "Create quizzes and assessments efficiently. Answer-key PDFs make grading painless."}
             />
             <PersonaCard
-              icon={<GraduationCap className="h-5 w-5" strokeWidth={1.5} />}
+              icon={<BookOpen className="h-5 w-5" strokeWidth={1.5} />}
               gradient="from-emerald-500 to-teal-500"
-              title={isJa ? "個人塾・家庭教師" : "Tutors & Private Instructors"}
+              title={isJa ? "教材制作・販売" : "Worksheet Creators & Sellers"}
               desc={isJa
-                ? "生徒に合わせたオリジナル教材を毎週作る先生。過去問の再利用や類題の量産に最適。"
-                : "Build custom problem sets for each student every week. Reuse past materials and mass-produce variants effortlessly."}
+                ? "問題集やドリルを作って配布・販売。印刷品質のPDFを大量に。"
+                : "Build and sell problem sets. Export print-ready PDFs at scale."}
             />
           </div>
         </div>
@@ -821,6 +848,124 @@ export function TemplateGallery() {
         </div>
       </section>
 
+      {/* ━━ Pricing ━━ */}
+      <section id="pricing" className="relative py-28 overflow-hidden border-t border-foreground/[0.04]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_30%,hsl(var(--primary)/0.04),transparent_70%)]" />
+        <div
+          ref={pricingFade.ref}
+          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${pricingFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+        >
+          <div className="text-center mb-8">
+            <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
+              {isJa ? "料金プラン" : "Pricing"}
+            </p>
+            <h2 className="text-[clamp(1.5rem,4vw,2.6rem)] font-bold tracking-tight mb-4">
+              {isJa ? "授業1コマ分以下で、教材作成を自動化。" : "Automate your worksheets for less than one tutoring hour."}
+            </h2>
+            <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
+              {isJa
+                ? "まず無料で試して、気に入ったらProへ。"
+                : "Start free, upgrade when you're ready."}
+            </p>
+          </div>
+
+          {/* Billing toggle */}
+          <div className="flex items-center justify-center gap-3 mb-12">
+            <span className={`text-[13px] font-medium transition-colors ${!annual ? "text-foreground" : "text-muted-foreground/50"}`}>
+              {isJa ? "月払い" : "Monthly"}
+            </span>
+            <button
+              onClick={() => setAnnual((v) => !v)}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${annual ? "bg-violet-500" : "bg-foreground/20"}`}
+            >
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-300 ${annual ? "translate-x-6" : "translate-x-0.5"}`} />
+            </button>
+            <span className={`text-[13px] font-medium transition-colors ${annual ? "text-foreground" : "text-muted-foreground/50"}`}>
+              {isJa ? "年払い" : "Annual"}
+            </span>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/15">
+              {isJa ? "34%お得" : "Save 34%"}
+            </span>
+          </div>
+
+          {/* Plans */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+            {/* Free */}
+            <div className="relative p-7 rounded-[20px] bg-card/70 backdrop-blur-xl border border-foreground/[0.06] hover:border-foreground/[0.1] transition-all duration-300">
+              <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground/50 mb-3">Free</p>
+              <div className="flex items-baseline gap-1 mb-1">
+                <span className="text-[36px] font-black tracking-tight">¥0</span>
+              </div>
+              <p className="text-[12px] text-muted-foreground mb-6">{isJa ? "ずっと無料・カード不要" : "Free forever · No credit card"}</p>
+              <button
+                onClick={handleStart}
+                className="w-full py-3 rounded-xl border border-foreground/[0.1] text-foreground font-semibold text-[14px] hover:bg-foreground/[0.04] transition-all duration-300 mb-6"
+              >
+                {isJa ? "無料で始める" : "Get started free"}
+              </button>
+              <ul className="space-y-3">
+                {[
+                  isJa ? "月3枚までワークシート作成" : "Up to 3 worksheets / month",
+                  isJa ? "AI問題生成（基本）" : "Basic AI problem generation",
+                  isJa ? "PDF出力" : "PDF export",
+                  isJa ? "テキストから問題生成" : "Generate from text prompts",
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2.5 text-[12.5px] text-muted-foreground">
+                    <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Pro */}
+            <div className="relative p-7 rounded-[20px] bg-gradient-to-b from-violet-500/[0.06] to-blue-500/[0.03] border-2 border-violet-500/[0.25] shadow-2xl shadow-violet-500/[0.08] hover:shadow-violet-500/[0.15] transition-all duration-300">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold shadow-lg flex items-center gap-1">
+                  <Crown className="h-3 w-3" />
+                  {isJa ? "おすすめ" : "Most popular"}
+                </span>
+              </div>
+              <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-3">Pro</p>
+              <div className="flex items-baseline gap-1 mb-1">
+                <span className="text-[36px] font-black tracking-tight">¥{annual ? "980" : "1,480"}</span>
+                <span className="text-[14px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
+              </div>
+              <p className="text-[12px] text-muted-foreground mb-6">
+                {annual
+                  ? (isJa ? "年払い ¥11,760/年（月あたり¥980）" : "Billed annually at ¥11,760/yr")
+                  : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
+              </p>
+              <button
+                onClick={handleStart}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[14px] shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-6"
+              >
+                {isJa ? "7日間無料で試す" : "Start 7-day free trial"}
+              </button>
+              <ul className="space-y-3">
+                {[
+                  isJa ? "ワークシート無制限" : "Unlimited worksheets",
+                  isJa ? "AI類題生成（無制限）" : "Unlimited AI variant generation",
+                  isJa ? "PDF・画像から問題を抽出" : "Import from PDF & images",
+                  isJa ? "解答付きPDF自動生成" : "Auto answer-key PDF",
+                  isJa ? "問題ごとの編集・並べ替え" : "Per-problem editing & reorder",
+                  isJa ? "優先AIレスポンス" : "Priority AI responses",
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2.5 text-[12.5px] text-foreground/80 font-medium">
+                    <Check className="h-4 w-4 text-violet-500 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <p className="text-center text-[12px] text-muted-foreground/40 mt-8">
+            {isJa ? "Stripe による安全な決済 · いつでもキャンセル可能 · 領収書発行対応" : "Secure payment via Stripe · Cancel anytime · Receipts available"}
+          </p>
+        </div>
+      </section>
+
       {/* ━━ Power-user reveal ━━ */}
       <section className="relative py-14 border-t border-foreground/[0.04]">
         <div
@@ -895,8 +1040,8 @@ export function TemplateGallery() {
           </h2>
           <p className="text-muted-foreground text-[16px] mb-12 max-w-md mx-auto leading-relaxed">
             {isJa
-              ? "手持ちのPDFでも、ゼロからでも。登録なし、30秒で最初の1枚。"
-              : "Bring a PDF you already have, or start from scratch. No signup — just open Eddivom and go."}
+              ? "無料で始めて、気に入ったらProへ。月¥980から。"
+              : "Start free, upgrade to Pro from ¥980/mo when you're ready."}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
@@ -905,12 +1050,31 @@ export function TemplateGallery() {
             >
               <span className="absolute inset-0 bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-600" />
               <span className="absolute inset-0 bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <span className="relative">{isJa ? "Eddivom を無料で試す" : "Try Eddivom free"}</span>
+              <span className="relative">{isJa ? "無料で試す" : "Try free"}</span>
               <ArrowRight className="relative h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
+            <button
+              onClick={scrollToPricing}
+              className="group flex items-center gap-3 px-8 py-5 rounded-full border border-white/[0.15] text-foreground font-semibold text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
+            >
+              {isJa ? "料金プランを見る" : "See plans"}
+              <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+            </button>
           </div>
+          {saved && (
+            <button
+              onClick={handleResume}
+              className="group inline-flex items-center gap-2 mt-6 text-[13px] text-muted-foreground/50 hover:text-foreground/70 transition-colors"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {isJa
+                ? `「${saved.metadata.title || "無題"}」を続ける`
+                : `Resume "${saved.metadata.title || "Untitled"}"`}
+              <ChevronRight className="h-3.5 w-3.5 opacity-50 group-hover:translate-x-0.5 transition-all" />
+            </button>
+          )}
           <p className="mt-5 text-[12px] text-muted-foreground/35">
-            {isJa ? "登録不要 · カード不要 · 30秒で最初の1枚" : "No signup · No credit card · First worksheet in 30 seconds"}
+            {isJa ? "無料プランあり · カード不要 · 30秒で最初の1枚" : "Free plan available · No credit card · First worksheet in 30 seconds"}
           </p>
         </div>
       </section>
