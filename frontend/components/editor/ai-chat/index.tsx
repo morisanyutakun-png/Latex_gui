@@ -12,6 +12,8 @@ import { PLANS } from "@/lib/plans";
 import { sendAIMessage, streamAIMessage, StreamEvent, StreamDiagnostics } from "@/lib/api";
 import { ChatMessage, ThinkingStep, DocumentPatch } from "@/lib/types";
 import { chatLog } from "@/lib/logger";
+import { compressHistory } from "@/lib/chat-compression";
+import { buildDocumentContext } from "@/lib/document-context";
 import { buildLastAIAction } from "./utils";
 
 import { MessageRow } from "./message-row";
@@ -152,10 +154,18 @@ export function AIChatPanel() {
     const startTime = Date.now();
 
     const feedbackCtx = buildFeedbackContext();
-    const history = [...chatMessages, userMsg].map((m) => ({
-      role: m.role,
-      content: m.role === "user" && m.id === userMsgId ? m.content + feedbackCtx : m.content,
-    }));
+    // 文書構��サマリーをフロントエンド側で生成（AIのread_documentツール呼び出しを省略）
+    const docContext = document ? buildDocumentContext(document) : "";
+    // フィード��ック + 文書構造をユーザーメッセージに付加
+    const enhancedContent = docContext
+      ? `${docContext}\n\n${userMsg.content}${feedbackCtx}`
+      : `${userMsg.content}${feedbackCtx}`;
+    const enhancedUserMsg: ChatMessage = {
+      ...userMsg,
+      content: enhancedContent,
+    };
+    // チャット履歴を圧縮して送信（直近3ペアのみフル、古い応答は切り詰め）
+    const history = compressHistory(chatMessages, enhancedUserMsg);
 
     const assistantMsgId = crypto.randomUUID();
 

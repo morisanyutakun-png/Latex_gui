@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { Block, BlockType, BLOCK_TYPES, createBlock } from "@/lib/types";
+import { Block, BlockType, BLOCK_TYPES, createBlock, DESIGN_PRESETS, DesignPreset } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
 import { JapaneseMathInput, type JapaneseMathInputHandle } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
@@ -1309,8 +1309,15 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
 
   const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
   const design = document.settings.paperDesign;
-  const paperBg = design?.paperColor || "#ffffff";
-  const accentColor = design?.accentColor || "#4f46e5";
+  // プリセットが指定されていればプリセットのカラーを優先
+  const activePreset = (() => {
+    const presetId = design?.designPreset;
+    if (!presetId || presetId === "none") return null;
+    return DESIGN_PRESETS.find((p) => p.id === presetId) ?? null;
+  })();
+  const paperBg = activePreset?.colors.background ?? design?.paperColor ?? "#ffffff";
+  const accentColor = activePreset?.colors.primary ?? design?.accentColor ?? "#4f46e5";
+  const secondaryColor = activePreset?.colors.secondary ?? accentColor;
 
   // テーマベースの背景パターン
   const themeBackground = (() => {
@@ -1357,7 +1364,7 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
             minHeight: Math.round(paper.w * 1.4142),
             padding: "64px 72px 80px",
             zoom: zoom,
-            color: "#1a1a1a",
+            color: activePreset?.colors.text ?? "#1a1a1a",
             fontFamily: '-apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif',
             backgroundColor: paperBg,
             backgroundImage: themeBackground,
@@ -1365,6 +1372,20 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Preset decorations: gradient header stripe */}
+          {activePreset && activePreset.style.gradientHeader && (
+            <div className="absolute top-0 left-0 right-0 h-[5px]" style={{
+              background: `linear-gradient(to right, ${accentColor}, ${secondaryColor})`,
+              opacity: 0.9,
+            }} />
+          )}
+          {/* Preset decorations: side stripe */}
+          {activePreset && activePreset.style.sideStripe && (
+            <div className="absolute top-0 left-0 bottom-0" style={{ width: "5px" }}>
+              <div className="absolute inset-0" style={{ width: "3.5px", backgroundColor: accentColor, opacity: 0.7 }} />
+              <div className="absolute top-0 bottom-0 right-0" style={{ width: "1.5px", backgroundColor: secondaryColor, opacity: 0.3 }} />
+            </div>
+          )}
           {/* Empty state */}
           {document.blocks.length === 0 && (
             editMode ? (

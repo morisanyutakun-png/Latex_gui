@@ -220,12 +220,146 @@ export const DOCUMENT_CLASSES: DocumentClassInfo[] = [
 
 export type PaperTheme = "plain" | "grid" | "lined" | "dot-grid" | "elegant" | "modern";
 
+// ──── Design Preset System ────
+
+export type DesignPresetId =
+  | "none"
+  | "ocean-academic"
+  | "forest-nature"
+  | "sunset-warm"
+  | "sakura-soft"
+  | "midnight-pro"
+  | "mint-fresh"
+  | "coral-pop"
+  | "lavender-dream"
+  | "slate-minimal"
+  | "golden-classic";
+
+export interface DesignPreset {
+  id: DesignPresetId;
+  name: string;
+  description: string;
+  colors: {
+    primary: string;        // main accent (headings, borders)
+    secondary: string;      // sub-accent (highlights, boxes)
+    background: string;     // paper background
+    surface: string;        // box/card backgrounds
+    text: string;           // body text
+    muted: string;          // captions, footnotes
+  };
+  style: {
+    headerBorder: boolean;
+    sectionDividers: boolean;
+    coloredBoxes: boolean;      // tcolorbox for quotes, notes
+    gradientHeader: boolean;    // gradient stripe at page top
+    sideStripe: boolean;        // colored stripe on left margin
+    styledCodeBlocks: boolean;  // colored code frames
+    decorativeFooter: boolean;  // branded page footer
+  };
+  preview: {
+    gradient: string;       // CSS gradient for UI preview
+    emoji: string;
+  };
+}
+
+export const DESIGN_PRESETS: DesignPreset[] = [
+  {
+    id: "none",
+    name: "プレーン",
+    description: "装飾なし・シンプルな白黒",
+    colors: { primary: "#333333", secondary: "#666666", background: "#ffffff", surface: "#f5f5f5", text: "#1a1a1a", muted: "#888888" },
+    style: { headerBorder: false, sectionDividers: false, coloredBoxes: false, gradientHeader: false, sideStripe: false, styledCodeBlocks: false, decorativeFooter: false },
+    preview: { gradient: "from-gray-200 to-gray-100", emoji: "📝" },
+  },
+  {
+    id: "ocean-academic",
+    name: "オーシャン・アカデミック",
+    description: "知的で落ち着いた海のブルー。論文・レポートに最適",
+    colors: { primary: "#1e40af", secondary: "#3b82f6", background: "#fafbff", surface: "#eff6ff", text: "#1e293b", muted: "#64748b" },
+    style: { headerBorder: true, sectionDividers: true, coloredBoxes: true, gradientHeader: true, sideStripe: false, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-blue-600 via-blue-500 to-cyan-400", emoji: "🌊" },
+  },
+  {
+    id: "forest-nature",
+    name: "フォレスト・ナチュラル",
+    description: "自然をイメージした落ち着きのあるグリーン。理科・環境系に",
+    colors: { primary: "#166534", secondary: "#22c55e", background: "#fafff7", surface: "#f0fdf4", text: "#1a2e1a", muted: "#6b8f71" },
+    style: { headerBorder: true, sectionDividers: true, coloredBoxes: true, gradientHeader: false, sideStripe: true, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-green-700 via-emerald-500 to-lime-400", emoji: "🌿" },
+  },
+  {
+    id: "sunset-warm",
+    name: "サンセット・ウォーム",
+    description: "温かみのあるオレンジ&レッド。発表資料・教材プリントに",
+    colors: { primary: "#c2410c", secondary: "#f97316", background: "#fffbf5", surface: "#fff7ed", text: "#27180e", muted: "#9a7b6b" },
+    style: { headerBorder: true, sectionDividers: true, coloredBoxes: true, gradientHeader: true, sideStripe: false, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-orange-600 via-amber-500 to-yellow-400", emoji: "🌅" },
+  },
+  {
+    id: "sakura-soft",
+    name: "サクラ・ソフト",
+    description: "やわらかいピンク。女性向け教材・カジュアルな配布物に",
+    colors: { primary: "#be185d", secondary: "#f472b6", background: "#fffbfd", surface: "#fdf2f8", text: "#2d1a24", muted: "#9f7a8e" },
+    style: { headerBorder: true, sectionDividers: false, coloredBoxes: true, gradientHeader: false, sideStripe: true, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-pink-600 via-rose-400 to-pink-300", emoji: "🌸" },
+  },
+  {
+    id: "midnight-pro",
+    name: "ミッドナイト・プロ",
+    description: "ダークでプロフェッショナル。技術文書・仕様書に",
+    colors: { primary: "#6366f1", secondary: "#a78bfa", background: "#fafaff", surface: "#eef2ff", text: "#1e1b4b", muted: "#6b7280" },
+    style: { headerBorder: true, sectionDividers: true, coloredBoxes: true, gradientHeader: true, sideStripe: false, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-indigo-700 via-violet-600 to-purple-500", emoji: "🌙" },
+  },
+  {
+    id: "mint-fresh",
+    name: "ミント・フレッシュ",
+    description: "清涼感のあるミントグリーン。数学・情報系の教材に",
+    colors: { primary: "#0d9488", secondary: "#5eead4", background: "#f8fffd", surface: "#f0fdfa", text: "#142f2e", muted: "#6b9e99" },
+    style: { headerBorder: false, sectionDividers: true, coloredBoxes: true, gradientHeader: false, sideStripe: true, styledCodeBlocks: true, decorativeFooter: false },
+    preview: { gradient: "from-teal-600 via-emerald-400 to-cyan-300", emoji: "🍃" },
+  },
+  {
+    id: "coral-pop",
+    name: "コーラル・ポップ",
+    description: "ビビッドなコーラル。ワークシート・テスト用紙に映える",
+    colors: { primary: "#dc2626", secondary: "#fb923c", background: "#fffafa", surface: "#fef2f2", text: "#2a1515", muted: "#a18072" },
+    style: { headerBorder: true, sectionDividers: true, coloredBoxes: true, gradientHeader: true, sideStripe: false, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-red-500 via-orange-400 to-amber-300", emoji: "🪸" },
+  },
+  {
+    id: "lavender-dream",
+    name: "ラベンダー・ドリーム",
+    description: "上品なパープル。文系科目・エッセイ・文学教材に",
+    colors: { primary: "#7c3aed", secondary: "#c4b5fd", background: "#fdfaff", surface: "#f5f3ff", text: "#1f1535", muted: "#8b7fa3" },
+    style: { headerBorder: true, sectionDividers: false, coloredBoxes: true, gradientHeader: false, sideStripe: true, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-violet-600 via-purple-500 to-fuchsia-400", emoji: "💜" },
+  },
+  {
+    id: "slate-minimal",
+    name: "スレート・ミニマル",
+    description: "モダンなグレートーン。ビジネス文書・フォーマルな書類に",
+    colors: { primary: "#334155", secondary: "#94a3b8", background: "#fafafa", surface: "#f1f5f9", text: "#0f172a", muted: "#94a3b8" },
+    style: { headerBorder: true, sectionDividers: true, coloredBoxes: false, gradientHeader: false, sideStripe: false, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-slate-600 via-gray-500 to-slate-400", emoji: "🔘" },
+  },
+  {
+    id: "golden-classic",
+    name: "ゴールデン・クラシック",
+    description: "格調高いゴールド&ブラウン。教科書・公式文書に",
+    colors: { primary: "#92400e", secondary: "#d97706", background: "#fffef7", surface: "#fefce8", text: "#1c1917", muted: "#a8977a" },
+    style: { headerBorder: true, sectionDividers: true, coloredBoxes: true, gradientHeader: true, sideStripe: false, styledCodeBlocks: true, decorativeFooter: true },
+    preview: { gradient: "from-amber-700 via-yellow-600 to-amber-400", emoji: "✨" },
+  },
+];
+
 export interface PaperDesign {
   theme: PaperTheme;
   paperColor: string;       // hex color (e.g. "#ffffff")
   accentColor: string;      // hex color for headings/borders
   headerBorder: boolean;    // show border under title
   sectionDividers: boolean; // auto dividers between sections
+  designPreset?: DesignPresetId;  // preset that overrides individual colors
 }
 
 export const DEFAULT_PAPER_DESIGN: PaperDesign = {
@@ -234,6 +368,7 @@ export const DEFAULT_PAPER_DESIGN: PaperDesign = {
   accentColor: "#4f46e5",
   headerBorder: false,
   sectionDividers: false,
+  designPreset: "none",
 };
 
 export interface DocumentSettings {

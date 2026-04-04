@@ -2,7 +2,7 @@
  * Pre-filled template definitions
  * Each template maps to a unique LaTeX document class — no duplicates.
  */
-import { Block, DocumentModel, DEFAULT_SETTINGS, LaTeXDocumentClass } from "./types";
+import { Block, DocumentModel, DEFAULT_SETTINGS, LaTeXDocumentClass, DesignPresetId, DEFAULT_PAPER_DESIGN } from "./types";
 import { v4 as uuidv4 } from "uuid";
 
 function b(content: Block["content"], style?: Partial<Block["style"]>): Block {
@@ -189,6 +189,7 @@ export interface TemplateDefinition {
   accentColor: string;
   icon: string;
   documentClass: LaTeXDocumentClass;
+  defaultPreset: DesignPresetId;  // auto-applied design preset
   blocks: () => Block[];
 }
 
@@ -201,6 +202,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-blue-500",
     icon: "📄",
     documentClass: "article",
+    defaultPreset: "ocean-academic",
     blocks: articleBlocks,
   },
   {
@@ -211,6 +213,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-slate-500",
     icon: "📋",
     documentClass: "report",
+    defaultPreset: "midnight-pro",
     blocks: reportBlocks,
   },
   {
@@ -221,6 +224,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-amber-500",
     icon: "📚",
     documentClass: "book",
+    defaultPreset: "golden-classic",
     blocks: bookBlocks,
   },
   {
@@ -231,6 +235,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-violet-500",
     icon: "🎬",
     documentClass: "beamer",
+    defaultPreset: "coral-pop",
     blocks: beamerBlocks,
   },
   {
@@ -241,6 +246,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-emerald-500",
     icon: "✉️",
     documentClass: "letter",
+    defaultPreset: "slate-minimal",
     blocks: letterBlocks,
   },
   {
@@ -251,6 +257,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     accentColor: "bg-slate-400",
     icon: "📝",
     documentClass: "article",
+    defaultPreset: "none",
     blocks: blankBlocks,
   },
 ];
@@ -296,7 +303,11 @@ export function createFromTemplate(templateId: string, blank = false): DocumentM
   return {
     template: tmpl.id,
     metadata: { title: tmpl.name === "白紙" ? "" : tmpl.name, author: "" },
-    settings: { ...DEFAULT_SETTINGS, documentClass: tmpl.documentClass },
+    settings: {
+      ...DEFAULT_SETTINGS,
+      documentClass: tmpl.documentClass,
+      paperDesign: { ...DEFAULT_PAPER_DESIGN, designPreset: tmpl.defaultPreset },
+    },
     blocks: blank ? blocks.map(stripBlockContent) : blocks,
   };
 }

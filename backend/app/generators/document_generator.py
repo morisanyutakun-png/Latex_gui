@@ -133,86 +133,296 @@ def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
-def _generate_paper_design_latex(design: PaperDesign) -> list[str]:
-    """PaperDesign を LaTeX プリアンブルコマンドに変換する。
+# ──── Design Preset Definitions (mirrors frontend DESIGN_PRESETS) ────
 
-    紙の背景色、アクセントカラー、テーマ（罫線/方眼/ドット）、
-    ヘッダーボーダー、セクション区切り線を PDF に反映する。
+DESIGN_PRESETS: dict[str, dict] = {
+    "none": {
+        "colors": {"primary": "#333333", "secondary": "#666666", "background": "#ffffff",
+                   "surface": "#f5f5f5", "text": "#1a1a1a", "muted": "#888888"},
+        "style": {"headerBorder": False, "sectionDividers": False, "coloredBoxes": False,
+                  "gradientHeader": False, "sideStripe": False, "styledCodeBlocks": False,
+                  "decorativeFooter": False},
+    },
+    "ocean-academic": {
+        "colors": {"primary": "#1e40af", "secondary": "#3b82f6", "background": "#fafbff",
+                   "surface": "#eff6ff", "text": "#1e293b", "muted": "#64748b"},
+        "style": {"headerBorder": True, "sectionDividers": True, "coloredBoxes": True,
+                  "gradientHeader": True, "sideStripe": False, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+    "forest-nature": {
+        "colors": {"primary": "#166534", "secondary": "#22c55e", "background": "#fafff7",
+                   "surface": "#f0fdf4", "text": "#1a2e1a", "muted": "#6b8f71"},
+        "style": {"headerBorder": True, "sectionDividers": True, "coloredBoxes": True,
+                  "gradientHeader": False, "sideStripe": True, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+    "sunset-warm": {
+        "colors": {"primary": "#c2410c", "secondary": "#f97316", "background": "#fffbf5",
+                   "surface": "#fff7ed", "text": "#27180e", "muted": "#9a7b6b"},
+        "style": {"headerBorder": True, "sectionDividers": True, "coloredBoxes": True,
+                  "gradientHeader": True, "sideStripe": False, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+    "sakura-soft": {
+        "colors": {"primary": "#be185d", "secondary": "#f472b6", "background": "#fffbfd",
+                   "surface": "#fdf2f8", "text": "#2d1a24", "muted": "#9f7a8e"},
+        "style": {"headerBorder": True, "sectionDividers": False, "coloredBoxes": True,
+                  "gradientHeader": False, "sideStripe": True, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+    "midnight-pro": {
+        "colors": {"primary": "#6366f1", "secondary": "#a78bfa", "background": "#fafaff",
+                   "surface": "#eef2ff", "text": "#1e1b4b", "muted": "#6b7280"},
+        "style": {"headerBorder": True, "sectionDividers": True, "coloredBoxes": True,
+                  "gradientHeader": True, "sideStripe": False, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+    "mint-fresh": {
+        "colors": {"primary": "#0d9488", "secondary": "#5eead4", "background": "#f8fffd",
+                   "surface": "#f0fdfa", "text": "#142f2e", "muted": "#6b9e99"},
+        "style": {"headerBorder": False, "sectionDividers": True, "coloredBoxes": True,
+                  "gradientHeader": False, "sideStripe": True, "styledCodeBlocks": True,
+                  "decorativeFooter": False},
+    },
+    "coral-pop": {
+        "colors": {"primary": "#dc2626", "secondary": "#fb923c", "background": "#fffafa",
+                   "surface": "#fef2f2", "text": "#2a1515", "muted": "#a18072"},
+        "style": {"headerBorder": True, "sectionDividers": True, "coloredBoxes": True,
+                  "gradientHeader": True, "sideStripe": False, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+    "lavender-dream": {
+        "colors": {"primary": "#7c3aed", "secondary": "#c4b5fd", "background": "#fdfaff",
+                   "surface": "#f5f3ff", "text": "#1f1535", "muted": "#8b7fa3"},
+        "style": {"headerBorder": True, "sectionDividers": False, "coloredBoxes": True,
+                  "gradientHeader": False, "sideStripe": True, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+    "slate-minimal": {
+        "colors": {"primary": "#334155", "secondary": "#94a3b8", "background": "#fafafa",
+                   "surface": "#f1f5f9", "text": "#0f172a", "muted": "#94a3b8"},
+        "style": {"headerBorder": True, "sectionDividers": True, "coloredBoxes": False,
+                  "gradientHeader": False, "sideStripe": False, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+    "golden-classic": {
+        "colors": {"primary": "#92400e", "secondary": "#d97706", "background": "#fffef7",
+                   "surface": "#fefce8", "text": "#1c1917", "muted": "#a8977a"},
+        "style": {"headerBorder": True, "sectionDividers": True, "coloredBoxes": True,
+                  "gradientHeader": True, "sideStripe": False, "styledCodeBlocks": True,
+                  "decorativeFooter": True},
+    },
+}
+
+
+def _generate_paper_design_latex(design: PaperDesign) -> list[str]:
+    """PaperDesign をリッチな LaTeX プリアンブルコマンドに変換する。
+
+    デザインプリセットが指定されていればリッチなスタイルを生成。
+    プリセットなしの場合はアクセントカラーのみの軽量スタイル。
     """
     lines: list[str] = []
     lines.append("% ── Paper Design ──")
 
-    # --- 背景色 ---
-    paper_color = design.paper_color or "#ffffff"
-    if paper_color.lower() != "#ffffff":
-        r, g, b = _hex_to_rgb(paper_color)
-        lines.append(f"\\definecolor{{paperbg}}{{RGB}}{{{r},{g},{b}}}")
-        lines.append("\\usepackage{pagecolor}")
-        lines.append("\\pagecolor{paperbg}")
+    preset_id = getattr(design, "design_preset", "none") or "none"
+    preset = DESIGN_PRESETS.get(preset_id)
 
-    # --- アクセントカラー定義 ---
-    accent = design.accent_color or "#4f46e5"
-    ar, ag, ab = _hex_to_rgb(accent)
-    lines.append(f"\\definecolor{{accentcolor}}{{RGB}}{{{ar},{ag},{ab}}}")
+    # --- プリセットが有効なら、プリセットのカラーを使う ---
+    if preset and preset_id != "none":
+        colors = preset["colors"]
+        pstyle = preset["style"]
 
-    # --- アクセントカラーを見出しに適用 ---
-    lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\color{accentcolor}}{\\thesection}{0.8em}{}")
-    lines.append("\\titleformat{\\subsection}{\\large\\bfseries\\sffamily\\color{accentcolor!80!black}}{\\thesubsection}{0.6em}{}")
+        # カラー定義
+        pr, pg, pb = _hex_to_rgb(colors["primary"])
+        sr, sg, sb = _hex_to_rgb(colors["secondary"])
+        bgr, bgg, bgb = _hex_to_rgb(colors["background"])
+        sfr, sfg, sfb = _hex_to_rgb(colors["surface"])
+        tr, tg, tb = _hex_to_rgb(colors["text"])
+        mr, mg, mb = _hex_to_rgb(colors["muted"])
 
-    # --- テーマ背景パターン (TikZ で描画) ---
+        lines.append(f"\\definecolor{{accentcolor}}{{RGB}}{{{pr},{pg},{pb}}}")
+        lines.append(f"\\definecolor{{secondcolor}}{{RGB}}{{{sr},{sg},{sb}}}")
+        lines.append(f"\\definecolor{{paperbg}}{{RGB}}{{{bgr},{bgg},{bgb}}}")
+        lines.append(f"\\definecolor{{surfacecolor}}{{RGB}}{{{sfr},{sfg},{sfb}}}")
+        lines.append(f"\\definecolor{{textcolor}}{{RGB}}{{{tr},{tg},{tb}}}")
+        lines.append(f"\\definecolor{{mutedcolor}}{{RGB}}{{{mr},{mg},{mb}}}")
+
+        # 背景色
+        if colors["background"].lower() != "#ffffff":
+            lines.append("\\usepackage{pagecolor}")
+            lines.append("\\pagecolor{paperbg}")
+
+        # テキスト色
+        lines.append("\\color{textcolor}")
+
+        # tcolorbox (多くのプリセットで使う)
+        lines.append("\\usepackage[most]{tcolorbox}")
+
+        # ── グラデーションヘッダーストライプ (ページ上部の装飾帯) ──
+        if pstyle["gradientHeader"]:
+            lines.append("\\usepackage{tikz}")
+            lines.append("\\usepackage{eso-pic}")
+            lines.append("\\AddToShipoutPictureFG{%")
+            lines.append("  \\begin{tikzpicture}[remember picture, overlay]")
+            lines.append("    \\fill[left color=accentcolor, right color=secondcolor, opacity=0.9]")
+            lines.append("      (current page.north west) rectangle ([yshift=-4mm]current page.north east);")
+            lines.append("  \\end{tikzpicture}%")
+            lines.append("}")
+
+        # ── サイドストライプ (左マージンの装飾線) ──
+        if pstyle["sideStripe"]:
+            if "eso-pic" not in "\n".join(lines):
+                lines.append("\\usepackage{tikz}")
+                lines.append("\\usepackage{eso-pic}")
+            lines.append("\\AddToShipoutPictureBG{%")
+            lines.append("  \\begin{tikzpicture}[remember picture, overlay]")
+            lines.append("    \\fill[accentcolor, opacity=0.7]")
+            lines.append("      (current page.north west) rectangle ([xshift=3mm]current page.south west);")
+            lines.append("    \\fill[secondcolor, opacity=0.3]")
+            lines.append("      ([xshift=3mm]current page.north west) rectangle ([xshift=4.5mm]current page.south west);")
+            lines.append("  \\end{tikzpicture}%")
+            lines.append("}")
+
+        # ── セクション見出しスタイル (色付き＋装飾) ──
+        lines.append("% ── Styled section headings ──")
+        if pstyle["sectionDividers"]:
+            # セクション: 番号バッジ + 下線
+            lines.append("\\titleformat{\\section}")
+            lines.append("  {\\Large\\bfseries\\sffamily\\color{accentcolor}}")
+            lines.append("  {\\colorbox{accentcolor}{\\textcolor{white}{\\,\\thesection\\,}}}")
+            lines.append("  {0.8em}")
+            lines.append("  {}")
+            lines.append("  [\\vspace{0.2em}\\textcolor{secondcolor!50}{\\rule{\\textwidth}{0.6pt}}]")
+        else:
+            # セクション: 色付きのみ
+            lines.append("\\titleformat{\\section}")
+            lines.append("  {\\Large\\bfseries\\sffamily\\color{accentcolor}}")
+            lines.append("  {\\textcolor{accentcolor}{\\thesection}}")
+            lines.append("  {0.8em}")
+            lines.append("  {}")
+
+        # サブセクション
+        lines.append("\\titleformat{\\subsection}")
+        lines.append("  {\\large\\bfseries\\sffamily\\color{accentcolor!80!black}}")
+        lines.append("  {\\textcolor{secondcolor}{\\thesubsection}}")
+        lines.append("  {0.6em}")
+        lines.append("  {}")
+
+        # ── ヘッダーボーダー (タイトル下の装飾線) ──
+        if pstyle["headerBorder"]:
+            lines.append("\\usepackage{etoolbox}")
+            lines.append("\\apptocmd{\\maketitle}{%")
+            lines.append("  \\vspace{-0.8em}")
+            lines.append("  \\noindent\\textcolor{accentcolor}{\\rule{\\textwidth}{1.5pt}}")
+            lines.append("  \\vspace{0.3em}")
+            lines.append("}{}{}")
+
+        # ── 装飾フッター ──
+        if pstyle["decorativeFooter"]:
+            lines.append("% ── Decorative footer ──")
+            lines.append("\\usepackage{fancyhdr}")
+            lines.append("\\fancypagestyle{presetstyle}{%")
+            lines.append("  \\fancyhf{}")
+            lines.append("  \\renewcommand{\\headrulewidth}{0pt}")
+            lines.append("  \\renewcommand{\\footrulewidth}{0.4pt}")
+            lines.append("  \\renewcommand{\\footrule}{\\hbox to\\headwidth{%")
+            lines.append("    \\color{secondcolor!40}\\leaders\\hrule height \\footrulewidth\\hfill}}")
+            lines.append("  \\fancyfoot[L]{\\small\\textcolor{mutedcolor}{\\leftmark}}")
+            lines.append("  \\fancyfoot[R]{\\small\\textcolor{accentcolor}{\\bfseries\\thepage}}")
+            lines.append("}")
+            lines.append("\\pagestyle{presetstyle}")
+
+        # ── カラーボックス定義 (引用ブロック用) ──
+        if pstyle["coloredBoxes"]:
+            lines.append("% ── Colored box styles ──")
+            lines.append("\\newtcolorbox{accentbox}{")
+            lines.append("  colback=surfacecolor,")
+            lines.append("  colframe=accentcolor,")
+            lines.append("  left=10pt, right=10pt, top=8pt, bottom=8pt,")
+            lines.append("  boxrule=0pt, leftrule=3.5pt, arc=2pt")
+            lines.append("}")
+
+    else:
+        # --- プリセットなし: 従来のシンプルスタイル ---
+        paper_color = design.paper_color or "#ffffff"
+        if paper_color.lower() != "#ffffff":
+            r, g, b = _hex_to_rgb(paper_color)
+            lines.append(f"\\definecolor{{paperbg}}{{RGB}}{{{r},{g},{b}}}")
+            lines.append("\\usepackage{pagecolor}")
+            lines.append("\\pagecolor{paperbg}")
+
+        accent = design.accent_color or "#4f46e5"
+        ar, ag, ab = _hex_to_rgb(accent)
+        lines.append(f"\\definecolor{{accentcolor}}{{RGB}}{{{ar},{ag},{ab}}}")
+
+        lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\color{accentcolor}}{\\thesection}{0.8em}{}")
+        lines.append("\\titleformat{\\subsection}{\\large\\bfseries\\sffamily\\color{accentcolor!80!black}}{\\thesubsection}{0.6em}{}")
+
+        if design.header_border:
+            lines.append("\\usepackage{etoolbox}")
+            lines.append("\\apptocmd{\\maketitle}{\\vspace{-1em}\\noindent\\textcolor{accentcolor}{\\rule{\\textwidth}{1.2pt}}\\vspace{0.5em}}{}{}")
+
+        if design.section_dividers:
+            lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\color{accentcolor}}{\\thesection}{0.8em}{}"
+                          "[\\vspace{0.2em}\\textcolor{accentcolor!40}{\\rule{\\textwidth}{0.5pt}}]")
+
+    # --- テーマ背景パターン (TikZ で描画) --- 両方で有効
     theme = design.theme or "plain"
     if theme in ("grid", "lined", "dot-grid"):
-        lines.append("\\usepackage{tikz}")
-        lines.append("\\usepackage{eso-pic}")
+        if "tikz" not in "\n".join(lines):
+            lines.append("\\usepackage{tikz}")
+        if "eso-pic" not in "\n".join(lines):
+            lines.append("\\usepackage{eso-pic}")
         if theme == "grid":
             lines.append("\\AddToShipoutPictureBG{%")
             lines.append("  \\begin{tikzpicture}[remember picture, overlay]")
-            lines.append(f"    \\draw[accentcolor!8, step=5mm, line width=0.2pt] "
-                         f"(current page.south west) grid (current page.north east);")
+            lines.append("    \\draw[accentcolor!8, step=5mm, line width=0.2pt] "
+                         "(current page.south west) grid (current page.north east);")
             lines.append("  \\end{tikzpicture}%")
             lines.append("}")
         elif theme == "lined":
             lines.append("\\AddToShipoutPictureBG{%")
             lines.append("  \\begin{tikzpicture}[remember picture, overlay]")
-            lines.append(f"    \\foreach \\y in {{0,7mm,...,\\paperheight}} {{")
-            lines.append(f"      \\draw[accentcolor!10, line width=0.2pt] "
-                         f"([yshift=-\\y]current page.north west) -- ([yshift=-\\y]current page.north east);")
+            lines.append("    \\foreach \\y in {0,7mm,...,\\paperheight} {")
+            lines.append("      \\draw[accentcolor!10, line width=0.2pt] "
+                         "([yshift=-\\y]current page.north west) -- ([yshift=-\\y]current page.north east);")
             lines.append("    }")
             lines.append("  \\end{tikzpicture}%")
             lines.append("}")
         elif theme == "dot-grid":
             lines.append("\\AddToShipoutPictureBG{%")
             lines.append("  \\begin{tikzpicture}[remember picture, overlay]")
-            lines.append(f"    \\foreach \\x in {{0,5mm,...,\\paperwidth}} {{")
-            lines.append(f"      \\foreach \\y in {{0,5mm,...,\\paperheight}} {{")
-            lines.append(f"        \\fill[accentcolor!12] ([xshift=\\x, yshift=-\\y]current page.north west) circle (0.3pt);")
+            lines.append("    \\foreach \\x in {0,5mm,...,\\paperwidth} {")
+            lines.append("      \\foreach \\y in {0,5mm,...,\\paperheight} {")
+            lines.append("        \\fill[accentcolor!12] ([xshift=\\x, yshift=-\\y]current page.north west) circle (0.3pt);")
             lines.append("      }")
             lines.append("    }")
             lines.append("  \\end{tikzpicture}%")
             lines.append("}")
 
-    # --- ヘッダーボーダー (タイトル下に線) ---
-    if design.header_border:
-        lines.append("% Header border under title")
-        lines.append("\\usepackage{etoolbox}")
-        lines.append("\\apptocmd{\\maketitle}{\\vspace{-1em}\\noindent\\textcolor{accentcolor}{\\rule{\\textwidth}{1.2pt}}\\vspace{0.5em}}{}{}")
-
-    # --- セクション区切り線 ---
-    if design.section_dividers:
-        lines.append("% Section dividers")
-        lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\color{accentcolor}}{\\thesection}{0.8em}{}"
-                      "[\\vspace{0.2em}\\textcolor{accentcolor!40}{\\rule{\\textwidth}{0.5pt}}]")
-
     return lines
+
+
+def _get_active_preset(doc: DocumentModel) -> dict | None:
+    """Return the active design preset dict, or None if none/plain."""
+    design = getattr(doc.settings, 'paper_design', None)
+    if not design:
+        return None
+    preset_id = getattr(design, "design_preset", "none") or "none"
+    if preset_id == "none":
+        return None
+    return DESIGN_PRESETS.get(preset_id)
 
 
 def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str:
     """Generate a complete LaTeX document from the block-based model.
-    
+
     engine: 'lualatex' (固定)。luatexja-preset[haranoaji] で日本語処理。
     """
     settings = doc.settings
     meta = doc.metadata
+    active_preset = _get_active_preset(doc)
 
     # Paper & geometry
     paper = settings.paper_size or "a4"
@@ -284,7 +494,10 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     lines.append("")
 
     # ──── Header / Footer ────
-    if settings.page_numbers:
+    # プリセットが decorativeFooter を持つ場合、fancyhdr はプリセット側で設定
+    if active_preset and active_preset["style"]["decorativeFooter"]:
+        pass  # preset handles footer
+    elif settings.page_numbers:
         lines.append("\\usepackage{fancyhdr}")
         lines.append("\\pagestyle{fancy}")
         lines.append("\\fancyhf{}")
@@ -299,31 +512,59 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     # ──── Listings style (only if code blocks used) ────
     block_types_used = {b.content.type for b in doc.blocks}
     if "code" in block_types_used:
-        lines.append("\\lstset{")
-        lines.append("  basicstyle=\\ttfamily\\small,")
-        lines.append("  breaklines=true,")
-        lines.append("  frame=l,")
-        lines.append("  framerule=2pt,")
-        lines.append("  rulecolor=\\color{blue!30},")
-        lines.append("  backgroundcolor=\\color{gray!3},")
-        lines.append("  xleftmargin=12pt,")
-        lines.append("  numberstyle=\\tiny\\color{gray},")
-        lines.append("  keywordstyle=\\color{blue!70!black}\\bfseries,")
-        lines.append("  commentstyle=\\color{green!50!black}\\itshape,")
-        lines.append("  stringstyle=\\color{red!60!black},")
-        lines.append("  tabsize=2,")
-        lines.append("  showstringspaces=false,")
-        lines.append("}")
-        lines.append("")
+        if active_preset and active_preset["style"]["styledCodeBlocks"]:
+            # プリセットのカラーを使ったスタイリッシュなコードブロック
+            lines.append("\\lstset{")
+            lines.append("  basicstyle=\\ttfamily\\small,")
+            lines.append("  breaklines=true,")
+            lines.append("  frame=l,")
+            lines.append("  framerule=2.5pt,")
+            lines.append("  rulecolor=\\color{accentcolor!60},")
+            lines.append("  backgroundcolor=\\color{surfacecolor},")
+            lines.append("  xleftmargin=14pt,")
+            lines.append("  numberstyle=\\tiny\\color{mutedcolor},")
+            lines.append("  keywordstyle=\\color{accentcolor!90!black}\\bfseries,")
+            lines.append("  commentstyle=\\color{mutedcolor}\\itshape,")
+            lines.append("  stringstyle=\\color{secondcolor!80!black},")
+            lines.append("  tabsize=2,")
+            lines.append("  showstringspaces=false,")
+            lines.append("}")
+            lines.append("")
+        else:
+            lines.append("\\lstset{")
+            lines.append("  basicstyle=\\ttfamily\\small,")
+            lines.append("  breaklines=true,")
+            lines.append("  frame=l,")
+            lines.append("  framerule=2pt,")
+            lines.append("  rulecolor=\\color{blue!30},")
+            lines.append("  backgroundcolor=\\color{gray!3},")
+            lines.append("  xleftmargin=12pt,")
+            lines.append("  numberstyle=\\tiny\\color{gray},")
+            lines.append("  keywordstyle=\\color{blue!70!black}\\bfseries,")
+            lines.append("  commentstyle=\\color{green!50!black}\\itshape,")
+            lines.append("  stringstyle=\\color{red!60!black},")
+            lines.append("  tabsize=2,")
+            lines.append("  showstringspaces=false,")
+            lines.append("}")
+            lines.append("")
 
     # ──── Hyperref setup ────
-    lines.append("\\hypersetup{")
-    lines.append("  colorlinks=true,")
-    lines.append("  linkcolor={blue!50!black},")
-    lines.append("  urlcolor={blue!50!black},")
-    lines.append("  citecolor={green!50!black},")
-    lines.append("  pdfstartview=FitH,")
-    lines.append("}")
+    if active_preset:
+        lines.append("\\hypersetup{")
+        lines.append("  colorlinks=true,")
+        lines.append("  linkcolor=accentcolor!70!black,")
+        lines.append("  urlcolor=secondcolor!70!black,")
+        lines.append("  citecolor=accentcolor!50!black,")
+        lines.append("  pdfstartview=FitH,")
+        lines.append("}")
+    else:
+        lines.append("\\hypersetup{")
+        lines.append("  colorlinks=true,")
+        lines.append("  linkcolor={blue!50!black},")
+        lines.append("  urlcolor={blue!50!black},")
+        lines.append("  citecolor={green!50!black},")
+        lines.append("  pdfstartview=FitH,")
+        lines.append("}")
     lines.append("")
 
     # ──── Paper Design (紙デザイン → PDF反映) ────
@@ -345,7 +586,7 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
                 lines.append("% ── カスタムプリアンブル (上級者モード) ──")
                 lines.append(advanced.custom_preamble)
                 lines.append("")
-        
+
         # カスタムコマンド
         if advanced.custom_commands:
             lines.append("% ── カスタムコマンド (上級者モード) ──")
@@ -373,19 +614,19 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     lines.append("\\begin{document}")
     if meta.title:
         lines.append("\\maketitle")
-    
+
     # 上級者モード: pre_document フック
     if advanced and advanced.enabled and advanced.pre_document.strip():
         pre_violations = validate_custom_preamble(advanced.pre_document)
         if not pre_violations:
             lines.append("% ── pre-document hook ──")
             lines.append(advanced.pre_document)
-    
+
     lines.append("")
 
     # ──── Blocks ────
     for block in doc.blocks:
-        latex = _render_block(block)
+        latex = _render_block(block, active_preset)
         if latex:
             lines.append(latex)
             lines.append("")
@@ -401,7 +642,7 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     return "\n".join(lines)
 
 
-def _render_block(block: Block) -> str:
+def _render_block(block: Block, preset: dict | None = None) -> str:
     """Render a single block to LaTeX."""
     content = block.content
     style = block.style
@@ -438,7 +679,7 @@ def _render_block(block: Block) -> str:
         if cmd != "\\normalsize":
             prefix_cmds.append(cmd)
 
-    inner = _render_content(content, style)
+    inner = _render_content(content, style, preset)
     if not inner.strip():
         return ""
 
@@ -446,7 +687,7 @@ def _render_block(block: Block) -> str:
     return "\n".join(parts)
 
 
-def _render_content(content, style) -> str:
+def _render_content(content, style, preset: dict | None = None) -> str:
     """Render block content to LaTeX based on type."""
     t = content.type
 
@@ -457,17 +698,17 @@ def _render_content(content, style) -> str:
     elif t == "math":
         return _render_math(content)
     elif t == "list":
-        return _render_list(content)
+        return _render_list(content, preset)
     elif t == "table":
-        return _render_table(content)
+        return _render_table(content, preset)
     elif t == "image":
         return _render_image(content)
     elif t == "divider":
-        return _render_divider()
+        return _render_divider(preset)
     elif t == "code":
         return _render_code(content)
     elif t == "quote":
-        return _render_quote(content)
+        return _render_quote(content, preset)
     elif t == "circuit":
         return _render_circuit(content)
     elif t == "diagram":
@@ -547,27 +788,49 @@ def _render_math(c: MathContent) -> str:
         return f"${latex}$"
 
 
-def _render_list(c: ListContent) -> str:
+def _render_list(c: ListContent, preset: dict | None = None) -> str:
     non_empty = [item for item in c.items if item.strip()]
     if not non_empty:
         return ""
     env = "itemize" if c.style == "bullet" else "enumerate"
-    items_str = "\n".join(f"  \\item {escape_latex(item)}" for item in non_empty)
+
+    # プリセットがある場合、色付きのリストマーカー
+    if preset and preset["style"]["coloredBoxes"]:
+        if c.style == "bullet":
+            items_str = "\n".join(f"  \\item[\\textcolor{{accentcolor}}{{\\textbullet}}] {escape_latex(item)}" for item in non_empty)
+        else:
+            items_str = "\n".join(f"  \\item {escape_latex(item)}" for item in non_empty)
+            return f"\\begin{{{env}}}[label=\\textcolor{{accentcolor}}{{\\arabic*.}}]\n{items_str}\n\\end{{{env}}}"
+    else:
+        items_str = "\n".join(f"  \\item {escape_latex(item)}" for item in non_empty)
+
     return f"\\begin{{{env}}}\n{items_str}\n\\end{{{env}}}"
 
 
-def _render_table(c: TableContent) -> str:
+def _render_table(c: TableContent, preset: dict | None = None) -> str:
     col_count = len(c.headers)
     if col_count == 0:
         return ""
 
-    lines = [
-        "\\begin{table}[h]",
-        "\\centering",
-        f"\\begin{{tabular}}{{{'|'.join(['l'] * col_count)}}}",
-        "\\toprule",
-    ]
-    header_cells = " & ".join(f"\\textbf{{{escape_latex(h)}}}" for h in c.headers)
+    if preset and preset["style"]["coloredBoxes"]:
+        # プリセット: 色付きヘッダー行のテーブル
+        lines = [
+            "\\begin{table}[h]",
+            "\\centering",
+            f"\\begin{{tabular}}{{{' '.join(['l'] * col_count)}}}",
+            "\\toprule",
+            "\\rowcolor{surfacecolor}",
+        ]
+        header_cells = " & ".join(f"\\textcolor{{accentcolor}}{{\\textbf{{{escape_latex(h)}}}}}" for h in c.headers)
+    else:
+        lines = [
+            "\\begin{table}[h]",
+            "\\centering",
+            f"\\begin{{tabular}}{{{'|'.join(['l'] * col_count)}}}",
+            "\\toprule",
+        ]
+        header_cells = " & ".join(f"\\textbf{{{escape_latex(h)}}}" for h in c.headers)
+
     lines.append(f"{header_cells} \\\\")
     lines.append("\\midrule")
 
@@ -601,7 +864,9 @@ def _render_image(c: ImageContent) -> str:
     return "\n".join(lines)
 
 
-def _render_divider() -> str:
+def _render_divider(preset: dict | None = None) -> str:
+    if preset:
+        return "\\vspace{0.5em}\\noindent\\textcolor{secondcolor!40}{\\rule{\\textwidth}{0.4pt}}\\vspace{0.5em}"
     return "\\vspace{0.5em}\\noindent\\rule{\\textwidth}{0.4pt}\\vspace{0.5em}"
 
 
@@ -612,17 +877,28 @@ def _render_code(c: CodeContent) -> str:
     return f"\\begin{{lstlisting}}{lang_opt}\n{c.code}\n\\end{{lstlisting}}"
 
 
-def _render_quote(c: QuoteContent) -> str:
+def _render_quote(c: QuoteContent, preset: dict | None = None) -> str:
     if not c.text.strip():
         return ""
     text = escape_latex(c.text)
-    lines = [
-        "\\begin{tcolorbox}[colback=blue!2,colframe=blue!25,left=10pt,right=10pt,top=8pt,bottom=8pt,boxrule=0pt,leftrule=3pt,arc=2pt]",
-        f"\\textit{{{text}}}",
-    ]
-    if c.attribution:
-        lines.append(f"\\par\\raggedleft\\small\\textcolor{{gray}}{{--- {escape_latex(c.attribution)}}}")
-    lines.append("\\end{tcolorbox}")
+
+    if preset and preset["style"]["coloredBoxes"]:
+        # プリセット: accentbox 使用
+        lines = [
+            "\\begin{accentbox}",
+            f"\\textit{{{text}}}",
+        ]
+        if c.attribution:
+            lines.append(f"\\par\\raggedleft\\small\\textcolor{{mutedcolor}}{{--- {escape_latex(c.attribution)}}}")
+        lines.append("\\end{accentbox}")
+    else:
+        lines = [
+            "\\begin{tcolorbox}[colback=blue!2,colframe=blue!25,left=10pt,right=10pt,top=8pt,bottom=8pt,boxrule=0pt,leftrule=3pt,arc=2pt]",
+            f"\\textit{{{text}}}",
+        ]
+        if c.attribution:
+            lines.append(f"\\par\\raggedleft\\small\\textcolor{{gray}}{{--- {escape_latex(c.attribution)}}}")
+        lines.append("\\end{tcolorbox}")
     return "\n".join(lines)
 
 

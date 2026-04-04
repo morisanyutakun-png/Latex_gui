@@ -288,7 +288,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         const remainder = blocks.filter((b) => !mentioned.has(b.id));
         blocks = [...reordered, ...remainder];
       } else if (op.op === "update_design") {
-        const defaultDesign: PaperDesign = { theme: "plain", paperColor: "#ffffff", accentColor: "#4f46e5", headerBorder: false, sectionDividers: false };
+        const defaultDesign: PaperDesign = { theme: "plain", paperColor: "#ffffff", accentColor: "#4f46e5", headerBorder: false, sectionDividers: false, designPreset: "none" };
         const current = settings.paperDesign || defaultDesign;
         settings = { ...settings, paperDesign: { ...current, ...op.paperDesign } };
       }

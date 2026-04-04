@@ -165,6 +165,7 @@ class PaperDesign(CamelModel):
     accent_color: str = "#4f46e5"   # アクセントカラー (hex)
     header_border: bool = False     # タイトル下ボーダー
     section_dividers: bool = False  # セクション間区切り線
+    design_preset: str = "none"     # デザインプリセットID
 
 
 class DocumentSettings(CamelModel):
