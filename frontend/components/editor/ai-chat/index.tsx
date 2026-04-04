@@ -9,7 +9,7 @@ import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
-import { sendAIMessage, streamAIMessage, StreamEvent } from "@/lib/api";
+import { sendAIMessage, streamAIMessage, StreamEvent, StreamDiagnostics } from "@/lib/api";
 import { ChatMessage, ThinkingStep, DocumentPatch } from "@/lib/types";
 import { chatLog } from "@/lib/logger";
 import { buildLastAIAction } from "./utils";
@@ -178,11 +178,12 @@ export function AIChatPanel() {
       let finalMessage: string = "";
       let finalPatches: DocumentPatch | null = null;
       let streamSucceeded = false;
+      let streamDiag: StreamDiagnostics | null = null;
       const accumulatedSteps: ThinkingStep[] = [];
       const accumulatedOps: Record<string, unknown>[] = [];
 
       try {
-        await streamAIMessage(history, document, (event: StreamEvent) => {
+        streamDiag = await streamAIMessage(history, document, (event: StreamEvent) => {
           chatLog.stream(requestId, event.type);
 
           switch (event.type) {
@@ -366,27 +367,42 @@ export function AIChatPanel() {
         setCurrentTool(null);
         chatLog.receive(requestId, duration, false);
       } else {
-        // Stream ended without "done" event (timeout, network drop, etc.)
-        // Finalize with whatever was accumulated so far
+        // Stream ended without "done" event — build diagnostic error message
         incrementUsage();
         const hasContent = streamedContent.length > 0 || accumulatedOps.length > 0;
         const patches = accumulatedOps.length > 0
           ? { ops: accumulatedOps } as unknown as DocumentPatch
           : null;
 
-        const message = hasContent
-          ? (streamedContent || `${accumulatedOps.length}件の変更を適用しました。`)
-          : "ストリーミングが中断されました。もう一度お試しください。";
+        // Build a descriptive error message based on diagnostics
+        let errorDetail: string;
+        if (hasContent) {
+          errorDetail = streamedContent || `${accumulatedOps.length}件の変更を適用しました。`;
+        } else if (streamDiag) {
+          if (streamDiag.eventsReceived === 0) {
+            errorDetail = "バックエンドからの応答がありませんでした。サーバーが起動中か、接続に問題がある可能性があります。";
+          } else if (streamDiag.errorMessage) {
+            errorDetail = streamDiag.errorMessage;
+          } else if (streamDiag.lastEventType === "thinking") {
+            errorDetail = "AIの思考中に接続が切断されました。サーバー側でエラーが発生した可能性があります（APIの使用量超過・レート制限等）。";
+          } else if (streamDiag.lastEventType === "tool_call" || streamDiag.lastEventType === "tool_result") {
+            errorDetail = "ツール実行中に接続が切断されました。処理がタイムアウトした可能性があります。";
+          } else {
+            errorDetail = `ス��リーミングが途中で終了しました（受信イベント: ${streamDiag.eventsReceived}件, 最後: ${streamDiag.lastEventType || "なし"}）。`;
+          }
+        } else {
+          errorDetail = "ストリーミングが中断されました。ネットワーク接続を確認してください。";
+        }
 
         const thinkingSteps = accumulatedSteps.length > 0 ? [...accumulatedSteps] : undefined;
 
         updateChatMessage(assistantMsgId, {
-          content: message,
+          content: errorDetail,
           patches,
           thinkingSteps,
           isStreaming: false,
           duration,
-          error: hasContent ? undefined : "ストリーミングが中断されました",
+          error: hasContent ? undefined : errorDetail,
         });
 
         setLiveSteps([]);
@@ -394,7 +410,15 @@ export function AIChatPanel() {
         chatLog.receive(requestId, duration, !hasContent);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "エラーが発生しました。もう一度お試しください。";
+      let msg = e instanceof Error ? e.message : "エラーが発生しました。もう一度お試しください。";
+      // Enhance generic error messages with context
+      if (msg.includes("Failed to fetch") || msg.includes("fetch")) {
+        msg = "サーバーへの接続に失敗しました。バックエンドが起動しているか確認してください。";
+      } else if (msg.includes("AbortError") || msg.includes("abort")) {
+        msg = "リクエストがキャンセルされました。";
+      } else if (msg.includes("タイムアウト")) {
+        msg = "AIサービスの応答がタイムアウトしました。しばらく待ってから再試行してください。";
+      }
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
       chatLog.error(requestId, msg);
       setLiveSteps([]);

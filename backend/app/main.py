@@ -572,7 +572,8 @@ async def ai_chat_endpoint(request: ChatRequest):
 @app.post("/api/ai/chat/stream")
 async def ai_chat_stream_endpoint(request: ChatRequest):
     """AIチャット (SSEストリーミング) — リアルタイムでトークンを返す"""
-    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
         raise HTTPException(
             status_code=503,
             detail={
@@ -583,6 +584,9 @@ async def ai_chat_stream_endpoint(request: ChatRequest):
 
     if not request.messages:
         raise HTTPException(status_code=400, detail={"message": "messages が空です"})
+
+    logger.info("[stream] Starting SSE stream: %d messages, key=%s...%s",
+                len(request.messages), api_key[:4], api_key[-4:])
 
     return StreamingResponse(
         ai_chat_stream(request.messages, request.document),

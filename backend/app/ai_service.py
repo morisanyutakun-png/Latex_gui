@@ -764,6 +764,8 @@ def _extract_usage(response) -> dict:
 
 def _parse_api_error(e: Exception) -> tuple[str, float]:
     err_str = str(e)
+    err_type = type(e).__name__
+
     if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
         m = _re.search(r'retryDelay["\s:]+["\s]*(\d+)', err_str)
         if m:
@@ -772,15 +774,27 @@ def _parse_api_error(e: Exception) -> tuple[str, float]:
             m2 = _re.search(r'retry in\s+([\d.]+)\s*s', err_str, _re.IGNORECASE)
             retry_seconds = float(m2.group(1)) if m2 else 30.0
         wait_int = int(retry_seconds) + 1
-        return f"APIレート制限に達しました。{wait_int}秒後に自動リトライします...", retry_seconds
+        return f"⚠️ APIレート制限に達しました（使用量超過）。{wait_int}秒後に自動リトライします。しばらく待ってから再試行してください。", retry_seconds
+
+    if "quota" in err_str.lower() or "billing" in err_str.lower():
+        return "⚠️ APIの使用量上限に達しているか、課金設定に問題があります。Google AI Studio でクォータと課金状況を確認してください。", 0
 
     if "403" in err_str or "401" in err_str or "PERMISSION_DENIED" in err_str:
-        return "APIキーが無効または権限不足です。", 0
+        return "⚠️ APIキーが無効または権限不足です。Koyeb環境変数のAPIキーを確認してください。", 0
+
+    if "404" in err_str or "NOT_FOUND" in err_str:
+        return f"⚠️ AIモデルが見つかりません。モデル名を確認してください。({err_type})", 0
 
     if "500" in err_str or "503" in err_str or "INTERNAL" in err_str:
-        return "AIサービスで一時的なエラーが発生しました。", 0
+        return f"⚠️ AIサービスで一時的なエラーが発生しました。しばらく待ってから再試行してください。({err_type})", 0
 
-    return "AI APIの呼び出しに失敗しました。", 0
+    if "timeout" in err_str.lower() or "timed out" in err_str.lower():
+        return "⚠️ AIサービスの応答がタイムアウトしました。リクエストが複雑すぎる可能性があります。", 0
+
+    if "connection" in err_str.lower() or "network" in err_str.lower():
+        return f"⚠️ AIサービスへの接続に失敗しました。ネットワーク状態を確認してください。({err_type})", 0
+
+    return f"⚠️ AI APIエラー: {err_type}: {err_str[:150]}", 0
 
 
 # ─── Agent Loop (Streaming) ───────────────────────────────���──────────────────
@@ -1047,6 +1061,9 @@ async def chat_stream(messages: list[dict], document: dict):
 
         patches_result = {"ops": all_patches} if all_patches else None
 
+        logger.info("Agent stream completed: %d patches, %d thinking steps, usage=%s",
+                    len(all_patches), len(all_thinking), total_usage)
+
         yield _sse({
             "type": "done",
             "message": message,
@@ -1057,11 +1074,11 @@ async def chat_stream(messages: list[dict], document: dict):
 
     except GeneratorExit:
         # Client disconnected — clean up silently
-        logger.info("Agent stream: client disconnected")
+        logger.info("Agent stream: client disconnected (GeneratorExit)")
         return
     except Exception as e:
         user_msg, _ = _parse_api_error(e)
-        logger.error("Agent loop error: %s", e, exc_info=True)
+        logger.error("Agent loop fatal error [%s]: %s", type(e).__name__, e, exc_info=True)
         yield _sse({"type": "error", "message": user_msg})
 
 

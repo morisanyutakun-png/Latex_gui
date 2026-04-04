@@ -1,4 +1,4 @@
-import { DocumentModel, BatchRequest, ChatMessage, DocumentPatch } from "./types";
+import type { DocumentModel, BatchRequest, ChatMessage, DocumentPatch } from "./types";
 
 /**
  * API ベース URL
@@ -224,12 +224,19 @@ export type StreamEvent =
   | { type: "done"; message: string; patches: DocumentPatch | null; thinking: AIChatResponse["thinking"]; usage: AIChatResponse["usage"] }
   | { type: "error"; message: string };
 
+export interface StreamDiagnostics {
+  eventsReceived: number;
+  lastEventType: string | null;
+  streamEndedNormally: boolean;
+  errorMessage?: string;
+}
+
 export async function streamAIMessage(
   messages: Pick<ChatMessage, "role" | "content">[],
   doc: DocumentModel,
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<StreamDiagnostics> {
   // バックエンドURLが設定されていればVercelプロキシをバイパス（60秒制限回避）
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/ai/chat/stream`
@@ -255,6 +262,12 @@ export async function streamAIMessage(
   let lastDataTime = Date.now();
   const READ_TIMEOUT = 180000; // 3 minutes without any data = timeout
 
+  const diag: StreamDiagnostics = {
+    eventsReceived: 0,
+    lastEventType: null,
+    streamEndedNormally: false,
+  };
+
   try {
     while (true) {
       // Create a timeout race for each read (with cleanup)
@@ -274,13 +287,17 @@ export async function streamAIMessage(
         result = await Promise.race([readPromise, timeoutPromise]);
       } catch (timeoutErr) {
         try { reader.cancel(); } catch { /* ignore */ }
+        diag.errorMessage = "タイムアウト: AIからの応答が長時間ありませんでした";
         throw timeoutErr;
       } finally {
         if (timer) clearTimeout(timer);
       }
 
       const { done, value } = result;
-      if (done) break;
+      if (done) {
+        diag.streamEndedNormally = true;
+        break;
+      }
 
       lastDataTime = Date.now();
       buffer += decoder.decode(value, { stream: true });
@@ -291,6 +308,8 @@ export async function streamAIMessage(
         if (line.startsWith("data: ")) {
           try {
             const event = JSON.parse(line.slice(6)) as StreamEvent;
+            diag.eventsReceived++;
+            diag.lastEventType = event.type;
             onEvent(event);
           } catch {
             // ignore malformed SSE lines
@@ -303,6 +322,8 @@ export async function streamAIMessage(
     if (buffer.startsWith("data: ")) {
       try {
         const event = JSON.parse(buffer.slice(6)) as StreamEvent;
+        diag.eventsReceived++;
+        diag.lastEventType = event.type;
         onEvent(event);
       } catch {
         // ignore
@@ -311,6 +332,8 @@ export async function streamAIMessage(
   } finally {
     reader.releaseLock();
   }
+
+  return diag;
 }
 
 // ═══ OMR 解析 API ═══
