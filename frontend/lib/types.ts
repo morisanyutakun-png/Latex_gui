@@ -90,7 +90,7 @@ export interface DiagramContent {
   type: "diagram";
   code: string;
   caption?: string;
-  diagramType: "flowchart" | "sequence" | "block" | "state" | "tree" | "custom";
+  diagramType: "flowchart" | "sequence" | "block" | "state" | "tree" | "agent" | "custom";
   preset?: string;
 }
 

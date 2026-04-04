@@ -674,6 +674,176 @@ export const DIAGRAM_PRESETS: DiagramPreset[] = [
 \\draw[<-,thick,dashed] ([yshift=-3cm]B.south) -- node[above,font=\\footnotesize]{Result} ([yshift=-3cm]C.south);
 \\draw[<-,thick,dashed] ([yshift=-4cm]A.south) -- node[above,font=\\footnotesize]{Response} ([yshift=-4cm]B.south);`,
   },
+  // ──── AI Agent Presets ────
+  {
+    id: "agent-flow",
+    name: "エージェントフロー",
+    description: "Input → LLM → Tool → Output の基本エージェントフロー",
+    diagramType: "agent",
+    code: `[node distance=1.6cm, auto,
+  agent/.style={rectangle, rounded corners=4pt, draw=violet!60, fill=violet!15, thick, minimum width=2.8cm, minimum height=0.9cm, text centered, font=\\small\\bfseries},
+  tool/.style={rectangle, rounded corners=4pt, draw=teal!60, fill=teal!15, thick, minimum width=2.5cm, minimum height=0.8cm, text centered, font=\\small},
+  io/.style={rectangle, rounded corners=4pt, draw=blue!50, fill=blue!15, thick, minimum width=2.5cm, minimum height=0.8cm, text centered, font=\\small},
+  arrow/.style={thick, ->, >=stealth'}]
+
+\\node[io] (input) {Input};
+\\node[agent] (llm) [below of=input] {LLM (Think)};
+\\node[tool] (tool) [below of=llm] {Tool Call};
+\\node[agent] (process) [below of=tool] {LLM (Process)};
+\\node[io] (output) [below of=process] {Output};
+
+\\draw[arrow] (input) -- (llm);
+\\draw[arrow] (llm) -- node[right, font=\\footnotesize]{判断} (tool);
+\\draw[arrow] (tool) -- node[right, font=\\footnotesize]{結果} (process);
+\\draw[arrow] (process) -- (output);
+\\draw[arrow, dashed, violet!50] (process.west) to[bend right=50] node[left, font=\\footnotesize]{再思考} (llm.west);`,
+  },
+  {
+    id: "tool-calling",
+    name: "ツール呼び出し",
+    description: "中央エージェントから複数ツールへの呼び出し図",
+    diagramType: "agent",
+    code: `[node distance=1.8cm, auto,
+  agent/.style={rectangle, rounded corners=4pt, draw=violet!60, fill=violet!15, thick, minimum width=3cm, minimum height=1cm, text centered, font=\\small\\bfseries},
+  tool/.style={rectangle, rounded corners=4pt, draw=teal!60, fill=teal!15, thick, minimum width=2.2cm, minimum height=0.8cm, text centered, font=\\small},
+  io/.style={rectangle, rounded corners=4pt, draw=blue!50, fill=blue!15, thick, minimum width=2.5cm, minimum height=0.8cm, text centered, font=\\small},
+  arrow/.style={thick, ->, >=stealth'}]
+
+\\node[io] (input) {User Query};
+\\node[agent] (agent) [below=1.2cm of input] {AI Agent};
+\\node[tool] (t1) [below left=1.2cm and 1.5cm of agent] {Search};
+\\node[tool] (t2) [below left=1.2cm and -0.2cm of agent] {Code Exec};
+\\node[tool] (t3) [below right=1.2cm and -0.2cm of agent] {API Call};
+\\node[tool] (t4) [below right=1.2cm and 1.5cm of agent] {Calculator};
+\\node[io] (output) [below=3.2cm of agent] {Response};
+
+\\draw[arrow] (input) -- (agent);
+\\draw[arrow] (agent) -- (t1);
+\\draw[arrow] (agent) -- (t2);
+\\draw[arrow] (agent) -- (t3);
+\\draw[arrow] (agent) -- (t4);
+\\draw[arrow, dashed, teal!50] (t1) -- (output);
+\\draw[arrow, dashed, teal!50] (t2) -- (output);
+\\draw[arrow, dashed, teal!50] (t3) -- (output);
+\\draw[arrow, dashed, teal!50] (t4) -- (output);`,
+  },
+  {
+    id: "rag-pipeline",
+    name: "RAGパイプライン",
+    description: "Retrieval-Augmented Generation のパイプライン図",
+    diagramType: "agent",
+    code: `[node distance=1.4cm, auto,
+  agent/.style={rectangle, rounded corners=4pt, draw=violet!60, fill=violet!15, thick, minimum width=2.4cm, minimum height=0.8cm, text centered, font=\\small\\bfseries},
+  data/.style={rectangle, rounded corners=4pt, draw=orange!60, fill=orange!15, thick, minimum width=2.4cm, minimum height=0.8cm, text centered, font=\\small},
+  io/.style={rectangle, rounded corners=4pt, draw=blue!50, fill=blue!15, thick, minimum width=2.4cm, minimum height=0.8cm, text centered, font=\\small},
+  db/.style={cylinder, draw=orange!60, fill=orange!15, thick, shape border rotate=90, aspect=0.25, minimum width=2cm, minimum height=1cm, text centered, font=\\small},
+  arrow/.style={thick, ->, >=stealth'}]
+
+\\node[io] (query) {Query};
+\\node[data] (embed) [below of=query] {Embedding};
+\\node[db] (vectordb) [below=1.2cm of embed] {Vector DB};
+\\node[data] (retrieve) [below=1.2cm of vectordb] {Retrieved Docs};
+\\node[data] (augment) [below of=retrieve] {Augmented Prompt};
+\\node[agent] (llm) [below of=augment] {LLM};
+\\node[io] (response) [below of=llm] {Response};
+
+\\draw[arrow] (query) -- (embed);
+\\draw[arrow] (embed) -- node[right, font=\\footnotesize]{検索} (vectordb);
+\\draw[arrow] (vectordb) -- node[right, font=\\footnotesize]{上位k件} (retrieve);
+\\draw[arrow] (retrieve) -- (augment);
+\\draw[arrow] (query.east) to[bend left=60] node[right, font=\\footnotesize]{元の質問} (augment.east);
+\\draw[arrow] (augment) -- (llm);
+\\draw[arrow] (llm) -- (response);`,
+  },
+  {
+    id: "multi-agent",
+    name: "マルチエージェント",
+    description: "Orchestrator + 複数Sub-agentの協調システム",
+    diagramType: "agent",
+    code: `[node distance=1.5cm, auto,
+  orch/.style={rectangle, rounded corners=4pt, draw=violet!70, fill=violet!20, thick, minimum width=3.5cm, minimum height=1cm, text centered, font=\\small\\bfseries},
+  agent/.style={rectangle, rounded corners=4pt, draw=violet!60, fill=violet!15, thick, minimum width=2.4cm, minimum height=0.8cm, text centered, font=\\small},
+  tool/.style={rectangle, rounded corners=4pt, draw=teal!60, fill=teal!15, thick, minimum width=2cm, minimum height=0.7cm, text centered, font=\\footnotesize},
+  arrow/.style={thick, ->, >=stealth'},
+  comm/.style={thick, <->, dashed, gray!60}]
+
+\\node[orch] (orch) {Orchestrator};
+\\node[agent] (a1) [below left=1.5cm and 2cm of orch] {Research Agent};
+\\node[agent] (a2) [below of=orch] {Coding Agent};
+\\node[agent] (a3) [below right=1.5cm and 2cm of orch] {Review Agent};
+\\node[tool] (t1) [below=0.8cm of a1] {Web Search};
+\\node[tool] (t2) [below=0.8cm of a2] {Code Exec};
+\\node[tool] (t3) [below=0.8cm of a3] {Linter};
+
+\\draw[arrow] (orch) -- node[left, font=\\footnotesize]{指示} (a1);
+\\draw[arrow] (orch) -- node[right, font=\\footnotesize]{指示} (a2);
+\\draw[arrow] (orch) -- node[right, font=\\footnotesize]{指示} (a3);
+\\draw[arrow] (a1) -- (t1);
+\\draw[arrow] (a2) -- (t2);
+\\draw[arrow] (a3) -- (t3);
+\\draw[comm] (a1.east) -- (a2.west);
+\\draw[comm] (a2.east) -- (a3.west);`,
+  },
+  {
+    id: "agent-loop",
+    name: "エージェントループ",
+    description: "Observe → Think → Plan → Act の循環ループ",
+    diagramType: "agent",
+    code: `[node distance=2.5cm, auto,
+  observe/.style={rectangle, rounded corners=4pt, draw=blue!50, fill=blue!15, thick, minimum width=2.5cm, minimum height=0.9cm, text centered, font=\\small\\bfseries},
+  think/.style={rectangle, rounded corners=4pt, draw=violet!60, fill=violet!15, thick, minimum width=2.5cm, minimum height=0.9cm, text centered, font=\\small\\bfseries},
+  plan/.style={rectangle, rounded corners=4pt, draw=orange!60, fill=orange!15, thick, minimum width=2.5cm, minimum height=0.9cm, text centered, font=\\small\\bfseries},
+  act/.style={rectangle, rounded corners=4pt, draw=teal!60, fill=teal!15, thick, minimum width=2.5cm, minimum height=0.9cm, text centered, font=\\small\\bfseries},
+  arrow/.style={thick, ->, >=stealth'}]
+
+\\node[observe] (obs) {Observe};
+\\node[think] (think) [right of=obs] {Think};
+\\node[plan] (plan) [below of=think] {Plan};
+\\node[act] (act) [below of=obs] {Act};
+
+\\node[font=\\footnotesize, gray] at (1.25,-1.25) {Agent Loop};
+
+\\draw[arrow] (obs) -- node[above, font=\\footnotesize]{入力解析} (think);
+\\draw[arrow] (think) -- node[right, font=\\footnotesize]{戦略策定} (plan);
+\\draw[arrow] (plan) -- node[below, font=\\footnotesize]{実行選択} (act);
+\\draw[arrow] (act) -- node[left, font=\\footnotesize]{環境観察} (obs);`,
+  },
+  {
+    id: "agentic-system",
+    name: "エージェントシステム全体",
+    description: "Memory + LLM Core + Tools + Planner の全体アーキテクチャ",
+    diagramType: "agent",
+    code: `[node distance=1.3cm, auto,
+  core/.style={rectangle, rounded corners=4pt, draw=violet!70, fill=violet!20, thick, minimum width=3.2cm, minimum height=1.2cm, text centered, font=\\small\\bfseries},
+  module/.style={rectangle, rounded corners=4pt, draw=violet!60, fill=violet!15, thick, minimum width=2.4cm, minimum height=0.8cm, text centered, font=\\small},
+  data/.style={rectangle, rounded corners=4pt, draw=orange!60, fill=orange!15, thick, minimum width=2.4cm, minimum height=0.8cm, text centered, font=\\small},
+  tool/.style={rectangle, rounded corners=4pt, draw=teal!60, fill=teal!15, thick, minimum width=2cm, minimum height=0.7cm, text centered, font=\\footnotesize},
+  io/.style={rectangle, rounded corners=4pt, draw=blue!50, fill=blue!15, thick, minimum width=2.5cm, minimum height=0.8cm, text centered, font=\\small},
+  arrow/.style={thick, ->, >=stealth'},
+  biarrow/.style={thick, <->, >=stealth'}]
+
+\\node[io] (input) {User Input};
+\\node[module] (planner) [below of=input] {Planner};
+\\node[core] (llm) [below=1cm of planner] {LLM Core};
+\\node[data] (memory) [left=1.8cm of llm] {Memory};
+\\node[data] (context) [below=0.6cm of memory] {Context};
+\\node[tool] (t1) [right=1.8cm of llm] {Search};
+\\node[tool] (t2) [below=0.4cm of t1] {Code Exec};
+\\node[tool] (t3) [below=0.4cm of t2] {API Call};
+\\node[module] (eval) [below=1cm of llm] {Evaluator};
+\\node[io] (output) [below of=eval] {Output};
+
+\\draw[arrow] (input) -- (planner);
+\\draw[arrow] (planner) -- (llm);
+\\draw[biarrow] (llm) -- node[above, font=\\footnotesize]{読み書き} (memory);
+\\draw[arrow] (context) -- (llm);
+\\draw[arrow] (llm) -- (t1);
+\\draw[arrow] (llm) -- (t2);
+\\draw[arrow] (llm) -- (t3);
+\\draw[arrow] (llm) -- (eval);
+\\draw[arrow] (eval) -- (output);
+\\draw[arrow, dashed, violet!50] (eval.west) to[bend right=40] node[left, font=\\footnotesize]{再試行} (llm.south west);`,
+  },
 ];
 
 // ──── Chemistry Presets ────

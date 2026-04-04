@@ -517,7 +517,7 @@ export function DiagramBlockEditor({ block }: { block: Block }) {
           <div className="flex items-center gap-2">
             <Select
               value={content.diagramType}
-              onValueChange={(v) => updateContent(block.id, { diagramType: v as "flowchart" | "sequence" | "block" | "state" | "tree" | "custom" })}
+              onValueChange={(v) => updateContent(block.id, { diagramType: v as "flowchart" | "sequence" | "block" | "state" | "tree" | "agent" | "custom" })}
             >
               <SelectTrigger className="h-8 text-xs w-36">
                 <SelectValue />
@@ -528,6 +528,7 @@ export function DiagramBlockEditor({ block }: { block: Block }) {
                 <SelectItem value="state">状態遷移図</SelectItem>
                 <SelectItem value="tree">ツリー図</SelectItem>
                 <SelectItem value="sequence">シーケンス図</SelectItem>
+                <SelectItem value="agent">AIエージェント</SelectItem>
                 <SelectItem value="custom">カスタム</SelectItem>
               </SelectContent>
             </Select>
@@ -555,7 +556,7 @@ export function DiagramBlockEditor({ block }: { block: Block }) {
                   accent="indigo"
                   onClick={() => updateContent(block.id, {
                     code: preset.code,
-                    diagramType: preset.diagramType as "flowchart" | "sequence" | "block" | "state" | "tree" | "custom",
+                    diagramType: preset.diagramType as "flowchart" | "sequence" | "block" | "state" | "tree" | "agent" | "custom",
                     preset: preset.id,
                   })}
                 />
