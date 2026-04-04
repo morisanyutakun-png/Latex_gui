@@ -510,7 +510,12 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
         lines.append("")
 
     # ──── Listings style (only if code blocks used) ────
-    block_types_used = {b.content.type for b in doc.blocks}
+    block_types_used = set()
+    for b in doc.blocks:
+        try:
+            block_types_used.add(b.content.type)
+        except (AttributeError, TypeError):
+            logger.warning("Block %s has invalid content (no type), skipping", getattr(b, 'id', '?'))
     if "code" in block_types_used:
         if active_preset and active_preset["style"]["styledCodeBlocks"]:
             # プリセットのカラーを使ったスタイリッシュなコードブロック
@@ -626,9 +631,18 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
 
     # ──── Blocks ────
     for block in doc.blocks:
-        latex = _render_block(block, active_preset)
-        if latex:
-            lines.append(latex)
+        try:
+            if not block.content or not hasattr(block.content, 'type'):
+                logger.warning("Skipping block %s: invalid content", getattr(block, 'id', '?'))
+                continue
+            latex = _render_block(block, active_preset)
+            if latex:
+                lines.append(latex)
+        except Exception as e:
+            logger.warning("Error rendering block %s (%s): %s",
+                          getattr(block, 'id', '?'),
+                          getattr(block.content, 'type', '?'), e)
+            lines.append(f"% ERROR: block rendering failed: {str(e)[:80]}")
             lines.append("")
 
     # 上級者モード: post_document フック

@@ -273,11 +273,13 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       } else if (op.op === "update_block") {
         blocks = blocks.map((b) => {
           if (b.id !== op.blockId) return b;
-          return {
+          const merged = {
             ...b,
             content: op.content ? { ...b.content, ...op.content } as BlockContent : b.content,
             style: op.style ? { ...b.style, ...op.style } : b.style,
           };
+          // normalizeAIBlock で必須フィールドの補完・型の保証を行う
+          return normalizeAIBlock(merged);
         });
       } else if (op.op === "delete_block") {
         blocks = blocks.filter((b) => b.id !== op.blockId);

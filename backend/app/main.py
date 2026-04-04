@@ -278,6 +278,12 @@ async def preview_latex(doc: DocumentModel):
             "success": False,
             "message": e.user_message,
         })
+    except Exception as e:
+        logger.error("LaTeX preview error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail={
+            "success": False,
+            "message": f"LaTeX生成中にエラーが発生しました: {str(e)[:200]}",
+        })
 
 
 from pydantic import BaseModel as _BM

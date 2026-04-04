@@ -82,7 +82,9 @@ export async function previewLatex(doc: DocumentModel): Promise<string> {
     body: JSON.stringify(doc),
   });
   if (!res.ok) {
-    throw new Error("LaTeXプレビューの取得に失敗しました");
+    const err = await res.json().catch(() => ({}));
+    const detail = (err as { detail?: { message?: string } })?.detail;
+    throw new Error(detail?.message ?? "LaTeXプレビューの取得に失敗しました");
   }
   const data = await res.json();
   return data.latex;

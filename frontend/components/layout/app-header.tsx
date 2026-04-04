@@ -103,17 +103,22 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
     input.click();
   };
 
+  // PDF保存ダイアログ（ファイル名入力）
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [pdfFilename, setPdfFilename] = useState("");
+
   const handleGeneratePDF = async () => {
     setGenerating(true);
     try {
       const blob = await generatePDF(doc);
-      const filename = `${doc.metadata.title || "document"}.pdf`;
+      const defaultName = `${doc.metadata.title || "document"}.pdf`;
 
-      // File System Access API が使えるなら保存ダイアログを表示
+      // File System Access API が使えるなら OS のSave Asダイアログ
       if ("showSaveFilePicker" in window) {
         try {
           const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
-            suggestedName: filename,
+            suggestedName: defaultName,
             types: [{
               description: "PDF Document",
               accept: { "application/pdf": [".pdf"] },
@@ -125,22 +130,15 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
           toast.success(t("toast.pdf.done"));
           return;
         } catch (e) {
-          // ユーザーがキャンセルした場合は何もしない
           if (e instanceof DOMException && e.name === "AbortError") return;
-          // showSaveFilePicker が失敗した場合はフォールバック
+          // showSaveFilePicker が失敗 → アプリ内ダイアログにフォールバック
         }
       }
 
-      // フォールバック: 従来のダウンロード方式
-      const url = URL.createObjectURL(blob);
-      const a = window.document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      window.document.body.appendChild(a);
-      a.click();
-      window.document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(t("toast.pdf.done"));
+      // フォールバック: アプリ内でファイル名入力ダイアログを表示
+      setPdfBlob(blob);
+      setPdfFilename(defaultName);
+      setShowSaveDialog(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "不明なエラー";
       if (message.includes("接続できません") || message.includes("起動中")) {
@@ -151,6 +149,21 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleSavePDF = () => {
+    if (!pdfBlob) return;
+    const url = URL.createObjectURL(pdfBlob);
+    const a = window.document.createElement("a");
+    a.href = url;
+    a.download = pdfFilename || "document.pdf";
+    window.document.body.appendChild(a);
+    a.click();
+    window.document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setPdfBlob(null);
+    setShowSaveDialog(false);
+    toast.success(t("toast.pdf.done"));
   };
 
   return (
@@ -276,6 +289,42 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       </button>
 
       <DocumentOutline />
+
+      {/* PDF Save As ダイアログ（showSaveFilePicker 非対応ブラウザ用） */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={() => { setShowSaveDialog(false); setPdfBlob(null); }}>
+          <div
+            className="bg-background rounded-xl shadow-2xl border p-5 w-[360px] space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold">{isJa ? "PDFを保存" : "Save PDF"}</h3>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">{isJa ? "ファイル名" : "Filename"}</label>
+              <input
+                value={pdfFilename}
+                onChange={(e) => setPdfFilename(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSavePDF(); }}
+                className="w-full h-9 px-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowSaveDialog(false); setPdfBlob(null); }}
+                className="px-3 py-1.5 text-xs rounded-lg border hover:bg-muted transition-colors"
+              >
+                {isJa ? "キャンセル" : "Cancel"}
+              </button>
+              <button
+                onClick={handleSavePDF}
+                className="px-4 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium"
+              >
+                {isJa ? "保存" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
