@@ -11,6 +11,15 @@ import { DocumentModel, BatchRequest, ChatMessage, DocumentPatch } from "./types
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
+/**
+ * AI専用バックエンドURL
+ *
+ * Vercel無料プランは60秒でタイムアウトするため、
+ * AIストリーミングはVercelプロキシを経由せず直接バックエンドに接続する。
+ * NEXT_PUBLIC_BACKEND_URL を設定すればプロキシをバイパスする。
+ */
+const AI_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+
 export async function generatePDF(doc: DocumentModel): Promise<Blob> {
   // 最大2回試行 (初回がコールドスタートタイムアウトの場合にリトライ)
   const maxAttempts = 2;
@@ -178,7 +187,11 @@ export async function sendAIMessage(
   messages: Pick<ChatMessage, "role" | "content">[],
   doc: DocumentModel,
 ): Promise<AIChatResponse> {
-  const res = await fetch(`${API_BASE}/api/ai/chat`, {
+  // バックエンドURLが設定されていればVercelプロキシをバイパス
+  const url = AI_BACKEND_URL
+    ? `${AI_BACKEND_URL}/api/ai/chat`
+    : `${API_BASE}/api/ai/chat`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, document: doc, requestPatches: true }),
@@ -217,7 +230,11 @@ export async function streamAIMessage(
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/ai/chat/stream`, {
+  // バックエンドURLが設定されていればVercelプロキシをバイパス（60秒制限回避）
+  const url = AI_BACKEND_URL
+    ? `${AI_BACKEND_URL}/api/ai/chat/stream`
+    : `${API_BASE}/api/ai/chat/stream`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, document: doc, requestPatches: true }),
