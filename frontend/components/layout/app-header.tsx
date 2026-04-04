@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { generatePDF } from "@/lib/api";
+import { generatePDF, analyzeImageOMR } from "@/lib/api";
 import { saveToLocalStorage, downloadAsJSON, loadFromJSONFile } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
@@ -21,6 +21,7 @@ import {
   Sparkles,
   Bot,
   Printer,
+  ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
@@ -62,6 +63,8 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
   const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
   const { isGenerating, setGenerating, lastAIAction, toggleOutline, isOutlineOpen, isChatLoading } = useUIStore();
   const [indicatorVisible, setIndicatorVisible] = useState(false);
+  const [isOMRProcessing, setOMRProcessing] = useState(false);
+  const omrFileRef = useRef<HTMLInputElement>(null);
 
   const isJa = locale !== "en";
 
@@ -100,6 +103,66 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       }
     };
     input.click();
+  };
+
+  const handleOMRFromToolbar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !doc) return;
+    e.target.value = "";
+
+    setOMRProcessing(true);
+    try {
+      const result = await analyzeImageOMR(file, doc);
+      if (result.patches && result.patches.ops && result.patches.ops.length > 0) {
+        useDocumentStore.getState().applyPatch(result.patches);
+        toast.success(isJa
+          ? `${result.patches.ops.length}件のブロックを追加しました`
+          : `Added ${result.patches.ops.length} blocks`);
+
+        // 最新ドキュメントで自動PDF生成
+        const updatedDoc = useDocumentStore.getState().document;
+        if (updatedDoc) {
+          setGenerating(true);
+          try {
+            const blob = await generatePDF(updatedDoc);
+            const defaultName = `${updatedDoc.metadata.title || "document"}.pdf`;
+            if ("showSaveFilePicker" in window) {
+              try {
+                const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+                  suggestedName: defaultName,
+                  types: [{ description: "PDF Document", accept: { "application/pdf": [".pdf"] } }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                toast.success(t("toast.pdf.done"));
+              } catch (saveErr) {
+                if (saveErr instanceof DOMException && saveErr.name === "AbortError") return;
+                setPdfBlob(blob);
+                setPdfFilename(defaultName);
+                setShowSaveDialog(true);
+              }
+            } else {
+              setPdfBlob(blob);
+              setPdfFilename(defaultName);
+              setShowSaveDialog(true);
+            }
+          } catch (pdfErr: unknown) {
+            const message = pdfErr instanceof Error ? pdfErr.message : "PDF生成エラー";
+            toast.error(`PDF生成失敗: ${message}`, { duration: 8000 });
+          } finally {
+            setGenerating(false);
+          }
+        }
+      } else {
+        toast.info(isJa ? "ブロックを抽出できませんでした" : "No blocks extracted");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "OMR解析エラー";
+      toast.error(msg, { duration: 8000 });
+    } finally {
+      setOMRProcessing(false);
+    }
   };
 
   // PDF保存ダイアログ（ファイル名入力）
@@ -259,6 +322,17 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       </div>
 
       <div className="w-px h-4 bg-foreground/[0.06] mx-1 shrink-0" />
+
+      {/* OMR — 画像→LaTeX変換 */}
+      <input ref={omrFileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleOMRFromToolbar} />
+      <button
+        onClick={() => omrFileRef.current?.click()}
+        disabled={isOMRProcessing || isGenerating}
+        className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 disabled:opacity-30 transition-colors"
+        title={isJa ? "画像から読み取り (OMR)" : "Scan image (OMR)"}
+      >
+        {isOMRProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanLine className="h-3.5 w-3.5" />}
+      </button>
 
       <button
         onClick={toggleOutline}

@@ -500,6 +500,9 @@ export function AIChatPanel() {
       const { analyzeImageOMR } = await import("@/lib/api");
       const result = await analyzeImageOMR(file, document);
       incrementUsage();
+      if (result.patches) {
+        autoApplyPatches(result.patches);
+      }
       addChatMessage({
         id: crypto.randomUUID(),
         role: "assistant",
