@@ -261,10 +261,10 @@ def _extract_json_patches(text: str) -> dict | None:
                 if normalized:
                     return {"ops": normalized}
 
-        # 簡略配列形式: [{type, text, afterId, blockId}, ...] or [{op/tool_code, ...}]
+        # 簡略配列形式: [{type, text, afterId, blockId}, ...] or [{op/tool_code/operation, ...}]
         if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
             first = data[0]
-            if any(k in first for k in ("type", "op", "tool_code")):
+            if any(k in first for k in ("type", "op", "tool_code", "operation")):
                 ops = _normalize_flat_blocks(data)
                 if ops:
                     return {"ops": ops}
@@ -297,10 +297,18 @@ def _normalize_block_structure(block: dict) -> dict:
         "textAlign": "left", "fontSize": 12, "fontFamily": "serif",
         "bold": False, "italic": False, "underline": False,
     }
+    block_id = block.get("id") or f"ai-{os.urandom(4).hex()}"
+    raw_style = block.get("style")
+
+    # style が文字列の場合 (divider の "solid" 等) → content に含める
+    if isinstance(raw_style, str):
+        meta_keys = {"id"}
+        content = {k: v for k, v in block.items() if k not in meta_keys}
+        return {"id": block_id, "content": content, "style": DEFAULT_STYLE.copy()}
+
     meta_keys = {"id", "style"}
     content = {k: v for k, v in block.items() if k not in meta_keys}
-    style = block.get("style", DEFAULT_STYLE.copy())
-    block_id = block.get("id") or f"ai-{os.urandom(4).hex()}"
+    style = raw_style if isinstance(raw_style, dict) else DEFAULT_STYLE.copy()
 
     return {"id": block_id, "content": content, "style": style}
 
@@ -323,8 +331,8 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
     }
     ops = []
     for blk in blocks:
-        # op, tool_code, または type がオペレーション名の場合を統合
-        op_type = blk.get("op") or blk.get("tool_code")
+        # op, tool_code, operation, または type がオペレーション名の場合を統合
+        op_type = blk.get("op") or blk.get("tool_code") or blk.get("operation")
         if not op_type and blk.get("type") in OP_TYPES:
             op_type = blk["type"]
 
@@ -333,6 +341,7 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
             normalized = dict(blk)
             normalized["op"] = op_type
             normalized.pop("tool_code", None)
+            normalized.pop("operation", None)
 
             if op_type == "update_design":
                 ops.append({"op": "update_design", "paperDesign": normalized.get("paperDesign", {})})
