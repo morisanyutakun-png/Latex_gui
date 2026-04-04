@@ -15,7 +15,7 @@ import {
   Bold, Italic, Underline,
   AlignLeft, AlignCenter, AlignRight,
   Sigma, List as ListIcon, ListOrdered, Command,
-  PenLine,
+  PenLine, Sparkles,
 } from "lucide-react";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
@@ -193,6 +193,28 @@ export function EditToolbar() {
           </div>
         </div>
       </div>
+
+      {/* 類題を生成 */}
+      {on && (
+        <>
+          <Sep />
+          <button
+            onClick={() => {
+              if (!block) return;
+              const c = block.content as any;
+              const text = c.text ?? c.formula ?? c.items?.join("\n") ?? c.code ?? "";
+              if (!text) return;
+              const prompt = `以下の問題の類題を3問作成し、元の問題の直後に追加してください。\n\n【元の問題】\n${text}`;
+              useUIStore.getState().setPendingChatMessage(prompt);
+            }}
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium text-violet-500 dark:text-violet-400 bg-violet-500/10 border border-violet-300/30 dark:border-violet-700/30 hover:bg-violet-500/20 transition-colors shrink-0"
+            title="類題を生成"
+          >
+            <Sparkles className="h-3 w-3" />
+            <span>類題</span>
+          </button>
+        </>
+      )}
 
       <div className="flex-1" />
 

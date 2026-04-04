@@ -544,6 +544,43 @@ export interface ChatMessage {
   isStreaming?: boolean;             // ストリーミング中フラグ
 }
 
+// ──── Scoring (OMR採点) ────
+
+export interface AnswerKeyItem {
+  questionId: string;
+  correctAnswer: string;
+  points: number;
+  answerType: "choice" | "numeric" | "text";
+}
+
+export interface AnswerKey {
+  title: string;
+  items: AnswerKeyItem[];
+  totalPoints: number;
+}
+
+export interface StudentAnswer {
+  questionId: string;
+  answer: string;
+  confidence: number;
+}
+
+export interface ScoreResultItem {
+  questionId: string;
+  studentAnswer: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+  pointsEarned: number;
+  pointsPossible: number;
+}
+
+export interface ScoreResult {
+  totalScore: number;
+  totalPossible: number;
+  percentage: number;
+  items: ScoreResultItem[];
+}
+
 export function createDefaultDocument(template: string, blocks: Block[]): DocumentModel {
   return {
     template,

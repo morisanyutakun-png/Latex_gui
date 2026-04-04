@@ -10,6 +10,7 @@ import { PricingModal } from "@/components/pricing-modal";
 import { LaTeXSourceViewer } from "@/components/editor/latex-source-viewer";
 import { EditGuidePanel } from "@/components/editor/edit-guide-panel";
 import { MathReferencePanel } from "@/components/editor/math-reference-panel";
+import { ScoringPanel } from "@/components/editor/scoring-panel";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -18,10 +19,10 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Terminal, Bot, FileCode2, Globe, FileText, X, BookOpen, Sigma } from "lucide-react";
+import { Terminal, Sparkles, FileCode2, Globe, FileText, X, BookOpen, Sigma, ClipboardCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
-type SidebarTab = "ai" | "advanced" | "latex" | "guide" | "math";
+type SidebarTab = "ai" | "advanced" | "latex" | "guide" | "math" | "scoring";
 
 export default function EditorPage() {
   useKeyboardShortcuts();
@@ -126,6 +127,7 @@ export default function EditorPage() {
     latex:    { label: isJa ? "LaTeXソース"    : "LaTeX Source",     bg: "bg-muted/10",                           textColor: "text-muted-foreground/50",    indicator: "" },
     guide:    { label: isJa ? "編集ガイド"      : "Editing Guide",    bg: "bg-sky-950/8 dark:bg-sky-950/15",       textColor: "text-sky-400/80",             indicator: "bg-gradient-to-b from-sky-500/60 to-sky-400/20" },
     math:     { label: isJa ? "数式入力ガイド"  : "Math Reference",   bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/80",         indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
+    scoring:  { label: isJa ? "採点"            : "Scoring",          bg: "bg-emerald-950/8 dark:bg-emerald-950/15", textColor: "text-emerald-400/80",       indicator: "bg-gradient-to-b from-emerald-500/60 to-emerald-400/20" },
   };
 
   /* ══════════════════════════════════════════════
@@ -182,7 +184,7 @@ export default function EditorPage() {
                     : "text-muted-foreground/50"
                 }`}
               >
-                {tab === "ai" ? <Bot className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                {tab === "ai" ? <Sparkles className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
                 <span>{tab === "ai" ? t("mobile.tab.ai") : t("mobile.tab.preview")}</span>
               </button>
             );
@@ -254,13 +256,14 @@ export default function EditorPage() {
                 )}
                 {/* Panel body */}
                 <div className={`flex-1 min-h-0 animate-slide-in-right ${
-                  activeTab === "ai" || activeTab === "latex" ? "overflow-hidden flex flex-col" : "overflow-y-auto"
+                  activeTab === "ai" || activeTab === "latex" || activeTab === "scoring" ? "overflow-hidden flex flex-col" : "overflow-y-auto"
                 }`} key={activeTab}>
                   {activeTab === "ai"       && <AIChatPanel />}
                   {activeTab === "advanced" && <AdvancedModePanel />}
                   {activeTab === "latex"    && <LaTeXSourceViewer />}
                   {activeTab === "guide"    && <EditGuidePanel context={activeGuideContext} />}
                   {activeTab === "math"     && <MathReferencePanel />}
+                  {activeTab === "scoring"  && <ScoringPanel />}
                 </div>
               </div>
             )}
@@ -269,12 +272,14 @@ export default function EditorPage() {
           {/* Activity bar — right edge */}
           <div className="w-11 flex flex-col items-center pt-1 pb-1 border-l border-foreground/[0.04] bg-background/50 dark:bg-surface-0/60 shrink-0">
           {/* AI アシスタント */}
-          {(["ai", "latex"] as SidebarTab[]).map((tab) => {
-            const Icon = tab === "ai" ? Bot : FileCode2;
-            const color = tab === "ai" ? "text-indigo-500 dark:text-indigo-400" : "text-slate-400";
-            const ind   = tab === "ai" ? "bg-indigo-500" : "bg-slate-400";
+          {(["ai", "latex", "scoring"] as SidebarTab[]).map((tab) => {
+            const Icon = tab === "ai" ? Sparkles : tab === "scoring" ? ClipboardCheck : FileCode2;
+            const color = tab === "ai" ? "text-indigo-500 dark:text-indigo-400" : tab === "scoring" ? "text-emerald-500 dark:text-emerald-400" : "text-slate-400";
+            const ind   = tab === "ai" ? "bg-indigo-500" : tab === "scoring" ? "bg-emerald-500" : "bg-slate-400";
             const label = tab === "ai"
               ? (isJa ? "AIアシスタント" : "AI Assistant")
+              : tab === "scoring"
+              ? (isJa ? "採点" : "Scoring")
               : (isJa ? "LaTeXソース" : "LaTeX Source");
             const isActive = sidebarOpen && activeTab === tab;
             return (

@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { generatePDF, analyzeImageOMR } from "@/lib/api";
-import { saveToLocalStorage, downloadAsJSON, loadFromJSONFile } from "@/lib/storage";
+import { saveToLocalStorage, downloadAsJSON } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
-  FileUp,
   Save,
   Undo2,
   Redo2,
@@ -19,7 +18,6 @@ import {
   RefreshCw,
   Trash2 as Trash2Icon,
   Sparkles,
-  Bot,
   Printer,
   ScanLine,
 } from "lucide-react";
@@ -65,6 +63,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
   const [indicatorVisible, setIndicatorVisible] = useState(false);
   const [isOMRProcessing, setOMRProcessing] = useState(false);
   const omrFileRef = useRef<HTMLInputElement>(null);
+  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
   const isJa = locale !== "en";
 
@@ -77,8 +76,45 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
   if (!doc) return null;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     saveToLocalStorage(doc);
+    const jsonStr = JSON.stringify(doc, null, 2);
+    const defaultName = `${doc.metadata.title || "document"}.json`;
+
+    // If we already have a file handle, overwrite silently
+    if (fileHandleRef.current) {
+      try {
+        const writable = await fileHandleRef.current.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        toast.success(t("toast.saved"));
+        return;
+      } catch {
+        // Handle lost, fall through to picker
+        fileHandleRef.current = null;
+      }
+    }
+
+    // Try File System Access API for native save dialog
+    if ("showSaveFilePicker" in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: defaultName,
+          types: [{ description: "JSON Document", accept: { "application/json": [".json"] } }],
+        });
+        fileHandleRef.current = handle;
+        const writable = await handle.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        toast.success(t("toast.saved"));
+        return;
+      } catch (e: any) {
+        if (e?.name === "AbortError") return;
+      }
+    }
+
+    // Fallback: download
+    downloadAsJSON(doc, defaultName);
     toast.success(t("toast.saved"));
   };
 
@@ -87,23 +123,6 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
     toast.success(t("toast.exported"));
   };
 
-  const handleImportJSON = () => {
-    const input = window.document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      try {
-        const loaded = await loadFromJSONFile(file);
-        useDocumentStore.getState().setDocument(loaded);
-        toast.success(t("toast.imported"));
-      } catch {
-        toast.error(t("toast.import.fail"));
-      }
-    };
-    input.click();
-  };
 
   const handleOMRFromToolbar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -284,7 +303,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       <div className="flex-1 flex items-center justify-center min-w-0 px-2">
         {isAIActive && isChatLoading ? (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-violet-500/12 to-indigo-500/12 text-violet-500 dark:text-violet-300 text-xs font-medium animate-pulse border border-violet-500/10 shadow-sm">
-            <Bot className="h-3.5 w-3.5 shrink-0" />
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
             <span>{isJa ? "AIが考え中…" : "AI thinking…"}</span>
           </div>
         ) : lastAIAction && indicatorVisible ? (
@@ -311,13 +330,6 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
           title={isJa ? "JSON書き出し" : "Export JSON"}
         >
           <FileDown className="h-4 w-4" />
-        </button>
-        <button
-          onClick={handleImportJSON}
-          className="btn-icon h-8 w-8"
-          title={isJa ? "ファイルを開く" : "Open file"}
-        >
-          <FileUp className="h-4 w-4" />
         </button>
       </div>
 

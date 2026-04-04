@@ -95,6 +95,16 @@ export function AIChatPanel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, isChatLoading, liveSteps]);
 
+  // Watch for programmatic messages (e.g. 類題作成)
+  const pendingChatMessage = useUIStore((s) => s.pendingChatMessage);
+  useEffect(() => {
+    if (pendingChatMessage && !isChatLoading) {
+      useUIStore.getState().setPendingChatMessage(null);
+      handleSend(pendingChatMessage);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingChatMessage, isChatLoading]);
+
   const handleFeedback = (msgId: string, feedback: "good" | "bad") => {
     const existing = chatMessages.find((m) => m.id === msgId);
     const newFeedback = existing?.feedback === feedback ? null : feedback;
@@ -132,8 +142,8 @@ export function AIChatPanel() {
     }
   }, [applyPatch, setLastAIAction]);
 
-  const handleSend = async () => {
-    const text = input.trim();
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
     if (!text || isChatLoading || !document) return;
 
     const limitCheck = canMakeRequest();

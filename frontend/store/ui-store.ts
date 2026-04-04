@@ -36,6 +36,9 @@ interface UIState {
   isChatLoading: boolean;
   streamingMessageId: string | null;
 
+  // Programmatic chat message (e.g. from 類題作成)
+  pendingChatMessage: string | null;
+
   selectBlock: (id: string | null) => void;
   setEditingBlock: (id: string | null) => void;
   setMathEditing: (v: boolean) => void;
@@ -61,6 +64,7 @@ interface UIState {
   clearChat: () => void;
   updateStreamingContent: (id: string, content: string) => void;
   setStreamingComplete: (id: string) => void;
+  setPendingChatMessage: (msg: string | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -79,6 +83,7 @@ export const useUIStore = create<UIState>((set) => ({
   pendingPatch: null,
   isChatLoading: false,
   streamingMessageId: null,
+  pendingChatMessage: null,
 
   selectBlock: (id) => set(
     id === null
@@ -117,4 +122,5 @@ export const useUIStore = create<UIState>((set) => ({
     ),
     streamingMessageId: null,
   })),
+  setPendingChatMessage: (msg) => set({ pendingChatMessage: msg }),
 }));

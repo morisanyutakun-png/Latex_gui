@@ -404,3 +404,20 @@ export async function getAllowedPackages(): Promise<{
   const data = await res.json();
   return { packages: data.packages, tikzLibraries: data.tikz_libraries };
 }
+
+// ═══ 採点 API ═══
+
+import type { AnswerKey, StudentAnswer, ScoreResult } from "./types";
+
+export async function scoreAnswers(
+  answerKey: AnswerKey,
+  studentAnswers: StudentAnswer[],
+): Promise<ScoreResult> {
+  const res = await fetch(`${API_BASE}/api/scoring/score`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answerKey, studentAnswers }),
+  });
+  if (!res.ok) throw new Error("採点に失敗しました");
+  return res.json();
+}

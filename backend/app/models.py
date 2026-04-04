@@ -243,3 +243,51 @@ class ErrorResponse(BaseModel):
     success: bool = False
     message: str
     detail: Optional[str] = None
+
+
+# --------------- Scoring (OMR採点) ---------------
+
+class AnswerKeyItem(CamelModel):
+    """解答キーの1問"""
+    question_id: str
+    correct_answer: str
+    points: int = 1
+    answer_type: Literal["choice", "numeric", "text"] = "choice"
+
+
+class AnswerKey(CamelModel):
+    """解答キー全体"""
+    title: str = ""
+    items: list[AnswerKeyItem] = Field(default_factory=list)
+    total_points: int = 0
+
+
+class StudentAnswer(CamelModel):
+    """生徒の回答1問"""
+    question_id: str
+    answer: str
+    confidence: float = 1.0
+
+
+class ScoreResultItem(CamelModel):
+    """採点結果の1問"""
+    question_id: str
+    student_answer: str
+    correct_answer: str
+    is_correct: bool
+    points_earned: int
+    points_possible: int
+
+
+class ScoreResult(CamelModel):
+    """採点結果全体"""
+    total_score: int
+    total_possible: int
+    percentage: float
+    items: list[ScoreResultItem] = Field(default_factory=list)
+
+
+class ScoreRequest(CamelModel):
+    """採点リクエスト"""
+    answer_key: AnswerKey
+    student_answers: list[StudentAnswer] = Field(default_factory=list)

@@ -655,3 +655,15 @@ async def omr_analyze_endpoint(
             status_code=500,
             detail={"message": "画像解析中にエラーが発生しました。"},
         )
+
+
+# ─────────────── Scoring (採点) ───────────────
+
+from app.models import ScoreRequest, ScoreResult
+from app.scoring_service import score_answers
+
+
+@app.post("/api/scoring/score", response_model=ScoreResult)
+async def scoring_score(req: ScoreRequest):
+    """解答キーと生徒の回答を比較して採点する"""
+    return score_answers(req.answer_key, req.student_answers)
