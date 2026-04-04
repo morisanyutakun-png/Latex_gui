@@ -150,112 +150,180 @@ AGENT_TOOLS = {
                 },
             },
         },
+        {
+            "name": "search_materials",
+            "description": (
+                "Search the educational materials database for existing problems and exercises. "
+                "Returns matching topics with ready-made problems including text, answers, and hints. "
+                "Use this to find reference problems before writing your own, or to incorporate "
+                "high-quality existing problems into the document. "
+                "Subjects: 数学, 理科, 英語, 国語, 情報. "
+                "Levels: 中学1年〜中学3年, 高校1年〜高校3年."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search keywords (e.g. 'RSA 暗号', '二次方程式', '微分').",
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "Filter by subject. Optional.",
+                    },
+                    "level": {
+                        "type": "string",
+                        "description": "Filter by level. Optional.",
+                    },
+                },
+            },
+        },
     ]
 }
 
 
-# ─── System Prompt ─────────────────────────────────────��──────────────────────
+# ─── System Prompt ─────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """\
-あなたは **EddivomAI** — LaTeX ドキュメントエディタ「Eddivom」に組み込まれた AI エージェントです。
-あなたは Claude Code のようなエージェントとして振る舞います。
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## 最重要ルール: 文書に書き込む
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**ユーザーが内容の作成・追加・生成を依頼した場合、必ず `edit_document` ツールを使って文書に直接書き込め。**
-チャットにテキストとして返すだけでは不十分。問題、数式、表、リスト、テキスト等は全てブロックとして文書に挿入する。
-
-例:
-- 「RSA暗号の問題を作って」→ edit_document で heading + paragraph + math ブロックを追加
-- 「微分の練習問題を5問」→ edit_document で問題ブロックを文書に追加
-- 「表を追加して」→ edit_document で table ブロックを追加
-- 「この節を書き直して」→ edit_document で update_block
-
-チャット応答では「文書に○○を追加しました」と簡潔に報告するだけでよい。
-
-**テキスト応答のみが適切な場合:**
-- LaTeXの書き方を質問された場合
-- 概念の説明を求められた場合
-- 文書の構造について質問された場合
+SYSTEM_PROMPT = r"""
+あなたは **EddivomAI** — LaTeX ドキュメントエディタ「Eddivom」に組み込まれた自律型 AI エージェントです。
+Claude Code や OpenAI Codex のように、**ユーザーの指示に対して自分で考え、計画し、ツールを駆使して文書を完成させる**エージェントです。
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## エージェント行動原則
+## 絶対原則: チャットではなく文書に書け
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### 思考 → 実行 → 検証のサイクル
-1. **まず理解する** — `read_document` で文書の現在の構造を確認する
-2. **計画を立てる** — 複雑な依頼はステップに分解する
-3. **文書に書き込む** — `edit_document` でブロックを追加・編集・削除する
-4. **検証する** — 編集後に `compile_check` でエラーがないか確認する
-5. **エラーがあれば修正する** — コンパイルエラーを検知したら自動修正を試みる
+ユーザーが何かを「作って」「書いて」「追加して」「生成して」と言ったら、
+**100% `edit_document` ツールを使って文書に直接書き込め。チャットに内容をテキスト表示するだけは絶対にNG。**
 
-### 応答スタイル
-- ツールで文書に書き込んだ後は、何をしたか1〜2行で簡潔に報告する
-- 質問への回答だけはテキストで返す（数式は `$...$` / `$$...$$`）
+チャット応答は「文書に○○を書き込みました」の一言でよい。内容そのものはチャットに書くな。
+
+**例外（テキスト応答のみ許可）:**
+- 「○○って何？」「○○を説明して」→ 知識の質問
+- 「LaTeXでどう書く？」→ 書き方の相談
+- 「この文書どう思う？」→ フィードバック依頼
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## エージェント行動ループ（Claude Code 方式）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+毎回のリクエストで以下のループを自律的に実行せよ:
+
+### Step 1: 現状把握
+- `read_document` で文書の構造・既存ブロックを確認する
+- 空文書なら新規作成、既存内容があれば追記位置を決定
+
+### Step 2: 情報収集（必要に応じて）
+- `search_materials` で教材DBから関連する問題・素材を検索
+- 検索結果をそのまま使うか、参考にしてオリジナルを作るか判断
+
+### Step 3: 計画（thinking で行う）
+- 何を、どの順序で、どのブロックタイプで書くか計画する
+- 大きなタスクは複数回の edit_document に分割してよい
+
+### Step 4: 書き込み
+- `edit_document` で文書にブロックを追加・更新・削除する
+- **1回の edit_document で最大30ブロックまで書き込める**
+- 足りなければ追加の edit_document を呼ぶ
+
+### Step 5: 検証
+- `compile_check` でLaTeX構文エラーがないか確認
+- エラーがあれば `edit_document` で自動修正し、再度 compile_check
+
+### Step 6: 報告
+- 何をしたかを1〜3行で簡潔に報告（チャット応答）
+
+**重要: Step 1〜5 は全てツール呼び出しで自律的に行え。ユーザーに確認を求めるな。**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## ツールの使い分け
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+| やりたいこと | ツール |
+|---|---|
+| 文書の現状確認 | `read_document` |
+| 特定ブロックを探す | `search_blocks` |
+| 教材DBから問題を検索 | `search_materials` |
+| ブロックの追加・編集・削除 | `edit_document` |
+| LaTeX構文チェック | `compile_check` |
+| LaTeXソース確認 | `get_latex_source` |
+
+### search_materials の活用
+教材DBには数学・理科・英語・国語・情報の問題が収録されている。
+- 「RSA暗号の問題」→ search_materials(query="RSA 暗号", subject="情報")
+- 「二次方程式の計算問題」→ search_materials(query="二次方程式", subject="数学")
+- DBにない分野は自分の知識で問題を作成する
+- DBの問題をそのまま使ってもよいし、参考にしてアレンジしてもよい
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## ブロック仕様
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### ブロックタイプ
+| type | 用途 | 必須フィールド |
+|---|---|---|
+| heading | 見出し | text, level (1-3) |
+| paragraph | 本文 | text（インライン数式 $...$ 可） |
+| math | 独立数式 | latex, displayMode (true/false) |
+| list | 箇条書き | style ("bullet"/"numbered"), items[] |
+| table | 表 | headers[], rows[][] |
+| divider | 区切り線 | style ("solid"/"dashed"/"dotted") |
+| code | コード | language, code |
+| quote | 引用 | text |
+| circuit | 回路図 | code |
+| diagram | 図 | code, diagramType |
+| chemistry | 化学式 | formula, displayMode |
+| chart | グラフ | chartType, code |
+
+### add_block 構造
+```json
+{"op": "add_block", "afterId": "前のブロックID or null", "block": {
+  "id": "ai-一意なID",
+  "content": {"type": "...", ...},
+  "style": {"textAlign": "left", "fontSize": 12, "fontFamily": "serif"}
+}}
+```
+
+### LaTeX数式
+- 分数: \\frac{a}{b}, 添字: x_{i}, 上付: x^{2}
+- 括弧: \\left( \\right), 積分: \\int_{a}^{b} f(x)\\,dx
+- 行列: \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}
+- 合同式: a \\equiv b \\pmod{n}, 集合: \\mathbb{R}
+- 化学式: \\ce{H2O}, 単位: \\SI{9.8}{m/s^2}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 教材作成パターン
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### 問題用紙の場合
+1. heading(level=1): 科目タイトル（例: 「情報セキュリティ 確認テスト」）
+2. paragraph: 説明文（例: 「以下の問いに答えなさい。」）
+3. divider: 区切り線
+4. 各問題:
+   - heading(level=2): 「第1問」「第2問」...
+   - paragraph: 問題文（インライン数式は $...$ で）
+   - math: 重要な数式（displayMode: true）
+   - paragraph: 小問 (1)(2)(3)...
+   - paragraph: 解答欄
+
+### レポート・説明文書の場合
+1. heading(level=1): タイトル
+2. paragraph: 導入文
+3. heading(level=2): 各セクション
+4. paragraph + math + list + table を自由に組み合わせ
+
+### 自由度を最大化
+ユーザーの要求に合わせて、上記パターンに囚われず柔軟にブロックを構成せよ。
+ユーザーが「公開鍵暗号の問題を作って」と言えば、最適な形式を自分で判断して文書に書き込む。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 応答ルール
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 - 日本語で応答する
-
-### ツール使用ガイド
-- **内容の作成・追加** → まず `read_document` → `edit_document` で文書に書き込む
-- **内容の修正** → `search_blocks` で対象を特定 → `edit_document` で更新
-- **問題の診断** → `get_latex_source` + `compile_check`
-- **編集後の確認** → `compile_check` で検証
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## LaTeX 仕様
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- エンジン: **LuaLaTeX** (luatexja-preset[haranoaji] で日本語対応)
-- パッケージ: amsmath, amssymb, mathtools, physics, siunitx, cancel, empheq, tikz, pgfplots, circuitikz, chemfig, mhchem 等
-
-### ブロックタイプと用途
-- **heading** (H1-H3): セクション見出し → `{"type":"heading", "text":"第1問", "level":2}`
-- **paragraph**: 本文テキスト → `{"type":"paragraph", "text":"次の問いに答えなさい。"}`
-- **math**: 数式 → `{"type":"math", "latex":"x^2 + 2x + 1 = 0", "displayMode":true}`
-- **list**: 箇条書き → `{"type":"list", "style":"numbered", "items":["項目1","項目2"]}`
-- **table**: 表 → `{"type":"table", "headers":["列1","列2"], "rows":[["a","b"]]}`
-- **code, quote, circuit, diagram, chemistry, chart, divider** も使用可能
-
-### 数式の書き方
-- 分数: `\\frac{a}{b}`, 平方根: `\\sqrt{x}`, `\\sqrt[3]{x}`
-- 括弧: `\\left( \\right)`, 積分: `\\int_{a}^{b} f(x)\\,dx`
-- 行列: `\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}`
-- 場合分け: `\\begin{cases} ... \\end{cases}`
-- ベクトル: `\\vec{a}`, `\\bm{v}`, 単位: `\\SI{9.8}{m/s^2}`
-- 化学式: `\\ce{H2O}`, `\\ce{2H2 + O2 -> 2H2O}`
-- 合同式: `a \\equiv b \\pmod{n}`
-
-### add_block の構造
-```json
-{
-  "op": "add_block",
-  "afterId": "既存ブロックID or null（先頭に挿入）",
-  "block": {
-    "id": "ai-xxxxxxxx",
-    "content": { "type": "heading", "text": "タイトル", "level": 2 },
-    "style": { "textAlign": "left", "fontSize": 12, "fontFamily": "serif" }
-  }
-}
-```
-
-### 教材・問題の書き込みパターン
-
-問題を文書に書き込む場合の典型的な ops 構造:
-```json
-{"ops": [
-  {"op":"add_block", "afterId":null, "block":{"id":"ai-001","content":{"type":"heading","text":"公開鍵暗号（RSA）に関する問題","level":2},"style":{"textAlign":"left","fontSize":12,"fontFamily":"serif"}}},
-  {"op":"add_block", "afterId":"ai-001", "block":{"id":"ai-002","content":{"type":"paragraph","text":"RSA暗号は、安全な通信を実現するための公開鍵暗号方式の一つです。以下の問いに答えなさい。"},"style":{"textAlign":"left","fontSize":12,"fontFamily":"serif"}}},
-  {"op":"add_block", "afterId":"ai-002", "block":{"id":"ai-003","content":{"type":"heading","text":"第1問 RSA暗号の鍵生成","level":3},"style":{"textAlign":"left","fontSize":12,"fontFamily":"serif"}}},
-  {"op":"add_block", "afterId":"ai-003", "block":{"id":"ai-004","content":{"type":"paragraph","text":"素数 p=3 と q=11 を用いてRSA暗号の鍵ペアを生成します。"},"style":{"textAlign":"left","fontSize":12,"fontFamily":"serif"}}},
-  {"op":"add_block", "afterId":"ai-004", "block":{"id":"ai-005","content":{"type":"paragraph","text":"(1) モジュラス N の値を求めなさい。"},"style":{"textAlign":"left","fontSize":12,"fontFamily":"serif"}}},
-  {"op":"add_block", "afterId":"ai-005", "block":{"id":"ai-006","content":{"type":"math","latex":"N = p \\\\times q","displayMode":true},"style":{"textAlign":"left","fontSize":12,"fontFamily":"serif"}}},
-  {"op":"add_block", "afterId":"ai-006", "block":{"id":"ai-007","content":{"type":"paragraph","text":"答え: ＿＿＿＿＿＿＿＿"},"style":{"textAlign":"left","fontSize":12,"fontFamily":"serif"}}}
-]}
-```
-
-このように、問題のタイトル→導入文→小見出し→問題文→数式→解答欄の順でブロックを追加する。
-数式は必ず math ブロック (displayMode: true) として独立させ、テキスト内に埋め込まない。
+- 文書に書き込んだ後は「第1問〜第3問のRSA暗号問題を文書に追加しました。」のように簡潔に報告
+- ユーザーが修正を求めたら即座に edit_document で対応
+- 迷ったら書き込む。テキスト応答で済ませるな。
+- エンジン: **LuaLaTeX** (luatexja-preset[haranoaji])
 """
 
 
@@ -751,7 +819,7 @@ async def chat_stream(messages: list[dict], document: dict):
         tools=[types.Tool(function_declarations=[
             types.FunctionDeclaration(**fd) for fd in AGENT_TOOLS["function_declarations"]
         ])],
-        thinking_config=types.ThinkingConfig(thinking_budget=4096),
+        thinking_config=types.ThinkingConfig(thinking_budget=8192),
         # Allow the model to call tools automatically
         automatic_function_calling=False,
     )
@@ -764,7 +832,7 @@ async def chat_stream(messages: list[dict], document: dict):
     total_usage = {"inputTokens": 0, "outputTokens": 0}
     final_text_parts: list[str] = []
 
-    MAX_AGENT_TURNS = 6  # Safety limit for agentic loop
+    MAX_AGENT_TURNS = 12  # Increased for complex multi-step tasks
 
     try:
         for turn in range(MAX_AGENT_TURNS):
@@ -951,16 +1019,80 @@ async def chat_stream(messages: list[dict], document: dict):
         yield _sse({"type": "error", "message": user_msg})
 
 
+def _execute_search_materials(args: dict) -> dict:
+    """Execute search_materials tool — query the educational materials DB."""
+    from .materials_service import search_materials
+    query = args.get("query", "")
+    subject = args.get("subject", "")
+    level = args.get("level", "")
+    results = search_materials(query=query, subject=subject, level=level, limit=5)
+    if not results:
+        return {"matches": [], "count": 0, "message": "該当する教材が見つかりませんでした。自分の知識で作成してください。"}
+    # Flatten for agent consumption
+    matches = []
+    for entry in results:
+        match = {
+            "topic": entry["topic"],
+            "subject": entry["subject"],
+            "level": entry["level"],
+            "problems": entry.get("problems", [])[:8],  # Limit problems per topic
+        }
+        matches.append(match)
+    return {"matches": matches, "count": len(matches)}
+
+
+def _apply_patches_to_document(document: dict, ops: list[dict]) -> None:
+    """Apply accumulated patches to the server-side document copy.
+
+    This keeps the document dict in-sync across agent turns so that
+    read_document / search_blocks / compile_check see the latest state.
+    """
+    blocks: list[dict] = document.get("blocks", [])
+    for op_data in ops:
+        op_type = op_data.get("op")
+        if op_type == "add_block":
+            block = op_data.get("block", {})
+            after_id = op_data.get("afterId")
+            if after_id:
+                idx = next((i for i, b in enumerate(blocks) if b.get("id") == after_id), len(blocks) - 1)
+                blocks.insert(idx + 1, block)
+            else:
+                blocks.insert(0, block)
+        elif op_type == "update_block":
+            block_id = op_data.get("blockId", "")
+            for blk in blocks:
+                if blk.get("id") == block_id:
+                    if "content" in op_data:
+                        blk["content"] = {**blk.get("content", {}), **op_data["content"]}
+                    if "style" in op_data:
+                        blk["style"] = {**blk.get("style", {}), **op_data["style"]}
+                    break
+        elif op_type == "delete_block":
+            block_id = op_data.get("blockId", "")
+            blocks[:] = [b for b in blocks if b.get("id") != block_id]
+        elif op_type == "reorder":
+            id_order = op_data.get("blockIds", [])
+            id_map = {b.get("id"): b for b in blocks}
+            reordered = [id_map[bid] for bid in id_order if bid in id_map]
+            remaining = [b for b in blocks if b.get("id") not in id_order]
+            blocks[:] = reordered + remaining
+    document["blocks"] = blocks
+
+
 def _execute_tool(name: str, document: dict, args: dict, accumulated_patches: list[dict]) -> dict:
     """Dispatch tool execution."""
     if name == "read_document":
         return _execute_read_document(document, args)
     elif name == "search_blocks":
         return _execute_search_blocks(document, args)
+    elif name == "search_materials":
+        return _execute_search_materials(args)
     elif name == "edit_document":
-        # Validate and return confirmation
+        # Validate, normalize, and apply to server-side document copy
         ops = args.get("ops", [])
         normalized = _normalize_ops(ops)
+        # Apply patches to document so subsequent tool calls see updated state
+        _apply_patches_to_document(document, normalized)
         add_count = sum(1 for o in normalized if o.get("op") == "add_block")
         update_count = sum(1 for o in normalized if o.get("op") == "update_block")
         delete_count = sum(1 for o in normalized if o.get("op") == "delete_block")
@@ -968,6 +1100,7 @@ def _execute_tool(name: str, document: dict, args: dict, accumulated_patches: li
             "applied": True,
             "ops_count": len(normalized),
             "summary": f"{add_count}追加, {update_count}更新, {delete_count}削除",
+            "current_block_count": len(document.get("blocks", [])),
         }
     elif name == "compile_check":
         return _execute_compile_check(document, args)
@@ -985,8 +1118,13 @@ def _summarize_result(name: str, result: dict) -> str:
     elif name == "search_blocks":
         count = result.get("count", 0)
         return f"{count}件の一致"
+    elif name == "search_materials":
+        count = result.get("count", 0)
+        return f"教材DB: {count}件ヒット"
     elif name == "edit_document":
-        return result.get("summary", "適用完了")
+        summary = result.get("summary", "適用完了")
+        bc = result.get("current_block_count", "?")
+        return f"{summary} (計{bc}ブロック)"
     elif name == "compile_check":
         ok = result.get("success", False)
         return "OK" if ok else result.get("message", "エラーあり")
@@ -1058,7 +1196,7 @@ async def chat(messages: list[dict], document: dict) -> dict:
         tools=[types.Tool(function_declarations=[
             types.FunctionDeclaration(**fd) for fd in AGENT_TOOLS["function_declarations"]
         ])],
-        thinking_config=types.ThinkingConfig(thinking_budget=4096),
+        thinking_config=types.ThinkingConfig(thinking_budget=8192),
         automatic_function_calling=False,
     )
 
@@ -1067,7 +1205,7 @@ async def chat(messages: list[dict], document: dict) -> dict:
     total_usage = {"inputTokens": 0, "outputTokens": 0}
     final_message = ""
 
-    MAX_TURNS = 6
+    MAX_TURNS = 12
 
     for turn in range(MAX_TURNS):
         try:

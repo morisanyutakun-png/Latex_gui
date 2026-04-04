@@ -581,8 +581,13 @@ function _summarizeToolResult(name: string, result: Record<string, unknown>): st
       return `${result.blockCount || 0}ブロックの文書を読み込み`;
     case "search_blocks":
       return `${result.count || 0}件の一致`;
-    case "edit_document":
-      return (result.summary as string) || "適用完了";
+    case "search_materials":
+      return `教材DB: ${result.count || 0}件ヒット`;
+    case "edit_document": {
+      const summary = (result.summary as string) || "適用完了";
+      const bc = result.current_block_count;
+      return bc ? `${summary} (計${bc}ブロック)` : summary;
+    }
     case "compile_check":
       return result.success ? "OK" : (result.message as string) || "エラーあり";
     case "get_latex_source":
