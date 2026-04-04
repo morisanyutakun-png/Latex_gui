@@ -451,7 +451,7 @@ def _render_content(content, style) -> str:
     t = content.type
 
     if t == "heading":
-        return _render_heading(content)
+        return _render_heading(content, style)
     elif t == "paragraph":
         return _render_paragraph(content, style)
     elif t == "math":
@@ -479,10 +479,22 @@ def _render_content(content, style) -> str:
     return ""
 
 
-def _render_heading(c: HeadingContent) -> str:
+def _render_heading(c: HeadingContent, style=None) -> str:
     if not c.text.strip():
         return ""
     text = escape_latex(c.text)
+
+    # スタイルがある場合はインライン装飾を適用
+    if style:
+        if getattr(style, 'italic', False):
+            text = f"\\textit{{{text}}}"
+        if getattr(style, 'underline', False):
+            text = f"\\underline{{{text}}}"
+        text_color = getattr(style, 'text_color', None)
+        if text_color and text_color != "#000000":
+            hex_color = text_color.lstrip("#")
+            text = f"\\textcolor[HTML]{{{hex_color}}}{{{text}}}"
+
     if c.level == 1:
         return f"\\section*{{{text}}}"
     elif c.level == 2:

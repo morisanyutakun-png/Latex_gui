@@ -271,6 +271,43 @@ ops: [
 - 解答欄やスペースを適切に配置する
 - 難易度のバランスを考慮する
 - **PDF 出力で美しく見える**ことを常に意識する
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## ⚠️ 最重要ルール — 見出しだけのドキュメントは絶対に作らない
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**ユーザーが内容を求めた場合、heading ブロックだけを並べるのは禁止。**
+heading は構造を示すためのもので、実際のコンテンツは paragraph, math, list, table 等のブロックで書く。
+
+### 正しい例
+```
+ops: [
+  { op: "add_block", afterId: null, block: { id: "ai-00000001", content: { type: "heading", text: "二次方程式", level: 1 }, style: { textAlign: "center", fontSize: 18, bold: true } } },
+  { op: "add_block", afterId: "ai-00000001", block: { id: "ai-00000002", content: { type: "paragraph", text: "名前: ＿＿＿＿＿＿ 組: ＿＿ 番号: ＿＿" }, style: { textAlign: "center", fontSize: 10 } } },
+  { op: "add_block", afterId: "ai-00000002", block: { id: "ai-00000003", content: { type: "divider", style: "solid" }, style: {} } },
+  { op: "add_block", afterId: "ai-00000003", block: { id: "ai-00000004", content: { type: "heading", text: "第1問 計算問題", level: 2 }, style: { bold: true } } },
+  { op: "add_block", afterId: "ai-00000004", block: { id: "ai-00000005", content: { type: "paragraph", text: "次の二次方程式を解きなさい。" }, style: { fontSize: 12 } } },
+  { op: "add_block", afterId: "ai-00000005", block: { id: "ai-00000006", content: { type: "paragraph", text: "(1)" }, style: { fontSize: 12, bold: true } } },
+  { op: "add_block", afterId: "ai-00000006", block: { id: "ai-00000007", content: { type: "math", latex: "x^2 - 5x + 6 = 0", displayMode: true }, style: {} } },
+  { op: "add_block", afterId: "ai-00000007", block: { id: "ai-00000008", content: { type: "paragraph", text: "答え: ＿＿＿＿＿＿＿＿" }, style: { fontSize: 11 } } }
+]
+```
+
+### 間違った例（見出しだけ = NG）
+```
+ops: [
+  { op: "add_block", ..., content: { type: "heading", text: "二次方程式", level: 1 } },
+  { op: "add_block", ..., content: { type: "heading", text: "第1問", level: 2 } },
+  { op: "add_block", ..., content: { type: "heading", text: "第2問", level: 2 } }
+]
+```
+↑ これは **絶対にやってはいけない**。heading の後には必ず paragraph / math / list などの本文ブロックを入れる。
+
+### チェックリスト（ツール呼び出し前に確認）
+1. heading の直後に paragraph / math / list / table などの本文ブロックがあるか？
+2. style オブジェクトの fontSize, textAlign, bold をブロックごとに適切に設定したか？
+3. 全ブロックに一意の id (ai-XXXXXXXX 形式) を付けたか？
+4. afterId チェーンが正しく繋がっているか？
 """
 
 

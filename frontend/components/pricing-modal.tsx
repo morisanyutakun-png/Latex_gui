@@ -67,7 +67,7 @@ export function PricingModal() {
 
   return (
     <Dialog open={showPricing} onOpenChange={setShowPricing}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle className="text-xl font-bold text-center">
             {isJa ? "料金プラン" : "Pricing Plans"}
@@ -79,18 +79,19 @@ export function PricingModal() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-6 pb-6 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 px-6 pb-6 pt-2">
           {PLAN_ORDER.map((planId) => {
             const plan = PLANS[planId];
             const colors = PLAN_COLORS[planId];
             const isActive = currentPlan === planId;
             const features = isJa ? plan.features : plan.featuresEn;
+            const isPremium = planId === "premium";
 
             return (
               <div
                 key={planId}
-                className={`relative rounded-xl border p-5 flex flex-col ${colors.bg} ${colors.border} ${
-                  plan.highlight ? "scale-[1.02] shadow-lg" : "shadow-sm"
+                className={`relative rounded-xl border p-4 flex flex-col ${colors.bg} ${colors.border} ${
+                  isPremium ? "scale-[1.03] shadow-xl z-10" : plan.highlight ? "scale-[1.01] shadow-lg" : "shadow-sm"
                 } transition-all`}
               >
                 {/* バッジ */}
@@ -101,50 +102,67 @@ export function PricingModal() {
                 )}
 
                 {/* ヘッダー */}
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-2">
                   <div className={`p-1.5 rounded-lg ${colors.badge}`}>
                     {PLAN_ICONS[planId]}
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base">{plan.name}</h3>
-                  </div>
+                  <h3 className="font-bold text-base">{plan.name}</h3>
                 </div>
 
                 {/* 価格 */}
-                <div className="mb-4">
-                  <span className="text-2xl font-extrabold tracking-tight">
+                <div className="mb-3">
+                  <span className={`font-extrabold tracking-tight ${isPremium ? "text-3xl" : "text-2xl"}`}>
                     {plan.priceLabel}
                   </span>
                   <span className="text-sm text-slate-500 ml-1">
-                    {plan.price > 0 ? (isJa ? "/月 (税込)" : "/mo") : ""}
+                    {plan.price > 0 ? (isJa ? "/月" : "/mo") : ""}
                   </span>
                 </div>
 
                 {/* リクエスト制限ハイライト */}
-                <div className="rounded-lg bg-white/60 dark:bg-black/20 border border-slate-200/50 dark:border-slate-700/50 px-3 py-2 mb-4">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                      {plan.requestsPerDay.toLocaleString()}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {isJa ? "リクエスト/日" : "requests/day"}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                      {plan.requestsPerMonth.toLocaleString()}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {isJa ? "リクエスト/月" : "requests/mo"}
-                    </span>
-                  </div>
+                <div className={`rounded-lg border px-3 py-2 mb-3 ${
+                  isPremium
+                    ? "bg-amber-50/80 dark:bg-amber-900/20 border-amber-200/60 dark:border-amber-700/50"
+                    : "bg-white/60 dark:bg-black/20 border-slate-200/50 dark:border-slate-700/50"
+                }`}>
+                  {isPremium ? (
+                    <>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                          {isJa ? "ほぼ無制限" : "Virtually Unlimited"}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        {isJa ? `${plan.requestsPerDay.toLocaleString()}/日 · ${plan.requestsPerMonth.toLocaleString()}/月` : `${plan.requestsPerDay.toLocaleString()}/day · ${plan.requestsPerMonth.toLocaleString()}/mo`}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                          {plan.requestsPerDay.toLocaleString()}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {isJa ? "回/日" : "/day"}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          {plan.requestsPerMonth.toLocaleString()}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {isJa ? "回/月" : "/mo"}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* 機能一覧 */}
-                <ul className="space-y-2 mb-5 flex-1">
+                <ul className="space-y-1.5 mb-4 flex-1">
                   {features.map((f, i) => (
-                    <li key={i} className="flex items-start gap-2 text-[13px]">
-                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <li key={i} className="flex items-start gap-1.5 text-[12px]">
+                      <Check className={`h-3 w-3 shrink-0 mt-0.5 ${isPremium ? "text-amber-500" : "text-emerald-500"}`} />
                       <span>{f}</span>
                     </li>
                   ))}
@@ -152,7 +170,7 @@ export function PricingModal() {
 
                 {/* ボタン */}
                 <Button
-                  className={`w-full ${colors.btn} ${isActive ? "opacity-60 cursor-default" : ""}`}
+                  className={`w-full ${colors.btn} ${isActive ? "opacity-60 cursor-default" : ""} ${isPremium ? "font-bold" : ""}`}
                   onClick={() => handleSelect(planId)}
                   disabled={isActive}
                 >
