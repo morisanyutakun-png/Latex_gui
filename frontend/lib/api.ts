@@ -306,28 +306,31 @@ export async function streamAIMessage(
 
       for (const line of lines) {
         if (line.startsWith("data: ")) {
+          let event: StreamEvent;
           try {
-            const event = JSON.parse(line.slice(6)) as StreamEvent;
-            diag.eventsReceived++;
-            diag.lastEventType = event.type;
-            onEvent(event);
+            event = JSON.parse(line.slice(6)) as StreamEvent;
           } catch {
-            // ignore malformed SSE lines
+            continue; // ignore malformed SSE lines
           }
+          diag.eventsReceived++;
+          diag.lastEventType = event.type;
+          onEvent(event); // callback errors propagate up
         }
       }
     }
 
     // Process remaining buffer
     if (buffer.startsWith("data: ")) {
+      let event: StreamEvent;
       try {
-        const event = JSON.parse(buffer.slice(6)) as StreamEvent;
-        diag.eventsReceived++;
-        diag.lastEventType = event.type;
-        onEvent(event);
+        event = JSON.parse(buffer.slice(6)) as StreamEvent;
       } catch {
         // ignore
+        return diag;
       }
+      diag.eventsReceived++;
+      diag.lastEventType = event.type;
+      onEvent(event);
     }
   } finally {
     reader.releaseLock();
