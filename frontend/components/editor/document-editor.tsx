@@ -778,6 +778,62 @@ function MathBlockEditor({ block }: { block: Block }) {
   );
 }
 
+function ListItemEditor({ item, index, blockId, content }: {
+  item: string; index: number; blockId: string;
+  content: Extract<Block["content"], { type: "list" }>;
+}) {
+  const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hasMath = item.includes("$");
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  return (
+    <div className="flex items-start gap-2 group">
+      <span className="text-sm mt-0.5 w-5 text-right shrink-0 select-none text-foreground/70">
+        {content.style === "numbered" ? `${index + 1}.` : "•"}
+      </span>
+      {!editing && hasMath ? (
+        <div
+          className="flex-1 text-sm py-0.5 cursor-text min-h-[1.5em]"
+          onClick={() => setEditing(true)}
+        >
+          <RenderedInlineText text={item} />
+        </div>
+      ) : (
+        <input
+          ref={inputRef}
+          value={item}
+          onChange={(e) => {
+            const newItems = [...content.items];
+            newItems[index] = e.target.value;
+            updateContent(blockId, { items: newItems });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const newItems = [...content.items];
+              newItems.splice(index + 1, 0, "");
+              updateContent(blockId, { items: newItems });
+            }
+            if (e.key === "Backspace" && !item && content.items.length > 1) {
+              e.preventDefault();
+              const newItems = content.items.filter((_, j) => j !== index);
+              updateContent(blockId, { items: newItems });
+            }
+          }}
+          onBlur={() => { if (hasMath) setEditing(false); }}
+          placeholder={`項目 ${index + 1}`}
+          className="flex-1 bg-transparent border-none outline-none text-sm py-0.5 focus:ring-0"
+        />
+      )}
+    </div>
+  );
+}
+
 function ListBlockEditor({ block }: { block: Block }) {
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const content = block.content as Extract<Block["content"], { type: "list" }>;
@@ -785,34 +841,13 @@ function ListBlockEditor({ block }: { block: Block }) {
   return (
     <div className="latex-list">
       {content.items.map((item, i) => (
-        <div key={i} className="flex items-start gap-2">
-          <span className="text-sm mt-0.5 w-5 text-right shrink-0 select-none text-foreground/70">
-            {content.style === "numbered" ? `${i + 1}.` : "•"}
-          </span>
-          <input
-            value={item}
-            onChange={(e) => {
-              const newItems = [...content.items];
-              newItems[i] = e.target.value;
-              updateContent(block.id, { items: newItems });
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                const newItems = [...content.items];
-                newItems.splice(i + 1, 0, "");
-                updateContent(block.id, { items: newItems });
-              }
-              if (e.key === "Backspace" && !item && content.items.length > 1) {
-                e.preventDefault();
-                const newItems = content.items.filter((_, j) => j !== i);
-                updateContent(block.id, { items: newItems });
-              }
-            }}
-            placeholder={`項目 ${i + 1}`}
-            className="flex-1 bg-transparent border-none outline-none text-sm py-0.5 focus:ring-0"
-          />
-        </div>
+        <ListItemEditor
+          key={i}
+          item={item}
+          index={i}
+          blockId={block.id}
+          content={content}
+        />
       ))}
       <button
         onClick={() => updateContent(block.id, { items: [...content.items, ""] })}

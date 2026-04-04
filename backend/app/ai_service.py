@@ -150,13 +150,29 @@ SYSTEM_PROMPT = """\
 - **delete_block**: `blockId` のブロックを削除
 - **reorder**: `blockIds` 配列で全ブロックの順序を指定
 
-### ワークシート作成パターン
-1. 見出し (level 1) → タイトル
-2. 段落 → 指示文
-3. math (displayMode: true) → 数式問題
-4. numbered list → 問題番号付き
-5. divider → セクション区切り
-6. `afterId`: 最初は `null`、以降は直前のブロック ID を指定
+### 重要: 数式の正しい使い方
+- **独立した数式は必ず math ブロック** (`type: "math", displayMode: true`) を使う
+- リストや段落のテキスト中にインライン数式 `$...$` を使うのは短い式のみ（例: `$x = 3$`）
+- **長い数式や問題の式は math ブロックとして独立させる** — 美しくレンダリングされる
+
+### デザイン性のあるワークシート作成パターン
+良い教材は**構造とデザイン**が重要。以下のパターンを活用:
+
+1. **タイトル**: heading (level 1) + style: `{textAlign: "center", fontSize: 18, bold: true}`
+2. **サブ情報**: paragraph + style: `{textAlign: "center", fontSize: 10}` — 日付・学年・名前欄
+3. **セクション区切り**: divider (style: "solid") で視覚的に区切る
+4. **セクション見出し**: heading (level 2) — 「第1問」「計算問題」など
+5. **問題指示文**: paragraph — 「次の方程式を解きなさい。」
+6. **数式問題**: math ブロック (displayMode: true) — 各問題を個別ブロックで
+7. **問題番号**: paragraph で「(1)」「(2)」を書き、直後に math ブロック
+8. **解答欄**: paragraph + style で下線スペースや空行を表現
+9. `afterId`: 最初は `null`、以降は直前のブロック ID を指定
+
+### スタイルの活用例
+- タイトル: `{"textAlign":"center","fontSize":18,"bold":true}`
+- サブタイトル: `{"textAlign":"center","fontSize":10}`
+- 問題番号: `{"fontSize":12,"bold":true}`
+- 注意書き: `{"fontSize":9,"italic":true}`
 
 ### LaTeX 数式の例
 - 二次方程式の解の公式: `\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}`
