@@ -291,30 +291,20 @@ def _document_context(document: dict) -> str:
     return "\n".join(lines)
 
 
-async def chat(messages: list[dict], document: dict) -> dict:
-    """
-    Gemini でチャットし、ドキュメント編集パッチを返す。
-    Returns { message: str, patches: dict | None, usage: dict }
-    """
-    import asyncio
+def _build_contents(messages: list[dict], doc_context: str):
+    """Gemini 形式の contents リストを構築する。"""
     from google.genai import types  # type: ignore
 
-    client = get_client()
-    doc_context = _document_context(document)
-
-    # 最後のユーザーメッセージのインデックスを特定
     last_user_idx = max(
         (i for i, m in enumerate(messages) if m.get("role") == "user"),
         default=0,
     )
 
-    # Gemini 形式の contents を構築（role: "user" | "model"）
     contents = []
     for i, msg in enumerate(messages):
         role = msg.get("role", "user")
         content = msg.get("content", "")
 
-        # 最後のユーザーメッセージにドキュメントコンテキストを注入
         if i == last_user_idx and role == "user":
             content = f"## 現在の文書情報\n{doc_context}\n\n## ユーザーの依頼\n{content}"
 
@@ -322,42 +312,18 @@ async def chat(messages: list[dict], document: dict) -> dict:
         contents.append(
             types.Content(role=gemini_role, parts=[types.Part(text=content)])
         )
+    return contents
 
-    config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        tools=[GEMINI_TOOL_DEF],
-        # AUTO: モデルが自由に tool か text を選ぶ（デフォルト）
-        tool_config=types.ToolConfig(
-            function_calling_config=types.FunctionCallingConfig(mode="AUTO")
-        ),
-        # gemini-2.5-flash は thinking モデル。budget を設定して
-        # 思考に全トークンを使い切って本文が空になるのを防ぐ
-        thinking_config=types.ThinkingConfig(thinking_budget=1024),
-    )
 
-    def _call():
-        return client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=config,
-        )
-
-    try:
-        response = await asyncio.to_thread(_call)
-    except Exception as e:
-        logger.error("Gemini API call failed: %s", e, exc_info=True)
-        return {
-            "message": f"AI APIの呼び出しに失敗しました: {type(e).__name__}: {e}",
-            "patches": None,
-            "usage": {"inputTokens": 0, "outputTokens": 0},
-        }
-
-    # ─── レスポンスのパース ───
+def _parse_response(response) -> dict:
+    """Gemini レスポンスをパースして {message, patches, usage} を返す。
+    MALFORMED_FUNCTION_CALL の場合は None を返してリトライを促す。
+    """
     text_parts: list[str] = []
     thought_parts: list[str] = []
     patches = None
 
-    # prompt_feedback でブロックされたかチェック
+    # prompt_feedback チェック
     try:
         pf = getattr(response, "prompt_feedback", None)
         if pf:
@@ -365,14 +331,13 @@ async def chat(messages: list[dict], document: dict) -> dict:
             if block_reason and str(block_reason) not in ("", "BLOCK_REASON_UNSPECIFIED"):
                 logger.warning("Gemini prompt blocked: %s", block_reason)
                 return {
-                    "message": f"リクエストがセーフティフィルターによりブロックされました（理由: {block_reason}）。内容を変えてお試しください。",
+                    "message": f"セーフティフィルターによりブロックされました（理由: {block_reason}）。内容を変えてお試しください。",
                     "patches": None,
                     "usage": {"inputTokens": 0, "outputTokens": 0},
                 }
     except Exception as e:
         logger.warning("prompt_feedback check error: %s", e)
 
-    # candidates が空かチェック
     if not response.candidates:
         logger.error("Gemini returned no candidates. Full response: %s", response)
         return {
@@ -386,10 +351,25 @@ async def chat(messages: list[dict], document: dict) -> dict:
         finish_reason = str(candidate.finish_reason) if candidate.finish_reason else ""
         logger.info("Gemini finish_reason: %s", finish_reason)
 
-        # セーフティ等で中断された場合
+        # MALFORMED_FUNCTION_CALL → リトライ可能
+        if "MALFORMED_FUNCTION_CALL" in finish_reason:
+            logger.warning("Gemini returned MALFORMED_FUNCTION_CALL, will retry without tools")
+            # テキスト部分があれば抽出して返す、なければ None でリトライ指示
+            if candidate.content and candidate.content.parts:
+                for part in candidate.content.parts:
+                    if getattr(part, "thought", False):
+                        continue
+                    if part.text:
+                        text_parts.append(part.text)
+            if text_parts:
+                return {
+                    "message": "\n".join(text_parts).strip(),
+                    "patches": None,
+                    "usage": _extract_usage(response),
+                }
+            return None  # リトライシグナル
+
         if "SAFETY" in finish_reason:
-            safety_ratings = getattr(candidate, "safety_ratings", [])
-            logger.warning("Gemini blocked by safety. ratings: %s", safety_ratings)
             return {
                 "message": "セーフティフィルターにより応答が中断されました。内容を変えてお試しください。",
                 "patches": None,
@@ -397,7 +377,7 @@ async def chat(messages: list[dict], document: dict) -> dict:
             }
 
         if not candidate.content or not candidate.content.parts:
-            logger.error("Gemini candidate has no content/parts. finish_reason=%s, candidate=%s", finish_reason, candidate)
+            logger.error("Gemini candidate has no content/parts. finish_reason=%s", finish_reason)
             return {
                 "message": f"AIからの応答が空でした（finish_reason: {finish_reason}）。もう一度お試しください。",
                 "patches": None,
@@ -405,10 +385,7 @@ async def chat(messages: list[dict], document: dict) -> dict:
             }
 
         for part in candidate.content.parts:
-            is_thought = getattr(part, "thought", False)
-
-            if is_thought:
-                # 思考パーツはスキップするが、フォールバック用に保持
+            if getattr(part, "thought", False):
                 if part.text:
                     thought_parts.append(part.text)
                 continue
@@ -430,25 +407,101 @@ async def chat(messages: list[dict], document: dict) -> dict:
         ops = patches.get("ops", [])
         message = f"{len(ops)}件の変更を適用しました。"
     elif not message and not patches:
-        # 思考パーツしかない場合 → 思考内容を返す（空応答より有益）
         if thought_parts:
             logger.warning("Gemini returned only thought parts, using as response")
             message = "\n".join(thought_parts).strip()
         else:
-            logger.warning("Gemini returned empty response (no text, no function call). Full response: %s", response)
-            message = "応答を取得できませんでした。Geminiが空のレスポンスを返しました。ログを確認してください。"
-
-    # usage_metadata
-    usage = {"inputTokens": 0, "outputTokens": 0}
-    try:
-        um = response.usage_metadata
-        usage["inputTokens"] = um.prompt_token_count or 0
-        usage["outputTokens"] = um.candidates_token_count or 0
-    except Exception:
-        pass
+            logger.warning("Gemini returned empty response. Full response: %s", response)
+            message = "応答を取得できませんでした。ログを確認してください。"
 
     return {
         "message": message,
         "patches": patches,
-        "usage": usage,
+        "usage": _extract_usage(response),
     }
+
+
+def _extract_usage(response) -> dict:
+    try:
+        um = response.usage_metadata
+        return {
+            "inputTokens": um.prompt_token_count or 0,
+            "outputTokens": um.candidates_token_count or 0,
+        }
+    except Exception:
+        return {"inputTokens": 0, "outputTokens": 0}
+
+
+async def chat(messages: list[dict], document: dict) -> dict:
+    """
+    Gemini でチャットし、ドキュメント編集パッチを返す。
+    MALFORMED_FUNCTION_CALL 時はツールなしで自動リトライ。
+    Returns { message: str, patches: dict | None, usage: dict }
+    """
+    import asyncio
+    from google.genai import types  # type: ignore
+
+    client = get_client()
+    doc_context = _document_context(document)
+    contents = _build_contents(messages, doc_context)
+
+    # ─── 1回目: ツール付きで呼び出し ───
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        tools=[GEMINI_TOOL_DEF],
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+        ),
+        thinking_config=types.ThinkingConfig(thinking_budget=1024),
+    )
+
+    def _call(cfg):
+        return client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=contents,
+            config=cfg,
+        )
+
+    try:
+        response = await asyncio.to_thread(_call, config)
+    except Exception as e:
+        logger.error("Gemini API call failed: %s", e, exc_info=True)
+        return {
+            "message": f"AI APIの呼び出しに失敗しました: {type(e).__name__}: {e}",
+            "patches": None,
+            "usage": {"inputTokens": 0, "outputTokens": 0},
+        }
+
+    result = _parse_response(response)
+
+    # ─── 2回目: MALFORMED_FUNCTION_CALL → ツールなしでリトライ ───
+    if result is None:
+        logger.info("Retrying without tools due to MALFORMED_FUNCTION_CALL")
+        config_no_tools = types.GenerateContentConfig(
+            system_instruction=(
+                SYSTEM_PROMPT
+                + "\n\n**注意: ツール呼び出しは現在利用できません。**\n"
+                "テキストのみで応答してください。"
+                "ドキュメント編集が必要な場合は、具体的な変更内容をJSON形式で ```json コードブロック内に記述してください。"
+            ),
+            thinking_config=types.ThinkingConfig(thinking_budget=512),
+        )
+
+        try:
+            response2 = await asyncio.to_thread(_call, config_no_tools)
+            result = _parse_response(response2)
+            if result is None:
+                result = {
+                    "message": "ツール呼び出しでエラーが発生しました。もう一度メッセージを送信してください。",
+                    "patches": None,
+                    "usage": _extract_usage(response2),
+                }
+        except Exception as e:
+            logger.error("Gemini retry failed: %s", e, exc_info=True)
+            result = {
+                "message": f"リトライも失敗しました: {type(e).__name__}: {e}",
+                "patches": None,
+                "usage": {"inputTokens": 0, "outputTokens": 0},
+            }
+
+    return result
