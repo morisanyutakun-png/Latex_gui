@@ -224,11 +224,16 @@ function HeadingBlockEditor({ block }: { block: Block }) {
 
   // Auto-focus when entering editing state
   useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      const len = textareaRef.current.value.length;
-      textareaRef.current.selectionStart = len;
-      textareaRef.current.selectionEnd = len;
+    if (isEditing) {
+      const tryFocus = () => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          const len = textareaRef.current.value.length;
+          textareaRef.current.selectionStart = len;
+          textareaRef.current.selectionEnd = len;
+        }
+      };
+      requestAnimationFrame(() => requestAnimationFrame(tryFocus));
     }
   }, [isEditing]);
 
@@ -434,15 +439,20 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
   }, [content.text]);
 
-  // Auto-focus
+  // Auto-focus — isEditing変更時にtextareaにフォーカスを当てる
+  // requestAnimationFrameで確実にDOM更新後に実行
   useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      if (window.document.activeElement !== textareaRef.current) {
-        textareaRef.current.focus();
-        const len = textareaRef.current.value.length;
-        textareaRef.current.selectionStart = len;
-        textareaRef.current.selectionEnd = len;
-      }
+    if (isEditing) {
+      const tryFocus = () => {
+        if (textareaRef.current && window.document.activeElement !== textareaRef.current) {
+          textareaRef.current.focus();
+          const len = textareaRef.current.value.length;
+          textareaRef.current.selectionStart = len;
+          textareaRef.current.selectionEnd = len;
+        }
+      };
+      // DOM更新を2フレーム待ってフォーカス（マウント直後に確実に当てる）
+      requestAnimationFrame(() => requestAnimationFrame(tryFocus));
     }
     if (!isEditing && mathMode) { finishMathMode(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -586,8 +596,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   // 通常モード: 全テキスト(レンダリング済み)
   const confirmedText = mathMode ? content.text.slice(0, mathAnchor) : content.text;
 
-  // 編集中かどうかでカーソル表示
-  const showCursor = showTextarea && isEditing;
+  // フォーカス状態を追跡 — 実際にtextareaにフォーカスがある時のみカーソル表示
+  const [hasFocus, setHasFocus] = useState(false);
+  const showCursor = showTextarea && isEditing && hasFocus;
 
   // IDE風トークンハイライトの色マップ
   const TOKEN_COLORS: Record<MathTokenKind, string> = {
@@ -615,7 +626,14 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       <div
         className={`px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text`}
         style={baseStyle}
-        onClick={() => textareaRef.current?.focus()}
+        onClick={() => {
+          // textareaがまだ存在しない場合は編集状態に入る
+          if (!showTextarea) {
+            setEditingBlock(block.id);
+          }
+          // 次のtickでfocusを当てる（state更新でtextareaがマウントされるのを待つ）
+          setTimeout(() => textareaRef.current?.focus(), 0);
+        }}
       >
         {/* 確定済みテキスト（数式はKaTeX描画） */}
         {confirmedText ? (
@@ -711,6 +729,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             setImeComposing(false);
             if (mathMode && textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart);
           }}
+          onFocus={() => setHasFocus(true)}
+          onBlur={() => setHasFocus(false)}
           className="sr-only"
           rows={1}
         />

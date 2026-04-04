@@ -252,12 +252,37 @@ export async function streamAIMessage(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let lastDataTime = Date.now();
+  const READ_TIMEOUT = 180000; // 3 minutes without any data = timeout
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      // Create a timeout race for each read (with cleanup)
+      const readPromise = reader.read();
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const remaining = READ_TIMEOUT - (Date.now() - lastDataTime);
+        if (remaining <= 0) {
+          reject(new Error("ストリーミングがタイムアウトしました"));
+          return;
+        }
+        timer = setTimeout(() => reject(new Error("ストリーミングがタイムアウトしました")), remaining);
+      });
+
+      let result: ReadableStreamReadResult<Uint8Array>;
+      try {
+        result = await Promise.race([readPromise, timeoutPromise]);
+      } catch (timeoutErr) {
+        try { reader.cancel(); } catch { /* ignore */ }
+        throw timeoutErr;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+
+      const { done, value } = result;
       if (done) break;
 
+      lastDataTime = Date.now();
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";

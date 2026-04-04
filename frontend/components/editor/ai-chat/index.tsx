@@ -259,38 +259,53 @@ export function AIChatPanel() {
         }, controller.signal);
       } catch (streamErr) {
         if (!streamSucceeded) {
-          const isConnectionError = streamErr instanceof Error &&
-            (streamErr.message.includes("404") || streamErr.message.includes("fetch") ||
-             streamErr.message.includes("Failed") || streamErr.message.includes("ストリーミング"));
+          // Check if we already got partial content
+          const currentContent = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId)?.content || "";
+          const hasPartialContent = currentContent.length > 0 || accumulatedOps.length > 0;
 
-          if (isConnectionError) {
-            chatLog.stream(requestId, "fallback-to-sync");
-            updateChatMessage(assistantMsgId, { content: "", isStreaming: false });
-            setLiveSteps([]);
-            setCurrentTool(null);
+          // If we have partial content, don't fallback — use what we have
+          if (hasPartialContent) {
+            chatLog.stream(requestId, "partial-content-recovered");
+            // streamSucceeded stays false, will be handled below
+          } else {
+            const isConnectionError = streamErr instanceof Error &&
+              (streamErr.message.includes("404") || streamErr.message.includes("fetch") ||
+               streamErr.message.includes("Failed") || streamErr.message.includes("ストリーミング") ||
+               streamErr.message.includes("AbortError") || streamErr.message.includes("network"));
 
-            const result = await sendAIMessage(history, document);
-            const duration = Date.now() - startTime;
-            incrementUsage();
+            if (isConnectionError) {
+              chatLog.stream(requestId, "fallback-to-sync");
+              updateChatMessage(assistantMsgId, { content: "", isStreaming: false });
+              setLiveSteps([]);
+              setCurrentTool(null);
 
-            // Auto-apply patches from sync response
-            if (result.patches) {
-              autoApplyPatches(result.patches);
+              try {
+                const result = await sendAIMessage(history, document);
+                const duration = Date.now() - startTime;
+                incrementUsage();
+
+                if (result.patches) {
+                  autoApplyPatches(result.patches);
+                }
+
+                updateChatMessage(assistantMsgId, {
+                  content: result.message,
+                  patches: result.patches,
+                  thinkingSteps: result.thinking as ThinkingStep[],
+                  isStreaming: false,
+                  duration,
+                  usage: result.usage,
+                });
+
+                chatLog.receive(requestId, duration, false);
+                return;
+              } catch (syncErr) {
+                // Sync fallback also failed
+                throw syncErr;
+              }
             }
-
-            updateChatMessage(assistantMsgId, {
-              content: result.message,
-              patches: result.patches,
-              thinkingSteps: result.thinking as ThinkingStep[],
-              isStreaming: false,
-              duration,
-              usage: result.usage,
-            });
-
-            chatLog.receive(requestId, duration, false);
-            return;
+            throw streamErr;
           }
-          throw streamErr;
         }
       } finally {
         abortControllerRef.current = null;

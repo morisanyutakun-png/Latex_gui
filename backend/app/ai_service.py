@@ -843,13 +843,18 @@ async def chat_stream(messages: list[dict], document: dict):
                 if turn > 0:
                     yield _sse({"type": "thinking", "text": f"ターン {turn + 1}: 続行中..."})
 
-                # Use asyncio.Queue to avoid blocking the event loop
-                # while consuming the synchronous streaming iterator.
-                chunk_queue: asyncio.Queue = asyncio.Queue()
+                # Bridge synchronous Gemini stream → async generator.
+                # asyncio.Queue is NOT thread-safe, so we use
+                # collections.deque + loop.call_soon_threadsafe to safely
+                # pass chunks from the thread executor to the event loop.
+                from collections import deque as _deque
                 _SENTINEL = object()
+                _items: _deque = _deque()
+                _notify: asyncio.Event = asyncio.Event()
+                loop = asyncio.get_running_loop()
 
                 def _consume_stream():
-                    """Run in thread: iterate synchronous stream, push chunks to queue."""
+                    """Run in thread: iterate synchronous stream, push chunks."""
                     try:
                         stream = client.models.generate_content_stream(
                             model="gemini-2.5-flash",
@@ -857,44 +862,59 @@ async def chat_stream(messages: list[dict], document: dict):
                             config=config,
                         )
                         for chunk in stream:
-                            chunk_queue.put_nowait(chunk)
+                            _items.append(chunk)
+                            loop.call_soon_threadsafe(_notify.set)
                     except Exception as exc:
-                        chunk_queue.put_nowait(exc)
+                        _items.append(exc)
+                        loop.call_soon_threadsafe(_notify.set)
                     finally:
-                        chunk_queue.put_nowait(_SENTINEL)
+                        _items.append(_SENTINEL)
+                        loop.call_soon_threadsafe(_notify.set)
 
-                asyncio.get_event_loop().run_in_executor(None, _consume_stream)
+                loop.run_in_executor(None, _consume_stream)
 
-                while True:
-                    item = await chunk_queue.get()
-                    if item is _SENTINEL:
-                        break
-                    if isinstance(item, Exception):
-                        raise item
-                    chunk = item
-                    last_response = chunk
-                    if not chunk.candidates:
+                stream_done = False
+                while not stream_done:
+                    # Wait for items with timeout (keep-alive heartbeat)
+                    try:
+                        await asyncio.wait_for(_notify.wait(), timeout=30)
+                    except asyncio.TimeoutError:
+                        yield _sse({"type": "thinking", "text": "応答を待っています..."})
                         continue
-                    candidate = chunk.candidates[0]
-                    if not candidate.content or not candidate.content.parts:
-                        continue
+                    _notify.clear()
 
-                    for part in candidate.content.parts:
-                        if getattr(part, "thought", False):
-                            if part.text:
-                                thought_parts.append(part.text)
-                                yield _sse({"type": "thinking", "text": part.text[:300]})
+                    # Drain all available items
+                    while _items:
+                        item = _items.popleft()
+                        if item is _SENTINEL:
+                            stream_done = True
+                            break
+                        if isinstance(item, Exception):
+                            raise item
+                        chunk = item
+                        last_response = chunk
+                        if not chunk.candidates:
+                            continue
+                        candidate = chunk.candidates[0]
+                        if not candidate.content or not candidate.content.parts:
                             continue
 
-                        if part.text:
-                            text_parts.append(part.text)
-                            yield _sse({"type": "text", "delta": part.text})
+                        for part in candidate.content.parts:
+                            if getattr(part, "thought", False):
+                                if part.text:
+                                    thought_parts.append(part.text)
+                                    yield _sse({"type": "thinking", "text": part.text[:300]})
+                                continue
 
-                        if part.function_call:
-                            fc_name = part.function_call.name
-                            fc_args = _deep_to_dict(part.function_call.args) if part.function_call.args else {}
-                            tool_calls.append({"name": fc_name, "args": fc_args, "part": part})
-                            yield _sse({"type": "tool_call", "name": fc_name, "args": fc_args})
+                            if part.text:
+                                text_parts.append(part.text)
+                                yield _sse({"type": "text", "delta": part.text})
+
+                            if part.function_call:
+                                fc_name = part.function_call.name
+                                fc_args = _deep_to_dict(part.function_call.args) if part.function_call.args else {}
+                                tool_calls.append({"name": fc_name, "args": fc_args, "part": part})
+                                yield _sse({"type": "tool_call", "name": fc_name, "args": fc_args})
 
             except Exception as e:
                 user_msg, retry_wait = _parse_api_error(e)
@@ -941,6 +961,8 @@ async def chat_stream(messages: list[dict], document: dict):
                 start_ms = _now_ms()
 
                 try:
+                    # Keep-alive heartbeat before potentially long tool execution
+                    yield _sse({"type": "thinking", "text": f"{tc_name} を実行中..."})
                     result = _execute_tool(tc_name, document, tc_args, all_patches)
                     duration = _now_ms() - start_ms
 
@@ -1033,6 +1055,10 @@ async def chat_stream(messages: list[dict], document: dict):
             "usage": total_usage,
         })
 
+    except GeneratorExit:
+        # Client disconnected — clean up silently
+        logger.info("Agent stream: client disconnected")
+        return
     except Exception as e:
         user_msg, _ = _parse_api_error(e)
         logger.error("Agent loop error: %s", e, exc_info=True)
