@@ -10,8 +10,9 @@ import { useDocumentStore } from "@/store/document-store";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
 import { sendAIMessage, streamAIMessage, StreamEvent } from "@/lib/api";
-import { ChatMessage, ThinkingStep } from "@/lib/types";
+import { ChatMessage, ThinkingStep, DocumentPatch } from "@/lib/types";
 import { chatLog } from "@/lib/logger";
+import { buildLastAIAction } from "./utils";
 
 import { MessageRow } from "./message-row";
 import { ThinkingIndicator } from "./thinking-indicator";
@@ -22,6 +23,7 @@ import { InputArea } from "./input-area";
 export function AIChatPanel() {
   const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
+  const applyPatch = useDocumentStore((s) => s.applyPatch);
   const {
     chatMessages,
     isChatLoading,
@@ -29,6 +31,7 @@ export function AIChatPanel() {
     updateChatMessage,
     setChatLoading,
     clearChat,
+    setLastAIAction,
   } = useUIStore();
 
   const { canMakeRequest, incrementUsage, setShowPricing, initFromStorage, todayUsage, dailyLimit, monthUsage, monthlyLimit, currentPlan, usagePercent } = usePlanStore();
@@ -36,6 +39,10 @@ export function AIChatPanel() {
   const [input, setInput] = useState("");
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
   const [showMaterials, setShowMaterials] = useState(false);
+  // Live agent state — displayed during streaming
+  const [liveSteps, setLiveSteps] = useState<ThinkingStep[]>([]);
+  const [currentTool, setCurrentTool] = useState<string | null>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -86,7 +93,7 @@ export function AIChatPanel() {
   // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, isChatLoading]);
+  }, [chatMessages, isChatLoading, liveSteps]);
 
   const handleFeedback = (msgId: string, feedback: "good" | "bad") => {
     const existing = chatMessages.find((m) => m.id === msgId);
@@ -107,11 +114,28 @@ export function AIChatPanel() {
     return `\n\n[ユーザーフィードバック]\n${feedbacks.join("\n")}\n上記を参考に応答を改善してください。`;
   };
 
+  /**
+   * Auto-apply patches from agent — applies to document with undo support
+   */
+  const autoApplyPatches = useCallback((patch: DocumentPatch) => {
+    if (!patch || !patch.ops || patch.ops.length === 0) return;
+    try {
+      applyPatch(patch);
+      // Extract new block IDs from add_block ops
+      const newIds = patch.ops
+        .filter((op): op is Extract<typeof op, { op: "add_block" }> => op.op === "add_block")
+        .map((op) => op.block.id);
+      const action = buildLastAIAction(patch, newIds);
+      setLastAIAction(action);
+    } catch (e) {
+      console.error("[agent:auto-apply] Failed:", e);
+    }
+  }, [applyPatch, setLastAIAction]);
+
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isChatLoading || !document) return;
 
-    // 制限チェック（開発中: 警告のみ、ブロックしない）
     const limitCheck = canMakeRequest();
     if (limitCheck.reason) {
       console.warn("[chat:limit]", limitCheck.reason);
@@ -123,6 +147,8 @@ export function AIChatPanel() {
     addChatMessage(userMsg);
     setInput("");
     setChatLoading(true);
+    setLiveSteps([]);
+    setCurrentTool(null);
 
     chatLog.send(requestId, text);
     const startTime = Date.now();
@@ -152,7 +178,10 @@ export function AIChatPanel() {
       let finalThinking: ThinkingStep[] = [];
       let finalUsage: { inputTokens: number; outputTokens: number } = { inputTokens: 0, outputTokens: 0 };
       let finalMessage: string = "";
+      let finalPatches: DocumentPatch | null = null;
       let streamSucceeded = false;
+      const accumulatedSteps: ThinkingStep[] = [];
+      const accumulatedOps: Record<string, unknown>[] = [];
 
       try {
         await streamAIMessage(history, document, (event: StreamEvent) => {
@@ -162,16 +191,69 @@ export function AIChatPanel() {
             case "text":
               useUIStore.getState().updateStreamingContent(assistantMsgId, event.delta);
               break;
-            case "thinking":
+
+            case "thinking": {
+              const step: ThinkingStep = { type: "thinking", text: event.text };
+              accumulatedSteps.push(step);
+              setLiveSteps([...accumulatedSteps]);
               break;
-            case "tool_call":
+            }
+
+            case "tool_call": {
+              setCurrentTool(event.name);
+              const step: ThinkingStep = {
+                type: "tool_call",
+                text: `${event.name} を実行中...`,
+                tool: event.name,
+              };
+              accumulatedSteps.push(step);
+              setLiveSteps([...accumulatedSteps]);
               break;
+            }
+
+            case "tool_result": {
+              setCurrentTool(null);
+              // Update the last tool_call step with result info
+              let lastToolIdx = -1;
+              for (let j = accumulatedSteps.length - 1; j >= 0; j--) {
+                if (accumulatedSteps[j].type === "tool_call" && accumulatedSteps[j].tool === event.name) {
+                  lastToolIdx = j;
+                  break;
+                }
+              }
+              if (lastToolIdx >= 0) {
+                const resultSummary = _summarizeToolResult(event.name, event.result);
+                accumulatedSteps[lastToolIdx] = {
+                  ...accumulatedSteps[lastToolIdx],
+                  text: `${event.name}: ${resultSummary}`,
+                  duration: event.duration,
+                };
+              }
+              setLiveSteps([...accumulatedSteps]);
+              // Also persist thinking steps into the message in real-time
+              // so they survive even if streaming ends unexpectedly
+              updateChatMessage(assistantMsgId, {
+                thinkingSteps: [...accumulatedSteps],
+              });
+              break;
+            }
+
+            case "patch": {
+              // Accumulate patch ops
+              if (event.ops) {
+                accumulatedOps.push(...event.ops);
+              }
+              break;
+            }
+
             case "done":
               finalMessage = event.message;
               finalThinking = (event.thinking || []) as ThinkingStep[];
               finalUsage = event.usage || { inputTokens: 0, outputTokens: 0 };
+              finalPatches = event.patches || null;
               streamSucceeded = true;
               break;
+
             case "error":
               throw new Error(event.message);
           }
@@ -185,13 +267,21 @@ export function AIChatPanel() {
           if (isConnectionError) {
             chatLog.stream(requestId, "fallback-to-sync");
             updateChatMessage(assistantMsgId, { content: "", isStreaming: false });
+            setLiveSteps([]);
+            setCurrentTool(null);
 
             const result = await sendAIMessage(history, document);
             const duration = Date.now() - startTime;
             incrementUsage();
 
+            // Auto-apply patches from sync response
+            if (result.patches) {
+              autoApplyPatches(result.patches);
+            }
+
             updateChatMessage(assistantMsgId, {
               content: result.message,
+              patches: result.patches,
               thinkingSteps: result.thinking as ThinkingStep[],
               isStreaming: false,
               duration,
@@ -211,20 +301,51 @@ export function AIChatPanel() {
         const duration = Date.now() - startTime;
         incrementUsage();
 
+        // Use finalPatches from done event, or build from accumulated ops
+        const patches = finalPatches ||
+          (accumulatedOps.length > 0 ? { ops: accumulatedOps } as unknown as DocumentPatch : null);
+
+        // Auto-apply patches
+        if (patches) {
+          autoApplyPatches(patches);
+        }
+
+        // Merge: prefer accumulated live steps (richer), supplement with server steps
+        const mergedSteps: ThinkingStep[] = accumulatedSteps.length > 0
+          ? [...accumulatedSteps]
+          : finalThinking.length > 0
+          ? [...finalThinking]
+          : [];
+        // Add any server-side steps not already captured in live steps
+        if (finalThinking.length > 0 && accumulatedSteps.length > 0) {
+          for (const st of finalThinking) {
+            const alreadyHas = accumulatedSteps.some(
+              (a) => a.tool === st.tool && a.text === st.text
+            );
+            if (!alreadyHas) mergedSteps.push(st);
+          }
+        }
+        const thinkingSteps = mergedSteps.length > 0 ? mergedSteps : undefined;
+
         updateChatMessage(assistantMsgId, {
           content: finalMessage,
-          thinkingSteps: finalThinking,
+          patches,
+          thinkingSteps,
           isStreaming: false,
           duration,
           usage: finalUsage,
         });
 
+        setLiveSteps([]);
+        setCurrentTool(null);
         chatLog.receive(requestId, duration, false);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "エラーが発生しました。もう一度お試しください。";
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
       chatLog.error(requestId, msg);
+      setLiveSteps([]);
+      setCurrentTool(null);
 
       const existingMsg = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId);
       if (existingMsg) {
@@ -275,7 +396,6 @@ export function AIChatPanel() {
   };
 
   const handleOMRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // OMR機能は一旦テキスト応答のみに
     const file = e.target.files?.[0];
     if (!file || !document) return;
     e.target.value = "";
@@ -327,7 +447,7 @@ export function AIChatPanel() {
           </p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <p className="text-[10px] text-slate-400">{t("chat.subtitle")}</p>
+            <p className="text-[10px] text-slate-400">Agent Mode</p>
           </div>
         </div>
         <div className="flex items-center gap-0.5">
@@ -395,7 +515,7 @@ export function AIChatPanel() {
             </div>
             <div className="text-center space-y-1">
               <p className="text-sm font-medium text-foreground/60">{t("chat.empty.title")}</p>
-              <p className="text-xs text-muted-foreground/40">{t("chat.empty.sub")}</p>
+              <p className="text-xs text-muted-foreground/40">Agent Mode — 自動で文書を読み、編集し、検証します</p>
             </div>
             <div className="flex flex-col gap-2 w-full">
               {[
@@ -425,7 +545,13 @@ export function AIChatPanel() {
           />
         ))}
 
-        {isChatLoading && <ThinkingIndicator userMessage={chatMessages.filter(m => m.role === "user").at(-1)?.content || ""} />}
+        {isChatLoading && (
+          <ThinkingIndicator
+            userMessage={chatMessages.filter(m => m.role === "user").at(-1)?.content || ""}
+            liveSteps={liveSteps}
+            currentTool={currentTool}
+          />
+        )}
 
         <div ref={bottomRef} />
       </div>
@@ -437,7 +563,7 @@ export function AIChatPanel() {
         onSend={handleSend}
         onKeyDown={handleKeyDown}
         isChatLoading={isChatLoading}
-        agentMode={false}
+        agentMode={true}
         textareaRef={textareaRef}
         fileInputRef={fileInputRef}
         onOMRUpload={handleOMRUpload}
@@ -446,4 +572,22 @@ export function AIChatPanel() {
       />
     </div>
   );
+}
+
+/** Summarize a tool result for the live thinking display */
+function _summarizeToolResult(name: string, result: Record<string, unknown>): string {
+  switch (name) {
+    case "read_document":
+      return `${result.blockCount || 0}ブロックの文書を読み込み`;
+    case "search_blocks":
+      return `${result.count || 0}件の一致`;
+    case "edit_document":
+      return (result.summary as string) || "適用完了";
+    case "compile_check":
+      return result.success ? "OK" : (result.message as string) || "エラーあり";
+    case "get_latex_source":
+      return `${result.total_length || 0}文字のLaTeX`;
+    default:
+      return JSON.stringify(result).slice(0, 60);
+  }
 }

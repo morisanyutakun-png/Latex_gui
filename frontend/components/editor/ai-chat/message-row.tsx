@@ -3,6 +3,7 @@ import { ChatMessage } from "@/lib/types";
 import {
   Bot, ThumbsUp, ThumbsDown,
   AlertCircle, RotateCcw, ChevronDown,
+  CheckCircle2, FileEdit,
 } from "lucide-react";
 import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
@@ -112,6 +113,27 @@ export function MessageRow({
         ) : (
           <div className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-100">
             <ChatMarkdown content={msg.content} />
+          </div>
+        )}
+
+        {/* Patch applied banner */}
+        {!isUser && msg.patches && msg.patches.ops && msg.patches.ops.length > 0 && (
+          <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">
+              {(() => {
+                const ops = msg.patches!.ops;
+                const added = ops.filter(o => o.op === "add_block").length;
+                const updated = ops.filter(o => o.op === "update_block").length;
+                const deleted = ops.filter(o => o.op === "delete_block").length;
+                const parts: string[] = [];
+                if (added) parts.push(`${added}ブロック追加`);
+                if (updated) parts.push(`${updated}ブロック更新`);
+                if (deleted) parts.push(`${deleted}ブロック削除`);
+                return `文書に適用済み: ${parts.join(", ") || `${ops.length}件の操作`}`;
+              })()}
+            </span>
+            <FileEdit className="h-3 w-3 text-emerald-400 ml-auto" />
           </div>
         )}
 

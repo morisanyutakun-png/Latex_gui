@@ -387,8 +387,9 @@ export interface DocumentPatch {
 export interface ThinkingStep {
   type: "thinking" | "tool_call" | "tool_result" | "error";
   text: string;
-  tool?: string;       // e.g. "edit_document"
+  tool?: string;       // e.g. "edit_document", "read_document", etc.
   duration?: number;   // ms
+  result?: Record<string, unknown>;  // tool execution result
 }
 
 export interface ChatMessage {

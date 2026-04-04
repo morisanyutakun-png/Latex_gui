@@ -205,7 +205,9 @@ export async function sendAIMessage(
 export type StreamEvent =
   | { type: "thinking"; text: string }
   | { type: "text"; delta: string }
-  | { type: "tool_call"; name: string; ops_count: number }
+  | { type: "tool_call"; name: string; args?: Record<string, unknown>; ops_count?: number }
+  | { type: "tool_result"; name: string; result: Record<string, unknown>; duration: number }
+  | { type: "patch"; ops: Record<string, unknown>[] }
   | { type: "done"; message: string; patches: DocumentPatch | null; thinking: AIChatResponse["thinking"]; usage: AIChatResponse["usage"] }
   | { type: "error"; message: string };
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { useI18n } from "@/lib/i18n";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, Paperclip, BookOpen } from "lucide-react";
+import { Send, Loader2, Paperclip, BookOpen, Zap } from "lucide-react";
 
 export function InputArea({
   input, setInput, onSend, onKeyDown, isChatLoading, agentMode,
@@ -49,7 +49,7 @@ export function InputArea({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder={t("chat.placeholder")}
+            placeholder={agentMode ? "AIエージェントに指示..." : t("chat.placeholder")}
             className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 font-sans bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-slate-400/60 dark:placeholder:text-slate-500/60"
             disabled={isChatLoading}
           />
@@ -70,7 +70,19 @@ export function InputArea({
           </button>
         </div>
       </div>
-      <p className="text-[9px] text-slate-400/50 dark:text-slate-600/60 text-center mt-2">{t("chat.hint")}</p>
+
+      {/* Agent mode indicator */}
+      <div className="flex items-center justify-center gap-1.5 mt-2">
+        {agentMode && (
+          <span className="flex items-center gap-1 text-[9px] text-indigo-400/60">
+            <Zap className="h-2.5 w-2.5" />
+            Agent Mode
+          </span>
+        )}
+        <span className="text-[9px] text-slate-400/40 dark:text-slate-600/50">
+          自動で文書を読み取り・編集・検証します / Esc で中断
+        </span>
+      </div>
     </div>
   );
 }
