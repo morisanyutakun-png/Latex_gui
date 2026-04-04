@@ -18,7 +18,7 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Terminal, PenLine, Bot, FileCode2, Globe, FileText, X, BookOpen, Sigma } from "lucide-react";
+import { Terminal, Bot, FileCode2, Globe, FileText, X, BookOpen, Sigma } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 type SidebarTab = "ai" | "advanced" | "latex" | "guide" | "math";
@@ -41,10 +41,7 @@ export default function EditorPage() {
   // Desktop state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
-  const [editMode, setEditMode] = useState(false);
   const { width: sidebarWidth, isDragging, handleMouseDown } = useResizePanel();
-  // 前の非editモードタブを記憶してeditMode OFF時に戻せるようにする
-  const [preEditTab, setPreEditTab] = useState<SidebarTab>("ai");
 
   // Mobile state
   const [mobileTab, setMobileTab] = useState<"ai" | "preview">("ai");
@@ -64,35 +61,17 @@ export default function EditorPage() {
     }
   }, [advancedEnabled, isMobile]);
 
-  // editModeのON/OFFに応じてサイドパネル自動切替
+  // 数式編集コンテキストに応じてガイドパネル自動切替
   useEffect(() => {
-    if (editMode) {
-      setPreEditTab(activeTab);
-      setSidebarOpen(true);
-      setActiveTab("guide");
-    } else {
-      // editMode OFFになったら以前のタブに戻す（guide/mathならaiに）
-      const fallback: SidebarTab = (preEditTab === "guide" || preEditTab === "math") ? "ai" : preEditTab;
-      setActiveTab(fallback);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editMode]);
-
-  // コンテキストに応じてサイドパネル自動切替
-  useEffect(() => {
-    if (!editMode) return;
     if (isMathEditing || activeGuideContext === "math") {
-      setActiveTab("math");
-      setSidebarOpen(true);
-    } else if (activeGuideContext !== "none" && activeGuideContext !== "general") {
-      // heading/list/table/code → ガイドタブで表示
-      setActiveTab("guide");
-      setSidebarOpen(true);
+      if (activeTab === "guide") {
+        setActiveTab("math");
+      }
     } else {
       if (activeTab === "math") setActiveTab("guide");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMathEditing, activeGuideContext, editMode]);
+  }, [isMathEditing, activeGuideContext]);
 
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
@@ -185,7 +164,7 @@ export default function EditorPage() {
           {mobileTab === "ai" ? (
             <div className="h-full overflow-hidden flex flex-col"><AIChatPanel /></div>
           ) : (
-            <div className="h-full overflow-auto"><DocumentEditor /></div>
+            <div className="h-full overflow-auto"><DocumentEditor editMode={true} /></div>
           )}
         </div>
 
@@ -223,13 +202,13 @@ export default function EditorPage() {
       {/* Header — spans full width */}
       <AppHeader isAIActive={isAIActive} />
 
-      {/* Edit toolbar */}
-      {editMode && <EditToolbar />}
+      {/* Edit toolbar — always visible */}
+      <EditToolbar />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* ── Document editor ── */}
+        {/* ── Document editor — always editable ── */}
         <div className="flex-1 overflow-auto min-w-0">
-          <DocumentEditor editMode={editMode} />
+          <DocumentEditor editMode={true} />
         </div>
 
         {/* ── Resize handle ── */}
@@ -313,45 +292,26 @@ export default function EditorPage() {
             );
           })}
 
-          {/* 編集モード切替 */}
+          {/* 編集ガイド / 数式ガイド — always visible */}
           <button
-            onClick={() => setEditMode((v) => !v)}
-            title={editMode
-              ? (isJa ? "編集モードをOFF" : "Exit edit mode")
-              : (isJa ? "編集モードをON — クリックして書き込む" : "Edit mode — click to write")}
+            onClick={() => handleTabClick(isMathEditing ? "math" : "guide")}
+            title={isMathEditing
+              ? (isJa ? "数式入力ガイド" : "Math reference")
+              : (isJa ? "編集ガイド" : "Editing guide")}
             className={`relative h-10 w-full flex items-center justify-center rounded-md mx-0.5 transition-all duration-150 ${
-              editMode ? "text-sky-500 dark:text-sky-400 bg-foreground/[0.06]" : "text-muted-foreground/30 hover:text-muted-foreground/70 hover:bg-foreground/[0.06]"
+              sidebarOpen && (activeTab === "guide" || activeTab === "math")
+                ? isMathEditing ? "text-violet-500 bg-foreground/[0.06]" : "text-sky-500 bg-foreground/[0.06]"
+                : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-foreground/[0.06]"
             }`}
           >
-            {editMode && <span className="absolute left-0 inset-y-2 w-[2.5px] rounded-r-full bg-gradient-to-b from-sky-500 to-sky-400/30 shadow-sm shadow-sky-500/30 transition-all duration-200" />}
-            <PenLine className="h-[18px] w-[18px]" />
-            {editMode && (
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-sky-400" />
+            {sidebarOpen && (activeTab === "guide" || activeTab === "math") && (
+              <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full opacity-80 transition-all duration-200 ${isMathEditing ? "bg-violet-500" : "bg-sky-400"}`} />
             )}
+            {isMathEditing
+              ? <Sigma className="h-4 w-4" />
+              : <BookOpen className="h-4 w-4" />
+            }
           </button>
-
-          {/* 編集ガイド / 数式ガイド — editMode時のみ */}
-          {editMode && (
-            <button
-              onClick={() => handleTabClick(isMathEditing ? "math" : "guide")}
-              title={isMathEditing
-                ? (isJa ? "数式入力ガイド" : "Math reference")
-                : (isJa ? "編集ガイド" : "Editing guide")}
-              className={`relative h-10 w-full flex items-center justify-center rounded-md mx-0.5 transition-all duration-150 ${
-                sidebarOpen && (activeTab === "guide" || activeTab === "math")
-                  ? isMathEditing ? "text-violet-500 bg-foreground/[0.06]" : "text-sky-500 bg-foreground/[0.06]"
-                  : "text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-foreground/[0.06]"
-              }`}
-            >
-              {sidebarOpen && (activeTab === "guide" || activeTab === "math") && (
-                <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full opacity-80 transition-all duration-200 ${isMathEditing ? "bg-violet-500" : "bg-sky-400"}`} />
-              )}
-              {isMathEditing
-                ? <Sigma className="h-4 w-4" />
-                : <BookOpen className="h-4 w-4" />
-              }
-            </button>
-          )}
 
           <div className="flex-1" />
           <div className="w-5 h-px bg-foreground/[0.06] mb-1" />

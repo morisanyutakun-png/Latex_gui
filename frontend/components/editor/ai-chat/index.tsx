@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
-  Sparkles, Trash2, KeyRound,
+  Sparkles, Trash2, KeyRound, ScanLine, FileText, Image as ImageIcon, ArrowRight,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
@@ -589,6 +589,39 @@ export function AIChatPanel() {
               <p className="text-sm font-medium text-foreground/60">{t("chat.empty.title")}</p>
               <p className="text-xs text-muted-foreground/40">Agent Mode — 自動で文書を読み、編集し、検証します</p>
             </div>
+            {/* OMR promo card */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/60 dark:from-emerald-950/30 dark:via-surface-3 dark:to-teal-950/20 p-4 text-left hover:border-emerald-300/80 dark:hover:border-emerald-700/60 hover:shadow-md transition-all group animate-scale-in"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0 group-hover:scale-105 transition-transform">
+                  <ScanLine className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-1.5">
+                    画像・PDFから自動読み取り
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">AI</span>
+                  </p>
+                  <p className="text-xs text-emerald-700/70 dark:text-emerald-400/60 mt-1 leading-relaxed">
+                    プリント・教科書・手書きノートの画像やPDFをアップロードすると、AIが内容を解析してドキュメントに自動変換します
+                  </p>
+                  <div className="flex items-center gap-3 mt-2.5">
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-600/60 dark:text-emerald-500/50">
+                      <ImageIcon className="h-3 w-3" />
+                      JPEG / PNG
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-600/60 dark:text-emerald-500/50">
+                      <FileText className="h-3 w-3" />
+                      PDF対応
+                    </span>
+                    <ArrowRight className="h-3 w-3 text-emerald-400 ml-auto group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </div>
+            </button>
+
+            {/* AI suggestions */}
             <div className="flex flex-col gap-2 w-full">
               {[
                 t("chat.suggestion.1"),

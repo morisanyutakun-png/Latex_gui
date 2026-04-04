@@ -1348,7 +1348,44 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
   const { addBlock: addNewBlock } = useDocumentStore();
   const { selectBlock, setEditingBlock } = useUIStore();
   const zoom = useUIStore((s) => s.zoom);
+  const zoomFitMode = useUIStore((s) => s.zoomFitMode);
   const paperSize = useUIStore((s) => s.paperSize);
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Fit-to-page: auto-calculate zoom so the full paper fits within the canvas
+  useEffect(() => {
+    if (!zoomFitMode) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
+    const paperHeight = Math.round(paper.w * 1.4142);
+    const verticalPadding = 60; // py-6 top + bottom padding approx
+
+    const calculateFitZoom = () => {
+      const availableHeight = canvas.clientHeight - verticalPadding;
+      const availableWidth = canvas.clientWidth - 60; // horizontal padding
+      if (availableHeight <= 0 || availableWidth <= 0) return;
+
+      const fitByHeight = availableHeight / paperHeight;
+      const fitByWidth = availableWidth / paper.w;
+      const fitZoom = Math.min(fitByHeight, fitByWidth);
+      const clamped = Math.max(0.3, Math.min(2, Math.round(fitZoom * 100) / 100));
+
+      // Only update if significantly different to avoid loops
+      const currentZoom = useUIStore.getState().zoom;
+      if (Math.abs(clamped - currentZoom) > 0.005) {
+        // Directly set zoom without disabling fitMode
+        useUIStore.setState({ zoom: clamped });
+      }
+    };
+
+    calculateFitZoom();
+
+    const observer = new ResizeObserver(calculateFitZoom);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [zoomFitMode, paperSize]);
 
   const handleAddBlockAtEnd = () => {
     const blocks = useDocumentStore.getState().document?.blocks ?? [];
@@ -1397,10 +1434,11 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
     <GlobalCommandPalette />
     {/* Canvas */}
     <div
+      ref={canvasRef}
       className="flex-1 overflow-auto bg-surface-0 dark:bg-surface-2"
       onClick={() => selectBlock(null)}
     >
-      <div className="py-10 flex flex-col items-center min-h-full">
+      <div className={`flex flex-col items-center ${zoomFitMode ? "py-6 min-h-0" : "py-10 min-h-full"}`}>
 
         {/* Paper size label */}
         <div className="mb-2 text-[10px] font-mono text-[#aaa] dark:text-[#555] select-none self-start" style={{ marginLeft: `calc(50% - ${paper.w / 2}px)` }}>

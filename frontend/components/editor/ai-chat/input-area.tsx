@@ -1,7 +1,7 @@
 import React from "react";
 import { useI18n } from "@/lib/i18n";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, Paperclip, Zap } from "lucide-react";
+import { Send, Loader2, ScanLine, Zap } from "lucide-react";
 
 export function InputArea({
   input, setInput, onSend, onKeyDown, isChatLoading, agentMode,
@@ -27,10 +27,10 @@ export function InputArea({
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isChatLoading}
-            className="p-1.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-30"
-            title="画像/PDFをアップロード (OMR)"
+            className="p-1.5 rounded-lg text-emerald-500/70 dark:text-emerald-400/60 hover:text-emerald-600 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors disabled:opacity-30"
+            title="画像・PDFを読み取り — プリントや手書きノートをAIが自動変換"
           >
-            <Paperclip className="h-4 w-4" />
+            <ScanLine className="h-4 w-4" />
           </button>
         </div>
 

@@ -18,6 +18,7 @@ interface UIState {
   editingBlockId: string | null;
   isGenerating: boolean;
   zoom: number;
+  zoomFitMode: boolean;
   paperSize: PaperSize;
   isMathEditing: boolean;
   activeGuideContext: GuideContext;
@@ -41,6 +42,7 @@ interface UIState {
   setActiveGuideContext: (ctx: GuideContext) => void;
   setGenerating: (v: boolean) => void;
   setZoom: (v: number) => void;
+  setZoomFitMode: (v: boolean) => void;
   setPaperSize: (s: PaperSize) => void;
 
   // AI action actions
@@ -66,6 +68,7 @@ export const useUIStore = create<UIState>((set) => ({
   editingBlockId: null,
   isGenerating: false,
   zoom: 1,
+  zoomFitMode: true,
   paperSize: "a4",
   isMathEditing: false,
   activeGuideContext: "none",
@@ -86,7 +89,8 @@ export const useUIStore = create<UIState>((set) => ({
   setMathEditing: (v) => set({ isMathEditing: v }),
   setActiveGuideContext: (ctx) => set({ activeGuideContext: ctx }),
   setGenerating: (v) => set({ isGenerating: v }),
-  setZoom: (v) => set({ zoom: Math.max(0.5, Math.min(2, v)) }),
+  setZoom: (v) => set({ zoom: Math.max(0.3, Math.min(2, v)), zoomFitMode: false }),
+  setZoomFitMode: (v) => set({ zoomFitMode: v }),
   setPaperSize: (s) => set({ paperSize: s }),
 
   setGlobalPalette: (v) => set({ showGlobalPalette: v }),
