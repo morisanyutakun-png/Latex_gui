@@ -3,46 +3,38 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
-  Bot, Trash2, Zap, ZapOff, BookOpen, KeyRound,
+  Bot, Trash2, BookOpen, KeyRound,
 } from "lucide-react";
-import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
+import { useDocumentStore } from "@/store/document-store";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
-import { sendAIMessage, streamAIMessage, analyzeImageOMR, StreamEvent } from "@/lib/api";
-import { ChatMessage, DocumentPatch, ThinkingStep } from "@/lib/types";
+import { sendAIMessage, streamAIMessage, StreamEvent } from "@/lib/api";
+import { ChatMessage, ThinkingStep } from "@/lib/types";
 import { chatLog } from "@/lib/logger";
 
 import { MessageRow } from "./message-row";
-import { PatchPreviewDrawer } from "./patch-preview";
 import { ThinkingIndicator } from "./thinking-indicator";
 import { UsageBar } from "./usage-bar";
 import { MaterialsPanel } from "./materials-panel";
 import { InputArea } from "./input-area";
-import { buildLastAIAction } from "./utils";
 
 export function AIChatPanel() {
   const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
-  const applyPatch = useDocumentStore((s) => s.applyPatch);
   const {
     chatMessages,
-    pendingPatch,
     isChatLoading,
     addChatMessage,
     updateChatMessage,
-    setPendingPatch,
     setChatLoading,
     clearChat,
-    setLastAIAction,
   } = useUIStore();
 
   const { canMakeRequest, incrementUsage, setShowPricing, initFromStorage, todayUsage, dailyLimit, monthUsage, monthlyLimit, currentPlan, usagePercent } = usePlanStore();
 
   const [input, setInput] = useState("");
-  const [pendingMsgId, setPendingMsgId] = useState<string | null>(null);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
-  const [agentMode, setAgentMode] = useState(true);
   const [showMaterials, setShowMaterials] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -61,14 +53,13 @@ export function AIChatPanel() {
           parsed.forEach((m) => addChatMessage(m));
         }
       } else {
-        // Migrate from v1
         const v1 = localStorage.getItem("latex-gui-chat-v1");
         if (v1) {
           const parsed = JSON.parse(v1);
           if (Array.isArray(parsed) && parsed.length > 0 && chatMessages.length === 0) {
             parsed.forEach((m: ChatMessage) => addChatMessage({
               id: m.id, role: m.role, content: m.content,
-              appliedAt: m.appliedAt, thinkingSteps: m.thinkingSteps,
+              thinkingSteps: m.thinkingSteps,
               timestamp: m.appliedAt || Date.now(),
             }));
           }
@@ -84,9 +75,9 @@ export function AIChatPanel() {
     if (chatMessages.length === 0) return;
     try {
       const toSave = chatMessages.slice(-50).map(({
-        id, role, content, appliedAt, thinkingSteps, timestamp, duration, usage, requestId, error,
+        id, role, content, thinkingSteps, timestamp, duration, usage, requestId, error,
       }) => ({
-        id, role, content, appliedAt, thinkingSteps, timestamp, duration, usage, requestId, error,
+        id, role, content, thinkingSteps, timestamp, duration, usage, requestId, error,
       }));
       localStorage.setItem("latex-gui-chat-v2", JSON.stringify(toSave));
     } catch { /* ignore */ }
@@ -126,7 +117,6 @@ export function AIChatPanel() {
         id: crypto.randomUUID(),
         role: "assistant",
         content: `${limitCheck.reason}\n\nプランをアップグレードするとリクエスト上限を増やせます。`,
-        patches: null,
         timestamp: Date.now(),
       });
       setShowPricing(true);
@@ -151,7 +141,6 @@ export function AIChatPanel() {
 
     const assistantMsgId = crypto.randomUUID();
 
-    // Try streaming first, fallback to synchronous
     try {
       // Create placeholder streaming message
       addChatMessage({
@@ -166,7 +155,6 @@ export function AIChatPanel() {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      let finalPatches: DocumentPatch | null = null;
       let finalThinking: ThinkingStep[] = [];
       let finalUsage: { inputTokens: number; outputTokens: number } = { inputTokens: 0, outputTokens: 0 };
       let finalMessage: string = "";
@@ -178,17 +166,14 @@ export function AIChatPanel() {
 
           switch (event.type) {
             case "text":
-              // Append streaming text
               useUIStore.getState().updateStreamingContent(assistantMsgId, event.delta);
               break;
             case "thinking":
-              // Could update thinking steps in real-time in future
               break;
             case "tool_call":
               break;
             case "done":
               finalMessage = event.message;
-              finalPatches = event.patches;
               finalThinking = (event.thinking || []) as ThinkingStep[];
               finalUsage = event.usage || { inputTokens: 0, outputTokens: 0 };
               streamSucceeded = true;
@@ -198,7 +183,6 @@ export function AIChatPanel() {
           }
         }, controller.signal);
       } catch (streamErr) {
-        // If streaming failed at connection level (404, network error), fallback to sync
         if (!streamSucceeded) {
           const isConnectionError = streamErr instanceof Error &&
             (streamErr.message.includes("404") || streamErr.message.includes("fetch") ||
@@ -206,42 +190,24 @@ export function AIChatPanel() {
 
           if (isConnectionError) {
             chatLog.stream(requestId, "fallback-to-sync");
-            // Remove the streaming placeholder
             updateChatMessage(assistantMsgId, { content: "", isStreaming: false });
 
-            // Fallback to synchronous API
             const result = await sendAIMessage(history, document);
             const duration = Date.now() - startTime;
             incrementUsage();
 
             updateChatMessage(assistantMsgId, {
               content: result.message,
-              patches: result.patches,
               thinkingSteps: result.thinking as ThinkingStep[],
               isStreaming: false,
               duration,
               usage: result.usage,
             });
 
-            chatLog.receive(requestId, duration, !!(result.patches && result.patches.ops.length > 0));
-
-            if (result.patches && result.patches.ops.length > 0) {
-              chatLog.apply(requestId, result.patches.ops.length);
-              if (agentMode) {
-                const idsBefore = new Set(useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? []);
-                applyPatch(result.patches);
-                const idsAfter = useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? [];
-                const newIds = idsAfter.filter((id) => !idsBefore.has(id));
-                setLastAIAction(buildLastAIAction(result.patches, newIds));
-                updateChatMessage(assistantMsgId, { appliedAt: Date.now() });
-              } else {
-                setPendingPatch(result.patches);
-                setPendingMsgId(assistantMsgId);
-              }
-            }
-            return; // Done via fallback
+            chatLog.receive(requestId, duration, false);
+            return;
           }
-          throw streamErr; // Re-throw non-connection errors
+          throw streamErr;
         }
       } finally {
         abortControllerRef.current = null;
@@ -251,40 +217,21 @@ export function AIChatPanel() {
         const duration = Date.now() - startTime;
         incrementUsage();
 
-        // Finalize the streaming message with complete data
         updateChatMessage(assistantMsgId, {
           content: finalMessage,
-          patches: finalPatches,
           thinkingSteps: finalThinking,
           isStreaming: false,
           duration,
           usage: finalUsage,
         });
 
-        const fp = finalPatches as DocumentPatch | null;
-        chatLog.receive(requestId, duration, !!(fp && fp.ops.length > 0));
-
-        if (fp && fp.ops.length > 0) {
-          chatLog.apply(requestId, fp.ops.length);
-          if (agentMode) {
-            const idsBefore = new Set(useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? []);
-            applyPatch(fp);
-            const idsAfter = useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? [];
-            const newIds = idsAfter.filter((id) => !idsBefore.has(id));
-            setLastAIAction(buildLastAIAction(fp, newIds));
-            updateChatMessage(assistantMsgId, { appliedAt: Date.now() });
-          } else {
-            setPendingPatch(fp);
-            setPendingMsgId(assistantMsgId);
-          }
-        }
+        chatLog.receive(requestId, duration, false);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "エラーが発生しました。もう一度お試しください。";
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
       chatLog.error(requestId, msg);
 
-      // Check if we already created the assistant message (streaming case)
       const existingMsg = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId);
       if (existingMsg) {
         updateChatMessage(assistantMsgId, {
@@ -298,7 +245,6 @@ export function AIChatPanel() {
           id: assistantMsgId,
           role: "assistant",
           content: msg,
-          patches: null,
           error: msg,
           requestId,
           timestamp: Date.now(),
@@ -313,7 +259,6 @@ export function AIChatPanel() {
   const handleRetryError = useCallback((errorMsgId: string) => {
     const errorIdx = chatMessages.findIndex(m => m.id === errorMsgId);
     if (errorIdx < 1) return;
-    // Find the preceding user message
     for (let i = errorIdx - 1; i >= 0; i--) {
       if (chatMessages[i].role === "user") {
         setInput(chatMessages[i].content);
@@ -322,34 +267,6 @@ export function AIChatPanel() {
       }
     }
   }, [chatMessages]);
-
-  const handleApplyPatches = (patch: DocumentPatch, msgId: string) => {
-    setPendingPatch(patch);
-    setPendingMsgId(msgId);
-  };
-
-  const handleRetryPatches = (patch: DocumentPatch, msgId: string) => {
-    updateChatMessage(msgId, { appliedAt: undefined });
-    setPendingPatch(patch);
-    setPendingMsgId(msgId);
-  };
-
-  const handleConfirmApply = () => {
-    if (!pendingPatch) return;
-    const idsBefore = new Set(useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? []);
-    applyPatch(pendingPatch);
-    const idsAfter = useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? [];
-    const newIds = idsAfter.filter((id) => !idsBefore.has(id));
-    setLastAIAction(buildLastAIAction(pendingPatch, newIds));
-    if (pendingMsgId) updateChatMessage(pendingMsgId, { appliedAt: Date.now() });
-    setPendingPatch(null);
-    setPendingMsgId(null);
-  };
-
-  const handleDismissPatch = () => {
-    setPendingPatch(null);
-    setPendingMsgId(null);
-  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
@@ -364,6 +281,7 @@ export function AIChatPanel() {
   };
 
   const handleOMRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // OMR機能は一旦テキスト応答のみに
     const file = e.target.files?.[0];
     if (!file || !document) return;
     e.target.value = "";
@@ -373,52 +291,34 @@ export function AIChatPanel() {
       addChatMessage({
         id: crypto.randomUUID(), role: "assistant",
         content: `${limitCheck.reason}\n\nプランをアップグレードするとリクエスト上限を増やせます。`,
-        patches: null, timestamp: Date.now(),
+        timestamp: Date.now(),
       });
       setShowPricing(true);
       return;
     }
 
-    const requestId = crypto.randomUUID();
     addChatMessage({ id: crypto.randomUUID(), role: "user", content: `📎 ${file.name}`, timestamp: Date.now() });
     setChatLoading(true);
+    const requestId = crypto.randomUUID();
     const startTime = Date.now();
 
     try {
+      const { analyzeImageOMR } = await import("@/lib/api");
       const result = await analyzeImageOMR(file, document);
       incrementUsage();
-      const duration = Date.now() - startTime;
-      const assistantMsgId = crypto.randomUUID();
-      const assistantMsg: ChatMessage = {
-        id: assistantMsgId,
+      addChatMessage({
+        id: crypto.randomUUID(),
         role: "assistant",
         content: result.description || "画像を解析しました。",
-        patches: result.patches,
-        requestId, timestamp: Date.now(), duration,
-      };
-      addChatMessage(assistantMsg);
-
-      if (result.patches && result.patches.ops.length > 0) {
-        if (agentMode) {
-          const idsBefore = new Set(useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? []);
-          applyPatch(result.patches);
-          const idsAfter = useDocumentStore.getState().document?.blocks.map((b) => b.id) ?? [];
-          const newIds = idsAfter.filter((id) => !idsBefore.has(id));
-          setLastAIAction(buildLastAIAction(result.patches, newIds));
-          updateChatMessage(assistantMsgId, { appliedAt: Date.now() });
-        } else {
-          setPendingPatch(result.patches);
-          setPendingMsgId(assistantMsgId);
-        }
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "画像解析中にエラーが発生しました。";
+        requestId, timestamp: Date.now(), duration: Date.now() - startTime,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "画像解析中にエラーが発生しました。";
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
       chatLog.error(requestId, msg);
       addChatMessage({
         id: crypto.randomUUID(), role: "assistant", content: msg,
-        patches: null, error: msg, requestId, timestamp: Date.now(),
-        duration: Date.now() - startTime,
+        error: msg, requestId, timestamp: Date.now(), duration: Date.now() - startTime,
       });
     } finally {
       setChatLoading(false);
@@ -448,18 +348,6 @@ export function AIChatPanel() {
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => setAgentMode(!agentMode)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
-              agentMode
-                ? "bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/30"
-                : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-            }`}
-            title={agentMode ? t("chat.auto") : t("chat.confirm")}
-          >
-            {agentMode ? <Zap className="h-2.5 w-2.5" /> : <ZapOff className="h-2.5 w-2.5" />}
-            {agentMode ? t("chat.auto") : t("chat.confirm")}
-          </button>
           <button
             onClick={() => setShowMaterials(!showMaterials)}
             className={`p-1.5 rounded-lg text-xs transition-colors ${
@@ -515,7 +403,7 @@ export function AIChatPanel() {
         </div>
       )}
 
-      {/* Message list — left-aligned Claude Code style */}
+      {/* Message list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-[#f2f3f5] dark:bg-[#16181c]">
         {chatMessages.length === 0 && !showMaterials && (
           <div className="flex flex-col items-center justify-center h-full gap-5 py-8 select-none">
@@ -549,8 +437,6 @@ export function AIChatPanel() {
           <MessageRow
             key={msg.id}
             msg={msg}
-            onApplyPatches={handleApplyPatches}
-            onRetryPatches={handleRetryPatches}
             onFeedback={handleFeedback}
             onRetryError={handleRetryError}
           />
@@ -561,17 +447,6 @@ export function AIChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Pending patch drawer */}
-      {pendingPatch && (
-        <div className="px-3 pb-2 shrink-0">
-          <PatchPreviewDrawer
-            patch={pendingPatch}
-            onApply={handleConfirmApply}
-            onDismiss={handleDismissPatch}
-          />
-        </div>
-      )}
-
       {/* Input area */}
       <InputArea
         input={input}
@@ -579,7 +454,7 @@ export function AIChatPanel() {
         onSend={handleSend}
         onKeyDown={handleKeyDown}
         isChatLoading={isChatLoading}
-        agentMode={agentMode}
+        agentMode={false}
         textareaRef={textareaRef}
         fileInputRef={fileInputRef}
         onOMRUpload={handleOMRUpload}

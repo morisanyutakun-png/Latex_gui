@@ -2,8 +2,8 @@
  * EddivomAI 料金プラン定義
  *
  * リクエスト数ベースの制限で利益計算を容易にする。
- * Gemini 2.5 Flash のコスト: ~$0.003/req → 1リクエスト ≈ 0.40円
- * (thinking_budget=2048 で思考トークンを最適化)
+ * Claude Haiku 3.5 のコスト: ~$0.024/req → 1リクエスト ≈ 3.6円
+ * (入力 ~9,000 tokens, 出力 ~4,300 tokens 想定)
  */
 
 export type PlanId = "free" | "starter" | "pro" | "premium";
@@ -29,18 +29,18 @@ export const PLANS: Record<PlanId, PlanDef> = {
     nameEn: "Free",
     price: 0,
     priceLabel: "¥0",
-    requestsPerDay: 10,
-    requestsPerMonth: 100,
+    requestsPerDay: 3,
+    requestsPerMonth: 30,
     features: [
-      "AIリクエスト 10回/日",
-      "月間100リクエストまで",
+      "AIリクエスト 3回/日",
+      "月間30リクエストまで",
       "基本テンプレート",
       "PDF出力",
       "LaTeXソースエクスポート",
     ],
     featuresEn: [
-      "10 AI requests/day",
-      "Up to 100 requests/month",
+      "3 AI requests/day",
+      "Up to 30 requests/month",
       "Basic templates",
       "PDF export",
       "LaTeX source export",
@@ -52,19 +52,19 @@ export const PLANS: Record<PlanId, PlanDef> = {
     nameEn: "Starter",
     price: 980,
     priceLabel: "¥980",
-    requestsPerDay: 30,
-    requestsPerMonth: 500,
+    requestsPerDay: 8,
+    requestsPerMonth: 150,
     features: [
-      "AIリクエスト 30回/日",
-      "月間500リクエストまで",
+      "AIリクエスト 8回/日",
+      "月間150リクエストまで",
       "基本テンプレート",
       "思考ログ表示",
       "PDF出力",
       "LaTeXソースエクスポート",
     ],
     featuresEn: [
-      "30 AI requests/day",
-      "Up to 500 requests/month",
+      "8 AI requests/day",
+      "Up to 150 requests/month",
       "Basic templates",
       "Thinking log display",
       "PDF export",
@@ -78,11 +78,11 @@ export const PLANS: Record<PlanId, PlanDef> = {
     nameEn: "Pro",
     price: 2980,
     priceLabel: "¥2,980",
-    requestsPerDay: 100,
-    requestsPerMonth: 2000,
+    requestsPerDay: 25,
+    requestsPerMonth: 500,
     features: [
-      "AIリクエスト 100回/日",
-      "月間2,000リクエストまで",
+      "AIリクエスト 25回/日",
+      "月間500リクエストまで",
       "全テンプレート利用可",
       "PDF出力 (優先キュー)",
       "バッチ処理",
@@ -90,8 +90,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "メールサポート",
     ],
     featuresEn: [
-      "100 AI requests/day",
-      "Up to 2,000 requests/month",
+      "25 AI requests/day",
+      "Up to 500 requests/month",
       "All templates",
       "PDF export (priority queue)",
       "Batch processing",
@@ -107,11 +107,11 @@ export const PLANS: Record<PlanId, PlanDef> = {
     nameEn: "Premium",
     price: 12800,
     priceLabel: "¥12,800",
-    requestsPerDay: 5000,
-    requestsPerMonth: 100000,
+    requestsPerDay: 100,
+    requestsPerMonth: 2000,
     features: [
-      "AIリクエスト ほぼ無制限",
-      "月間100,000リクエスト",
+      "AIリクエスト 100回/日",
+      "月間2,000リクエスト",
       "全テンプレート利用可",
       "PDF出力 (最優先)",
       "バッチ処理 (上限200行)",
@@ -122,8 +122,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "紙デザインそのままPDF出力",
     ],
     featuresEn: [
-      "AI requests: virtually unlimited",
-      "100,000 requests/month",
+      "100 AI requests/day",
+      "2,000 requests/month",
       "All templates",
       "PDF export (highest priority)",
       "Batch processing (up to 200 rows)",
@@ -147,14 +147,13 @@ export function estimateMargin(planId: PlanId): {
   margin: number;
 } {
   const plan = PLANS[planId];
-  const costPerReq = 0.45; // 円 (Gemini 2.5 Flash)
+  const costPerReq = 3.6; // 円 (Claude Haiku 3.5: ~$0.024/req)
   const maxMonthlyCost = plan.requestsPerMonth * costPerReq;
   const revenue = plan.price;
   const margin = revenue - maxMonthlyCost;
   return { costPerReq, maxMonthlyCost, revenue, margin };
 }
-// free:    max cost ¥40,     revenue ¥0      → margin -¥40
-// starter: max cost ¥200,    revenue ¥980    → margin +¥780
-// pro:     max cost ¥800,    revenue ¥2,980  → margin +¥2,180
-// premium: max cost ¥40,000, revenue ¥12,800 → margin -¥27,200 (理論最大, 実使用は~¥2,000程度)
-// ※ premium は "ほぼ無制限" の体験を提供。実際の平均利用は月2,000-5,000リクエスト程度を想定
+// free:    max cost ¥108,    revenue ¥0      → margin -¥108
+// starter: max cost ¥540,    revenue ¥980    → margin +¥440  (利益率 45%)
+// pro:     max cost ¥1,800,  revenue ¥2,980  → margin +¥1,180 (利益率 40%)
+// premium: max cost ¥7,200,  revenue ¥12,800 → margin +¥5,600 (利益率 44%)

@@ -1,25 +1,20 @@
 import React from "react";
-import { useI18n } from "@/lib/i18n";
-import { ChatMessage, DocumentPatch } from "@/lib/types";
+import { ChatMessage } from "@/lib/types";
 import {
-  Bot, Check, Sparkles, ThumbsUp, ThumbsDown,
+  Bot, ThumbsUp, ThumbsDown,
   AlertCircle, RotateCcw, ChevronDown,
 } from "lucide-react";
 import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
-import { DiffViewer } from "./diff-viewer";
-import { cleanAIContent, formatRelativeTime, formatDuration, formatTokens } from "./utils";
+import { formatRelativeTime, formatDuration, formatTokens } from "./utils";
 
 export function MessageRow({
-  msg, onApplyPatches, onRetryPatches, onFeedback, onRetryError,
+  msg, onFeedback, onRetryError,
 }: {
   msg: ChatMessage;
-  onApplyPatches: (patch: DocumentPatch, msgId: string) => void;
-  onRetryPatches: (patch: DocumentPatch, msgId: string) => void;
   onFeedback: (msgId: string, feedback: "good" | "bad") => void;
   onRetryError?: (msgId: string) => void;
 }) {
-  const { t } = useI18n();
   const isUser = msg.role === "user";
   const [showErrorDetails, setShowErrorDetails] = React.useState(false);
 
@@ -116,39 +111,13 @@ export function MessageRow({
           </span>
         ) : (
           <div className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-100">
-            <ChatMarkdown content={cleanAIContent(msg.content, !!(msg.patches && msg.patches.ops.length > 0))} />
+            <ChatMarkdown content={msg.content} />
           </div>
         )}
 
         {/* Action timeline (thinking steps) */}
         {!isUser && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
           <ActionTimeline steps={msg.thinkingSteps} />
-        )}
-
-        {/* Diff viewer (patches) */}
-        {!isUser && msg.patches && msg.patches.ops.length > 0 && (
-          <>
-            <DiffViewer patches={msg.patches} />
-            <div className="mt-1">
-              {msg.appliedAt ? (
-                <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400">
-                  <Check className="h-3 w-3" />
-                  <span>{t("chat.applied")}</span>
-                  <button onClick={() => msg.patches && onRetryPatches(msg.patches, msg.id)} className="underline hover:no-underline opacity-60">
-                    {t("chat.retry")}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => msg.patches && onApplyPatches(msg.patches, msg.id)}
-                  className="flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-colors"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {`${msg.patches.ops.length} ${t("chat.changes")}`}
-                </button>
-              )}
-            </div>
-          </>
         )}
 
         {/* Footer: feedback + token usage */}

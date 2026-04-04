@@ -1,7 +1,7 @@
 import React from "react";
 import { useI18n } from "@/lib/i18n";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, Paperclip, BookOpen, Zap } from "lucide-react";
+import { Send, Loader2, Paperclip, BookOpen } from "lucide-react";
 
 export function InputArea({
   input, setInput, onSend, onKeyDown, isChatLoading, agentMode,
@@ -23,12 +23,6 @@ export function InputArea({
 
   return (
     <div className="border-t border-slate-200/40 dark:border-slate-700/30 px-3 py-3 shrink-0 bg-white dark:bg-[#1a1c22] shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
-      {agentMode && (
-        <div className="flex items-center gap-1 text-[10px] text-indigo-500/80 mb-2 px-1">
-          <Zap className="h-2.5 w-2.5" />
-          {t("chat.agent.mode")}
-        </div>
-      )}
       <div className="flex items-end gap-2">
         <div className="flex flex-col gap-1 pb-1">
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={onOMRUpload} />
