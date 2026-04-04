@@ -667,10 +667,52 @@ def _extract_usage(response) -> dict:
         return {"inputTokens": 0, "outputTokens": 0}
 
 
+def _parse_api_error(e: Exception) -> tuple[str, float]:
+    """API エラーを解析し、(ユーザー向けメッセージ, リトライ待機秒数) を返す。
+    リトライ不要なら待機秒数 = 0。
+    """
+    err_str = str(e)
+    retry_seconds = 0.0
+
+    # 429 レート制限
+    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+        # retryDelay を抽出
+        import re
+        m = re.search(r'retryDelay["\s:]+["\s]*(\d+)', err_str)
+        if m:
+            retry_seconds = float(m.group(1))
+        else:
+            # "retry in XX.XXs" パターン
+            m2 = re.search(r'retry in\s+([\d.]+)\s*s', err_str, re.IGNORECASE)
+            if m2:
+                retry_seconds = float(m2.group(1))
+            else:
+                retry_seconds = 30.0  # デフォルト待機
+
+        if retry_seconds > 0:
+            wait_int = int(retry_seconds) + 1
+            msg = f"APIレート制限に達しました。{wait_int}秒後に自動リトライします..."
+        else:
+            msg = "APIレート制限に達しました。しばらく待ってから再度お試しください。"
+        return msg, retry_seconds
+
+    # 403 / 401 認証エラー
+    if "403" in err_str or "401" in err_str or "PERMISSION_DENIED" in err_str:
+        return "APIキーが無効または権限不足です。APIキーの設定を確認してください。", 0
+
+    # 500系サーバーエラー
+    if "500" in err_str or "503" in err_str or "INTERNAL" in err_str:
+        return "AIサービスで一時的なエラーが発生しました。しばらく待ってから再度お試しください。", 0
+
+    # その他
+    return f"AI APIの呼び出しに失敗しました。しばらく待ってから再度お試しください。", 0
+
+
 async def chat(messages: list[dict], document: dict) -> dict:
     """
     Gemini でチャットし、ドキュメント編集パッチを返す。
     MALFORMED_FUNCTION_CALL 時はツールなしで自動リトライ。
+    429 レート制限時は待機後に自動リトライ (最大2回)。
     Returns { message: str, patches: dict | None, usage: dict }
     """
     import asyncio
@@ -697,19 +739,40 @@ async def chat(messages: list[dict], document: dict) -> dict:
             config=cfg,
         )
 
-    try:
-        response = await asyncio.to_thread(_call, config)
-    except Exception as e:
-        logger.error("Gemini API call failed: %s", e, exc_info=True)
+    # レート制限リトライループ (最大2回リトライ)
+    max_rate_retries = 2
+    response = None
+    for attempt in range(1 + max_rate_retries):
+        try:
+            response = await asyncio.to_thread(_call, config)
+            break  # 成功
+        except Exception as e:
+            user_msg, retry_wait = _parse_api_error(e)
+            logger.error("Gemini API call failed (attempt %d): %s", attempt + 1, e)
+
+            if retry_wait > 0 and attempt < max_rate_retries:
+                # レート制限 → 待機してリトライ
+                wait_secs = min(retry_wait + 2, 60)  # 最大60秒
+                logger.info("Rate limited, waiting %.0fs before retry...", wait_secs)
+                await asyncio.sleep(wait_secs)
+                continue
+
+            return {
+                "message": user_msg,
+                "patches": None,
+                "usage": {"inputTokens": 0, "outputTokens": 0},
+            }
+
+    if response is None:
         return {
-            "message": f"AI APIの呼び出しに失敗しました: {type(e).__name__}: {e}",
+            "message": "AIの応答を取得できませんでした。しばらく待ってから再度お試しください。",
             "patches": None,
             "usage": {"inputTokens": 0, "outputTokens": 0},
         }
 
     result = _parse_response(response)
 
-    # ─── 2回目: MALFORMED_FUNCTION_CALL → ツールなしでリトライ ───
+    # ─── MALFORMED_FUNCTION_CALL → ツールなしでリトライ ───
     if result is None:
         logger.info("Retrying without tools due to MALFORMED_FUNCTION_CALL")
         config_no_tools = types.GenerateContentConfig(
@@ -732,9 +795,10 @@ async def chat(messages: list[dict], document: dict) -> dict:
                     "usage": _extract_usage(response2),
                 }
         except Exception as e:
+            user_msg, _ = _parse_api_error(e)
             logger.error("Gemini retry failed: %s", e, exc_info=True)
             result = {
-                "message": f"リトライも失敗しました: {type(e).__name__}: {e}",
+                "message": user_msg,
                 "patches": None,
                 "usage": {"inputTokens": 0, "outputTokens": 0},
             }

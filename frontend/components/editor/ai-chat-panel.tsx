@@ -545,6 +545,13 @@ function ThinkingIndicator({ userMessage }: { userMessage: string }) {
   const lines = React.useMemo(() => getThinkingLines(userMessage), [userMessage]);
   const [lineIdx, setLineIdx] = React.useState(0);
   const [charCount, setCharCount] = React.useState(0);
+  const [elapsed, setElapsed] = React.useState(0);
+
+  // 経過時間カウンター
+  React.useEffect(() => {
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   // タイプライター効果でラインを切り替え
   React.useEffect(() => {
@@ -566,6 +573,12 @@ function ThinkingIndicator({ userMessage }: { userMessage: string }) {
   const jpPart = currentLine.split("...")[0];
   const enPart = currentLine.includes("...") ? currentLine.slice(currentLine.indexOf("...") + 4) : "";
 
+  // 長時間待機時のステータス
+  const isLongWait = elapsed >= 15;
+  const statusText = isLongWait ? "retrying" : "running";
+  const statusColor = isLongWait ? "text-amber-400/70" : "text-indigo-400/70";
+  const dotColor = isLongWait ? "bg-amber-400" : "bg-indigo-400";
+
   return (
     <div className="flex items-start gap-2">
       <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-indigo-900/30 ring-1 ring-white/10">
@@ -580,9 +593,10 @@ function ThinkingIndicator({ userMessage }: { userMessage: string }) {
             <span className="h-2 w-2 rounded-full bg-yellow-500/70" />
             <span className="h-2 w-2 rounded-full bg-emerald-500/70" />
             <span className="ml-2 text-[9px] font-mono text-slate-500">eddivom-agent · thinking</span>
-            <span className="ml-auto flex items-center gap-1 text-[9px] font-mono text-indigo-400/70">
-              <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-              running
+            <span className={`ml-auto flex items-center gap-1 text-[9px] font-mono ${statusColor}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${dotColor} animate-pulse`} />
+              {statusText}
+              <span className="text-slate-600 ml-1">{elapsed}s</span>
             </span>
           </div>
           {/* 出力ライン */}
@@ -598,6 +612,13 @@ function ThinkingIndicator({ userMessage }: { userMessage: string }) {
               {enPart && <span className="text-slate-500 ml-1">{enPart}</span>}
               <span className="inline-block w-[6px] h-[12px] bg-indigo-400/80 animate-pulse" />
             </div>
+            {isLongWait && (
+              <div className="flex items-center gap-1 pl-4 mt-1">
+                <span className="text-amber-400/60">⏳</span>
+                <span className="text-amber-300/70">API制限のためリトライ待機中...</span>
+                <span className="text-slate-600">Rate limit, auto-retrying</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
