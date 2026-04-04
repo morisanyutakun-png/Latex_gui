@@ -182,7 +182,7 @@ export async function sendAIMessage(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, document: doc, requestPatches: true }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(180000),
   });
 
   if (!res.ok) {
@@ -221,7 +221,7 @@ export async function streamAIMessage(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, document: doc, requestPatches: true }),
-    signal: signal || AbortSignal.timeout(120000),
+    signal: signal || AbortSignal.timeout(300000),
   });
 
   if (!res.ok) {

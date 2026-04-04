@@ -5,10 +5,10 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const TIMEOUT_MS = 55000;
+const TIMEOUT_MS = 180000;
 
 async function callBackend(body: string, timeoutMs: number): Promise<Response> {
   return fetch(`${BACKEND}/api/ai/chat`, {
@@ -35,11 +35,11 @@ export async function POST(req: NextRequest) {
       const isNetwork = firstErr instanceof Error && firstErr.message?.includes("fetch");
 
       // Koyeb コールドスタート対策: タイムアウト or ネットワークエラーなら1回リトライ
-      if ((isTimeout || isNetwork) && elapsed < 55000) {
+      if ((isTimeout || isNetwork) && elapsed < 120000) {
         console.log(`[proxy] ai/chat first attempt failed (${elapsed}ms), retrying...`);
-        const retryTimeout = Math.max(57000 - elapsed, 5000);
+        const retryTimeout = Math.max(TIMEOUT_MS - elapsed, 10000);
         try {
-          res = await callBackend(body, Math.min(retryTimeout, TIMEOUT_MS));
+          res = await callBackend(body, retryTimeout);
         } catch (retryErr) {
           throw retryErr;
         }

@@ -4,7 +4,7 @@
  */
 import { NextRequest } from "next/server";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
-      signal: AbortSignal.timeout(120000),
+      signal: AbortSignal.timeout(300000),
     });
 
     if (!res.ok) {

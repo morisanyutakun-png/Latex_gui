@@ -237,9 +237,10 @@ export function AIChatPanel() {
             }
 
             case "patch": {
-              // Accumulate patch ops
+              // Accumulate patch ops and auto-apply immediately
               if (event.ops) {
                 accumulatedOps.push(...event.ops);
+                autoApplyPatches({ ops: event.ops } as unknown as DocumentPatch);
               }
               break;
             }
@@ -295,17 +296,29 @@ export function AIChatPanel() {
         abortControllerRef.current = null;
       }
 
+      // Finalize the message — whether "done" was received or the stream ended early
+      const duration = Date.now() - startTime;
+      const currentMsg = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId);
+      const streamedContent = currentMsg?.content || "";
+
       if (streamSucceeded) {
-        const duration = Date.now() - startTime;
         incrementUsage();
 
         // Use finalPatches from done event, or build from accumulated ops
         const patches = finalPatches ||
           (accumulatedOps.length > 0 ? { ops: accumulatedOps } as unknown as DocumentPatch : null);
 
-        // Auto-apply patches
-        if (patches) {
-          autoApplyPatches(patches);
+        // Auto-apply any patches from "done" that weren't already applied via "patch" events
+        if (finalPatches) {
+          const doneOps = (finalPatches as DocumentPatch).ops || [];
+          const newOps = doneOps.filter(
+            (op) => !accumulatedOps.some(
+              (aOp) => JSON.stringify(aOp) === JSON.stringify(op)
+            )
+          );
+          if (newOps.length > 0) {
+            autoApplyPatches({ ops: newOps } as DocumentPatch);
+          }
         }
 
         // Merge: prefer accumulated live steps (richer), supplement with server steps
@@ -337,6 +350,33 @@ export function AIChatPanel() {
         setLiveSteps([]);
         setCurrentTool(null);
         chatLog.receive(requestId, duration, false);
+      } else {
+        // Stream ended without "done" event (timeout, network drop, etc.)
+        // Finalize with whatever was accumulated so far
+        incrementUsage();
+        const hasContent = streamedContent.length > 0 || accumulatedOps.length > 0;
+        const patches = accumulatedOps.length > 0
+          ? { ops: accumulatedOps } as unknown as DocumentPatch
+          : null;
+
+        const message = hasContent
+          ? (streamedContent || `${accumulatedOps.length}件の変更を適用しました。`)
+          : "ストリーミングが中断されました。もう一度お試しください。";
+
+        const thinkingSteps = accumulatedSteps.length > 0 ? [...accumulatedSteps] : undefined;
+
+        updateChatMessage(assistantMsgId, {
+          content: message,
+          patches,
+          thinkingSteps,
+          isStreaming: false,
+          duration,
+          error: hasContent ? undefined : "ストリーミングが中断されました",
+        });
+
+        setLiveSteps([]);
+        setCurrentTool(null);
+        chatLog.receive(requestId, duration, !hasContent);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "エラーが発生しました。もう一度お試しください。";
