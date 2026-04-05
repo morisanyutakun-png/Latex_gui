@@ -39,7 +39,6 @@ export function ThinkingIndicator({
     return () => clearInterval(t);
   }, []);
 
-  // Auto-scroll log to bottom when new steps arrive
   React.useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [liveSteps, currentTool]);
@@ -52,33 +51,41 @@ export function ThinkingIndicator({
     ? "エージェント実行中"
     : "思考中";
 
-  const statusColor = isLongWait ? "text-amber-400/70" : "text-indigo-400/70";
-  const dotColor = isLongWait ? "bg-amber-400" : "bg-indigo-400";
-
   return (
     <div className="w-full">
       {/* Role label */}
-      <div className="flex items-center gap-2 mb-1.5">
-        <div className="h-5 w-5 rounded-md bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center">
+      <div className="flex items-center gap-2.5 mb-2">
+        <div className="h-5 w-5 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm shadow-indigo-500/20">
           <Bot className="h-3 w-3 text-white" />
         </div>
-        <span className="text-[11px] font-semibold text-indigo-400">Eddivom AI</span>
-        <span className={`flex items-center gap-1 text-[10px] font-mono ${statusColor}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${dotColor} animate-pulse`} />
+        <span className="text-[11px] font-bold text-gradient-ai tracking-wide">EDDIVOM AI</span>
+        <span className="flex items-center gap-1.5 text-[10px] font-mono text-indigo-400/50">
+          <span className={`h-1.5 w-1.5 rounded-full ${isLongWait ? 'bg-amber-400' : 'bg-indigo-400'} animate-pulse`} />
           {statusText}
-          <span className="text-slate-500 ml-0.5">{elapsed}s</span>
+          <span className="text-foreground/20 ml-0.5">{elapsed}s</span>
         </span>
       </div>
 
-      {/* Agent activity terminal */}
-      <div className="ml-7 rounded-lg bg-surface-0 dark:bg-surface-0 border border-slate-700/60 overflow-hidden">
-        <div className="px-3 py-2 font-mono text-[11px] space-y-1 min-h-[40px] max-h-[320px] overflow-y-auto scroll-smooth">
+      {/* Agent activity terminal — premium design */}
+      <div className="ml-7 rounded-lg overflow-hidden border border-foreground/[0.06] bg-surface-0 dark:bg-[#0d0f14]">
+        {/* Terminal header with traffic lights */}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-foreground/[0.02] dark:bg-white/[0.02] border-b border-foreground/[0.04]">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-red-500/40" />
+            <span className="h-2 w-2 rounded-full bg-amber-500/40" />
+            <span className="h-2 w-2 rounded-full bg-emerald-500/40" />
+          </div>
+          <span className="text-[10px] font-mono text-foreground/20 ml-1">eddivom-agent</span>
+        </div>
+
+        {/* Terminal content */}
+        <div className="px-3 py-2 font-mono text-[11px] space-y-1 min-h-[40px] max-h-[320px] overflow-y-auto scroll-smooth scrollbar-thin">
           {/* Header line */}
-          <div className="flex items-center gap-2 text-slate-500">
-            <span className="text-indigo-400/60 shrink-0">$</span>
-            <span className="text-emerald-400/70">eddivom-agent</span>
-            <span className="text-slate-500">run</span>
-            <span className="text-amber-400/60">--auto</span>
+          <div className="flex items-center gap-2 text-foreground/25">
+            <span className="text-indigo-400/40 shrink-0">$</span>
+            <span className="text-emerald-400/50">eddivom-agent</span>
+            <span className="text-foreground/20">run</span>
+            <span className="text-amber-400/40">--auto</span>
           </div>
 
           {/* Live steps */}
@@ -90,7 +97,7 @@ export function ThinkingIndicator({
             const color = step.type === "error" ? "text-red-400" :
               step.type === "tool_call" ? "text-blue-400" :
               step.type === "tool_result" ? "text-emerald-400" :
-              "text-slate-400";
+              "text-foreground/35";
 
             return (
               <div key={i} className="flex items-start gap-2 pl-2">
@@ -99,7 +106,7 @@ export function ThinkingIndicator({
                   {step.text}
                 </span>
                 {step.duration != null && step.duration > 0 && (
-                  <span className="text-slate-600 shrink-0 ml-auto">{formatDuration(step.duration)}</span>
+                  <span className="text-foreground/15 shrink-0 ml-auto font-mono">{formatDuration(step.duration)}</span>
                 )}
               </div>
             );
@@ -110,30 +117,30 @@ export function ThinkingIndicator({
             <div className="flex items-center gap-2 pl-2">
               {(() => {
                 const Icon = TOOL_ICONS[currentTool] || Terminal;
-                return <Icon className="h-3 w-3 text-amber-400 animate-pulse" />;
+                return <Icon className="h-3 w-3 text-amber-400/70 animate-pulse" />;
               })()}
-              <span className="text-amber-300/90">
+              <span className="text-amber-300/70">
                 {TOOL_LABELS[currentTool] || currentTool}...
               </span>
-              <span className="inline-block w-[6px] h-[12px] bg-indigo-400/80 animate-pulse" />
+              <span className="w-[6px] h-[12px] bg-indigo-400/60 animate-terminal-blink" />
             </div>
           )}
 
           {/* No steps yet — show generic activity */}
           {!hasSteps && !currentTool && (
             <div className="flex items-center gap-2 pl-2">
-              <Brain className="h-3 w-3 text-slate-400 animate-pulse" />
-              <span className="text-slate-400">
+              <Brain className="h-3 w-3 text-foreground/25 animate-pulse" />
+              <span className="text-foreground/30">
                 リクエストを分析中...
               </span>
-              <span className="inline-block w-[6px] h-[12px] bg-indigo-400/80 animate-pulse" />
+              <span className="w-[6px] h-[12px] bg-indigo-400/60 animate-terminal-blink" />
             </div>
           )}
 
           {isLongWait && (
-            <div className="flex items-center gap-1 pl-2 mt-1">
-              <span className="text-amber-400/60">⏳</span>
-              <span className="text-amber-300/70">API制限のためリトライ待機中...</span>
+            <div className="flex items-center gap-1.5 pl-2 mt-1">
+              <span className="text-amber-400/40">⏳</span>
+              <span className="text-amber-400/50 text-[10px]">API応答を待機中...</span>
             </div>
           )}
 

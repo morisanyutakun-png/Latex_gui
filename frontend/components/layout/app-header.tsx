@@ -187,7 +187,16 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
           }
         }
       } else {
-        toast.info(isJa ? "ブロックを抽出できませんでした" : "No blocks extracted");
+        const desc = result.description || "";
+        if (desc) {
+          toast.error(isJa
+            ? `読み取りに失敗しました: ${desc}`
+            : `Scan failed: ${desc}`, { duration: 8000 });
+        } else {
+          toast.error(isJa
+            ? "ブロックを抽出できませんでした。ファイルが読み取り可能か確認してください。"
+            : "No blocks extracted. Please check if the file is readable.", { duration: 8000 });
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "OMR解析エラー";

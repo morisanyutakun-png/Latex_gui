@@ -491,9 +491,9 @@ html {
   margin-bottom: 0;
 }
 
-/* ── VSCode IDE-style enhancements ── */
+/* ── IDE-style enhancements ── */
 
-/* Activity bar — subtle top/bottom separators */
+/* Activity bar */
 .activity-bar {
   position: relative;
 }
@@ -507,16 +507,7 @@ html {
   background: linear-gradient(to right, transparent, hsl(var(--foreground) / 0.06), transparent);
 }
 
-/* Panel title bar — VSCode style with subtle gradient */
-.panel-titlebar {
-  background: linear-gradient(to bottom,
-    hsl(var(--foreground) / 0.02),
-    transparent
-  );
-  user-select: none;
-}
-
-/* Status bar — VSCode accent color on left edge */
+/* Status bar — accent color on left edge */
 .status-bar-accent {
   position: relative;
 }
@@ -530,66 +521,105 @@ html {
   background: hsl(var(--primary));
 }
 
-/* Editor gutter — line number style */
-.editor-gutter {
-  color: hsl(var(--muted-foreground) / 0.3);
-  font-variant-numeric: tabular-nums;
-  user-select: none;
-}
-.editor-gutter:hover {
-  color: hsl(var(--muted-foreground) / 0.5);
-}
-
-/* VSCode-style tab focus indicator */
-.tab-active-indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: hsl(var(--primary));
-}
-
-/* Minimap-style scrollbar overlay */
-.minimap-overlay {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 60px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-*:hover > .minimap-overlay {
-  opacity: 0.5;
-}
-
-/* Command palette style input */
-.command-input {
-  border: 1px solid hsl(var(--primary) / 0.4);
-  background: var(--surface-2);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-}
-.command-input:focus {
-  border-color: hsl(var(--primary) / 0.8);
-  outline: none;
-}
-
-/* VSCode-style hover highlight for list items */
-.list-item-hover {
-  transition: background var(--transition-fast);
-}
-.list-item-hover:hover {
-  background: hsl(var(--foreground) / 0.04);
-}
-.list-item-hover.active {
-  background: hsl(var(--primary) / 0.08);
-  color: hsl(var(--primary));
-}
-
 /* Breadcrumb separator */
 .breadcrumb-sep {
   color: hsl(var(--muted-foreground) / 0.3);
   margin: 0 2px;
   font-size: 0.75em;
+}
+
+/* ── AI Panel Premium Design ── */
+
+/* Noise texture overlay for depth */
+.noise-bg {
+  position: relative;
+}
+.noise-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Premium gradient border effect */
+.glow-border {
+  position: relative;
+}
+.glow-border::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg,
+    rgba(99, 102, 241, 0.15),
+    rgba(139, 92, 246, 0.08),
+    transparent 60%
+  );
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.03) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Glow pulse for active AI indicator */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(99, 102, 241, 0.3),
+                0 0 8px rgba(139, 92, 246, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.5),
+                0 0 16px rgba(139, 92, 246, 0.25);
+  }
+}
+.animate-glow-pulse {
+  animation: glow-pulse 2.5s ease-in-out infinite;
+}
+
+/* Terminal cursor blink for thinking */
+@keyframes terminal-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-terminal-blink {
+  animation: terminal-blink 1s step-end infinite;
+}
+
+/* Gradient text utility */
+.text-gradient-ai {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Activity bar button hover glow */
+.activity-btn-glow:hover {
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.06);
+}
+.activity-btn-glow.active {
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.08),
+              0 0 12px -3px currentColor;
+}
+
+/* Sidebar panel depth */
+.panel-depth {
+  box-shadow: inset 1px 0 0 hsl(var(--foreground) / 0.04);
 }

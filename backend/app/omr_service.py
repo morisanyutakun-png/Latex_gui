@@ -1,5 +1,10 @@
 """OMR service — image/PDF → structured document blocks via OpenAI Vision
 SSEストリーミング対応: 進捗をリアルタイムでフロントエンドへ送信。
+
+PDFテキスト抽出は2段構え:
+  1. PyMuPDF (fitz) でテキスト直接抽出 → ページ画像レンダリング
+  2. poppler (pdftoppm) をフォールバック
+  3. テキスト抽出のみ (画像なし) を最終フォールバック
 """
 import base64
 import json
@@ -14,52 +19,116 @@ logger = logging.getLogger(__name__)
 
 OMR_SYSTEM_PROMPT = """\
 You are an OMR (Optical Mark Recognition) and document structure extraction assistant
-integrated into a Japanese LaTeX document editor called かんたんPDFメーカー.
+integrated into a Japanese LaTeX document editor called Eddivom (かんたんPDFメーカー).
 
-Your job is to analyze uploaded images (exam sheets, worksheets, handwritten notes,
-printed documents, answer sheets, etc.) and extract their content as structured
-document blocks that can be imported into the editor.
+Your job is to analyze uploaded images or extracted PDF content and convert them into
+structured document blocks that can be imported into the editor.
 
 ## What to extract
-- Text headings → heading blocks
+- Text headings → heading blocks (with appropriate level: 1, 2, or 3)
 - Body text / explanations → paragraph blocks
-- Mathematical expressions → math blocks (use LaTeX notation)
-- Lists or numbered items → list blocks
-- Tables / grids → table blocks
+- Mathematical expressions → math blocks (use LaTeX notation, displayMode: true)
+- Inline math within text → include as $...$ in paragraph text
+- Lists or numbered items → list blocks (style: "bullet" or "numbered")
+- Tables / grids → table blocks (with headers and rows arrays)
 - Chemical formulas → chemistry blocks
-- Diagrams / figures → describe as paragraph with [図: description]
-- For OMR answer sheets (bubble sheets): extract question number + selected choice + confidence
+- Diagrams / figures → paragraph blocks with [図: description]
+- For OMR answer sheets (bubble sheets): extract question number + selected choice
 
 ## CRITICAL Instructions
-- You MUST use the `edit_document` tool to return the extracted blocks. Do NOT return blocks as text — always use the tool.
-- After the tool call, write a brief Japanese summary of what was extracted.
-- Use null for afterId on the first block; for each subsequent block, reference the previous block's id.
-- Generate IDs like "omr-" + sequential number (e.g. "omr-001", "omr-002").
-- Default style: { textAlign: "left", fontSize: 11, fontFamily: "serif" }
-- If confidence is low for any region, add "(要確認)" at the end of that block's text.
+- You MUST call the `edit_document` tool to return the extracted blocks.
+- Do NOT describe the content in chat — always use the tool to create blocks.
+- Use null for afterId on the first block; for each subsequent block, set afterId to the previous block's id.
+- Generate IDs like "omr-001", "omr-002", "omr-003", etc.
+- Default style: { "textAlign": "left", "fontSize": 11, "fontFamily": "serif" }
+- If confidence is low for any region, add "(要確認)" at the end.
 - Respond in Japanese.
-- Even if the image is unclear, extract whatever you can see. Do not refuse.
+- Even if the content is unclear, extract whatever you can. Do not refuse.
+- For math expressions: use proper LaTeX (e.g. \\frac{a}{b}, \\sum_{i=1}^{n}, \\sqrt{x})
 """
 
 OMR_PDF_SYSTEM_PROMPT = OMR_SYSTEM_PROMPT + """
 
 ## PDF-specific instructions
-- You are receiving multiple page images from a single PDF document.
-- Treat them as a continuous document — maintain logical flow across pages.
-- Number the IDs sequentially across all pages (e.g. "omr-001", "omr-002", ...).
+- You are receiving content extracted from a PDF document (text + page images).
+- The extracted text may have formatting artifacts — clean them up.
+- Use the page images to verify and supplement the extracted text.
+- Treat all pages as a continuous document — maintain logical flow.
+- Number IDs sequentially across all pages (omr-001, omr-002, ...).
 - Do NOT repeat headings or titles if they appear identically on multiple pages.
 """
 
+OMR_TEXT_ONLY_PROMPT = OMR_SYSTEM_PROMPT + """
 
-def _pdf_to_images(pdf_bytes: bytes, max_pages: int = 10) -> list[tuple[bytes, str]]:
-    """Convert PDF to PNG images using poppler-utils (pdftoppm).
-    Returns list of (image_bytes, mime_type) tuples.
+## Text-only PDF instructions
+- You are receiving raw text extracted from a PDF (no images available).
+- The text may have formatting artifacts, extra whitespace, or broken lines.
+- Reconstruct the logical document structure from the raw text.
+- Identify headings by context (shorter standalone lines, numbered sections, etc.).
+- Identify math expressions and convert to proper LaTeX notation.
+- Group related paragraphs together.
+"""
+
+
+def _sse(data: dict) -> str:
+    """Format SSE event."""
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _image_to_data_url(image_bytes: bytes, media_type: str) -> str:
+    """Convert image bytes to data URL for OpenAI Vision API."""
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    return f"data:{media_type};base64,{b64}"
+
+
+def _build_omr_tools() -> list[dict]:
+    """Build OpenAI tools list with only edit_document for OMR."""
+    all_tools = get_openai_tools()
+    return [t for t in all_tools if t["function"]["name"] == "edit_document"]
+
+
+# ─── PDF extraction strategies ──────────────────────────────────────────────
+
+
+def _pdf_extract_pymupdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
+    """Extract text + render images using PyMuPDF (fitz).
+    Returns {"texts": [str, ...], "images": [(bytes, mime), ...], "page_count": int}
+    """
+    import fitz  # PyMuPDF
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    page_count = min(len(doc), max_pages)
+
+    texts: list[str] = []
+    images: list[tuple[bytes, str]] = []
+
+    for i in range(page_count):
+        page = doc[i]
+
+        # Extract text
+        text = page.get_text("text")
+        texts.append(text.strip())
+
+        # Render page to PNG image (150 DPI for reasonable size)
+        mat = fitz.Matrix(150 / 72, 150 / 72)
+        pix = page.get_pixmap(matrix=mat)
+        img_bytes = pix.tobytes("png")
+        images.append((img_bytes, "image/png"))
+
+    doc.close()
+    return {"texts": texts, "images": images, "page_count": page_count}
+
+
+def _pdf_extract_poppler(pdf_bytes: bytes, max_pages: int = 10) -> dict:
+    """Fallback: Extract images using poppler-utils (pdftoppm).
+    Returns {"texts": [], "images": [(bytes, mime), ...], "page_count": int}
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         pdf_path = os.path.join(tmpdir, "input.pdf")
         with open(pdf_path, "wb") as f:
             f.write(pdf_bytes)
 
+        # Get page count
         result = subprocess.run(
             ["pdfinfo", pdf_path],
             capture_output=True, text=True, timeout=10,
@@ -88,24 +157,93 @@ def _pdf_to_images(pdf_bytes: bytes, max_pages: int = 10) -> list[tuple[bytes, s
                 with open(os.path.join(tmpdir, fname), "rb") as img_f:
                     images.append((img_f.read(), "image/png"))
 
-        return images
+        # Try pdftotext for text extraction
+        texts: list[str] = []
+        try:
+            text_result = subprocess.run(
+                ["pdftotext", "-layout", pdf_path, "-"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if text_result.returncode == 0 and text_result.stdout.strip():
+                # Split by form feeds (page breaks)
+                pages = text_result.stdout.split("\f")
+                texts = [p.strip() for p in pages if p.strip()]
+        except Exception:
+            pass
+
+        return {"texts": texts, "images": images, "page_count": pages_to_process}
 
 
-def _sse(data: dict) -> str:
-    """Format SSE event."""
-    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+def _pdf_extract_text_only(pdf_bytes: bytes, max_pages: int = 10) -> dict:
+    """Last resort: Extract text only using PyMuPDF (no images).
+    Returns {"texts": [str, ...], "images": [], "page_count": int}
+    """
+    try:
+        import fitz
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        page_count = min(len(doc), max_pages)
+        texts = []
+        for i in range(page_count):
+            text = doc[i].get_text("text")
+            texts.append(text.strip())
+        doc.close()
+        return {"texts": texts, "images": [], "page_count": page_count}
+    except ImportError:
+        # Even fitz not available — try basic extraction
+        return {"texts": [], "images": [], "page_count": 0}
 
 
-def _image_to_data_url(image_bytes: bytes, media_type: str) -> str:
-    """Convert image bytes to data URL for OpenAI Vision API."""
-    b64 = base64.b64encode(image_bytes).decode("utf-8")
-    return f"data:{media_type};base64,{b64}"
+async def _extract_pdf_content(pdf_bytes: bytes, progress_callback=None):
+    """Try multiple PDF extraction strategies, returning the best result.
+
+    Returns {"texts": [...], "images": [...], "page_count": int, "method": str}
+    """
+    import asyncio
+
+    # Strategy 1: PyMuPDF (best — text + images, pure Python)
+    try:
+        if progress_callback:
+            progress_callback("PyMuPDF でPDFを解析中...")
+        result = await asyncio.to_thread(_pdf_extract_pymupdf, pdf_bytes)
+        if result["page_count"] > 0:
+            logger.info("PDF extraction via PyMuPDF: %d pages, %d images, text=%s",
+                        result["page_count"], len(result["images"]),
+                        "yes" if any(result["texts"]) else "no")
+            return {**result, "method": "pymupdf"}
+    except ImportError:
+        logger.info("PyMuPDF not available, trying poppler")
+    except Exception as e:
+        logger.warning("PyMuPDF extraction failed: %s", e)
+
+    # Strategy 2: poppler-utils (external dependency)
+    try:
+        if progress_callback:
+            progress_callback("poppler でPDFを変換中...")
+        result = await asyncio.to_thread(_pdf_extract_poppler, pdf_bytes)
+        if result["images"]:
+            logger.info("PDF extraction via poppler: %d pages, %d images",
+                        result["page_count"], len(result["images"]))
+            return {**result, "method": "poppler"}
+    except FileNotFoundError:
+        logger.info("poppler-utils not installed, trying text-only extraction")
+    except Exception as e:
+        logger.warning("poppler extraction failed: %s", e)
+
+    # Strategy 3: Text-only extraction (last resort)
+    try:
+        if progress_callback:
+            progress_callback("テキストを直接抽出中...")
+        result = await asyncio.to_thread(_pdf_extract_text_only, pdf_bytes)
+        if any(result["texts"]):
+            logger.info("PDF text-only extraction: %d pages", result["page_count"])
+            return {**result, "method": "text_only"}
+    except Exception as e:
+        logger.warning("Text-only extraction failed: %s", e)
+
+    return {"texts": [], "images": [], "page_count": 0, "method": "none"}
 
 
-def _build_omr_tools() -> list[dict]:
-    """Build OpenAI tools list with only edit_document for OMR."""
-    all_tools = get_openai_tools()
-    return [t for t in all_tools if t["function"]["name"] == "edit_document"]
+# ─── Response parsing ──────────────────────────────────────────────────────
 
 
 def _extract_patches_from_response(response) -> tuple[list[str], dict | None]:
@@ -123,12 +261,26 @@ def _extract_patches_from_response(response) -> tuple[list[str], dict | None]:
             for tc in msg.tool_calls:
                 if tc.function.name == "edit_document":
                     try:
-                        patches = json.loads(tc.function.arguments)
-                    except json.JSONDecodeError:
-                        logger.warning("OMR: edit_document の引数パースに失敗")
+                        parsed = json.loads(tc.function.arguments)
+                        # Handle both {"ops": [...]} and direct ops list
+                        if isinstance(parsed, dict) and "ops" in parsed:
+                            patches = parsed
+                        elif isinstance(parsed, list):
+                            patches = {"ops": parsed}
+                        else:
+                            patches = parsed
+                    except json.JSONDecodeError as e:
+                        logger.warning("OMR: edit_document args parse failed: %s (args: %s...)",
+                                       e, tc.function.arguments[:200])
+        else:
+            logger.warning("OMR: No tool_calls in response. finish_reason=%s, content=%s",
+                           choice.finish_reason, (msg.content or "")[:200])
     except (IndexError, AttributeError) as e:
-        logger.warning("OpenAI OMR レスポンスのパースに失敗: %s", e)
+        logger.warning("OpenAI OMR response parse failed: %s", e)
     return text_parts, patches
+
+
+# ─── Image analysis ──────────────────────────────────────────────────────────
 
 
 async def analyze_image(
@@ -137,10 +289,7 @@ async def analyze_image(
     document_context: dict,
     hint: str = "",
 ) -> dict:
-    """
-    OpenAI Vision で画像を解析し、ドキュメントパッチを返す。
-    Returns { description: str, patches: dict | None }
-    """
+    """OpenAI Vision で画像/PDFを解析し、ドキュメントパッチを返す。"""
     result = {"description": "", "patches": None}
     async for event_str in analyze_image_stream(image_bytes, media_type, document_context, hint):
         if event_str.startswith("data: "):
@@ -162,14 +311,7 @@ async def analyze_image_stream(
     document_context: dict,
     hint: str = "",
 ):
-    """
-    SSEストリーミング版のOMR解析（OpenAI Vision）。進捗イベントをyieldする。
-
-    Events:
-      {"type": "progress", "phase": "...", "message": "..."}
-      {"type": "done", "description": "...", "patches": {...}}
-      {"type": "error", "message": "..."}
-    """
+    """SSEストリーミング版のOMR解析（OpenAI Vision）。"""
     import asyncio
 
     if media_type == "application/pdf":
@@ -235,21 +377,7 @@ async def analyze_image_stream(
             break
 
         if attempt < MAX_RETRIES:
-            logger.info("OMR attempt %d: no function call, retrying with stronger prompt", attempt)
-            messages = [
-                {"role": "system", "content": OMR_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},
-                        {"type": "text", "text": (
-                            "この画像の内容を読み取って、edit_documentツールを必ず使用してブロックに変換してください。"
-                            "テキスト、数式、表など、画像に含まれるすべての要素をブロックとして追加してください。"
-                            "画像が不鮮明でも、読み取れる範囲で最善を尽くしてください。"
-                        )},
-                    ],
-                },
-            ]
+            logger.info("OMR attempt %d: no patches, retrying", attempt)
 
     yield _sse({"type": "progress", "phase": "extracting", "message": "ブロックを構成中..."})
 
@@ -264,72 +392,86 @@ async def analyze_image_stream(
     })
 
 
+# ─── PDF analysis ──────────────────────────────────────────────────────────
+
+
 async def _analyze_pdf_stream(
     pdf_bytes: bytes,
     document_context: dict,
     hint: str = "",
 ):
-    """PDFを画像に変換し、全ページをまとめてOpenAI Visionで解析する（SSEストリーミング版）。"""
+    """PDFからテキスト+画像を抽出し、OpenAI APIで構造化ブロックに変換する。"""
     import asyncio
 
-    yield _sse({"type": "progress", "phase": "converting", "message": "PDFをページ画像に変換中..."})
+    yield _sse({"type": "progress", "phase": "converting", "message": "PDFを解析中..."})
 
-    try:
-        images = await asyncio.to_thread(_pdf_to_images, pdf_bytes)
-    except subprocess.CalledProcessError as e:
-        logger.error("PDF→画像変換に失敗: %s", e)
-        yield _sse({"type": "error", "message": "PDFの変換に失敗しました。ファイルが破損している可能性があります。"})
-        return
-    except FileNotFoundError:
-        yield _sse({"type": "error", "message": "PDF変換ツール(poppler)が見つかりません。"})
+    # Extract PDF content (tries PyMuPDF → poppler → text-only)
+    def _progress(msg):
+        pass  # Cannot yield from sync callback; log instead
+        logger.info("PDF extraction: %s", msg)
+
+    extraction = await _extract_pdf_content(pdf_bytes, progress_callback=_progress)
+
+    method = extraction.get("method", "none")
+    page_count = extraction.get("page_count", 0)
+    texts = extraction.get("texts", [])
+    images = extraction.get("images", [])
+    has_text = any(t.strip() for t in texts)
+    has_images = len(images) > 0
+
+    if page_count == 0 and not has_text:
+        yield _sse({"type": "error", "message": "PDFからコンテンツを抽出できませんでした。ファイルが破損しているか、スキャンPDFの可能性があります。"})
         return
 
-    if not images:
-        yield _sse({"type": "error", "message": "PDFからページを抽出できませんでした。"})
-        return
-
-    logger.info("PDF解析: %dページを処理します", len(images))
-    yield _sse({"type": "progress", "phase": "converted", "message": f"{len(images)}ページを検出しました"})
+    yield _sse({"type": "progress", "phase": "converted",
+                "message": f"{page_count}ページを検出 (方式: {method})"})
 
     client = get_client()
-
-    page_label = f"{len(images)}ページのPDF" if len(images) > 1 else "1ページのPDF"
-    prompt_text = (
-        f"この{page_label}からドキュメント構造を抽出してください。{hint}"
-        if hint
-        else f"この{page_label}からドキュメント構造を抽出して、edit_documentツールでブロックとして追加してください。全ページを通して1つの連続したドキュメントとして処理してください。"
-    )
-
-    # Build user message content with all page images
-    content_parts: list[dict] = []
-    for i, (img_bytes, img_mime) in enumerate(images):
-        if len(images) > 1:
-            content_parts.append({"type": "text", "text": f"--- ページ {i + 1}/{len(images)} ---"})
-        data_url = _image_to_data_url(img_bytes, img_mime)
-        content_parts.append({"type": "image_url", "image_url": {"url": data_url, "detail": "high"}})
-    content_parts.append({"type": "text", "text": prompt_text})
-
-    messages = [
-        {"role": "system", "content": OMR_PDF_SYSTEM_PROMPT},
-        {"role": "user", "content": content_parts},
-    ]
-
     tools = _build_omr_tools()
 
-    yield _sse({"type": "progress", "phase": "ai_processing", "message": f"AIが{len(images)}ページを解析中..."})
+    page_label = f"{page_count}ページのPDF" if page_count > 1 else "1ページのPDF"
+
+    # Build the optimal message based on what we extracted
+    if has_images and has_text:
+        # Best case: text + images
+        yield _sse({"type": "progress", "phase": "ai_processing",
+                    "message": f"AIが{page_count}ページのテキストと画像を解析中..."})
+        messages = _build_pdf_messages_with_text_and_images(
+            texts, images, page_count, page_label, hint)
+        system_prompt = OMR_PDF_SYSTEM_PROMPT
+    elif has_images:
+        # Images only (scanned PDF)
+        yield _sse({"type": "progress", "phase": "ai_processing",
+                    "message": f"AIが{page_count}ページの画像を解析中..."})
+        messages = _build_pdf_messages_images_only(
+            images, page_count, page_label, hint)
+        system_prompt = OMR_PDF_SYSTEM_PROMPT
+    else:
+        # Text only (no images available)
+        yield _sse({"type": "progress", "phase": "ai_processing",
+                    "message": f"AIがテキストからブロックを構成中..."})
+        messages = _build_pdf_messages_text_only(
+            texts, page_count, page_label, hint)
+        system_prompt = OMR_TEXT_ONLY_PROMPT
+
+    messages.insert(0, {"role": "system", "content": system_prompt})
 
     MAX_RETRIES = 2
     patches = None
-    text_parts: list[str] = []
+    resp_text_parts: list[str] = []
 
     for attempt in range(1, MAX_RETRIES + 1):
         if attempt > 1:
-            yield _sse({"type": "progress", "phase": "retrying", "message": f"再解析中... (試行 {attempt}/{MAX_RETRIES})"})
+            yield _sse({"type": "progress", "phase": "retrying",
+                        "message": f"再解析中... (試行 {attempt}/{MAX_RETRIES})"})
 
         try:
+            use_vision = has_images
+            model = MODEL_VISION
+
             def _call():
                 return client.chat.completions.create(
-                    model=MODEL_VISION,
+                    model=model,
                     messages=messages,
                     tools=tools,
                     tool_choice={"type": "function", "function": {"name": "edit_document"}},
@@ -344,36 +486,116 @@ async def _analyze_pdf_stream(
             yield _sse({"type": "error", "message": f"AI解析エラー: {str(e)[:200]}"})
             return
 
-        text_parts, patches = _extract_patches_from_response(response)
+        resp_text_parts, patches = _extract_patches_from_response(response)
 
         if patches and patches.get("ops"):
             break
 
         if attempt < MAX_RETRIES:
-            logger.info("OMR PDF attempt %d: no function call, retrying", attempt)
-            retry_content: list[dict] = []
-            for i, (img_bytes, img_mime) in enumerate(images):
-                if len(images) > 1:
-                    retry_content.append({"type": "text", "text": f"--- ページ {i + 1}/{len(images)} ---"})
-                data_url = _image_to_data_url(img_bytes, img_mime)
-                retry_content.append({"type": "image_url", "image_url": {"url": data_url, "detail": "high"}})
-            retry_content.append({"type": "text", "text": (
-                f"この{page_label}の内容を読み取って、edit_documentツールを必ず使用してブロックに変換してください。"
-                "テキスト、数式、表など、すべての要素をブロックとして追加してください。"
-            )})
-            messages = [
-                {"role": "system", "content": OMR_PDF_SYSTEM_PROMPT},
-                {"role": "user", "content": retry_content},
-            ]
+            logger.info("OMR PDF attempt %d: no patches, retrying", attempt)
 
     yield _sse({"type": "progress", "phase": "extracting", "message": "ブロックを構成中..."})
 
-    description = "\n".join(text_parts).strip()
+    description = "\n".join(resp_text_parts).strip()
     if not description and patches:
-        description = f"PDFから{len(patches.get('ops', []))}件のブロックを抽出しました（{len(images)}ページ）。"
+        n_ops = len(patches.get("ops", []))
+        description = f"PDFから{n_ops}件のブロックを抽出しました（{page_count}ページ）。"
 
     yield _sse({
         "type": "done",
         "description": description,
         "patches": patches,
     })
+
+
+# ─── Message builders for different PDF extraction modes ─────────────────
+
+
+def _build_pdf_messages_with_text_and_images(
+    texts: list[str], images: list[tuple[bytes, str]],
+    page_count: int, page_label: str, hint: str,
+) -> list[dict]:
+    """Build messages using both extracted text and page images."""
+    content_parts: list[dict] = []
+
+    for i in range(page_count):
+        content_parts.append({
+            "type": "text",
+            "text": f"--- ページ {i + 1}/{page_count} ---\n[抽出テキスト]\n{texts[i] if i < len(texts) else '(テキストなし)'}",
+        })
+        if i < len(images):
+            data_url = _image_to_data_url(images[i][0], images[i][1])
+            content_parts.append({
+                "type": "image_url",
+                "image_url": {"url": data_url, "detail": "high"},
+            })
+
+    prompt = (
+        f"この{page_label}からドキュメント構造を抽出してください。{hint}"
+        if hint
+        else (
+            f"上記の{page_label}から抽出したテキストとページ画像を確認し、"
+            "edit_documentツールでブロックとして正確に再構成してください。"
+            "テキスト抽出結果を主に使い、画像で補完してください。"
+            "全ページを通して1つの連続したドキュメントとして処理してください。"
+        )
+    )
+    content_parts.append({"type": "text", "text": prompt})
+
+    return [{"role": "user", "content": content_parts}]
+
+
+def _build_pdf_messages_images_only(
+    images: list[tuple[bytes, str]],
+    page_count: int, page_label: str, hint: str,
+) -> list[dict]:
+    """Build messages using page images only (scanned PDF)."""
+    content_parts: list[dict] = []
+
+    for i in range(min(page_count, len(images))):
+        if page_count > 1:
+            content_parts.append({"type": "text", "text": f"--- ページ {i + 1}/{page_count} ---"})
+        data_url = _image_to_data_url(images[i][0], images[i][1])
+        content_parts.append({
+            "type": "image_url",
+            "image_url": {"url": data_url, "detail": "high"},
+        })
+
+    prompt = (
+        f"この{page_label}からドキュメント構造を抽出してください。{hint}"
+        if hint
+        else (
+            f"この{page_label}のページ画像からテキスト・数式・表などを読み取り、"
+            "edit_documentツールでブロックとして追加してください。"
+            "全ページを通して1つの連続したドキュメントとして処理してください。"
+        )
+    )
+    content_parts.append({"type": "text", "text": prompt})
+
+    return [{"role": "user", "content": content_parts}]
+
+
+def _build_pdf_messages_text_only(
+    texts: list[str],
+    page_count: int, page_label: str, hint: str,
+) -> list[dict]:
+    """Build messages using extracted text only (no images)."""
+    combined_text = ""
+    for i, text in enumerate(texts):
+        if text.strip():
+            if page_count > 1:
+                combined_text += f"\n\n=== ページ {i + 1}/{page_count} ===\n\n"
+            combined_text += text
+
+    prompt = (
+        f"以下は{page_label}から抽出したテキストです。{hint}\n\n"
+        if hint
+        else (
+            f"以下は{page_label}から抽出した生テキストです。\n"
+            "このテキストを解析して、edit_documentツールでドキュメントブロックに変換してください。\n"
+            "見出し、本文、数式、リスト、表などを適切なブロックタイプに分類してください。\n"
+            "数式は正しいLaTeX記法に変換してください。\n\n"
+        )
+    )
+
+    return [{"role": "user", "content": prompt + combined_text}]

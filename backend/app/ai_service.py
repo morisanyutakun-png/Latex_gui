@@ -927,7 +927,7 @@ async def chat_stream(messages: list[dict], document: dict):
 
         client = get_client()
         doc_brief = _document_context_brief(document)
-        openai_messages = _build_agent_messages(messages, doc_brief)
+        openai_messages = _build_agent_contents(messages, doc_brief)
         tools = get_openai_tools()
 
         yield _sse({"type": "thinking", "text": "エージェント起動..."})
