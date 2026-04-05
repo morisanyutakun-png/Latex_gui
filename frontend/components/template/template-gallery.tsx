@@ -351,94 +351,228 @@ function TrustBadge({ icon, label }: { icon: React.ReactNode; label: string }) {
   );
 }
 
-/* ── Worksheet Paper Mock ── */
-type PrintVariant = "junior" | "senior" | "answer";
+/* ── Realistic Worksheet Paper Mock ── */
+type PrintVariant = "exam" | "worksheet" | "answer";
 
-const WORKSHEET_DATA: Record<PrintVariant, {
-  titleJa: string; titleEn: string;
-  gradeJa: string; gradeEn: string;
-  accentClass: string;
-  problems: Array<{ q: string; a?: string }>;
-}> = {
-  junior: {
-    titleJa: "一次方程式　練習プリント", titleEn: "Linear Equations Worksheet",
-    gradeJa: "中学2年  数学", gradeEn: "Grade 8 · Mathematics",
-    accentClass: "from-blue-500 to-cyan-500",
-    problems: [
-      { q: "2x + 5 = 11" }, { q: "3x − 7 = 8" }, { q: "−2x + 9 = 1" },
-      { q: "4(x − 2) = 12" }, { q: "5x + 3 = 2x + 12" },
-    ],
-  },
-  senior: {
-    titleJa: "二次方程式　練習プリント", titleEn: "Quadratic Equations Worksheet",
-    gradeJa: "高校1年  数学Ⅰ", gradeEn: "Grade 10 · Math I",
-    accentClass: "from-violet-500 to-fuchsia-500",
-    problems: [
-      { q: "x² − 5x + 6 = 0" }, { q: "2x² + x − 3 = 0" }, { q: "x² − 4 = 0" },
-      { q: "3x² − 7x + 2 = 0" }, { q: "x² + 2x + 1 = 0" },
-    ],
-  },
-  answer: {
-    titleJa: "二次方程式　解答・解説", titleEn: "Quadratic Equations · Answer Key",
-    gradeJa: "高校1年  数学Ⅰ", gradeEn: "Grade 10 · Math I",
-    accentClass: "from-emerald-500 to-teal-500",
-    problems: [
-      { q: "x² − 5x + 6 = 0", a: "x = 2, 3" },
-      { q: "2x² + x − 3 = 0", a: "x = 1,  −3⁄2" },
-      { q: "x² − 4 = 0", a: "x = ±2" },
-      { q: "3x² − 7x + 2 = 0", a: "x = 2, 1⁄3" },
-      { q: "x² + 2x + 1 = 0", a: "x = −1（重解）" },
-    ],
-  },
+const SERIF: React.CSSProperties = {
+  fontFamily: '"Hiragino Mincho ProN", "Yu Mincho", "Times New Roman", Georgia, serif',
 };
 
+const PaperFooter = () => (
+  <div className="px-5 pb-3 pt-2 border-t border-gray-100 flex justify-between">
+    <span className="text-[7px] text-gray-300 font-mono">Created with Eddivom</span>
+    <span className="text-[7px] text-gray-300 font-mono">─ 1 ─</span>
+  </div>
+);
+
 function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolean }) {
-  const d = WORKSHEET_DATA[variant];
-  return (
-    <div className="bg-white rounded-xl shadow-2xl border border-gray-200/50 overflow-hidden select-none">
-      <div className={`h-1.5 bg-gradient-to-r ${d.accentClass}`} />
-      <div className="p-5 sm:p-6">
-        <div className="flex items-start justify-between mb-3 pb-3 border-b border-gray-200">
+  if (variant === "exam") {
+    return (
+      <div className="bg-white rounded-lg shadow-2xl border border-gray-300/50 overflow-hidden select-none" style={SERIF}>
+        {/* タイトルブロック */}
+        <div className="px-6 pt-5 pb-3 border-b-2 border-gray-800">
+          <h1 className="text-[18px] font-bold text-center text-gray-900 tracking-widest">
+            {isJa ? "数学Ⅰ　確認テスト" : "Math I — Quiz"}
+          </h1>
+        </div>
+        {/* 組・番・名前 行 */}
+        <div className="px-6 pt-2 pb-1.5 flex items-center justify-between text-[10px] text-gray-600">
+          <span>{isJa ? "各10点・計50点" : "10 pts each · 50 pts total"}</span>
+          <span className="flex items-end gap-2">
+            {isJa ? "組" : "Class"}<span className="border-b border-gray-500 w-7 inline-block mb-0.5" />
+            {isJa ? "番" : "#"}<span className="border-b border-gray-500 w-7 inline-block mb-0.5" />
+            {isJa ? "名前" : "Name"}<span className="border-b border-gray-500 w-20 inline-block mb-0.5" />
+          </span>
+        </div>
+        <div className="mx-6 border-b border-gray-400 mb-3" />
+        {/* 問題本文 */}
+        <div className="px-6 pb-4 space-y-4">
           <div>
-            <p className="text-[7px] text-gray-400 tracking-widest uppercase mb-0.5 font-mono">{isJa ? d.gradeJa : d.gradeEn}</p>
-            <h3 className="text-[15px] font-bold text-gray-900 leading-tight">{isJa ? d.titleJa : d.titleEn}</h3>
-          </div>
-          <div className="border border-gray-300 rounded px-2.5 py-1 text-center shrink-0 ml-3">
-            <p className="text-[7px] text-gray-400">{isJa ? "得点" : "Score"}</p>
-            <div className="h-2.5" />
-            <div className="border-t border-gray-300 mt-0.5 pt-0.5">
-              <p className="text-[7px] text-gray-400">/ 100</p>
-            </div>
-          </div>
-        </div>
-        <p className="text-[9px] text-gray-500 mb-3.5">
-          {variant === "answer"
-            ? (isJa ? "【解答】" : "[Answer Key]")
-            : (isJa ? "【問題】次の方程式を解きなさい。" : "Solve each equation. Show your work.")}
-        </p>
-        <div className="space-y-3">
-          {d.problems.map((p, i) => (
-            <div key={i}>
-              <div className="flex items-baseline gap-2">
-                <span className="text-[9px] font-bold text-gray-500 shrink-0 w-4 text-right">{i + 1}.</span>
-                <span className="text-[13px] font-medium text-gray-800" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{p.q}</span>
+            <p className="text-[12px] font-bold text-gray-900 mb-1.5">
+              {isJa ? "第１問　計算問題" : "Q1 — Calculations"}
+            </p>
+            <p className="text-[10px] text-gray-600 mb-2.5">{isJa ? "次の計算をせよ。" : "Solve each."}</p>
+            <div className="space-y-3">
+              <div>
+                <p className="text-[11.5px] text-gray-800 leading-relaxed">
+                  <span className="text-gray-500 mr-2">(1)</span>
+                  3x<sup className="text-[8px]">2</sup> + 5x − 2 = 0　{isJa ? "を解け。" : ""}
+                </p>
+                <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
               </div>
-              {p.a ? (
-                <div className="ml-6 mt-1 flex items-center gap-2">
-                  <span className="text-[8px] text-gray-400">{isJa ? "答え" : "Ans."}</span>
-                  <span className="text-[12px] font-bold text-emerald-600" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{p.a}</span>
-                </div>
-              ) : (
-                <div className="ml-6 mt-1.5 h-6 border-b border-dashed border-gray-200" />
-              )}
+              <div>
+                <p className="text-[11.5px] text-gray-800 leading-relaxed">
+                  <span className="text-gray-500 mr-2">(2)</span>
+                  log<sub className="text-[8px]">2</sub>8 + log<sub className="text-[8px]">2</sub>4　{isJa ? "の値を求めよ。" : "= ?"}
+                </p>
+                <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
+              </div>
             </div>
-          ))}
+          </div>
+          <div>
+            <p className="text-[12px] font-bold text-gray-900 mb-1.5">
+              {isJa ? "第２問　関数" : "Q2 — Functions"}
+            </p>
+            <p className="text-[10px] text-gray-600 mb-2.5">
+              {isJa
+                ? <span>関数 f(x) = x<sup className="text-[8px]">2</sup> − 4x + 3 について、次の問いに答えよ。</span>
+                : <span>f(x) = x<sup className="text-[8px]">2</sup> − 4x + 3 — answer the following.</span>}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <p className="text-[11.5px] text-gray-800">
+                  <span className="text-gray-500 mr-2">(1)</span>
+                  {isJa ? "頂点の座標を求めよ。" : "Find the vertex."}
+                </p>
+                <div className="ml-6 mt-1 h-9 border-b border-dashed border-gray-200" />
+              </div>
+              <div>
+                <p className="text-[11.5px] text-gray-800">
+                  <span className="text-gray-500 mr-2">(2)</span>
+                  {isJa ? "f(x) = 0 となる x の値を全て求めよ。" : "Solve f(x) = 0."}
+                </p>
+                <div className="ml-6 mt-1 h-8 border-b border-dashed border-gray-200" />
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="mt-4 pt-2 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-[7px] text-gray-300 font-mono">Created with Eddivom</span>
-          <span className="text-[7px] text-gray-300 font-mono">1 / 1</span>
+        <PaperFooter />
+      </div>
+    );
+  }
+
+  if (variant === "worksheet") {
+    const problems: React.ReactNode[] = [
+      <span key="p1">y = x<sup className="text-[8px]">2</sup> − 6x + 5</span>,
+      <span key="p2">y = −2x<sup className="text-[8px]">2</sup> + 8x − 3</span>,
+      <span key="p3">y = 3(x−1)<sup className="text-[8px]">2</sup> + 4</span>,
+    ];
+    return (
+      <div className="bg-white rounded-lg shadow-2xl border border-gray-300/50 overflow-hidden select-none" style={SERIF}>
+        <div className="px-6 pt-5 pb-3 border-b-2 border-gray-800">
+          <h1 className="text-[18px] font-bold text-center text-gray-900 tracking-widest">
+            {isJa ? "練習問題プリント" : "Practice Worksheet"}
+          </h1>
+        </div>
+        <div className="px-6 pt-2 pb-1.5 flex items-center justify-between text-[10px] text-gray-600">
+          <span>{isJa ? "単元：二次関数" : "Unit: Quadratic Functions"}</span>
+          <span className="flex items-end gap-1">
+            {isJa ? "年　組　番　名前" : "Class　Name"}
+            <span className="border-b border-gray-500 w-24 inline-block mb-0.5" />
+          </span>
+        </div>
+        <div className="mx-6 border-b border-gray-400 mb-3" />
+        <div className="px-6 pb-4 space-y-4">
+          <div>
+            <p className="text-[12px] font-bold text-gray-900 mb-1.5">{isJa ? "基本問題" : "Basic"}</p>
+            <p className="text-[10px] text-gray-600 mb-2.5">
+              {isJa ? "次の二次関数のグラフの頂点と軸を求めなさい。" : "Find the vertex and axis of each parabola."}
+            </p>
+            <div className="space-y-3">
+              {problems.map((q, i) => (
+                <div key={i}>
+                  <p className="text-[11.5px] text-gray-800">
+                    <span className="text-gray-500 mr-2">({i + 1})</span>{q}
+                  </p>
+                  <div className="ml-6 mt-1 h-9 border-b border-dashed border-gray-200" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[12px] font-bold text-gray-900 mb-1.5">{isJa ? "応用問題" : "Applied"}</p>
+            <p className="text-[10px] text-gray-600 mb-2.5">
+              {isJa ? "途中の計算過程も書くこと。" : "Show all working."}
+            </p>
+            <div>
+              <p className="text-[11.5px] text-gray-800">
+                <span className="text-gray-500 mr-2">(1)</span>
+                x<sup className="text-[8px]">2</sup> − 2x − 3 &gt; 0　{isJa ? "を満たす x の範囲を求めよ。" : "find range of x."}
+              </p>
+              <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
+            </div>
+          </div>
+        </div>
+        <PaperFooter />
+      </div>
+    );
+  }
+
+  // answer variant
+  return (
+    <div className="bg-white rounded-lg shadow-2xl border border-gray-300/50 overflow-hidden select-none" style={SERIF}>
+      <div className="px-6 pt-5 pb-3 border-b-2 border-gray-800">
+        <div className="flex items-center justify-center gap-3">
+          <h1 className="text-[17px] font-bold text-gray-900 tracking-widest">
+            {isJa ? "数学Ⅰ　確認テスト" : "Math I — Quiz"}
+          </h1>
+          <span className="text-[9px] px-1.5 py-0.5 border border-red-500 text-red-600 font-bold rounded shrink-0">
+            {isJa ? "解答" : "KEY"}
+          </span>
         </div>
       </div>
+      <div className="mx-6 mt-3 border-b border-gray-300 mb-3" />
+      <div className="px-6 pb-4 space-y-4">
+        <div>
+          <p className="text-[12px] font-bold text-gray-900 mb-2">
+            {isJa ? "第１問　計算問題" : "Q1 — Calculations"}
+          </p>
+          <div className="space-y-2.5">
+            <div>
+              <p className="text-[11px] text-gray-600">
+                <span className="mr-2 text-gray-400">(1)</span>
+                3x<sup className="text-[8px]">2</sup> + 5x − 2 = 0
+              </p>
+              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
+                <p className="text-[10.5px] text-red-700 leading-relaxed">
+                  (3x − 1)(x + 2) = 0　∴　<strong>x = <sup className="text-[8px]">1</sup>⁄<sub className="text-[8px]">3</sub>, −2</strong>
+                </p>
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] text-gray-600">
+                <span className="mr-2 text-gray-400">(2)</span>
+                log<sub className="text-[8px]">2</sub>8 + log<sub className="text-[8px]">2</sub>4
+              </p>
+              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
+                <p className="text-[10.5px] text-red-700">
+                  = log<sub className="text-[8px]">2</sub>32 = <strong>5</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p className="text-[12px] font-bold text-gray-900 mb-2">
+            {isJa ? "第２問　関数" : "Q2 — Functions"}
+          </p>
+          <div className="space-y-2.5">
+            <div>
+              <p className="text-[11px] text-gray-600">
+                <span className="mr-2 text-gray-400">(1)</span>
+                {isJa ? "頂点の座標" : "Vertex"}
+              </p>
+              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
+                <p className="text-[10.5px] text-red-700">
+                  f(x) = (x−2)<sup className="text-[8px]">2</sup> − 1　∴　<strong>{isJa ? "頂点 (2, −1)" : "(2, −1)"}</strong>
+                </p>
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] text-gray-600">
+                <span className="mr-2 text-gray-400">(2)</span>
+                f(x) = 0
+              </p>
+              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
+                <p className="text-[10.5px] text-red-700">
+                  (x−1)(x−3) = 0　∴　<strong>x = 1, 3</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <PaperFooter />
     </div>
   );
 }
@@ -446,11 +580,11 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
 /* ── Sample Output Showcase ── */
 function SampleShowcase({ isJa, onTryNow }: { isJa: boolean; onTryNow: () => void }) {
   const fadeIn = useFadeIn(0);
-  const [active, setActive] = useState<PrintVariant>("junior");
+  const [active, setActive] = useState<PrintVariant>("exam");
 
   const tabs: Array<{ id: PrintVariant; ja: string; en: string }> = [
-    { id: "junior", ja: "中学計算プリント", en: "Junior High" },
-    { id: "senior", ja: "高校数式プリント", en: "High School" },
+    { id: "exam", ja: "確認テスト", en: "Exam Sheet" },
+    { id: "worksheet", ja: "演習プリント", en: "Worksheet" },
     { id: "answer", ja: "解答付き版", en: "Answer Key" },
   ];
 

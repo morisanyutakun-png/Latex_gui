@@ -8,7 +8,10 @@ import { SubscriptionInitializer } from "@/components/subscription-initializer";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Eddivom — AI教材作成IDE",
+  title: {
+    default: "Eddivom",
+    template: "%s | Eddivom",
+  },
   description: "AIが問題を生成し、類題を量産し、解答付きPDFを自動で作成。教師・塾講師・教材作成者のためのプロフェッショナル教材ツール。",
 };
 
