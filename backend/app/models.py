@@ -108,6 +108,13 @@ class ChartContent(CamelModel):
     preset: Optional[str] = None
 
 
+class LaTeXContent(CamelModel):
+    """生のLaTeXコードブロック — AIが自由にLaTeXを書ける"""
+    type: Literal["latex"] = "latex"
+    code: str = ""                              # raw LaTeX code (rendered verbatim)
+    caption: Optional[str] = None
+
+
 BlockContent = Annotated[
     Union[
         Annotated[HeadingContent, Tag("heading")],
@@ -123,6 +130,7 @@ BlockContent = Annotated[
         Annotated[DiagramContent, Tag("diagram")],
         Annotated[ChemistryContent, Tag("chemistry")],
         Annotated[ChartContent, Tag("chart")],
+        Annotated[LaTeXContent, Tag("latex")],
     ],
     Discriminator("type"),
 ]

@@ -731,6 +731,8 @@ def _render_content(content, style, preset: dict | None = None) -> str:
         return _render_chemistry(content)
     elif t == "chart":
         return _render_chart(content)
+    elif t == "latex":
+        return _render_latex_raw(content)
     return ""
 
 
@@ -987,3 +989,16 @@ def _render_chart(c: ChartContent) -> str:
         lines.append(f"\\caption{{{escape_latex(c.caption)}}}")
     lines.append("\\end{figure}")
     return "\n".join(lines)
+
+
+def _render_latex_raw(c) -> str:
+    """生のLaTeXコードをそのまま出力 — AIが自由にデザインを記述可能。
+    セキュリティチェックは sanitize_code_field で行われる。
+    """
+    code = getattr(c, "code", "")
+    if not code.strip():
+        return ""
+    # コメントでブロックを囲み、デバッグしやすくする
+    caption = getattr(c, "caption", "") or ""
+    header = f"% --- LaTeX block{': ' + caption if caption else ''} ---"
+    return f"{header}\n{code}\n% --- end LaTeX block ---"

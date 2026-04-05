@@ -254,12 +254,14 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
     let blocks = [...currentDoc.blocks];
     let settings = { ...currentDoc.settings };
+    let advanced = currentDoc.advanced;
 
-    for (const op of patch.ops) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const op of patch.ops as any[]) {
       try {
         if (op.op === "add_block") {
           if (!op.block || typeof op.block !== "object") continue;
-          const newBlock = normalizeAIBlock(op.block);
+          const newBlock = normalizeAIBlock(op.block as Block);
           if (!newBlock || !newBlock.id) continue;
           if (op.afterId === null || op.afterId === undefined) {
             blocks = [newBlock, ...blocks];
@@ -291,14 +293,20 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
           if (!op.blockIds || !Array.isArray(op.blockIds)) continue;
           const validBlocks = blocks.filter((b): b is Block => !!b && !!b.id);
           const blockMap = new Map(validBlocks.map((b) => [b.id, b]));
-          const reordered = op.blockIds.map((id) => blockMap.get(id)).filter((b): b is Block => !!b);
-          const mentioned = new Set(op.blockIds);
+          const reordered = op.blockIds.map((id: string) => blockMap.get(id)).filter((b: Block | undefined): b is Block => !!b);
+          const mentioned = new Set(op.blockIds as string[]);
           const remainder = validBlocks.filter((b) => !mentioned.has(b.id));
           blocks = [...reordered, ...remainder];
         } else if (op.op === "update_design") {
           const defaultDesign: PaperDesign = { theme: "plain", paperColor: "#ffffff", accentColor: "#4f46e5", headerBorder: false, sectionDividers: false, designPreset: "none" };
           const current = settings.paperDesign || defaultDesign;
           settings = { ...settings, paperDesign: { ...current, ...op.paperDesign } };
+        } else if (op.op === "update_advanced") {
+          const advData = op.advanced;
+          if (advData && typeof advData === "object") {
+            const current = currentDoc.advanced || { enabled: false, customPreamble: "", preDocument: "", postDocument: "", customCommands: [] as string[] };
+            advanced = { ...current, ...advData, enabled: true };
+          }
         }
       } catch (e) {
         console.warn("[applyPatch] Skipping invalid op:", op, e);
@@ -308,7 +316,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     // Sanitize: remove any undefined/null blocks
     blocks = blocks.filter((b): b is Block => !!b && !!b.id);
 
-    set({ document: { ...currentDoc, blocks, settings } });
+    set({ document: { ...currentDoc, blocks, settings, advanced } });
   },
 
   updateAdvanced: (updates) => {

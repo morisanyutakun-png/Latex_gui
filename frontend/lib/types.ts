@@ -18,7 +18,8 @@ export type BlockType =
   | "circuit"
   | "diagram"
   | "chemistry"
-  | "chart";
+  | "chart"
+  | "latex";
 
 // ──── Content Models (Discriminated Union) ────
 
@@ -109,6 +110,12 @@ export interface ChartContent {
   preset?: string;
 }
 
+export interface LaTeXContent {
+  type: "latex";
+  code: string;
+  caption?: string;
+}
+
 export type BlockContent =
   | HeadingContent
   | ParagraphContent
@@ -122,7 +129,8 @@ export type BlockContent =
   | CircuitContent
   | DiagramContent
   | ChemistryContent
-  | ChartContent;
+  | ChartContent
+  | LaTeXContent;
 
 // ──── Block Style ────
 
@@ -474,6 +482,7 @@ export const BLOCK_TYPES: BlockTypeInfo[] = [
   { type: "diagram",   name: "ダイアグラム", description: "フローチャート・状態図", color: "text-indigo-500", packages: ["tikz"] },
   { type: "chemistry", name: "化学式",     description: "化学反応式・分子式",   color: "text-lime-500", packages: ["mhchem"] },
   { type: "chart",     name: "グラフ",     description: "データ可視化",         color: "text-rose-500", packages: ["tikz", "pgfplots"] },
+  { type: "latex",     name: "LaTeXコード", description: "生のLaTeXコードを直接挿入", color: "text-fuchsia-500", packages: [] },
 ];
 
 // ──── Helper: Create Block ────
@@ -497,6 +506,7 @@ export function createBlock(type: BlockType, overrides?: Partial<BlockStyle>): B
     diagram:   () => ({ type: "diagram", code: "", diagramType: "flowchart", caption: "" }),
     chemistry: () => ({ type: "chemistry", formula: "", displayMode: true }),
     chart:     () => ({ type: "chart", chartType: "line", code: "", caption: "" }),
+    latex:     () => ({ type: "latex", code: "", caption: "" }),
   };
 
   return {

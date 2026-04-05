@@ -6,14 +6,14 @@ import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType } from "@/lib/types";
 import {
   Heading, Type, Sigma, List, Table, ImageIcon,
-  Minus, Code, Quote, Zap, GitBranch, FlaskConical, BarChart3, X,
+  Minus, Code, Quote, Zap, GitBranch, FlaskConical, BarChart3, FileCode, X,
 } from "lucide-react";
 
 const OUTLINE_ICONS: Record<BlockType, React.ElementType> = {
   heading: Heading, paragraph: Type, math: Sigma, list: List,
   table: Table, image: ImageIcon, divider: Minus, code: Code,
   quote: Quote, circuit: Zap, diagram: GitBranch,
-  chemistry: FlaskConical, chart: BarChart3,
+  chemistry: FlaskConical, chart: BarChart3, latex: FileCode,
 };
 
 function getPreview(block: Block): string {

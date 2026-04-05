@@ -28,6 +28,7 @@ import {
   GitBranch,
   FlaskConical,
   BarChart3,
+  FileCode,
   Search,
 } from "lucide-react";
 import {
@@ -56,6 +57,7 @@ const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
   diagram: GitBranch,
   chemistry: FlaskConical,
   chart: BarChart3,
+  latex: FileCode,
 };
 
 
@@ -1091,6 +1093,31 @@ function CodeBlockEditor({ block }: { block: Block }) {
   );
 }
 
+function LaTeXBlockEditor({ block }: { block: Block }) {
+  const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const content = block.content as Extract<Block["content"], { type: "latex" }>;
+
+  return (
+    <div className="rounded-md border border-fuchsia-300/30 dark:border-fuchsia-700/30 bg-fuchsia-50/30 dark:bg-fuchsia-950/10 overflow-hidden">
+      <div className="flex items-center gap-1.5 px-2 py-1 bg-fuchsia-100/50 dark:bg-fuchsia-900/20 border-b border-fuchsia-200/30 dark:border-fuchsia-800/20">
+        <FileCode className="h-3 w-3 text-fuchsia-500/70" />
+        <span className="text-[10px] font-mono font-semibold text-fuchsia-600/70 dark:text-fuchsia-400/60 uppercase tracking-wider">LaTeX</span>
+        {content.caption && (
+          <span className="text-[10px] text-fuchsia-500/50 ml-1">— {content.caption}</span>
+        )}
+      </div>
+      <textarea
+        value={content.code}
+        onChange={(e) => updateContent(block.id, { code: e.target.value })}
+        placeholder="\\begin{tcolorbox}&#10;  LaTeXコードを直接入力...&#10;\\end{tcolorbox}"
+        className="w-full bg-transparent text-xs font-mono border-none outline-none resize-y min-h-[60px] px-3 py-2 text-fuchsia-900 dark:text-fuchsia-100 placeholder:text-fuchsia-300/40 dark:placeholder:text-fuchsia-600/30"
+        style={{ lineHeight: '1.6' }}
+        rows={4}
+      />
+    </div>
+  );
+}
+
 function QuoteBlockEditor({ block }: { block: Block }) {
   const { t } = useI18n();
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
@@ -1130,6 +1157,7 @@ function BlockEditor({ block }: { block: Block }) {
     case "diagram":   return <DiagramBlockEditor block={block} />;
     case "chemistry": return <ChemistryBlockEditor block={block} />;
     case "chart":     return <ChartBlockEditor block={block} />;
+    case "latex":     return <LaTeXBlockEditor block={block} />;
     default:          return null;
   }
 }
