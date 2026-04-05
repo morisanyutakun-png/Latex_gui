@@ -15,10 +15,10 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
 };
 
 const stepConfig = {
-  thinking: { icon: Brain, color: "text-muted-foreground/50", dotColor: "bg-slate-400", label: "思考" },
-  tool_call: { icon: Terminal, color: "text-blue-500", dotColor: "bg-blue-500", label: "ツール実行" },
-  tool_result: { icon: CheckCircle, color: "text-emerald-500", dotColor: "bg-emerald-500", label: "結果" },
-  error: { icon: AlertCircle, color: "text-red-500", dotColor: "bg-red-500", label: "エラー" },
+  thinking:    { icon: Brain,         bg: "bg-violet-100/50 dark:bg-violet-500/08", color: "text-violet-400/70",             dot: "bg-violet-400/60",  label: "思考"      },
+  tool_call:   { icon: Terminal,      bg: "bg-indigo-100/60 dark:bg-indigo-500/10", color: "text-indigo-500 dark:text-indigo-400", dot: "bg-indigo-400",  label: "実行"      },
+  tool_result: { icon: CheckCircle,   bg: "bg-emerald-100/60 dark:bg-emerald-500/10", color: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-400", label: "完了"    },
+  error:       { icon: AlertCircle,   bg: "bg-red-100/60 dark:bg-red-500/10",       color: "text-red-500",                  dot: "bg-red-400",    label: "エラー"  },
 } as const;
 
 export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
@@ -32,7 +32,7 @@ export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
   const errors = steps.filter(s => s.type === "error").length;
 
   const summaryParts: string[] = [];
-  if (thinkingSteps) summaryParts.push(`${thinkingSteps}ステップ`);
+  if (thinkingSteps) summaryParts.push(`${thinkingSteps}思考`);
   if (toolCalls) summaryParts.push(`${toolCalls}ツール`);
   if (errors) summaryParts.push(`${errors}エラー`);
   const summary = summaryParts.join(" · ") || `${steps.length}ステップ`;
@@ -41,14 +41,14 @@ export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
 
   return (
     <div className="w-full mt-2">
-      {/* Collapsible header */}
+      {/* Collapsible toggle */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-muted-foreground/50 hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition-colors w-full group"
+        className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] text-muted-foreground/40 hover:text-muted-foreground/60 hover:bg-muted/20 transition-all duration-150 w-full group"
       >
-        <ChevronRight className={`h-3 w-3 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
-        <Brain className="h-3 w-3" />
-        <span>{summary}</span>
+        <ChevronRight className={`h-2.5 w-2.5 transition-transform duration-200 ${expanded ? "rotate-90" : ""} text-violet-400/40 group-hover:text-violet-400/60`} />
+        <Brain className="h-2.5 w-2.5 text-violet-400/40 group-hover:text-violet-400/60" />
+        <span className="tracking-wide">{summary}</span>
 
         {toolsUsed.length > 0 && (
           <div className="flex items-center gap-1 ml-1">
@@ -57,10 +57,10 @@ export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
               return (
                 <span
                   key={tool}
-                  className="flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-black/[0.03] dark:bg-white/[0.04] text-[9px]"
+                  className="flex items-center gap-0.5 px-1 py-0.5 rounded-md bg-indigo-100/50 dark:bg-indigo-500/08 text-[8.5px]"
                   title={tool}
                 >
-                  <Icon className="h-2.5 w-2.5 text-blue-500/70" />
+                  <Icon className="h-2 w-2 text-indigo-400/60" />
                 </span>
               );
             })}
@@ -68,30 +68,37 @@ export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
         )}
 
         {totalDuration > 0 && (
-          <span className="text-muted-foreground/30 ml-auto">{formatDuration(totalDuration)}</span>
+          <span className="text-muted-foreground/25 ml-auto tabular-nums">{formatDuration(totalDuration)}</span>
         )}
       </button>
 
       {/* Expanded timeline */}
       {expanded && (
-        <div className="ml-2 mt-1 pl-3 border-l-2 border-black/[0.06] dark:border-white/[0.06] space-y-0">
+        <div className="ml-2 mt-1 pl-3 border-l-2 chat-timeline-border space-y-0">
           {steps.map((step, i) => {
             const baseConfig = stepConfig[step.type] || stepConfig.thinking;
             const Icon = step.tool ? (TOOL_ICONS[step.tool] || baseConfig.icon) : baseConfig.icon;
-            const color = baseConfig.color;
 
             return (
               <div key={i} className="relative flex items-start gap-2 py-1">
-                <div className={`absolute -left-[13.5px] top-[7px] h-2 w-2 rounded-full ${baseConfig.dotColor} ring-2 ring-white dark:ring-surface-1`} />
-                <Icon className={`h-3 w-3 mt-0.5 shrink-0 ${color}`} />
+                {/* Timeline dot */}
+                <div className={`absolute -left-[14px] top-[9px] h-1.5 w-1.5 rounded-full ${baseConfig.dot} ring-2 ring-background`} />
+
+                {/* Icon badge */}
+                <div className={`h-5 w-5 rounded-md ${baseConfig.bg} flex items-center justify-center shrink-0 mt-0.5`}>
+                  <Icon className={`h-3 w-3 ${baseConfig.color}`} />
+                </div>
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <span className={`text-[11px] ${color}`}>{step.tool || baseConfig.label}</span>
+                    <span className={`text-[11px] font-medium ${baseConfig.color}`}>
+                      {step.tool || baseConfig.label}
+                    </span>
                     {step.duration != null && step.duration > 0 && (
-                      <span className="text-[10px] text-muted-foreground/30">{formatDuration(step.duration)}</span>
+                      <span className="text-[10px] text-muted-foreground/25 tabular-nums">{formatDuration(step.duration)}</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground/50 leading-relaxed break-all">{step.text}</p>
+                  <p className="text-[11px] text-muted-foreground/45 leading-relaxed break-all mt-0.5">{step.text}</p>
                 </div>
               </div>
             );

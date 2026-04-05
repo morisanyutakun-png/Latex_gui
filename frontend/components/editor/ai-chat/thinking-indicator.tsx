@@ -48,78 +48,101 @@ export function ThinkingIndicator({
   const statusText = currentTool
     ? TOOL_LABELS[currentTool] || `${currentTool} を実行中`
     : hasSteps
-    ? "作業中..."
+    ? "処理中..."
     : "考えています...";
 
   return (
-    <div className="flex gap-2.5">
-      {/* Avatar */}
-      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-        <Sparkles className="h-3.5 w-3.5 text-white" />
+    <div className="flex gap-3">
+      {/* Avatar — animated halo */}
+      <div className="h-7 w-7 rounded-full chat-avatar-ai flex items-center justify-center shrink-0 mt-0.5">
+        <Sparkles className="h-3.5 w-3.5 text-white/90" />
       </div>
 
       <div className="flex-1 min-w-0">
         {/* Name + status */}
         <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-[13px] font-medium text-foreground/80">Eddivom AI</span>
-          <span className="flex items-center gap-1.5 text-[11px] text-violet-500/70">
-            <span className={`h-1.5 w-1.5 rounded-full ${isLongWait ? 'bg-amber-400' : 'bg-violet-500'} animate-pulse`} />
+          <span className="text-[12px] font-semibold tracking-wide text-foreground/60 uppercase">Eddivom AI</span>
+          <span className="flex items-center gap-1.5 text-[11px] text-violet-500/75 font-medium">
+            <span className="thinking-dot-ripple">
+              <span className={`h-1.5 w-1.5 rounded-full inline-block ${isLongWait ? "bg-amber-400" : "bg-violet-500"}`} />
+            </span>
             {statusText}
           </span>
-          <span className="text-[11px] text-muted-foreground/30">{elapsed}s</span>
+          <span className="text-[10px] text-muted-foreground/30 tabular-nums ml-auto">{elapsed}s</span>
         </div>
 
-        {/* Activity steps — soft card design */}
-        <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03] overflow-hidden">
-          <div className="px-3 py-2.5 space-y-1.5 text-[12px] min-h-[40px] max-h-[280px] overflow-y-auto scroll-smooth scrollbar-thin">
-            {/* Live steps */}
+        {/* Activity log card */}
+        <div className="chat-thinking-card rounded-2xl rounded-tl-sm overflow-hidden">
+          <div className="px-3.5 py-3 space-y-2 text-[12px] min-h-[44px] max-h-[260px] overflow-y-auto scroll-smooth scrollbar-thin">
             {hasSteps && liveSteps.map((step, i) => {
-              const Icon = step.tool ? (TOOL_ICONS[step.tool] || Terminal) :
-                step.type === "thinking" ? Brain :
-                step.type === "error" ? AlertCircle : Eye;
+              const Icon = step.tool
+                ? (TOOL_ICONS[step.tool] || Terminal)
+                : step.type === "thinking" ? Brain
+                : step.type === "error" ? AlertCircle
+                : Eye;
 
-              const colorClass = step.type === "error"
-                ? "text-red-500"
-                : step.type === "tool_call"
-                ? "text-blue-500"
-                : step.type === "tool_result"
-                ? "text-emerald-500"
-                : "text-muted-foreground/50";
+              const isCompleted = step.type === "tool_result";
+              const isError = step.type === "error";
+              const isThinking = step.type === "thinking";
 
               return (
-                <div key={i} className="flex items-start gap-2">
-                  <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${colorClass}`} />
-                  <span className={`${colorClass} break-all leading-relaxed`}>{step.text}</span>
+                <div key={i} className="flex items-start gap-2.5">
+                  <div className={`h-5 w-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
+                    isError   ? "bg-red-100/80 dark:bg-red-500/12" :
+                    isCompleted ? "bg-emerald-100/80 dark:bg-emerald-500/12" :
+                    isThinking  ? "bg-violet-100/60 dark:bg-violet-500/10" :
+                    "bg-indigo-100/60 dark:bg-indigo-500/10"
+                  }`}>
+                    <Icon className={`h-3 w-3 ${
+                      isError     ? "text-red-500" :
+                      isCompleted ? "text-emerald-500" :
+                      isThinking  ? "text-violet-400" :
+                      "text-indigo-400"
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className={`leading-relaxed break-all ${
+                      isError     ? "text-red-500/80" :
+                      isCompleted ? "text-emerald-600/80 dark:text-emerald-400/70" :
+                      isThinking  ? "text-muted-foreground/50" :
+                      "text-indigo-500/80 dark:text-indigo-400/70"
+                    }`}>{step.text}</span>
+                  </div>
                   {step.duration != null && step.duration > 0 && (
-                    <span className="text-muted-foreground/25 shrink-0 ml-auto text-[11px]">{formatDuration(step.duration)}</span>
+                    <span className="text-muted-foreground/25 shrink-0 text-[10px] tabular-nums">{formatDuration(step.duration)}</span>
                   )}
                 </div>
               );
             })}
 
-            {/* Current activity */}
+            {/* Currently running tool */}
             {currentTool && (
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const Icon = TOOL_ICONS[currentTool] || Terminal;
-                  return <Icon className="h-3.5 w-3.5 text-violet-500/70 animate-pulse" />;
-                })()}
-                <span className="text-violet-500/70">
+              <div className="flex items-center gap-2.5">
+                <div className="h-5 w-5 rounded-md bg-violet-100/60 dark:bg-violet-500/10 flex items-center justify-center shrink-0">
+                  {(() => {
+                    const Icon = TOOL_ICONS[currentTool] || Terminal;
+                    return <Icon className="h-3 w-3 text-violet-500/70 animate-pulse" />;
+                  })()}
+                </div>
+                <span className="text-violet-500/70 animate-pulse">
                   {TOOL_LABELS[currentTool] || currentTool}...
                 </span>
               </div>
             )}
 
-            {/* No steps — generic thinking */}
+            {/* Generic thinking */}
             {!hasSteps && !currentTool && (
-              <div className="flex items-center gap-2">
-                <Brain className="h-3.5 w-3.5 text-violet-500/50 animate-pulse" />
-                <span className="text-muted-foreground/50">リクエストを分析中...</span>
+              <div className="flex items-center gap-2.5">
+                <div className="h-5 w-5 rounded-md bg-violet-100/50 dark:bg-violet-500/08 flex items-center justify-center shrink-0">
+                  <Brain className="h-3 w-3 text-violet-400/60 animate-pulse" />
+                </div>
+                <span className="text-muted-foreground/45">リクエストを分析中...</span>
               </div>
             )}
 
             {isLongWait && (
-              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-amber-500/60">
+              <div className="flex items-center gap-2 pt-0.5 text-[11px] text-amber-500/60 border-t border-amber-200/20 dark:border-amber-500/10">
+                <span className="h-1 w-1 rounded-full bg-amber-400 animate-pulse" />
                 API応答を待機中...
               </div>
             )}

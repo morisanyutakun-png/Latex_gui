@@ -722,3 +722,358 @@ html {
   border-radius: 2px;
   background: linear-gradient(to bottom, rgba(139, 92, 246, 0.5), rgba(99, 102, 241, 0.25));
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Aurora Cosmos Chat Theme
+   幻想的・芸術的・洗練されたチャットUI
+   ═══════════════════════════════════════════════════════════ */
+
+/* Aurora keyframes — 宇宙のオーロラ */
+@keyframes aurora-breathe {
+  0%, 100% {
+    background-position: 0% 50%;
+    opacity: 0.7;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 1;
+  }
+}
+
+@keyframes aurora-shift {
+  0%   { background-position: 0% 50%;   }
+  33%  { background-position: 100% 0%;  }
+  66%  { background-position: 50% 100%; }
+  100% { background-position: 0% 50%;   }
+}
+
+@keyframes avatar-halo {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(139, 92, 246, 0.35),
+      0 0 12px 2px rgba(99, 102, 241, 0.25),
+      0 0 24px 4px rgba(196, 132, 252, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2.5px rgba(167, 139, 250, 0.50),
+      0 0 18px 4px rgba(139, 92, 246, 0.35),
+      0 0 36px 8px rgba(196, 132, 252, 0.18);
+  }
+}
+
+@keyframes stream-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@keyframes thinking-ripple {
+  0%   { transform: scale(1);    opacity: 0.9; }
+  60%  { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+/* ── Chat panel background ── */
+.chat-aurora-panel {
+  background:
+    radial-gradient(ellipse at 15% 10%, rgba(99, 102, 241, 0.07) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, rgba(196, 132, 252, 0.03) 0%, transparent 60%),
+    var(--surface-2);
+}
+.dark .chat-aurora-panel {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 85%, rgba(139, 92, 246, 0.10) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, rgba(79, 70, 229, 0.05) 0%, transparent 60%),
+    var(--surface-1);
+}
+
+/* ── Message list scroll area ── */
+.chat-message-list {
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 90%,
+      rgba(var(--surface-2-rgb, 242, 243, 245), 0.8) 100%
+    );
+}
+
+/* ── AI avatar with aurora halo ── */
+.chat-avatar-ai {
+  background: linear-gradient(135deg, #7c3aed 0%, #6366f1 45%, #a78bfa 100%);
+  animation: avatar-halo 3.5s ease-in-out infinite;
+  will-change: box-shadow;
+}
+.chat-avatar-ai-static {
+  background: linear-gradient(135deg, #7c3aed 0%, #6366f1 45%, #a78bfa 100%);
+  box-shadow:
+    0 0 0 2px rgba(139, 92, 246, 0.30),
+    0 0 10px 1px rgba(99, 102, 241, 0.20);
+}
+
+/* ── User message bubble — warm aurora ── */
+.chat-msg-user {
+  background: linear-gradient(135deg,
+    #6d28d9 0%,
+    #4f46e5 50%,
+    #7c3aed 100%
+  );
+  box-shadow:
+    0 2px 12px rgba(99, 102, 241, 0.28),
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+.chat-msg-user::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom,
+    rgba(255, 255, 255, 0.10),
+    transparent
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ── AI message bubble — glass morphism ── */
+.chat-msg-ai {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.04) 0%,
+      rgba(139, 92, 246, 0.02) 100%
+    ),
+    rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  box-shadow:
+    0 1px 8px rgba(99, 102, 241, 0.07),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.dark .chat-msg-ai {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.08) 0%,
+      rgba(139, 92, 246, 0.04) 100%
+    ),
+    rgba(15, 14, 28, 0.85);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  box-shadow:
+    0 1px 12px rgba(99, 102, 241, 0.10),
+    0 1px 3px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(139, 92, 246, 0.08);
+}
+
+/* ── Aurora input box ── */
+.chat-input-aurora {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1.5px solid rgba(99, 102, 241, 0.22);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow:
+    0 1px 4px rgba(99, 102, 241, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.chat-input-aurora:focus-within {
+  border-color: rgba(139, 92, 246, 0.55);
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.10),
+    0 2px 12px rgba(139, 92, 246, 0.14),
+    0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.dark .chat-input-aurora {
+  background: rgba(12, 11, 22, 0.88);
+  border-color: rgba(99, 102, 241, 0.20);
+  box-shadow:
+    0 1px 6px rgba(99, 102, 241, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.dark .chat-input-aurora:focus-within {
+  border-color: rgba(139, 92, 246, 0.50);
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.12),
+    0 2px 16px rgba(139, 92, 246, 0.18),
+    0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Send button aurora ── */
+.chat-send-btn {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  box-shadow:
+    0 2px 8px rgba(99, 102, 241, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.chat-send-btn:hover {
+  box-shadow:
+    0 4px 16px rgba(99, 102, 241, 0.50),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20);
+  transform: scale(1.06);
+}
+.chat-send-btn:active {
+  transform: scale(0.95);
+  box-shadow:
+    0 1px 4px rgba(99, 102, 241, 0.30);
+}
+
+/* ── Thinking / stream indicator card ── */
+.chat-thinking-card {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.05) 0%,
+      rgba(139, 92, 246, 0.03) 100%
+    ),
+    rgba(255, 255, 255, 0.80);
+  border: 1px solid rgba(99, 102, 241, 0.10);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    0 1px 6px rgba(99, 102, 241, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.dark .chat-thinking-card {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.09) 0%,
+      rgba(139, 92, 246, 0.05) 100%
+    ),
+    rgba(13, 12, 26, 0.80);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  box-shadow:
+    0 1px 10px rgba(99, 102, 241, 0.10),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Thinking ripple */
+.thinking-dot-ripple {
+  position: relative;
+  display: inline-flex;
+}
+.thinking-dot-ripple::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: rgba(139, 92, 246, 0.3);
+  animation: thinking-ripple 2s ease-out infinite;
+}
+
+/* ── Stream cursor ── */
+.stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: rgba(139, 92, 246, 0.70);
+  border-radius: 1px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: stream-cursor 0.9s ease-in-out infinite;
+}
+
+/* ── Aurora header ── */
+.chat-header-aurora {
+  position: relative;
+  overflow: hidden;
+}
+.chat-header-aurora::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.10) 0%,
+    rgba(139, 92, 246, 0.06) 40%,
+    rgba(196, 132, 252, 0.04) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* ── Patch applied card ── */
+.chat-patch-card {
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(5, 150, 105, 0.02) 100%),
+    rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  box-shadow:
+    0 1px 6px rgba(16, 185, 129, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.dark .chat-patch-card {
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 100%),
+    rgba(10, 20, 15, 0.75);
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  box-shadow: 0 1px 8px rgba(16, 185, 129, 0.10);
+}
+
+/* ── Empty state aurora orb ── */
+.chat-empty-orb {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 40%, #a78bfa 80%, #c084fc 100%);
+  box-shadow:
+    0 0 0 8px rgba(139, 92, 246, 0.08),
+    0 0 0 16px rgba(99, 102, 241, 0.04),
+    0 8px 32px rgba(99, 102, 241, 0.30),
+    0 4px 16px rgba(139, 92, 246, 0.25);
+  animation: avatar-halo 4s ease-in-out infinite;
+}
+
+/* ── Suggestion card ── */
+.chat-suggestion-card {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(99, 102, 241, 0.10);
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.chat-suggestion-card:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(139, 92, 246, 0.25);
+  box-shadow:
+    0 4px 16px rgba(99, 102, 241, 0.10),
+    0 1px 4px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+.dark .chat-suggestion-card {
+  background: rgba(20, 18, 38, 0.70);
+  border-color: rgba(99, 102, 241, 0.12);
+}
+.dark .chat-suggestion-card:hover {
+  background: rgba(30, 27, 52, 0.90);
+  border-color: rgba(139, 92, 246, 0.28);
+  box-shadow:
+    0 4px 20px rgba(99, 102, 241, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+/* ── Error bubble ── */
+.chat-error-bubble {
+  background:
+    linear-gradient(135deg, rgba(239, 68, 68, 0.04) 0%, rgba(220, 38, 38, 0.02) 100%),
+    rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+}
+.dark .chat-error-bubble {
+  background:
+    linear-gradient(135deg, rgba(239, 68, 68, 0.10) 0%, rgba(220, 38, 38, 0.05) 100%),
+    rgba(20, 10, 10, 0.80);
+  border: 1px solid rgba(239, 68, 68, 0.20);
+}
+
+/* ── Timeline connector aurora ── */
+.chat-timeline-border {
+  border-left-color: rgba(99, 102, 241, 0.20);
+}
+.dark .chat-timeline-border {
+  border-left-color: rgba(99, 102, 241, 0.18);
+}

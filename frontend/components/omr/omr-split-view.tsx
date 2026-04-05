@@ -9,6 +9,8 @@ import { Block, DocumentPatch, PatchOp } from "@/lib/types";
 import { X, Check, RefreshCw, FileText, Loader2, ArrowRight } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
+import { MathRenderer } from "@/components/editor/math-editor";
+import { parseInlineText } from "@/lib/math-japanese";
 
 // ── Block を正規化 (omr_service と同じロジック) ──
 function normalizeBlock(raw: Record<string, unknown>): Block | null {
@@ -232,6 +234,26 @@ export function OMRSplitView() {
   );
 }
 
+// ── インラインテキスト（数式含む）レンダリング ──
+function InlineText({ text }: { text: string }) {
+  const segments = parseInlineText(text);
+  const hasMath = segments.some((s) => s.type === "math");
+  if (!hasMath) return <span>{text}</span>;
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "math" && seg.latex ? (
+          <span key={i} className="inline-block mx-0.5 align-middle">
+            <MathRenderer latex={seg.latex} displayMode={false} />
+          </span>
+        ) : (
+          <span key={i}>{seg.content}</span>
+        )
+      )}
+    </>
+  );
+}
+
 // ── 抽出ブロックのプレビュー表示 ──
 function OMRBlockPreview({ block }: { block: Block }) {
   const c = block.content;
@@ -253,23 +275,59 @@ function OMRBlockPreview({ block }: { block: Block }) {
     latex: "text-fuchsia-500 bg-fuchsia-50 dark:bg-fuchsia-950/30",
   };
 
-  const getText = (): string => {
-    if ("text" in c && c.text) return c.text as string;
-    if ("latex" in c && c.latex) return `$${c.latex}$`;
-    if ("code" in c && c.code) return (c.code as string).slice(0, 80);
-    if ("items" in c && Array.isArray(c.items)) return (c.items as string[]).join(", ");
-    if ("formula" in c && c.formula) return c.formula as string;
-    return "";
+  const renderContent = () => {
+    if (type === "math" && "latex" in c && c.latex) {
+      return (
+        <span className="overflow-x-auto">
+          <MathRenderer latex={c.latex as string} displayMode={(c as { displayMode?: boolean }).displayMode ?? true} />
+        </span>
+      );
+    }
+    if (type === "heading" && "text" in c && c.text) {
+      const level = (c as { level?: number }).level ?? 1;
+      const sizeClass = level === 1 ? "text-base font-bold" : level === 2 ? "text-sm font-semibold" : "text-sm font-medium";
+      return <span className={sizeClass}><InlineText text={c.text as string} /></span>;
+    }
+    if (type === "paragraph" && "text" in c && c.text) {
+      return <span className="text-sm leading-relaxed"><InlineText text={c.text as string} /></span>;
+    }
+    if (type === "list" && "items" in c && Array.isArray(c.items)) {
+      return (
+        <span className="text-sm leading-relaxed">
+          {(c.items as string[]).slice(0, 3).map((item, i) => (
+            <span key={i} className="block"><InlineText text={item} /></span>
+          ))}
+          {(c.items as string[]).length > 3 && (
+            <span className="text-muted-foreground text-xs">…他{(c.items as string[]).length - 3}件</span>
+          )}
+        </span>
+      );
+    }
+    if ("code" in c && c.code) return <span className="text-sm font-mono text-muted-foreground">{(c.code as string).slice(0, 100)}</span>;
+    if ("formula" in c && c.formula) return <span className="text-sm font-mono">{c.formula as string}</span>;
+    if ("text" in c && c.text) return <span className="text-sm"><InlineText text={c.text as string} /></span>;
+    return <span className="text-muted-foreground text-sm">—</span>;
   };
+
+  if (type === "divider") {
+    return (
+      <div className="flex items-center gap-2 py-1.5 px-2">
+        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium ${typeColor[type] || "text-gray-500 bg-gray-50"}`}>
+          {typeLabel[type] || type}
+        </span>
+        <hr className="flex-1 border-border/50" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-start gap-2 py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors">
       <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium ${typeColor[type] || "text-gray-500 bg-gray-50"}`}>
         {typeLabel[type] || type}
       </span>
-      <span className="text-sm leading-relaxed line-clamp-2 text-foreground/80">
-        {getText() || "—"}
-      </span>
+      <div className="flex-1 min-w-0 text-foreground/80">
+        {renderContent()}
+      </div>
     </div>
   );
 }

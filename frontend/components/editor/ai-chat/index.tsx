@@ -533,21 +533,21 @@ export function AIChatPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-surface-2 dark:bg-surface-1">
+    <div className="flex flex-col h-full chat-aurora-panel">
       {/* Header */}
-      <div className="ai-chat-header flex items-center gap-2.5 px-4 py-2.5 border-b border-indigo-500/[0.12] dark:border-indigo-500/[0.1] shrink-0 bg-surface-2 dark:bg-surface-1">
-        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm shadow-violet-500/30">
-          <Sparkles className="h-3.5 w-3.5 text-white" />
+      <div className="chat-header-aurora flex items-center gap-3 px-4 py-2.5 border-b border-indigo-500/[0.10] dark:border-indigo-500/[0.08] shrink-0">
+        <div className="h-8 w-8 rounded-xl chat-avatar-ai-static flex items-center justify-center shrink-0">
+          <Sparkles className="h-4 w-4 text-white/90" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold text-gradient-ai truncate leading-tight">Eddivom AI</p>
-          <p className="text-[10px] text-indigo-400/60 dark:text-indigo-400/50 leading-tight mt-0.5 font-medium">LaTeX 編集アシスタント</p>
+          <p className="text-[13.5px] font-bold text-gradient-ai truncate leading-tight tracking-tight">Eddivom AI</p>
+          <p className="text-[10px] text-indigo-400/50 dark:text-indigo-400/40 leading-tight mt-0.5 font-medium tracking-wide">LaTeX 編集アシスタント</p>
         </div>
         <div className="flex items-center gap-1">
           {chatMessages.length > 0 && (
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v2"); } catch { /**/ } }}
-              className="p-1.5 rounded-full text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+              className="p-1.5 rounded-lg text-muted-foreground/30 hover:text-rose-500/80 hover:bg-rose-50/60 dark:hover:bg-rose-500/10 transition-all duration-150"
               title={t("chat.clear")}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -584,17 +584,20 @@ export function AIChatPanel() {
       )}
 
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-gradient-to-b from-surface-2/30 via-surface-2/50 to-surface-2/30 dark:from-surface-1 dark:via-surface-1 dark:to-surface-1 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 min-h-0 scrollbar-thin">
         {chatMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-5 py-8 px-2 select-none">
-            {/* Hero avatar */}
-            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-              <Sparkles className="h-7 w-7 text-white" />
+          <div className="flex flex-col items-center justify-center h-full gap-6 py-6 px-1 select-none">
+            {/* Aurora orb */}
+            <div className="relative flex items-center justify-center">
+              <div className="h-16 w-16 rounded-2xl chat-empty-orb flex items-center justify-center">
+                <Sparkles className="h-8 w-8 text-white/90" />
+              </div>
             </div>
-            <div className="text-center space-y-1.5">
-              <p className="text-[15px] font-semibold text-foreground/85">{t("chat.empty.title")}</p>
-              <p className="text-xs text-muted-foreground/60 leading-relaxed">
-                文書の作成・編集・修正をお手伝いします。<br />
+
+            <div className="text-center space-y-2">
+              <p className="text-[15px] font-semibold text-foreground/80 tracking-tight">{t("chat.empty.title")}</p>
+              <p className="text-[12px] text-muted-foreground/50 leading-relaxed max-w-[200px]">
+                文書の作成・編集・修正を<br />
                 何でもお気軽にどうぞ。
               </p>
             </div>
@@ -602,14 +605,14 @@ export function AIChatPanel() {
             {/* OMR upload card */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="group w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03] text-left hover:bg-white dark:hover:bg-white/[0.06] hover:shadow-sm transition-all duration-200"
+              className="group w-full flex items-center gap-3 px-3.5 py-3 rounded-xl chat-suggestion-card text-left"
             >
-              <div className="h-9 w-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/15 transition-colors">
-                <ScanLine className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
+              <div className="h-9 w-9 rounded-xl bg-emerald-50/80 dark:bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/15 transition-colors border border-emerald-200/40 dark:border-emerald-500/15">
+                <ScanLine className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-foreground/80">画像・PDFから読み取り</p>
-                <p className="text-[11px] text-muted-foreground/50 mt-0.5">写真やPDFをアップロードして自動変換</p>
+                <p className="text-[13px] font-medium text-foreground/75">画像・PDFから読み取り</p>
+                <p className="text-[11px] text-muted-foreground/45 mt-0.5">アップロードして自動変換</p>
               </div>
             </button>
 
@@ -624,9 +627,9 @@ export function AIChatPanel() {
                 <button
                   key={text}
                   onClick={() => { setInput(text); textareaRef.current?.focus(); }}
-                  className="flex items-start gap-2 text-left text-[12px] px-3 py-2.5 rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03] text-foreground/70 hover:bg-white dark:hover:bg-white/[0.06] hover:shadow-sm transition-all duration-200 leading-snug"
+                  className="chat-suggestion-card flex items-start gap-2 text-left text-[12px] px-3 py-2.5 rounded-xl text-foreground/65 leading-snug"
                 >
-                  <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-violet-400" />
+                  <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-violet-400/70" />
                   <span>{text}</span>
                 </button>
               ))}

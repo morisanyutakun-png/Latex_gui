@@ -27,12 +27,16 @@ structured document blocks that can be imported into the editor.
 ## What to extract
 - Text headings → heading blocks (with appropriate level: 1, 2, or 3)
 - Body text / explanations → paragraph blocks
-- Mathematical expressions → math blocks (use LaTeX notation, displayMode: true)
-- Inline math within text → include as $...$ in paragraph text
+- Mathematical expressions:
+  - **Inline math** (within a sentence) → embed as $...$ INSIDE paragraph text
+    - Example: "速度 $v = \\frac{dx}{dt}$ を微分すると加速度 $a = \\frac{dv}{dt}$ が得られる"
+    - Use $...$ for: variables, short expressions, inline fractions, single equations in text
+  - **Display math** (standalone equation line, boxed, numbered) → math block (displayMode: true)
+    - Use math blocks for: large integrals, multi-line derivations, important results on their own line
 - Lists or numbered items → list blocks (style: "bullet" or "numbered")
 - Tables / grids → table blocks (with headers and rows arrays)
 - Chemical formulas → chemistry blocks
-- Diagrams / figures → paragraph blocks with [図: description]
+- Diagrams / figures / graphs / illustrations → latex blocks with \\begin{figure} placeholder
 - For OMR answer sheets (bubble sheets): extract question number + selected choice
 
 ## CRITICAL Instructions
@@ -43,7 +47,8 @@ structured document blocks that can be imported into the editor.
 - If confidence is low for any region, add "(要確認)" at the end.
 - Respond in Japanese.
 - Even if the content is unclear, extract whatever you can. Do not refuse.
-- For math expressions: use proper LaTeX (e.g. \\frac{a}{b}, \\sum_{i=1}^{n}, \\sqrt{x})
+- For math expressions: use proper LaTeX (e.g. \\frac{a}{b}, \\sum_{i=1}^{n}, \\sqrt{x}, \\int_a^b)
+- **PREFER inline math in paragraphs** over separate math blocks unless the equation is standalone.
 
 ## Block format (MUST follow exactly)
 Each block in ops must have this structure:
@@ -57,9 +62,11 @@ Each block in ops must have this structure:
 
 Block types and their content fields:
 - heading: {"type": "heading", "text": "...", "level": 1}
-- paragraph: {"type": "paragraph", "text": "..."}
-- math: {"type": "math", "latex": "...", "displayMode": true}
+- paragraph: {"type": "paragraph", "text": "文章中の数式は $f(x) = x^2$ のように $...$ で囲む"}
+- math: {"type": "math", "latex": "\\\\int_0^\\\\infty e^{-x}\\\\,dx = 1", "displayMode": true}
 - list: {"type": "list", "style": "numbered", "items": ["item1", "item2"]}
+- table: {"type": "table", "headers": ["列1", "列2"], "rows": [["A", "B"]]}
+- latex: {"type": "latex", "code": "\\\\begin{figure}[h]\\n\\\\centering\\n% TODO: \\\\includegraphics{...}\\n\\\\caption{図の説明}\\n\\\\end{figure}"}
 
 IMPORTANT: content MUST be a nested object with "type" field. Do NOT use flat format.
 """
