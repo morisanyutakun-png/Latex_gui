@@ -8,6 +8,7 @@ import { loadFromLocalStorage } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { UserMenu } from "@/components/auth/user-menu";
 import {
   ArrowRight,
   ChevronRight,
@@ -375,7 +376,15 @@ export function TemplateGallery() {
     return () => clearTimeout(t);
   }, []);
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    // 未ログインならログインページへ
+    const { getSession } = await import("next-auth/react");
+    const session = await getSession();
+    if (!session) {
+      const { signIn } = await import("next-auth/react");
+      signIn("google", { callbackUrl: "/editor?new=1" });
+      return;
+    }
     const doc = createDefaultDocument("blank", []);
     setDocument(doc);
     router.push("/editor");
@@ -419,6 +428,7 @@ export function TemplateGallery() {
             </button>
             <LanguageSwitcher />
             <ThemeToggle />
+            <UserMenu />
             <button
               onClick={handleStart}
               className="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full bg-foreground text-background text-[13px] font-semibold hover:opacity-90 transition-opacity"
