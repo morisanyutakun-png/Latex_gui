@@ -108,6 +108,19 @@ def _wrap_block_latex(code: str, block_type: str) -> str:
             "\\end{axis}\n"
             "\\end{tikzpicture}"
         )
+    elif block_type == "latex":
+        # 生LaTeXブロック — よく使われるパッケージを事前ロード
+        preamble_lines.extend([
+            "\\usepackage{amsmath,amssymb}",
+            "\\usepackage{tcolorbox}",
+            "\\usepackage{xcolor}",
+            "\\usepackage{multicol}",
+            "\\usepackage{booktabs}",
+            "\\usepackage{enumitem}",
+            "\\usepackage{luatexja}",
+            "\\usepackage[haranoaji]{luatexja-preset}",
+        ])
+        body = code
     else:
         body = code
 

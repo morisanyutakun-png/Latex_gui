@@ -29,6 +29,7 @@ import {
   FlaskConical,
   BarChart3,
   FileCode,
+  Loader2,
   Search,
 } from "lucide-react";
 import {
@@ -1096,24 +1097,132 @@ function CodeBlockEditor({ block }: { block: Block }) {
 function LaTeXBlockEditor({ block }: { block: Block }) {
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
   const content = block.content as Extract<Block["content"], { type: "latex" }>;
+  const selectedId = useUIStore((s) => s.selectedBlockId);
+  const isSelected = selectedId === block.id;
+  const [showCode, setShowCode] = React.useState(false);
+
+  // Show code editor when selected and toggled, otherwise show preview
+  const editing = isSelected && showCode;
 
   return (
-    <div className="rounded-md border border-fuchsia-300/30 dark:border-fuchsia-700/30 bg-fuchsia-50/30 dark:bg-fuchsia-950/10 overflow-hidden">
-      <div className="flex items-center gap-1.5 px-2 py-1 bg-fuchsia-100/50 dark:bg-fuchsia-900/20 border-b border-fuchsia-200/30 dark:border-fuchsia-800/20">
-        <FileCode className="h-3 w-3 text-fuchsia-500/70" />
-        <span className="text-[10px] font-mono font-semibold text-fuchsia-600/70 dark:text-fuchsia-400/60 uppercase tracking-wider">LaTeX</span>
-        {content.caption && (
-          <span className="text-[10px] text-fuchsia-500/50 ml-1">— {content.caption}</span>
-        )}
+    <div className="rounded-md overflow-hidden">
+      {editing ? (
+        /* Code editor mode */
+        <div className="border border-fuchsia-300/30 dark:border-fuchsia-700/30 bg-fuchsia-50/20 dark:bg-fuchsia-950/10">
+          <div className="flex items-center justify-between px-2 py-1 bg-fuchsia-100/50 dark:bg-fuchsia-900/20 border-b border-fuchsia-200/30 dark:border-fuchsia-800/20">
+            <div className="flex items-center gap-1.5">
+              <FileCode className="h-3 w-3 text-fuchsia-500/70" />
+              <span className="text-[10px] font-mono font-semibold text-fuchsia-600/70 dark:text-fuchsia-400/60 uppercase tracking-wider">LaTeX</span>
+            </div>
+            <button
+              onClick={() => setShowCode(false)}
+              className="text-[10px] text-fuchsia-500/60 hover:text-fuchsia-500 transition-colors px-1.5 py-0.5 rounded hover:bg-fuchsia-500/10"
+            >
+              プレビュー ↩
+            </button>
+          </div>
+          <textarea
+            value={content.code}
+            onChange={(e) => updateContent(block.id, { code: e.target.value })}
+            placeholder="\\begin{tcolorbox}&#10;  LaTeXコードを直接入力...&#10;\\end{tcolorbox}"
+            className="w-full bg-transparent text-xs font-mono border-none outline-none resize-y min-h-[80px] px-3 py-2 text-fuchsia-900 dark:text-fuchsia-100 placeholder:text-fuchsia-300/40"
+            style={{ lineHeight: '1.6' }}
+            rows={6}
+            autoFocus
+          />
+        </div>
+      ) : (
+        /* Preview mode — show compiled output */
+        <div
+          className="cursor-pointer group relative"
+          onClick={() => { if (isSelected) setShowCode(true); }}
+          title={isSelected ? "クリックでコードを編集" : ""}
+        >
+          <LaTeXPreview code={content.code} caption={content.caption} />
+          {isSelected && (
+            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowCode(true); }}
+                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300 border border-fuchsia-500/20 hover:bg-fuchsia-500/20 transition-colors"
+              >
+                <FileCode className="h-3 w-3" />
+                編集
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LaTeXPreview({ code, caption }: { code: string; caption?: string }) {
+  const [svg, setSvg] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const lastCodeRef = React.useRef("");
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchPreview = React.useCallback(async (c: string) => {
+    if (!c.trim()) { setSvg(null); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const { previewBlockSVG } = await import("@/lib/api");
+      const result = await previewBlockSVG(c, "latex", caption || "");
+      setSvg(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "プレビュー取得に失敗");
+      setSvg(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [caption]);
+
+  React.useEffect(() => {
+    if (code === lastCodeRef.current) return;
+    lastCodeRef.current = code;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => fetchPreview(code), 1000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [code, fetchPreview]);
+
+  if (!code.trim()) {
+    return (
+      <div className="flex items-center justify-center py-6 text-muted-foreground/30 text-xs border border-dashed border-fuchsia-300/20 dark:border-fuchsia-700/20 rounded-md">
+        <FileCode className="h-4 w-4 mr-2" />
+        LaTeXコードが入力されるとプレビューが表示されます
       </div>
-      <textarea
-        value={content.code}
-        onChange={(e) => updateContent(block.id, { code: e.target.value })}
-        placeholder="\\begin{tcolorbox}&#10;  LaTeXコードを直接入力...&#10;\\end{tcolorbox}"
-        className="w-full bg-transparent text-xs font-mono border-none outline-none resize-y min-h-[60px] px-3 py-2 text-fuchsia-900 dark:text-fuchsia-100 placeholder:text-fuchsia-300/40 dark:placeholder:text-fuchsia-600/30"
-        style={{ lineHeight: '1.6' }}
-        rows={4}
-      />
+    );
+  }
+
+  return (
+    <div className="relative bg-white dark:bg-zinc-950 rounded-md border border-border/20 overflow-hidden">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 z-10">
+          <Loader2 className="h-4 w-4 animate-spin text-fuchsia-500" />
+        </div>
+      )}
+      {svg ? (
+        <div
+          className="flex items-center justify-center p-4 [&>svg]:max-w-full [&>svg]:h-auto"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      ) : error ? (
+        <div className="py-4 px-3 text-center space-y-1">
+          <p className="text-[10px] text-amber-500">{error}</p>
+          <button
+            onClick={() => fetchPreview(code)}
+            className="text-[10px] text-fuchsia-500 hover:underline"
+          >
+            再試行
+          </button>
+        </div>
+      ) : !loading ? (
+        <div className="flex items-center justify-center py-6 text-muted-foreground/30">
+          <Loader2 className="h-4 w-4 animate-spin" />
+        </div>
+      ) : null}
     </div>
   );
 }
