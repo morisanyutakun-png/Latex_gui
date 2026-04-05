@@ -289,7 +289,7 @@ def _generate_paper_design_latex(design: PaperDesign) -> list[str]:
         if pstyle["sectionDividers"]:
             # セクション: 番号バッジ + 下線
             lines.append("\\titleformat{\\section}")
-            lines.append("  {\\Large\\bfseries\\sffamily\\color{accentcolor}}")
+            lines.append("  {\\Large\\bfseries\\sffamily\\gtfamily\\color{accentcolor}}")
             lines.append("  {\\colorbox{accentcolor}{\\textcolor{white}{\\,\\thesection\\,}}}")
             lines.append("  {0.8em}")
             lines.append("  {}")
@@ -297,14 +297,14 @@ def _generate_paper_design_latex(design: PaperDesign) -> list[str]:
         else:
             # セクション: 色付きのみ
             lines.append("\\titleformat{\\section}")
-            lines.append("  {\\Large\\bfseries\\sffamily\\color{accentcolor}}")
+            lines.append("  {\\Large\\bfseries\\sffamily\\gtfamily\\color{accentcolor}}")
             lines.append("  {\\textcolor{accentcolor}{\\thesection}}")
             lines.append("  {0.8em}")
             lines.append("  {}")
 
         # サブセクション
         lines.append("\\titleformat{\\subsection}")
-        lines.append("  {\\large\\bfseries\\sffamily\\color{accentcolor!80!black}}")
+        lines.append("  {\\large\\bfseries\\sffamily\\gtfamily\\color{accentcolor!80!black}}")
         lines.append("  {\\textcolor{secondcolor}{\\thesubsection}}")
         lines.append("  {0.6em}")
         lines.append("  {}")
@@ -356,15 +356,15 @@ def _generate_paper_design_latex(design: PaperDesign) -> list[str]:
         ar, ag, ab = _hex_to_rgb(accent)
         lines.append(f"\\definecolor{{accentcolor}}{{RGB}}{{{ar},{ag},{ab}}}")
 
-        lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\color{accentcolor}}{\\thesection}{0.8em}{}")
-        lines.append("\\titleformat{\\subsection}{\\large\\bfseries\\sffamily\\color{accentcolor!80!black}}{\\thesubsection}{0.6em}{}")
+        lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\gtfamily\\color{accentcolor}}{\\thesection}{0.8em}{}")
+        lines.append("\\titleformat{\\subsection}{\\large\\bfseries\\sffamily\\gtfamily\\color{accentcolor!80!black}}{\\thesubsection}{0.6em}{}")
 
         if design.header_border:
             lines.append("\\usepackage{etoolbox}")
             lines.append("\\apptocmd{\\maketitle}{\\vspace{-1em}\\noindent\\textcolor{accentcolor}{\\rule{\\textwidth}{1.2pt}}\\vspace{0.5em}}{}{}")
 
         if design.section_dividers:
-            lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\color{accentcolor}}{\\thesection}{0.8em}{}"
+            lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\gtfamily\\color{accentcolor}}{\\thesection}{0.8em}{}"
                           "[\\vspace{0.2em}\\textcolor{accentcolor!40}{\\rule{\\textwidth}{0.5pt}}]")
 
     # --- テーマ背景パターン (TikZ で描画) --- 両方で有効
@@ -471,6 +471,7 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
 
     # ──── Fonts ────
     # luatexja-preset[haranoaji] がフォント設定を含むため追加設定不要
+    # セクション見出しでゴシック体が正しく表示されるよう \gtfamily を使用
     lines.append("% ── luatexja-preset[haranoaji]: fonts pre-configured ──")
     lines.append("")
 
@@ -484,10 +485,12 @@ def generate_document_latex(doc: DocumentModel, engine: str = "lualatex") -> str
     lines.append("")
 
     # ──── Section styling (titlesec) ────
+    # \gtfamily で日本語ゴシック体 (HaranoAji Gothic) を明示的に指定
+    # \sffamily だけでは日本語フォントが正しく切り替わらない場合がある
     lines.append("\\usepackage{titlesec}")
-    lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily}{\\thesection}{0.8em}{}")
-    lines.append("\\titleformat{\\subsection}{\\large\\bfseries\\sffamily}{\\thesubsection}{0.6em}{}")
-    lines.append("\\titleformat{\\subsubsection}{\\normalsize\\bfseries\\sffamily}{\\thesubsubsection}{0.5em}{}")
+    lines.append("\\titleformat{\\section}{\\Large\\bfseries\\sffamily\\gtfamily}{\\thesection}{0.8em}{}")
+    lines.append("\\titleformat{\\subsection}{\\large\\bfseries\\sffamily\\gtfamily}{\\thesubsection}{0.6em}{}")
+    lines.append("\\titleformat{\\subsubsection}{\\normalsize\\bfseries\\sffamily\\gtfamily}{\\thesubsubsection}{0.5em}{}")
     lines.append("\\titlespacing*{\\section}{0pt}{1.8em plus 0.4em minus 0.2em}{0.8em plus 0.2em}")
     lines.append("\\titlespacing*{\\subsection}{0pt}{1.4em plus 0.3em minus 0.1em}{0.6em plus 0.1em}")
     lines.append("\\titlespacing*{\\subsubsection}{0pt}{1.0em plus 0.2em minus 0.1em}{0.4em plus 0.1em}")
@@ -673,7 +676,7 @@ def _render_block(block: Block, preset: dict | None = None) -> str:
         suffix_cmds.insert(0, "\\end{flushright}")
 
     if style.font_family == "sans":
-        prefix_cmds.append("\\sffamily")
+        prefix_cmds.append("\\sffamily\\gtfamily")
 
     # Font size mapping
     if style.font_size:

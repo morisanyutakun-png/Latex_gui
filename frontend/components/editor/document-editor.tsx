@@ -348,6 +348,7 @@ function HeadingBlockEditor({ block }: { block: Block }) {
         style={{
           textAlign: block.style.textAlign || "left",
           color: block.style.textColor || undefined,
+          fontFamily: block.style.fontFamily === "serif" ? '"Hiragino Mincho ProN", serif' : undefined,
         }}
         onKeyDown={handleKeyDown}
       />

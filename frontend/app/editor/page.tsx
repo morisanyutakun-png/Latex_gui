@@ -69,33 +69,14 @@ export default function EditorPage() {
     fetch("/api/health", { signal: AbortSignal.timeout(15000) }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (advancedEnabled && !isMobile) {
-      setSidebarOpen(true);
-      setActiveTab("advanced");
-    }
-  }, [advancedEnabled, isMobile]);
+  // advancedEnabled が変わってもサイドバーを自動で切り替えない
+  // ユーザーが手動でタブを選択する
 
-  // 類題作成などでpendingChatMessageがセットされたらAIパネルを自動で開く
+  // 類題作成などでpendingChatMessageがセットされた場合も
+  // サイドバーを自動で開かない（ユーザーが手動でAIタブを開く）
   const pendingChatMessage = useUIStore((s) => s.pendingChatMessage);
-  useEffect(() => {
-    if (pendingChatMessage) {
-      setSidebarOpen(true);
-      setActiveTab("ai");
-    }
-  }, [pendingChatMessage]);
 
-  // 数式編集コンテキストに応じてガイドパネル自動切替
-  useEffect(() => {
-    if (isMathEditing || activeGuideContext === "math") {
-      if (activeTab === "guide") {
-        setActiveTab("math");
-      }
-    } else {
-      if (activeTab === "math") setActiveTab("guide");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMathEditing, activeGuideContext]);
+  // 数式編集コンテキストが変わってもガイドパネルを自動切替しない
 
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
