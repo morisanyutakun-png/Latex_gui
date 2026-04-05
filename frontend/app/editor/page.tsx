@@ -17,7 +17,7 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useResizePanel } from "@/hooks/use-resize-panel";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
 import { Terminal, Sparkles, FileCode2, Globe, FileText, X, BookOpen, Sigma, ClipboardCheck } from "lucide-react";
@@ -41,7 +41,6 @@ export default function EditorPage() {
   const setDocument = useDocumentStore((s) => s.setDocument);
   const advancedEnabled = useDocumentStore((s) => s.document?.advanced?.enabled ?? false);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Desktop state
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -53,10 +52,14 @@ export default function EditorPage() {
 
   // Handle ?new=1 from login redirect — create blank document
   useEffect(() => {
-    if (searchParams.get("new") === "1" && !doc) {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1" && !doc) {
       setDocument(createDefaultDocument("blank", []));
+      // Clean URL
+      window.history.replaceState({}, "", "/editor");
     }
-  }, [searchParams, doc, setDocument]);
+  }, [doc, setDocument]);
 
   useEffect(() => {
     if (!doc) router.push("/");
