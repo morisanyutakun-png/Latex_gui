@@ -377,13 +377,18 @@ export function TemplateGallery() {
   }, []);
 
   const handleStart = async () => {
-    // 未ログインならログインページへ
-    const { getSession } = await import("next-auth/react");
-    const session = await getSession();
-    if (!session) {
-      const { signIn } = await import("next-auth/react");
-      signIn("google", { callbackUrl: "/editor?new=1" });
-      return;
+    // 認証が設定されている場合のみログインチェック
+    try {
+      const { getSession } = await import("next-auth/react");
+      const session = await getSession();
+      if (!session) {
+        // セッション取得できるが未ログイン → ログインへ
+        const { signIn } = await import("next-auth/react");
+        signIn("google", { callbackUrl: "/editor?new=1" });
+        return;
+      }
+    } catch {
+      // 認証未設定 or エラー → そのまま続行
     }
     const doc = createDefaultDocument("blank", []);
     setDocument(doc);

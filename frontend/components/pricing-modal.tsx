@@ -54,29 +54,21 @@ export function PricingModal() {
   const isJa = locale === "ja";
 
   const handleSelect = async (planId: PlanId) => {
-    if (planId === "free") {
-      setPlan(planId);
-      setShowPricing(false);
-      // 未ログインならログインページへ誘導
+    setPlan(planId);
+    setShowPricing(false);
+    // 認証設定時のみログインチェック
+    try {
       const { getSession } = await import("next-auth/react");
       const session = await getSession();
       if (!session) {
         const { signIn } = await import("next-auth/react");
         signIn("google", { callbackUrl: "/" });
+        return;
       }
-      return;
+    } catch {
+      // 認証未設定 → そのまま続行
     }
-    // Pro / Premium: 未ログインならログイン→将来的にStripe決済
-    const { getSession } = await import("next-auth/react");
-    const session = await getSession();
-    if (!session) {
-      const { signIn } = await import("next-auth/react");
-      signIn("google", { callbackUrl: "/" });
-      return;
-    }
-    // TODO: Stripe checkout session へ遷移
-    setPlan(planId);
-    setShowPricing(false);
+    // TODO: Pro/Premium → Stripe checkout session
   };
 
   return (

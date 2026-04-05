@@ -1,13 +1,21 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    }),
-  ],
+const isAuthConfigured = !!(
+  process.env.AUTH_SECRET &&
+  process.env.GOOGLE_CLIENT_ID &&
+  process.env.GOOGLE_CLIENT_SECRET
+);
+
+const authConfig = NextAuth({
+  providers: isAuthConfigured
+    ? [
+        Google({
+          clientId: process.env.GOOGLE_CLIENT_ID!,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        }),
+      ]
+    : [],
   pages: {
     signIn: "/login",
   },
@@ -28,7 +36,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
   },
-  // AUTH_SECRET は環境変数で自動取得される
-  // 開発時は npx auth secret で生成
   trustHost: true,
 });
+
+export const { handlers, signIn, signOut, auth } = authConfig;
+export { isAuthConfigured };
