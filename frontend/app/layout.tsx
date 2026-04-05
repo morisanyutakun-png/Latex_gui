@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/lib/i18n";
 import { SessionProvider } from "@/components/auth/session-provider";
+import { SubscriptionInitializer } from "@/components/subscription-initializer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <body className="antialiased">
         <SessionProvider>
+          <SubscriptionInitializer />
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <I18nProvider>
               <TooltipProvider>

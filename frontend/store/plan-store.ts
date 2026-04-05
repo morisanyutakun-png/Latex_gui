@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { PlanId, PLANS } from "@/lib/plans";
+import { fetchMySubscription } from "@/lib/subscription-api";
 
 // ─── LocalStorage キー ───────────────────────────────────────────────────────
 const LS_PLAN_KEY = "eddivom-plan";
@@ -63,6 +64,8 @@ export interface PlanState {
   currentPlan: PlanId;
   usage: UsageData;
   showPricing: boolean;
+  isLoadingSubscription: boolean;
+  subscriptionFetched: boolean;
 
   // 読み取り
   todayUsage: () => number;
@@ -77,12 +80,15 @@ export interface PlanState {
   incrementUsage: () => void;
   setShowPricing: (v: boolean) => void;
   initFromStorage: () => void;
+  fetchSubscription: () => Promise<void>;
 }
 
 export const usePlanStore = create<PlanState>((set, get) => ({
   currentPlan: "free",
   usage: { daily: {}, monthly: {} },
   showPricing: false,
+  isLoadingSubscription: false,
+  subscriptionFetched: false,
 
   todayUsage: () => get().usage.daily[todayKey()] || 0,
   monthUsage: () => get().usage.monthly[monthKey()] || 0,
@@ -144,5 +150,21 @@ export const usePlanStore = create<PlanState>((set, get) => ({
 
   initFromStorage: () => {
     set({ currentPlan: loadPlan(), usage: loadUsage() });
+  },
+
+  fetchSubscription: async () => {
+    set({ isLoadingSubscription: true });
+    try {
+      const status = await fetchMySubscription();
+      const planId = status.plan_id as PlanId;
+      // バックエンドから取得したプランを反映 (LocalStorageにも保存)
+      if (typeof window !== "undefined") localStorage.setItem(LS_PLAN_KEY, planId);
+      set({ currentPlan: planId, subscriptionFetched: true, usage: loadUsage() });
+    } catch {
+      // エラー時はLocalStorageのプランをフォールバックとして使用
+      set({ currentPlan: loadPlan(), subscriptionFetched: true, usage: loadUsage() });
+    } finally {
+      set({ isLoadingSubscription: false });
+    }
   },
 }));

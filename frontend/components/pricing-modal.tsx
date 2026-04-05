@@ -49,26 +49,41 @@ const PLAN_COLORS: Record<PlanId, { bg: string; border: string; badge: string; b
 };
 
 export function PricingModal() {
-  const { showPricing, setShowPricing, currentPlan, setPlan } = usePlanStore();
+  const { showPricing, setShowPricing, currentPlan } = usePlanStore();
   const { locale } = useI18n();
   const isJa = locale === "ja";
+  const [isRedirecting, setIsRedirecting] = React.useState(false);
 
   const handleSelect = async (planId: PlanId) => {
-    setPlan(planId);
     setShowPricing(false);
-    // 認証設定時のみログインチェック
+
+    // Free プランはそのまま（ゲストもログインユーザーも無料で使える）
+    if (planId === "free") return;
+
+    // 認証チェック
     try {
-      const { getSession } = await import("next-auth/react");
+      const { getSession, signIn } = await import("next-auth/react");
       const session = await getSession();
       if (!session) {
-        const { signIn } = await import("next-auth/react");
         signIn("google", { callbackUrl: "/" });
         return;
       }
     } catch {
-      // 認証未設定 → そのまま続行
+      // 認証未設定環境 → そのまま続行しない
+      return;
     }
-    // TODO: Pro/Premium → Stripe checkout session
+
+    // Stripe Checkout へリダイレクト
+    setIsRedirecting(true);
+    try {
+      const { createCheckoutSession } = await import("@/lib/subscription-api");
+      const url = await createCheckoutSession(planId);
+      if (url) {
+        window.location.href = url;
+      }
+    } catch {
+      setIsRedirecting(false);
+    }
   };
 
   return (
@@ -173,10 +188,12 @@ export function PricingModal() {
                 <Button
                   className={`w-full ${colors.btn} ${isActive ? "opacity-60 cursor-default" : ""} ${isPremium ? "font-bold" : ""}`}
                   onClick={() => handleSelect(planId)}
-                  disabled={isActive}
+                  disabled={isActive || isRedirecting}
                 >
                   {isActive
                     ? (isJa ? "現在のプラン" : "Current Plan")
+                    : isRedirecting
+                    ? (isJa ? "処理中..." : "Redirecting...")
                     : planId === "free"
                     ? (isJa ? "Freeを使う" : "Use Free")
                     : (isJa ? "このプランを選択" : "Select Plan")}
@@ -189,8 +206,8 @@ export function PricingModal() {
         {/* 注記 */}
         <div className="px-6 pb-5 text-center text-[11px] text-slate-400">
           {isJa
-            ? "※ 現在はベータ版のため、全プランを無料でお試しいただけます。正式リリース時にStripe決済が有効になります。"
-            : "* All plans are free during beta. Stripe billing will be enabled at official launch."}
+            ? "※ Googleアカウントでログインしてプランを選択すると、Stripeの決済画面に移動します。"
+            : "* Sign in with Google and select a plan to proceed to Stripe checkout."}
         </div>
       </DialogContent>
     </Dialog>

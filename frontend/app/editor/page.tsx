@@ -233,7 +233,7 @@ export default function EditorPage() {
         )}
 
         {/* ── Sidebar (panel + activity bar) ── */}
-        <div className="flex flex-shrink-0 border-l border-foreground/[0.06] bg-surface-2 dark:bg-surface-1">
+        <div className="flex flex-shrink-0 sidebar-edge bg-surface-2 dark:bg-surface-1">
           {/* Panel content */}
           <div
             className="overflow-hidden flex flex-col panel-depth"

@@ -120,6 +120,8 @@ interface JapaneseMathInputProps {
   onApply: (latex: string, sourceText: string) => void;
   initialSourceText?: string;
   className?: string;
+  /** 入力欄の先頭/末尾で矢印キーが押された時のブロック脱出コールバック */
+  onNavigateOut?: (dir: "prev" | "next") => void;
 }
 
 /** 外部からJapaneseMathInputを操作するためのハンドル */
@@ -162,7 +164,7 @@ function addToHistory(latex: string, display: string) {
   } catch { /* ignore */ }
 }
 
-export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMathInputProps>(function JapaneseMathInput({ onApply, initialSourceText = "", className = "" }, ref) {
+export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMathInputProps>(function JapaneseMathInput({ onApply, initialSourceText = "", className = "", onNavigateOut }, ref) {
   const [inputText, setInputText] = useState(initialSourceText);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [browserCategory, setBrowserCategory] = useState("すべて");
@@ -355,6 +357,22 @@ export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMat
         return;
       }
     }
+
+    // ブロック境界越え（サジェストなし時のみ）
+    if (onNavigateOut) {
+      const el = e.currentTarget;
+      if ((e.key === "ArrowUp" || e.key === "ArrowLeft") && el.selectionStart === 0 && el.selectionEnd === 0) {
+        e.preventDefault();
+        onNavigateOut("prev");
+        return;
+      }
+      if ((e.key === "ArrowDown" || e.key === "ArrowRight") && el.selectionStart === el.value.length && el.selectionEnd === el.value.length) {
+        e.preventDefault();
+        onNavigateOut("next");
+        return;
+      }
+    }
+
     // 文字確定済みの状態でEnter → 数式として反映（コンパイル実行）
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

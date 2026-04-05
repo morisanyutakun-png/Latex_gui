@@ -535,13 +535,13 @@ export function AIChatPanel() {
   return (
     <div className="flex flex-col h-full bg-surface-2 dark:bg-surface-1">
       {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0 bg-surface-2 dark:bg-surface-1">
-        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
+      <div className="ai-chat-header flex items-center gap-2.5 px-4 py-2.5 border-b border-indigo-500/[0.12] dark:border-indigo-500/[0.1] shrink-0 bg-surface-2 dark:bg-surface-1">
+        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm shadow-violet-500/30">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-foreground/90 truncate leading-tight">Eddivom AI</p>
-          <p className="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">LaTeX 編集アシスタント</p>
+          <p className="text-[13px] font-bold text-gradient-ai truncate leading-tight">Eddivom AI</p>
+          <p className="text-[10px] text-indigo-400/60 dark:text-indigo-400/50 leading-tight mt-0.5 font-medium">LaTeX 編集アシスタント</p>
         </div>
         <div className="flex items-center gap-1">
           {chatMessages.length > 0 && (
@@ -584,7 +584,7 @@ export function AIChatPanel() {
       )}
 
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-surface-2/50 dark:bg-surface-1 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-gradient-to-b from-surface-2/30 via-surface-2/50 to-surface-2/30 dark:from-surface-1 dark:via-surface-1 dark:to-surface-1 scrollbar-thin">
         {chatMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-5 py-8 px-2 select-none">
             {/* Hero avatar */}

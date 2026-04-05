@@ -1,10 +1,18 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
-import { LogIn, LogOut, User } from "lucide-react";
+import { LogIn, LogOut, User, CreditCard } from "lucide-react";
+import { usePlanStore } from "@/store/plan-store";
 
 export function UserMenu() {
   const { data: session, status } = useSession();
+  const currentPlan = usePlanStore((s) => s.currentPlan);
+
+  const handleManageSubscription = async () => {
+    const { createPortalSession } = await import("@/lib/subscription-api");
+    const url = await createPortalSession();
+    if (url) window.location.href = url;
+  };
 
   if (status === "loading") {
     return <div className="h-7 w-7 rounded-full bg-foreground/[0.04] animate-pulse" />;
@@ -47,6 +55,15 @@ export function UserMenu() {
           <p className="text-xs font-medium text-foreground/70 truncate">{session.user?.name}</p>
           <p className="text-[11px] text-muted-foreground/40 truncate">{session.user?.email}</p>
         </div>
+        {currentPlan !== "free" && (
+          <button
+            onClick={handleManageSubscription}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/50 hover:text-indigo-500 hover:bg-indigo-500/5 transition-colors"
+          >
+            <CreditCard className="h-3.5 w-3.5" />
+            サブスクを管理
+          </button>
+        )}
         <button
           onClick={() => signOut()}
           className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/50 hover:text-red-500 hover:bg-red-500/5 transition-colors"

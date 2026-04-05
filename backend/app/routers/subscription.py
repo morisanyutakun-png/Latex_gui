@@ -1,0 +1,169 @@
+"""サブスクリプション関連 API ルーター"""
+import os
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..db_models import User, Subscription
+from .. import stripe_service
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/subscription", tags=["subscription"])
+
+INTERNAL_SECRET = os.environ.get("INTERNAL_API_SECRET", "")
+
+
+# ── 認証ヘルパー ──────────────────────────────────────────────────────────────
+
+def get_current_user(
+    x_user_id: Optional[str] = Header(default=None, alias="x-user-id"),
+    x_internal_secret: Optional[str] = Header(default=None, alias="x-internal-secret"),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    X-Internal-Secret が設定されている環境では、一致しない場合は X-User-Id を無視する。
+    (ブラウザからの直接偽造を防ぐ)
+    """
+    if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
+        return None
+    if not x_user_id:
+        return None
+    user = db.query(User).filter(User.id == x_user_id).first()
+    return user
+
+
+def get_or_create_user(
+    x_user_id: Optional[str] = Header(default=None, alias="x-user-id"),
+    x_user_email: Optional[str] = Header(default=None, alias="x-user-email"),
+    x_user_name: Optional[str] = Header(default=None, alias="x-user-name"),
+    x_internal_secret: Optional[str] = Header(default=None, alias="x-internal-secret"),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """ユーザーを取得。存在しない場合は新規作成 (upsert)。"""
+    if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
+        return None
+    if not x_user_id:
+        return None
+    user = db.query(User).filter(User.id == x_user_id).first()
+    if not user:
+        user = User(id=x_user_id, email=x_user_email, name=x_user_name)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info("Created new user %s (%s)", x_user_id, x_user_email)
+    else:
+        # 名前/メールを最新に更新
+        changed = False
+        if x_user_email and user.email != x_user_email:
+            user.email = x_user_email
+            changed = True
+        if x_user_name and user.name != x_user_name:
+            user.name = x_user_name
+            changed = True
+        if changed:
+            db.commit()
+    return user
+
+
+# ── エンドポイント ────────────────────────────────────────────────────────────
+
+class SubscriptionStatus(BaseModel):
+    plan_id: str
+    status: str
+    current_period_end: Optional[str] = None
+    cancel_at_period_end: bool = False
+    stripe_customer_id: Optional[str] = None
+
+
+@router.get("/me", response_model=SubscriptionStatus)
+async def get_my_subscription(
+    user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """現在のユーザーのサブスクリプション状態を返す。"""
+    if not user:
+        return SubscriptionStatus(plan_id="free", status="free")
+
+    # active/trialing/past_due のサブスクを優先して取得
+    sub = (
+        db.query(Subscription)
+        .filter(
+            Subscription.user_id == user.id,
+            Subscription.status.in_(["active", "trialing", "past_due"]),
+        )
+        .order_by(Subscription.updated_at.desc())
+        .first()
+    )
+
+    if not sub:
+        return SubscriptionStatus(plan_id="free", status="free")
+
+    return SubscriptionStatus(
+        plan_id=sub.plan_id,
+        status=sub.status,
+        current_period_end=sub.current_period_end.isoformat() if sub.current_period_end else None,
+        cancel_at_period_end=sub.cancel_at_period_end or False,
+        stripe_customer_id=user.stripe_customer_id,
+    )
+
+
+class CheckoutRequest(BaseModel):
+    plan_id: str
+
+
+class CheckoutResponse(BaseModel):
+    checkout_url: str
+
+
+@router.post("/checkout", response_model=CheckoutResponse)
+async def create_checkout(
+    body: CheckoutRequest,
+    user: Optional[User] = Depends(get_or_create_user),
+    db: Session = Depends(get_db),
+):
+    """Stripe Checkout Session を作成して URL を返す。"""
+    if not user:
+        raise HTTPException(status_code=401, detail="認証が必要です")
+
+    if body.plan_id not in ("starter", "pro", "premium"):
+        raise HTTPException(status_code=400, detail="無効なプランIDです")
+
+    try:
+        customer_id = stripe_service.create_or_get_customer(db, user)
+        checkout_url = stripe_service.create_checkout_session(customer_id, body.plan_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Stripe checkout error: %s", e)
+        raise HTTPException(status_code=500, detail="Stripe決済の初期化に失敗しました")
+
+    return CheckoutResponse(checkout_url=checkout_url)
+
+
+class PortalResponse(BaseModel):
+    portal_url: str
+
+
+@router.post("/portal", response_model=PortalResponse)
+async def create_portal(
+    user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Stripe Customer Portal Session を作成して URL を返す。"""
+    if not user:
+        raise HTTPException(status_code=401, detail="認証が必要です")
+    if not user.stripe_customer_id:
+        raise HTTPException(status_code=400, detail="Stripeカスタマーが存在しません")
+
+    try:
+        portal_url = stripe_service.create_portal_session(user.stripe_customer_id)
+    except Exception as e:
+        logger.error("Stripe portal error: %s", e)
+        raise HTTPException(status_code=500, detail="ポータルURLの生成に失敗しました")
+
+    return PortalResponse(portal_url=portal_url)

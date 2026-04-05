@@ -21,7 +21,7 @@ export function InputArea({
 
   return (
     <div className="px-3 pb-3 pt-2 shrink-0 bg-surface-2 dark:bg-surface-1">
-      <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-surface-0 shadow-sm overflow-hidden">
+      <div className="ai-input-box rounded-2xl bg-white dark:bg-surface-0 shadow-sm overflow-hidden">
         <div className="flex items-end gap-1 px-3 py-2.5">
           {/* File upload */}
           <div className="flex items-center pb-0.5">

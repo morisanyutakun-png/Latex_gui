@@ -74,7 +74,7 @@ export function MessageRow({
           <User className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
         </div>
       ) : (
-        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm shadow-violet-500/30">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
       )}
@@ -105,8 +105,8 @@ export function MessageRow({
         {/* Message bubble */}
         <div className={`${
           isUser
-            ? "rounded-2xl rounded-tr-md bg-violet-500 text-white px-3.5 py-2.5 max-w-[85%] shadow-sm"
-            : "max-w-full"
+            ? "rounded-2xl rounded-tr-md bg-gradient-to-br from-violet-500 to-indigo-600 text-white px-3.5 py-2.5 max-w-[85%] shadow-sm shadow-violet-500/20"
+            : "max-w-full ai-message-bubble"
         }`}>
           {isUser ? (
             <span className="text-[13px] leading-relaxed whitespace-pre-wrap">{msg.content}</span>

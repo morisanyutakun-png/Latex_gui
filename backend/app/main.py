@@ -26,6 +26,7 @@ from .batch_service import (
 )
 from .ai_service import chat as ai_chat, chat_stream as ai_chat_stream
 from .omr_service import analyze_image as omr_analyze_image, analyze_image_stream as omr_analyze_image_stream
+from .routers.subscription import router as subscription_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -61,10 +62,17 @@ app.add_middleware(
 app.add_middleware(AuditMiddleware)
 
 
+# ── サブスクリプション ルーター ──
+app.include_router(subscription_router)
+
 # ── サーバー起動時にバックグラウンド・ウォームアップを開始 ──
 @app.on_event("startup")
 async def _startup_warmup():
     from .tex_env import start_background_warmup
+    from .database import engine
+    from .db_models import Base
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created/verified")
     start_background_warmup()
     logger.info("Background TeX warmup triggered")
 
@@ -714,3 +722,33 @@ from app.scoring_service import score_answers
 async def scoring_score(req: ScoreRequest):
     """解答キーと生徒の回答を比較して採点する"""
     return score_answers(req.answer_key, req.student_answers)
+
+
+# ─────────────── Stripe Webhook ───────────────
+
+from fastapi import Request as FastAPIRequest
+from fastapi.responses import Response as FastAPIResponse
+import stripe as _stripe
+
+
+@app.post("/api/webhook/stripe")
+async def stripe_webhook(request: FastAPIRequest):
+    """Stripe Webhook イベントを受信して処理する。"""
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    from .database import get_db as _get_db
+    from .stripe_service import handle_webhook_event
+
+    db = next(_get_db())
+    try:
+        handle_webhook_event(payload, sig_header, db)
+    except _stripe.error.SignatureVerificationError:
+        return FastAPIResponse(content="Invalid signature", status_code=400)
+    except Exception as e:
+        logger.error("Webhook processing error: %s", e)
+        return FastAPIResponse(content="Webhook error", status_code=500)
+    finally:
+        db.close()
+
+    return FastAPIResponse(content="OK", status_code=200)

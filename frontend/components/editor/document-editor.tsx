@@ -43,6 +43,10 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
+// ブロック間移動時のフォーカス位置ヒント
+// setEditingBlock 呼び出し直前にセットし、auto-focus effect で消費する
+let _nextFocusHint: "start" | "end" = "end";
+
 // Icon mapper
 const BLOCK_ICONS: Record<BlockType, React.ElementType> = {
   heading: Heading,
@@ -282,9 +286,10 @@ function HeadingBlockEditor({ block }: { block: Block }) {
       const tryFocus = () => {
         if (textareaRef.current) {
           textareaRef.current.focus();
-          const len = textareaRef.current.value.length;
-          textareaRef.current.selectionStart = len;
-          textareaRef.current.selectionEnd = len;
+          const pos = _nextFocusHint === "start" ? 0 : textareaRef.current.value.length;
+          textareaRef.current.selectionStart = pos;
+          textareaRef.current.selectionEnd = pos;
+          _nextFocusHint = "end";
         }
       };
       requestAnimationFrame(() => requestAnimationFrame(tryFocus));
@@ -300,18 +305,28 @@ function HeadingBlockEditor({ block }: { block: Block }) {
     if (e.key === "Backspace" && content.text === "") {
       e.preventDefault();
       deleteBlock(block.id);
-      if (idx > 0) { selectBlock(blocks[idx - 1].id); setEditingBlock(blocks[idx - 1].id); }
+      if (idx > 0) { _nextFocusHint = "end"; selectBlock(blocks[idx - 1].id); setEditingBlock(blocks[idx - 1].id); }
       return;
     }
 
     if (e.key === "ArrowUp" && el.selectionStart === 0) {
       e.preventDefault();
-      if (idx > 0) { selectBlock(blocks[idx - 1].id); setEditingBlock(blocks[idx - 1].id); }
+      if (idx > 0) { _nextFocusHint = "end"; selectBlock(blocks[idx - 1].id); setEditingBlock(blocks[idx - 1].id); }
       return;
     }
     if (e.key === "ArrowDown" && el.selectionStart === el.value.length) {
       e.preventDefault();
-      if (idx < blocks.length - 1) { selectBlock(blocks[idx + 1].id); setEditingBlock(blocks[idx + 1].id); }
+      if (idx < blocks.length - 1) { _nextFocusHint = "start"; selectBlock(blocks[idx + 1].id); setEditingBlock(blocks[idx + 1].id); }
+      return;
+    }
+    if (e.key === "ArrowLeft" && el.selectionStart === 0) {
+      e.preventDefault();
+      if (idx > 0) { _nextFocusHint = "end"; selectBlock(blocks[idx - 1].id); setEditingBlock(blocks[idx - 1].id); }
+      return;
+    }
+    if (e.key === "ArrowRight" && el.selectionStart === el.value.length) {
+      e.preventDefault();
+      if (idx < blocks.length - 1) { _nextFocusHint = "start"; selectBlock(blocks[idx + 1].id); setEditingBlock(blocks[idx + 1].id); }
       return;
     }
     if (e.key === "Tab") {
@@ -498,9 +513,10 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       const tryFocus = () => {
         if (textareaRef.current && window.document.activeElement !== textareaRef.current) {
           textareaRef.current.focus();
-          const len = textareaRef.current.value.length;
-          textareaRef.current.selectionStart = len;
-          textareaRef.current.selectionEnd = len;
+          const pos = _nextFocusHint === "start" ? 0 : textareaRef.current.value.length;
+          textareaRef.current.selectionStart = pos;
+          textareaRef.current.selectionEnd = pos;
+          _nextFocusHint = "end";
         }
       };
       requestAnimationFrame(() => requestAnimationFrame(tryFocus));
@@ -625,12 +641,22 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
 
     if (e.key === "ArrowUp" && el.selectionStart === 0 && el.selectionEnd === 0 && !showPalette) {
       e.preventDefault();
-      if (idx > 0) { sel(blocks[idx - 1].id); setEdit(blocks[idx - 1].id); }
+      if (idx > 0) { _nextFocusHint = "end"; sel(blocks[idx - 1].id); setEdit(blocks[idx - 1].id); }
       return;
     }
     if (e.key === "ArrowDown" && el.selectionStart === el.value.length && !showPalette) {
       e.preventDefault();
-      if (idx < blocks.length - 1) { sel(blocks[idx + 1].id); setEdit(blocks[idx + 1].id); }
+      if (idx < blocks.length - 1) { _nextFocusHint = "start"; sel(blocks[idx + 1].id); setEdit(blocks[idx + 1].id); }
+      return;
+    }
+    if (e.key === "ArrowLeft" && el.selectionStart === 0 && el.selectionEnd === 0 && !mathMode && !showPalette) {
+      e.preventDefault();
+      if (idx > 0) { _nextFocusHint = "end"; sel(blocks[idx - 1].id); setEdit(blocks[idx - 1].id); }
+      return;
+    }
+    if (e.key === "ArrowRight" && el.selectionStart === el.value.length && el.selectionEnd === el.value.length && !mathMode && !showPalette) {
+      e.preventDefault();
+      if (idx < blocks.length - 1) { _nextFocusHint = "start"; sel(blocks[idx + 1].id); setEdit(blocks[idx + 1].id); }
       return;
     }
     if (e.key === "Enter" && !e.shiftKey && !showPalette) {
@@ -884,7 +910,7 @@ function MathBlockEditor({ block }: { block: Block }) {
   const { locale } = useI18n();
   const isJa = locale === "ja";
   const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const { editingBlockId, setMathEditing } = useUIStore();
+  const { editingBlockId, setMathEditing, selectBlock, setEditingBlock } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "math" }>;
   const isEditing = editingBlockId === block.id;
   const mathInputRef = useRef<JapaneseMathInputHandle>(null);
@@ -895,9 +921,30 @@ function MathBlockEditor({ block }: { block: Block }) {
     return () => { if (isEditing) setMathEditing(false); };
   }, [isEditing, setMathEditing]);
 
+  // 矢印キーなどで isEditing になった時に自動フォーカス
+  useEffect(() => {
+    if (isEditing) {
+      requestAnimationFrame(() => mathInputRef.current?.focus());
+    }
+  }, [isEditing]);
+
   const handleApply = useCallback((latex: string, sourceText: string) => {
     updateContent(block.id, { latex, sourceText });
   }, [block.id, updateContent]);
+
+  const handleNavigateOut = useCallback((dir: "prev" | "next") => {
+    const blocks = useDocumentStore.getState().document?.blocks ?? [];
+    const idx = blocks.findIndex((b) => b.id === block.id);
+    if (dir === "prev" && idx > 0) {
+      _nextFocusHint = "end";
+      selectBlock(blocks[idx - 1].id);
+      setEditingBlock(blocks[idx - 1].id);
+    } else if (dir === "next" && idx < blocks.length - 1) {
+      _nextFocusHint = "start";
+      selectBlock(blocks[idx + 1].id);
+      setEditingBlock(blocks[idx + 1].id);
+    }
+  }, [block.id, selectBlock, setEditingBlock]);
 
   return (
     <div className="space-y-0">
@@ -919,6 +966,7 @@ function MathBlockEditor({ block }: { block: Block }) {
             ref={mathInputRef}
             onApply={handleApply}
             initialSourceText={content.sourceText || ""}
+            onNavigateOut={handleNavigateOut}
           />
         </div>
       )}
@@ -1756,7 +1804,7 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
     if (!canvas) return;
 
     const paper = PAPER_SIZES[paperSize] ?? PAPER_SIZES.a4;
-    const horizontalPadding = 80;
+    const horizontalPadding = 160;
 
     const calculateFitZoom = () => {
       const rect = canvas.getBoundingClientRect();
@@ -1764,7 +1812,8 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
       if (availableWidth <= 0) return;
 
       const fitZoom = availableWidth / paper.w;
-      const clamped = Math.max(0.3, Math.min(2, Math.round(fitZoom * 100) / 100));
+      // Word-like: never upscale beyond 100%, only shrink when canvas is narrow
+      const clamped = Math.max(0.3, Math.min(1.0, Math.round(fitZoom * 100) / 100));
 
       const currentZoom = useUIStore.getState().zoom;
       if (Math.abs(clamped - currentZoom) > 0.005) {
