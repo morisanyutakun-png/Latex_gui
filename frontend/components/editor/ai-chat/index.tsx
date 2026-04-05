@@ -535,7 +535,7 @@ export function AIChatPanel() {
   return (
     <div className="flex flex-col h-full bg-surface-2 dark:bg-surface-1">
       {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0 bg-white/80 dark:bg-surface-0/90 backdrop-blur-sm">
+      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0 bg-surface-2 dark:bg-surface-1">
         <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>

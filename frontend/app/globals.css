@@ -645,5 +645,5 @@ html {
 
 /* Sidebar panel depth */
 .panel-depth {
-  box-shadow: inset 1px 0 0 hsl(var(--foreground) / 0.04);
+  box-shadow: none;
 }
