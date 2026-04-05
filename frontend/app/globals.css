@@ -655,16 +655,16 @@ html {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 1px;
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(99, 102, 241, 0.75) 15%,
-    rgba(139, 92, 246, 0.90) 50%,
-    rgba(99, 102, 241, 0.65) 85%,
+    rgba(0, 0, 0, 0.10) 15%,
+    rgba(0, 0, 0, 0.14) 50%,
+    rgba(0, 0, 0, 0.10) 85%,
     transparent 100%
   );
-  box-shadow: 1px 0 8px -2px rgba(139, 92, 246, 0.35);
+  box-shadow: none;
   z-index: 1;
   pointer-events: none;
 }
@@ -779,19 +779,16 @@ html {
 /* ── Editor canvas (the workspace around the paper) ── */
 .editor-canvas {
   background:
-    radial-gradient(ellipse at 28% 15%, rgba(99, 102, 241, 0.09) 0%, transparent 48%),
-    radial-gradient(ellipse at 72% 82%, rgba(139, 92, 246, 0.07) 0%, transparent 44%),
-    radial-gradient(ellipse at 55% 48%, rgba(196, 132, 252, 0.04) 0%, transparent 52%),
-    linear-gradient(160deg, #eceafd 0%, #e9e6f9 30%, #ece8fc 60%, #efecfe 100%);
+    radial-gradient(ellipse at 30% 20%, rgba(0, 0, 0, 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(0, 0, 0, 0.015) 0%, transparent 45%),
+    linear-gradient(160deg, #f5f4f0 0%, #f3f2ee 30%, #f5f4f1 60%, #f6f5f2 100%);
   min-height: 100%;
 }
 .dark .editor-canvas {
   background:
-    radial-gradient(ellipse at 25% 18%, rgba(99, 102, 241, 0.16) 0%, transparent 45%),
-    radial-gradient(ellipse at 75% 78%, rgba(139, 92, 246, 0.13) 0%, transparent 40%),
-    radial-gradient(ellipse at 50% 50%, rgba(79, 70, 229, 0.07) 0%, transparent 55%),
-    radial-gradient(ellipse at 12% 65%, rgba(196, 132, 252, 0.07) 0%, transparent 35%),
-    #06050e;
+    radial-gradient(ellipse at 25% 18%, rgba(255, 255, 255, 0.03) 0%, transparent 45%),
+    radial-gradient(ellipse at 75% 78%, rgba(255, 255, 255, 0.02) 0%, transparent 40%),
+    #111110;
   min-height: 100%;
 }
 
@@ -799,32 +796,32 @@ html {
 .editor-paper {
   border-radius: 3px;
   box-shadow:
-    0 0 0 1px rgba(99, 102, 241, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.06),
     0 2px 8px rgba(0, 0, 0, 0.06),
-    0 8px 32px rgba(99, 102, 241, 0.09),
-    0 20px 64px rgba(0, 0, 0, 0.10);
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 20px 64px rgba(0, 0, 0, 0.08);
   transition: box-shadow 0.3s ease;
 }
 .dark .editor-paper {
   box-shadow:
-    0 0 0 1px rgba(99, 102, 241, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
     0 2px 12px rgba(0, 0, 0, 0.40),
-    0 8px 48px rgba(99, 102, 241, 0.16),
-    0 32px 96px rgba(0, 0, 0, 0.60);
+    0 8px 48px rgba(0, 0, 0, 0.30),
+    0 32px 96px rgba(0, 0, 0, 0.55);
 }
 .editor-paper:focus-within {
   box-shadow:
-    0 0 0 1px rgba(99, 102, 241, 0.10),
-    0 2px 8px rgba(0, 0, 0, 0.06),
-    0 8px 40px rgba(99, 102, 241, 0.14),
-    0 20px 72px rgba(0, 0, 0, 0.12);
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.07),
+    0 8px 40px rgba(0, 0, 0, 0.10),
+    0 20px 72px rgba(0, 0, 0, 0.10);
 }
 .dark .editor-paper:focus-within {
   box-shadow:
-    0 0 0 1px rgba(139, 92, 246, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.12),
     0 2px 12px rgba(0, 0, 0, 0.40),
-    0 8px 56px rgba(99, 102, 241, 0.22),
-    0 32px 96px rgba(0, 0, 0, 0.65);
+    0 8px 56px rgba(0, 0, 0, 0.35),
+    0 32px 96px rgba(0, 0, 0, 0.60);
 }
 
 /* Paper size label */
