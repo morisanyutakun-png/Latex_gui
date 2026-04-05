@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { generatePDF, analyzeImageOMR } from "@/lib/api";
+import { generatePDF, streamOMRAnalyze } from "@/lib/api";
+import type { OMRStreamEvent } from "@/lib/api";
 import { saveToLocalStorage, downloadAsJSON } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
@@ -62,6 +63,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
   const { isGenerating, setGenerating, lastAIAction, toggleOutline, isOutlineOpen, isChatLoading } = useUIStore();
   const [indicatorVisible, setIndicatorVisible] = useState(false);
   const [isOMRProcessing, setOMRProcessing] = useState(false);
+  const [omrProgress, setOmrProgress] = useState<string>("");
   const omrFileRef = useRef<HTMLInputElement>(null);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
@@ -130,9 +132,19 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
     e.target.value = "";
 
     setOMRProcessing(true);
+    setOmrProgress(isJa ? "ファイルを準備中..." : "Preparing file...");
     try {
-      const result = await analyzeImageOMR(file, doc);
+      const result = await streamOMRAnalyze(
+        file,
+        doc,
+        (event: OMRStreamEvent) => {
+          if (event.type === "progress") {
+            setOmrProgress(event.message);
+          }
+        },
+      );
       if (result.patches && result.patches.ops && result.patches.ops.length > 0) {
+        setOmrProgress(isJa ? "ブロックを適用中..." : "Applying blocks...");
         useDocumentStore.getState().applyPatch(result.patches);
         toast.success(isJa
           ? `${result.patches.ops.length}件のブロックを追加しました`
@@ -142,6 +154,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         const updatedDoc = useDocumentStore.getState().document;
         if (updatedDoc) {
           setGenerating(true);
+          setOmrProgress(isJa ? "PDF生成中..." : "Generating PDF...");
           try {
             const blob = await generatePDF(updatedDoc);
             const defaultName = `${updatedDoc.metadata.title || "document"}.pdf`;
@@ -181,6 +194,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       toast.error(msg, { duration: 8000 });
     } finally {
       setOMRProcessing(false);
+      setOmrProgress("");
     }
   };
 
@@ -343,14 +357,18 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
           onClick={() => omrFileRef.current?.click()}
           disabled={isOMRProcessing || isGenerating}
           className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[13px] font-medium border border-emerald-300/40 dark:border-emerald-700/40 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/80 dark:hover:bg-emerald-950/40 hover:border-emerald-400/60 dark:hover:border-emerald-600/50 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97] shrink-0"
-          title={isJa ? "画像やPDFをAIが読み取り、自動でドキュメントに変換します" : "AI reads images/PDFs and converts them to document blocks"}
+          title={omrProgress || (isJa ? "画像やPDFをAIが読み取り、自動でドキュメントに変換します" : "AI reads images/PDFs and converts them to document blocks")}
         >
           {isOMRProcessing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <ScanLine className="h-3.5 w-3.5" />
           )}
-          <span className="hidden sm:inline">{isJa ? "読み取り" : "Scan"}</span>
+          <span className="hidden sm:inline">
+            {isOMRProcessing && omrProgress
+              ? omrProgress
+              : isJa ? "読み取り" : "Scan"}
+          </span>
         </button>
 
         <button

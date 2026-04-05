@@ -348,6 +348,11 @@ export interface OMRAnalyzeResponse {
   patches: DocumentPatch | null;
 }
 
+export type OMRStreamEvent =
+  | { type: "progress"; phase: string; message: string }
+  | { type: "done"; description: string; patches: DocumentPatch | null }
+  | { type: "error"; message: string };
+
 export async function analyzeImageOMR(
   imageFile: File,
   doc: DocumentModel,
@@ -375,6 +380,98 @@ export async function analyzeImageOMR(
     description: data.description || "",
     patches: data.patches || null,
   };
+}
+
+/**
+ * SSEストリーミング版OMR解析 — 進捗をリアルタイムで受け取る
+ */
+export async function streamOMRAnalyze(
+  imageFile: File,
+  doc: DocumentModel,
+  onEvent: (event: OMRStreamEvent) => void,
+  hint: string = "",
+  signal?: AbortSignal,
+): Promise<OMRAnalyzeResponse> {
+  const formData = new FormData();
+  formData.append("image", imageFile);
+  formData.append("document", JSON.stringify(doc));
+  formData.append("hint", hint);
+
+  // バックエンドURLが設定されていればプロキシをバイパス
+  const url = AI_BACKEND_URL
+    ? `${AI_BACKEND_URL}/api/omr/analyze/stream`
+    : `${API_BASE}/api/omr/analyze/stream`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+    signal: signal || AbortSignal.timeout(90000),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    const msg = err?.detail?.message || err?.detail || `OMR解析に失敗しました (HTTP ${res.status})`;
+    throw new Error(msg);
+  }
+
+  if (!res.body) throw new Error("ストリーミングレスポンスが空です");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: OMRAnalyzeResponse = { description: "", patches: null };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          let event: OMRStreamEvent;
+          try {
+            event = JSON.parse(line.slice(6)) as OMRStreamEvent;
+          } catch {
+            continue;
+          }
+          onEvent(event);
+
+          if (event.type === "done") {
+            result = {
+              description: event.description || "",
+              patches: event.patches || null,
+            };
+          } else if (event.type === "error") {
+            throw new Error(event.message);
+          }
+        }
+      }
+    }
+
+    // Process remaining buffer
+    if (buffer.startsWith("data: ")) {
+      try {
+        const event = JSON.parse(buffer.slice(6)) as OMRStreamEvent;
+        onEvent(event);
+        if (event.type === "done") {
+          result = {
+            description: event.description || "",
+            patches: event.patches || null,
+          };
+        } else if (event.type === "error") {
+          throw new Error(event.message);
+        }
+      } catch { /* ignore */ }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return result;
 }
 
 // ═══ キャッシュ管理 API ═══

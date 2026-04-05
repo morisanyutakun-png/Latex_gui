@@ -1,12 +1,14 @@
-"""OMR service — image/PDF → structured document blocks via Gemini Vision
-開発用: Gemini Vision を使用。将来的には Claude Vision に戻す。
+"""OMR service — image/PDF → structured document blocks via OpenAI Vision
+SSEストリーミング対応: 進捗をリアルタイムでフロントエンドへ送信。
 """
+import base64
+import json
 import logging
 import subprocess
 import tempfile
 import os
 
-from .ai_service import get_client, get_gemini_tool_def
+from .ai_service import get_client, get_openai_tools, MODEL_VISION
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +30,15 @@ document blocks that can be imported into the editor.
 - Diagrams / figures → describe as paragraph with [図: description]
 - For OMR answer sheets (bubble sheets): extract question number + selected choice + confidence
 
-## Instructions
-- Always use the `edit_document` tool to return the extracted blocks.
+## CRITICAL Instructions
+- You MUST use the `edit_document` tool to return the extracted blocks. Do NOT return blocks as text — always use the tool.
 - After the tool call, write a brief Japanese summary of what was extracted.
 - Use null for afterId on the first block; for each subsequent block, reference the previous block's id.
 - Generate IDs like "omr-" + sequential number (e.g. "omr-001", "omr-002").
 - Default style: { textAlign: "left", fontSize: 11, fontFamily: "serif" }
 - If confidence is low for any region, add "(要確認)" at the end of that block's text.
 - Respond in Japanese.
+- Even if the image is unclear, extract whatever you can see. Do not refuse.
 """
 
 OMR_PDF_SYSTEM_PROMPT = OMR_SYSTEM_PROMPT + """
@@ -57,7 +60,6 @@ def _pdf_to_images(pdf_bytes: bytes, max_pages: int = 10) -> list[tuple[bytes, s
         with open(pdf_path, "wb") as f:
             f.write(pdf_bytes)
 
-        # Get page count first
         result = subprocess.run(
             ["pdfinfo", pdf_path],
             capture_output=True, text=True, timeout=10,
@@ -70,7 +72,6 @@ def _pdf_to_images(pdf_bytes: bytes, max_pages: int = 10) -> list[tuple[bytes, s
 
         pages_to_process = min(page_count, max_pages)
 
-        # Convert to PNG images at 200 DPI
         subprocess.run(
             [
                 "pdftoppm", "-png", "-r", "200",
@@ -90,6 +91,46 @@ def _pdf_to_images(pdf_bytes: bytes, max_pages: int = 10) -> list[tuple[bytes, s
         return images
 
 
+def _sse(data: dict) -> str:
+    """Format SSE event."""
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _image_to_data_url(image_bytes: bytes, media_type: str) -> str:
+    """Convert image bytes to data URL for OpenAI Vision API."""
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    return f"data:{media_type};base64,{b64}"
+
+
+def _build_omr_tools() -> list[dict]:
+    """Build OpenAI tools list with only edit_document for OMR."""
+    all_tools = get_openai_tools()
+    return [t for t in all_tools if t["function"]["name"] == "edit_document"]
+
+
+def _extract_patches_from_response(response) -> tuple[list[str], dict | None]:
+    """Extract text and patches from an OpenAI response."""
+    text_parts: list[str] = []
+    patches = None
+    try:
+        choice = response.choices[0]
+        msg = choice.message
+
+        if msg.content:
+            text_parts.append(msg.content)
+
+        if msg.tool_calls:
+            for tc in msg.tool_calls:
+                if tc.function.name == "edit_document":
+                    try:
+                        patches = json.loads(tc.function.arguments)
+                    except json.JSONDecodeError:
+                        logger.warning("OMR: edit_document の引数パースに失敗")
+    except (IndexError, AttributeError) as e:
+        logger.warning("OpenAI OMR レスポンスのパースに失敗: %s", e)
+    return text_parts, patches
+
+
 async def analyze_image(
     image_bytes: bytes,
     media_type: str,
@@ -97,95 +138,158 @@ async def analyze_image(
     hint: str = "",
 ) -> dict:
     """
-    Gemini Vision で画像を解析し、ドキュメントパッチを返す。
+    OpenAI Vision で画像を解析し、ドキュメントパッチを返す。
     Returns { description: str, patches: dict | None }
     """
-    import asyncio
-    from google.genai import types  # type: ignore
+    result = {"description": "", "patches": None}
+    async for event_str in analyze_image_stream(image_bytes, media_type, document_context, hint):
+        if event_str.startswith("data: "):
+            try:
+                event = json.loads(event_str[6:])
+                if event.get("type") == "done":
+                    result["description"] = event.get("description", "")
+                    result["patches"] = event.get("patches")
+                elif event.get("type") == "error":
+                    result["description"] = event.get("message", "")
+            except json.JSONDecodeError:
+                pass
+    return result
 
-    # PDFの場合はページごとの画像に変換して一括解析
+
+async def analyze_image_stream(
+    image_bytes: bytes,
+    media_type: str,
+    document_context: dict,
+    hint: str = "",
+):
+    """
+    SSEストリーミング版のOMR解析（OpenAI Vision）。進捗イベントをyieldする。
+
+    Events:
+      {"type": "progress", "phase": "...", "message": "..."}
+      {"type": "done", "description": "...", "patches": {...}}
+      {"type": "error", "message": "..."}
+    """
+    import asyncio
+
     if media_type == "application/pdf":
-        return await _analyze_pdf(image_bytes, document_context, hint)
+        async for event in _analyze_pdf_stream(image_bytes, document_context, hint):
+            yield event
+        return
+
+    yield _sse({"type": "progress", "phase": "analyzing", "message": "画像を解析中..."})
 
     client = get_client()
+    data_url = _image_to_data_url(image_bytes, media_type)
 
     prompt_text = (
         f"この画像からドキュメント構造を抽出してください。{hint}"
         if hint
-        else "この画像からドキュメント構造を抽出して、ブロックとして追加してください。"
+        else "この画像からドキュメント構造を抽出して、edit_documentツールでブロックとして追加してください。"
     )
 
-    config = types.GenerateContentConfig(
-        system_instruction=OMR_SYSTEM_PROMPT,
-        tools=[get_gemini_tool_def()],
-    )
-
-    contents = [
-        types.Content(
-            role="user",
-            parts=[
-                types.Part(
-                    inline_data=types.Blob(mime_type=media_type, data=image_bytes)
-                ),
-                types.Part(text=prompt_text),
+    messages = [
+        {"role": "system", "content": OMR_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},
+                {"type": "text", "text": prompt_text},
             ],
-        )
+        },
     ]
 
-    def _call():
-        return client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=config,
-        )
+    tools = _build_omr_tools()
 
-    response = await asyncio.to_thread(_call)
-
-    text_parts: list[str] = []
+    MAX_RETRIES = 2
     patches = None
+    text_parts: list[str] = []
 
-    try:
-        parts = response.candidates[0].content.parts
-        for part in parts:
-            if part.text:
-                text_parts.append(part.text)
-            if part.function_call and part.function_call.name == "edit_document":
-                patches = dict(part.function_call.args)
-    except (IndexError, AttributeError) as e:
-        logger.warning("Gemini OMR レスポンスのパースに失敗: %s", e)
+    for attempt in range(1, MAX_RETRIES + 1):
+        if attempt > 1:
+            yield _sse({"type": "progress", "phase": "retrying", "message": f"再解析中... (試行 {attempt}/{MAX_RETRIES})"})
+
+        yield _sse({"type": "progress", "phase": "ai_processing", "message": "AIがコンテンツを認識中..."})
+
+        try:
+            def _call():
+                return client.chat.completions.create(
+                    model=MODEL_VISION,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice={"type": "function", "function": {"name": "edit_document"}},
+                    temperature=0.3,
+                    max_tokens=16384,
+                )
+            response = await asyncio.to_thread(_call)
+        except Exception as e:
+            logger.error("OpenAI OMR API error (attempt %d): %s", attempt, e)
+            if attempt < MAX_RETRIES:
+                continue
+            yield _sse({"type": "error", "message": f"AI解析エラー: {str(e)[:200]}"})
+            return
+
+        text_parts, patches = _extract_patches_from_response(response)
+
+        if patches and patches.get("ops"):
+            break
+
+        if attempt < MAX_RETRIES:
+            logger.info("OMR attempt %d: no function call, retrying with stronger prompt", attempt)
+            messages = [
+                {"role": "system", "content": OMR_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},
+                        {"type": "text", "text": (
+                            "この画像の内容を読み取って、edit_documentツールを必ず使用してブロックに変換してください。"
+                            "テキスト、数式、表など、画像に含まれるすべての要素をブロックとして追加してください。"
+                            "画像が不鮮明でも、読み取れる範囲で最善を尽くしてください。"
+                        )},
+                    ],
+                },
+            ]
+
+    yield _sse({"type": "progress", "phase": "extracting", "message": "ブロックを構成中..."})
 
     description = "\n".join(text_parts).strip()
     if not description and patches:
-        description = f"画像から{len(patches.get('ops', []))}件のブロックを抽出しました。確認して適用してください。"
+        description = f"画像から{len(patches.get('ops', []))}件のブロックを抽出しました。"
 
-    return {
+    yield _sse({
+        "type": "done",
         "description": description,
         "patches": patches,
-    }
+    })
 
 
-async def _analyze_pdf(
+async def _analyze_pdf_stream(
     pdf_bytes: bytes,
     document_context: dict,
     hint: str = "",
-) -> dict:
-    """PDFを画像に変換し、全ページをまとめてGemini Visionで解析する。"""
+):
+    """PDFを画像に変換し、全ページをまとめてOpenAI Visionで解析する（SSEストリーミング版）。"""
     import asyncio
-    from google.genai import types  # type: ignore
 
-    # PDF → 画像変換
+    yield _sse({"type": "progress", "phase": "converting", "message": "PDFをページ画像に変換中..."})
+
     try:
         images = await asyncio.to_thread(_pdf_to_images, pdf_bytes)
     except subprocess.CalledProcessError as e:
         logger.error("PDF→画像変換に失敗: %s", e)
-        raise ValueError("PDFの変換に失敗しました。ファイルが破損している可能性があります。")
+        yield _sse({"type": "error", "message": "PDFの変換に失敗しました。ファイルが破損している可能性があります。"})
+        return
     except FileNotFoundError:
-        raise ValueError("PDF変換ツール(poppler)が見つかりません。サーバー管理者に連絡してください。")
+        yield _sse({"type": "error", "message": "PDF変換ツール(poppler)が見つかりません。"})
+        return
 
     if not images:
-        raise ValueError("PDFからページを抽出できませんでした。")
+        yield _sse({"type": "error", "message": "PDFからページを抽出できませんでした。"})
+        return
 
     logger.info("PDF解析: %dページを処理します", len(images))
+    yield _sse({"type": "progress", "phase": "converted", "message": f"{len(images)}ページを検出しました"})
 
     client = get_client()
 
@@ -193,53 +297,83 @@ async def _analyze_pdf(
     prompt_text = (
         f"この{page_label}からドキュメント構造を抽出してください。{hint}"
         if hint
-        else f"この{page_label}からドキュメント構造を抽出して、ブロックとして追加してください。全ページを通して1つの連続したドキュメントとして処理してください。"
+        else f"この{page_label}からドキュメント構造を抽出して、edit_documentツールでブロックとして追加してください。全ページを通して1つの連続したドキュメントとして処理してください。"
     )
 
-    # 全ページの画像をpartsとして一括送信
-    parts: list[types.Part] = []
+    # Build user message content with all page images
+    content_parts: list[dict] = []
     for i, (img_bytes, img_mime) in enumerate(images):
         if len(images) > 1:
-            parts.append(types.Part(text=f"--- ページ {i + 1}/{len(images)} ---"))
-        parts.append(
-            types.Part(inline_data=types.Blob(mime_type=img_mime, data=img_bytes))
-        )
-    parts.append(types.Part(text=prompt_text))
+            content_parts.append({"type": "text", "text": f"--- ページ {i + 1}/{len(images)} ---"})
+        data_url = _image_to_data_url(img_bytes, img_mime)
+        content_parts.append({"type": "image_url", "image_url": {"url": data_url, "detail": "high"}})
+    content_parts.append({"type": "text", "text": prompt_text})
 
-    config = types.GenerateContentConfig(
-        system_instruction=OMR_PDF_SYSTEM_PROMPT,
-        tools=[get_gemini_tool_def()],
-    )
+    messages = [
+        {"role": "system", "content": OMR_PDF_SYSTEM_PROMPT},
+        {"role": "user", "content": content_parts},
+    ]
 
-    contents = [types.Content(role="user", parts=parts)]
+    tools = _build_omr_tools()
 
-    def _call():
-        return client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=config,
-        )
+    yield _sse({"type": "progress", "phase": "ai_processing", "message": f"AIが{len(images)}ページを解析中..."})
 
-    response = await asyncio.to_thread(_call)
-
-    text_parts: list[str] = []
+    MAX_RETRIES = 2
     patches = None
+    text_parts: list[str] = []
 
-    try:
-        resp_parts = response.candidates[0].content.parts
-        for part in resp_parts:
-            if part.text:
-                text_parts.append(part.text)
-            if part.function_call and part.function_call.name == "edit_document":
-                patches = dict(part.function_call.args)
-    except (IndexError, AttributeError) as e:
-        logger.warning("Gemini OMR PDF レスポンスのパースに失敗: %s", e)
+    for attempt in range(1, MAX_RETRIES + 1):
+        if attempt > 1:
+            yield _sse({"type": "progress", "phase": "retrying", "message": f"再解析中... (試行 {attempt}/{MAX_RETRIES})"})
+
+        try:
+            def _call():
+                return client.chat.completions.create(
+                    model=MODEL_VISION,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice={"type": "function", "function": {"name": "edit_document"}},
+                    temperature=0.3,
+                    max_tokens=16384,
+                )
+            response = await asyncio.to_thread(_call)
+        except Exception as e:
+            logger.error("OpenAI OMR PDF API error (attempt %d): %s", attempt, e)
+            if attempt < MAX_RETRIES:
+                continue
+            yield _sse({"type": "error", "message": f"AI解析エラー: {str(e)[:200]}"})
+            return
+
+        text_parts, patches = _extract_patches_from_response(response)
+
+        if patches and patches.get("ops"):
+            break
+
+        if attempt < MAX_RETRIES:
+            logger.info("OMR PDF attempt %d: no function call, retrying", attempt)
+            retry_content: list[dict] = []
+            for i, (img_bytes, img_mime) in enumerate(images):
+                if len(images) > 1:
+                    retry_content.append({"type": "text", "text": f"--- ページ {i + 1}/{len(images)} ---"})
+                data_url = _image_to_data_url(img_bytes, img_mime)
+                retry_content.append({"type": "image_url", "image_url": {"url": data_url, "detail": "high"}})
+            retry_content.append({"type": "text", "text": (
+                f"この{page_label}の内容を読み取って、edit_documentツールを必ず使用してブロックに変換してください。"
+                "テキスト、数式、表など、すべての要素をブロックとして追加してください。"
+            )})
+            messages = [
+                {"role": "system", "content": OMR_PDF_SYSTEM_PROMPT},
+                {"role": "user", "content": retry_content},
+            ]
+
+    yield _sse({"type": "progress", "phase": "extracting", "message": "ブロックを構成中..."})
 
     description = "\n".join(text_parts).strip()
     if not description and patches:
         description = f"PDFから{len(patches.get('ops', []))}件のブロックを抽出しました（{len(images)}ページ）。"
 
-    return {
+    yield _sse({
+        "type": "done",
         "description": description,
         "patches": patches,
-    }
+    })

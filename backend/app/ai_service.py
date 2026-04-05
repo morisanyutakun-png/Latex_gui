@@ -1,8 +1,13 @@
-"""AI Agent Service — Google Gemini API with Claude Code-style agentic loop.
+"""AI Agent Service — OpenAI API with Claude Code-style agentic loop.
 
 EddivomAI: LaTeX document agent with multi-tool support.
 Tools: read_document, search_blocks, edit_document, compile_check, get_latex_source
 Agent loop: plan → tool call → observe → adjust → respond
+
+モデル選択ロジック:
+  - チャット (chat_stream / chat): gpt-4.1 (高品質推論+ツール使用)
+  - OMR (画像解析): gpt-4.1-mini (ビジョン+コスパ)
+  - フォールバック: gpt-4.1-nano (軽量・高速)
 """
 import os
 import json
@@ -12,6 +17,12 @@ import asyncio
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# ─── Model Configuration ────────────────────────────────────────────────────
+# 環境変数でオーバーライド可能
+MODEL_CHAT = os.environ.get("OPENAI_MODEL_CHAT", "gpt-4.1")
+MODEL_VISION = os.environ.get("OPENAI_MODEL_VISION", "gpt-4.1-mini")
+MODEL_FAST = os.environ.get("OPENAI_MODEL_FAST", "gpt-4.1-nano")
 
 # ─── Tool Definitions ────────────────────────────────────────────────────────
 
@@ -366,36 +377,52 @@ Claude Code や OpenAI Codex のように、**ユーザーの指示に対して�
 
 # ─── Gemini Tool Definition (shared with omr_service) ────────────────────────
 
-def build_gemini_tool_def():
-    """Build a Gemini Tool object from AGENT_TOOLS.
+def build_openai_tools() -> list[dict]:
+    """Convert AGENT_TOOLS to OpenAI function calling format."""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": fd["name"],
+                "description": fd["description"],
+                "parameters": fd["parameters"],
+            },
+        }
+        for fd in AGENT_TOOLS["function_declarations"]
+    ]
 
-    Called lazily at runtime (not at import time) to avoid
-    importing google.genai at module level.
-    """
-    from google.genai import types  # type: ignore
-    return types.Tool(function_declarations=[
-        types.FunctionDeclaration(**fd) for fd in AGENT_TOOLS["function_declarations"]
-    ])
+
+# Re-exported for omr_service
+OPENAI_TOOLS: list[dict] | None = None
 
 
-# Re-exported for omr_service — will be resolved at first use
-GEMINI_TOOL_DEF = None  # type: ignore  # set lazily
+def get_openai_tools() -> list[dict]:
+    global OPENAI_TOOLS
+    if OPENAI_TOOLS is None:
+        OPENAI_TOOLS = build_openai_tools()
+    return OPENAI_TOOLS
 
 
+# Legacy alias for omr_service compatibility
 def get_gemini_tool_def():
-    global GEMINI_TOOL_DEF
-    if GEMINI_TOOL_DEF is None:
-        GEMINI_TOOL_DEF = build_gemini_tool_def()
-    return GEMINI_TOOL_DEF
+    """Compatibility shim — returns OpenAI tool format now."""
+    return get_openai_tools()
 
 
-# ─── Gemini Client ────────────────────────────────────────────────────────────
+# ─── OpenAI Client ────────────────────────────────────────────────────────────
+
+_openai_client = None
+
 
 def get_client():
+    global _openai_client
+    if _openai_client is not None:
+        return _openai_client
+
     try:
-        from google import genai  # type: ignore
+        from openai import OpenAI
     except ImportError:
-        raise RuntimeError("google-genai not installed. pip install google-genai")
+        raise RuntimeError("openai not installed. pip install openai")
 
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not key:
@@ -403,7 +430,8 @@ def get_client():
             "ANTHROPIC_API_KEY が設定されていません。"
             "バックエンドの環境変数に設定してください。"
         )
-    return genai.Client(api_key=key)
+    _openai_client = OpenAI(api_key=key)
+    return _openai_client
 
 
 # ─── Tool Execution (Server-side) ────────────────────────────────────────────
@@ -822,11 +850,12 @@ def _normalize_flat_blocks(blocks: list[dict]) -> list[dict]:
 # ─── Error Handling ───────────────────────────────────────────────────────────
 
 def _extract_usage(response) -> dict:
+    """Extract token usage from an OpenAI response."""
     try:
-        um = response.usage_metadata
+        usage = response.usage
         return {
-            "inputTokens": um.prompt_token_count or 0,
-            "outputTokens": um.candidates_token_count or 0,
+            "inputTokens": usage.prompt_tokens or 0,
+            "outputTokens": usage.completion_tokens or 0,
         }
     except Exception:
         return {"inputTokens": 0, "outputTokens": 0}
@@ -836,26 +865,26 @@ def _parse_api_error(e: Exception) -> tuple[str, float]:
     err_str = str(e)
     err_type = type(e).__name__
 
-    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-        m = _re.search(r'retryDelay["\s:]+["\s]*(\d+)', err_str)
-        if m:
-            retry_seconds = float(m.group(1))
-        else:
-            m2 = _re.search(r'retry in\s+([\d.]+)\s*s', err_str, _re.IGNORECASE)
-            retry_seconds = float(m2.group(1)) if m2 else 30.0
+    # OpenAI rate limit
+    if "rate_limit" in err_type.lower() or "429" in err_str or "RateLimitError" in err_type:
+        m = _re.search(r'try again in\s+([\d.]+)\s*s', err_str, _re.IGNORECASE)
+        retry_seconds = float(m.group(1)) if m else 30.0
         wait_int = int(retry_seconds) + 1
-        return f"⚠️ APIレート制限に達しました（使用量超過）。{wait_int}秒後に自動リトライします。しばらく待ってから再試行してください。", retry_seconds
+        return f"⚠️ APIレート制限に達しました。{wait_int}秒後に自動リトライします。", retry_seconds
 
-    if "quota" in err_str.lower() or "billing" in err_str.lower():
-        return "⚠️ APIの使用量上限に達しているか、課金設定に問題があります。Google AI Studio でクォータと課金状況を確認してください。", 0
+    if "quota" in err_str.lower() or "billing" in err_str.lower() or "insufficient_quota" in err_str.lower():
+        return "⚠️ APIの使用量上限に達しているか、課金設定に問題があります。OpenAI ダッシュボードでクォータと課金状況を確認してください。", 0
 
-    if "403" in err_str or "401" in err_str or "PERMISSION_DENIED" in err_str:
-        return "⚠️ APIキーが無効または権限不足です。Koyeb環境変数のAPIキーを確認してください。", 0
+    if "AuthenticationError" in err_type or "401" in err_str:
+        return "⚠️ APIキーが無効です。Koyeb環境変数のAPIキーを確認してください。", 0
 
-    if "404" in err_str or "NOT_FOUND" in err_str:
+    if "PermissionDeniedError" in err_type or "403" in err_str:
+        return "⚠️ APIキーの権限が不足しています。使用するモデルへのアクセス権があるか確認してください。", 0
+
+    if "NotFoundError" in err_type or "404" in err_str:
         return f"⚠️ AIモデルが見つかりません。モデル名を確認してください。({err_type})", 0
 
-    if "500" in err_str or "503" in err_str or "INTERNAL" in err_str:
+    if "500" in err_str or "503" in err_str or "InternalServerError" in err_type:
         return f"⚠️ AIサービスで一時的なエラーが発生しました。しばらく待ってから再試行してください。({err_type})", 0
 
     if "timeout" in err_str.lower() or "timed out" in err_str.lower():
@@ -871,7 +900,7 @@ def _parse_api_error(e: Exception) -> tuple[str, float]:
 
 async def chat_stream(messages: list[dict], document: dict):
     """
-    Agentic streaming chat — Claude Code-style multi-tool loop.
+    Agentic streaming chat — OpenAI API with Claude Code-style multi-tool loop.
 
     SSE events:
       {"type": "thinking", "text": "..."}
@@ -891,44 +920,28 @@ async def chat_stream(messages: list[dict], document: dict):
     total_usage = {"inputTokens": 0, "outputTokens": 0}
     final_text_parts: list[str] = []
 
-    MAX_AGENT_TURNS = 12  # Increased for complex multi-step tasks
+    MAX_AGENT_TURNS = 12
 
     try:
-        from google.genai import types  # type: ignore
-
-        # Send immediate heartbeat so client knows the stream is alive
         yield _sse({"type": "thinking", "text": "初期化中..."})
 
         client = get_client()
         doc_brief = _document_context_brief(document)
-
-        # Build initial contents
-        contents = _build_agent_contents(messages, doc_brief)
-
-        config = types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            tools=[types.Tool(function_declarations=[
-                types.FunctionDeclaration(**fd) for fd in AGENT_TOOLS["function_declarations"]
-            ])],
-            thinking_config=types.ThinkingConfig(thinking_budget=8192),
-        )
+        openai_messages = _build_agent_messages(messages, doc_brief)
+        tools = get_openai_tools()
 
         yield _sse({"type": "thinking", "text": "エージェント起動..."})
 
         for turn in range(MAX_AGENT_TURNS):
             text_parts: list[str] = []
-            thought_parts: list[str] = []
-            tool_calls: list[dict] = []
+            tool_calls_raw: list[dict] = []  # {id, name, arguments_str}
             last_response = None
 
             try:
                 if turn > 0:
                     yield _sse({"type": "thinking", "text": f"ターン {turn + 1}: 続行中..."})
 
-                # Bridge synchronous Gemini stream → async generator.
-                # asyncio.Queue is NOT thread-safe, so we use
-                # collections.deque + loop.call_soon_threadsafe to safely
-                # pass chunks from the thread executor to the event loop.
+                # Bridge synchronous OpenAI stream → async generator
                 from collections import deque as _deque
                 _SENTINEL = object()
                 _items: _deque = _deque()
@@ -936,12 +949,14 @@ async def chat_stream(messages: list[dict], document: dict):
                 loop = asyncio.get_running_loop()
 
                 def _consume_stream():
-                    """Run in thread: iterate synchronous stream, push chunks."""
                     try:
-                        stream = client.models.generate_content_stream(
-                            model="gemini-2.5-flash",
-                            contents=contents,
-                            config=config,
+                        stream = client.chat.completions.create(
+                            model=MODEL_CHAT,
+                            messages=openai_messages,
+                            tools=tools,
+                            stream=True,
+                            temperature=0.7,
+                            max_tokens=16384,
                         )
                         for chunk in stream:
                             _items.append(chunk)
@@ -955,9 +970,11 @@ async def chat_stream(messages: list[dict], document: dict):
 
                 loop.run_in_executor(None, _consume_stream)
 
+                # Accumulate tool call deltas (OpenAI streams them in pieces)
+                tc_accum: dict[int, dict] = {}  # index → {id, name, args_parts}
+
                 stream_done = False
                 while not stream_done:
-                    # Wait for items with timeout (keep-alive heartbeat)
                     try:
                         await asyncio.wait_for(_notify.wait(), timeout=30)
                     except asyncio.TimeoutError:
@@ -965,7 +982,6 @@ async def chat_stream(messages: list[dict], document: dict):
                         continue
                     _notify.clear()
 
-                    # Drain all available items
                     while _items:
                         item = _items.popleft()
                         if item is _SENTINEL:
@@ -973,30 +989,58 @@ async def chat_stream(messages: list[dict], document: dict):
                             break
                         if isinstance(item, Exception):
                             raise item
+
                         chunk = item
                         last_response = chunk
-                        if not chunk.candidates:
+
+                        if not chunk.choices:
+                            # Usage-only chunk at end of stream
+                            if chunk.usage:
+                                total_usage["inputTokens"] += chunk.usage.prompt_tokens or 0
+                                total_usage["outputTokens"] += chunk.usage.completion_tokens or 0
                             continue
-                        candidate = chunk.candidates[0]
-                        if not candidate.content or not candidate.content.parts:
+
+                        delta = chunk.choices[0].delta
+                        if not delta:
                             continue
 
-                        for part in candidate.content.parts:
-                            if getattr(part, "thought", False):
-                                if part.text:
-                                    thought_parts.append(part.text)
-                                    yield _sse({"type": "thinking", "text": part.text[:300]})
-                                continue
+                        # Text content
+                        if delta.content:
+                            text_parts.append(delta.content)
+                            yield _sse({"type": "text", "delta": delta.content})
 
-                            if part.text:
-                                text_parts.append(part.text)
-                                yield _sse({"type": "text", "delta": part.text})
+                        # Tool call deltas
+                        if delta.tool_calls:
+                            for tc_delta in delta.tool_calls:
+                                idx = tc_delta.index
+                                if idx not in tc_accum:
+                                    tc_accum[idx] = {
+                                        "id": tc_delta.id or "",
+                                        "name": "",
+                                        "args_parts": [],
+                                    }
+                                if tc_delta.id:
+                                    tc_accum[idx]["id"] = tc_delta.id
+                                if tc_delta.function and tc_delta.function.name:
+                                    tc_accum[idx]["name"] = tc_delta.function.name
+                                if tc_delta.function and tc_delta.function.arguments:
+                                    tc_accum[idx]["args_parts"].append(tc_delta.function.arguments)
 
-                            if part.function_call:
-                                fc_name = part.function_call.name
-                                fc_args = _deep_to_dict(part.function_call.args) if part.function_call.args else {}
-                                tool_calls.append({"name": fc_name, "args": fc_args, "part": part})
-                                yield _sse({"type": "tool_call", "name": fc_name, "args": fc_args})
+                # Finalize accumulated tool calls
+                for idx in sorted(tc_accum.keys()):
+                    tc = tc_accum[idx]
+                    args_str = "".join(tc["args_parts"])
+                    try:
+                        args = json.loads(args_str) if args_str else {}
+                    except json.JSONDecodeError:
+                        args = {}
+                    tool_calls_raw.append({
+                        "id": tc["id"],
+                        "name": tc["name"],
+                        "args": args,
+                        "args_str": args_str,
+                    })
+                    yield _sse({"type": "tool_call", "name": tc["name"], "args": args})
 
             except Exception as e:
                 user_msg, retry_wait = _parse_api_error(e)
@@ -1007,7 +1051,6 @@ async def chat_stream(messages: list[dict], document: dict):
                     continue
                 logger.error("Agent stream error (turn %d): %s", turn, e, exc_info=True)
                 yield _sse({"type": "error", "message": user_msg})
-                # Still send "done" so frontend knows stream is finished
                 message = user_msg
                 if all_patches:
                     op_summary = _ops_summary(all_patches)
@@ -1022,64 +1065,51 @@ async def chat_stream(messages: list[dict], document: dict):
                 })
                 return
 
-            # ストリームが何もチャンクを返さなかった場合（API障害やキー失効）
             if last_response is None:
-                logger.error("Agent stream: no chunks received from Gemini API (turn %d)", turn)
+                logger.error("Agent stream: no chunks received from OpenAI API (turn %d)", turn)
                 yield _sse({"type": "error", "message": "AIサービスから応答がありませんでした。APIキーの有効性・残高を確認してください。"})
                 break
 
-            # Accumulate usage
-            usage = _extract_usage(last_response)
-            total_usage["inputTokens"] += usage["inputTokens"]
-            total_usage["outputTokens"] += usage["outputTokens"]
-
-            # Accumulate thinking
-            for t in thought_parts:
-                all_thinking.append({"type": "thinking", "text": t[:200]})
-
-            # If no tool calls, we're done — this is the final text response
-            if not tool_calls:
+            # If no tool calls, we're done
+            if not tool_calls_raw:
                 final_text_parts.extend(text_parts)
-
-                # 空レスポンスの検出: テキストもツールも思考もない場合
-                if not text_parts and not thought_parts and last_response:
-                    # finish_reason をチェック（SAFETY, RECITATION, etc.）
+                if not text_parts:
                     try:
-                        candidate = last_response.candidates[0] if last_response.candidates else None
-                        finish = getattr(candidate, "finish_reason", None) if candidate else None
-                        if finish and str(finish) != "STOP":
+                        finish = chunk.choices[0].finish_reason if chunk.choices else None
+                        if finish and finish != "stop":
                             logger.warning("Empty response with finish_reason=%s", finish)
-                            yield _sse({"type": "error", "message": f"AIが応答を生成できませんでした（理由: {finish}）。プロンプトを変えて再試行してください。"})
+                            yield _sse({"type": "error", "message": f"AIが応答を生成できませんでした（理由: {finish}）。"})
                     except Exception:
                         pass
-
                 break
 
-            # Process tool calls and feed results back for next turn
-            # First, add the model's response (text + tool calls) to contents
-            model_parts = []
-            for tp in text_parts:
-                model_parts.append(types.Part(text=tp))
-            for tc in tool_calls:
-                model_parts.append(tc["part"])
+            # Add assistant message with tool calls to conversation
+            assistant_msg: dict[str, Any] = {"role": "assistant"}
+            if text_parts:
+                assistant_msg["content"] = "".join(text_parts)
+            else:
+                assistant_msg["content"] = None
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {"name": tc["name"], "arguments": tc["args_str"]},
+                }
+                for tc in tool_calls_raw
+            ]
+            openai_messages.append(assistant_msg)
 
-            if model_parts:
-                contents.append(types.Content(role="model", parts=model_parts))
-
-            # Execute each tool and collect results
-            tool_result_parts = []
-            for tc in tool_calls:
+            # Execute each tool and feed results back
+            for tc in tool_calls_raw:
                 tc_name = tc["name"]
                 tc_args = tc["args"]
                 start_ms = _now_ms()
 
                 try:
-                    # Keep-alive heartbeat before potentially long tool execution
                     yield _sse({"type": "thinking", "text": f"{tc_name} を実行中..."})
                     result = _execute_tool(tc_name, document, tc_args, all_patches)
                     duration = _now_ms() - start_ms
 
-                    # If edit_document, accumulate patches
                     if tc_name == "edit_document" and tc_args.get("ops"):
                         ops = _normalize_ops(tc_args["ops"])
                         all_patches.extend(ops)
@@ -1098,12 +1128,11 @@ async def chat_stream(messages: list[dict], document: dict):
                         "duration": duration,
                     })
 
-                    tool_result_parts.append(
-                        types.Part.from_function_response(
-                            name=tc_name,
-                            response=result,
-                        )
-                    )
+                    openai_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": json.dumps(result, ensure_ascii=False),
+                    })
 
                 except Exception as e:
                     duration = _now_ms() - start_ms
@@ -1120,30 +1149,21 @@ async def chat_stream(messages: list[dict], document: dict):
                         "tool": tc_name,
                         "duration": duration,
                     })
-                    tool_result_parts.append(
-                        types.Part.from_function_response(
-                            name=tc_name,
-                            response=error_result,
-                        )
-                    )
-
-            # Add tool results as user message for next turn
-            if tool_result_parts:
-                contents.append(types.Content(role="user", parts=tool_result_parts))
-
-            # Continue the agent loop...
+                    openai_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": json.dumps(error_result, ensure_ascii=False),
+                    })
 
         # Build final response
         message = "\n".join(final_text_parts).strip()
 
-        # Check if text contains embedded JSON patches
         if message and not all_patches:
             extracted = _extract_json_patches(message)
             if extracted:
                 ops = extracted.get("ops", [])
                 all_patches.extend(ops)
                 yield _sse({"type": "patch", "ops": ops})
-                # Clean JSON from message
                 message = _re.sub(r'```(?:json)?\s*\n?[\s\S]*?```', '', message).strip()
                 message = _re.sub(r'(?:^|\n)\s*[\[{][\s\S]*?[\]}]\s*(?:\n|$)', '', message).strip()
                 if not message:
@@ -1176,14 +1196,12 @@ async def chat_stream(messages: list[dict], document: dict):
         })
 
     except GeneratorExit:
-        # Client disconnected — clean up silently
         logger.info("Agent stream: client disconnected (GeneratorExit)")
         return
     except Exception as e:
         user_msg, _ = _parse_api_error(e)
         logger.error("Agent loop fatal error [%s]: %s", type(e).__name__, e, exc_info=True)
         yield _sse({"type": "error", "message": user_msg})
-        # Always send "done" so the frontend can finalize the message
         patches_result = {"ops": all_patches} if all_patches else None
         yield _sse({
             "type": "done",
@@ -1303,16 +1321,9 @@ def _now_ms() -> int:
 
 
 def _build_agent_contents(messages: list[dict], doc_brief: str):
-    """Build Gemini contents list for agent mode.
+    """Build OpenAI messages list for agent mode."""
+    MAX_MESSAGES = 20
 
-    フロントエンドが圧縮済みの履歴を送る前提だが、
-    万が一��量メッセージが来た場合はサーバー側でも安全に��り詰める。
-    """
-    from google.genai import types  # type: ignore
-
-    MAX_MESSAGES = 20  # 安全上限
-
-    # メッセージが多すぎる場合: 先頭2 + 末尾6を保持
     if len(messages) > MAX_MESSAGES:
         logger.warning("Too many messages (%d > %d), trimming", len(messages), MAX_MESSAGES)
         messages = messages[:2] + messages[-6:]
@@ -1322,18 +1333,19 @@ def _build_agent_contents(messages: list[dict], doc_brief: str):
         default=0,
     )
 
-    # ユーザーメッセージに [文書構造] が含まれていれば doc_brief の重複注入をスキップ
     last_user_content = messages[last_user_idx].get("content", "") if messages else ""
     has_doc_context = "[文書構造]" in last_user_content
 
-    contents = []
+    openai_messages: list[dict] = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+    ]
+
     for i, msg in enumerate(messages):
         role = msg.get("role", "user")
         content = msg.get("content", "")
 
         if i == last_user_idx and role == "user":
             if has_doc_context:
-                # フロントエンドが文書構造を注入済み — doc_brief は不要
                 content = (
                     f"{content}\n\n"
                     "必要に応じてツールを使って文書を確認・編集してください。"
@@ -1345,30 +1357,20 @@ def _build_agent_contents(messages: list[dict], doc_brief: str):
                     "必要に応じてツールを使って文書を確認・編集してください。"
                 )
 
-        gemini_role = "model" if role == "assistant" else "user"
-        contents.append(
-            types.Content(role=gemini_role, parts=[types.Part(text=content)])
-        )
-    return contents
+        openai_role = "assistant" if role == "assistant" else "user"
+        openai_messages.append({"role": openai_role, "content": content})
+
+    return openai_messages
 
 
 # ─── Non-streaming fallback ──────────────────────────────────────────────────
 
 async def chat(messages: list[dict], document: dict) -> dict:
     """Non-streaming agent chat — fallback for when streaming fails."""
-    from google.genai import types  # type: ignore
-
     client = get_client()
     doc_brief = _document_context_brief(document)
-    contents = _build_agent_contents(messages, doc_brief)
-
-    config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        tools=[types.Tool(function_declarations=[
-            types.FunctionDeclaration(**fd) for fd in AGENT_TOOLS["function_declarations"]
-        ])],
-        thinking_config=types.ThinkingConfig(thinking_budget=8192),
-    )
+    openai_messages = _build_agent_contents(messages, doc_brief)
+    tools = get_openai_tools()
 
     all_patches: list[dict] = []
     all_thinking: list[dict] = []
@@ -1380,10 +1382,12 @@ async def chat(messages: list[dict], document: dict) -> dict:
     for turn in range(MAX_TURNS):
         try:
             def _call():
-                return client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=contents,
-                    config=config,
+                return client.chat.completions.create(
+                    model=MODEL_CHAT,
+                    messages=openai_messages,
+                    tools=tools,
+                    temperature=0.7,
+                    max_tokens=16384,
                 )
 
             response = await asyncio.to_thread(_call)
@@ -1398,77 +1402,59 @@ async def chat(messages: list[dict], document: dict) -> dict:
         total_usage["inputTokens"] += usage["inputTokens"]
         total_usage["outputTokens"] += usage["outputTokens"]
 
-        if not response.candidates:
+        if not response.choices:
             return {"message": "AIからの応答が空でした。", "patches": None, "thinking": all_thinking, "usage": total_usage}
 
-        candidate = response.candidates[0]
-        finish_reason = str(candidate.finish_reason) if candidate.finish_reason else ""
+        choice = response.choices[0]
+        msg = choice.message
 
-        if "SAFETY" in finish_reason:
+        if choice.finish_reason == "content_filter":
             return {"message": "セーフティフィルターにより応答が中断されました。", "patches": None, "thinking": all_thinking, "usage": total_usage}
 
-        if not candidate.content or not candidate.content.parts:
+        # Text content
+        if msg.content:
+            final_message = msg.content
+
+        # Tool calls
+        if not msg.tool_calls:
             break
 
-        text_parts = []
-        thought_parts = []
-        tool_calls = []
+        # Add assistant message to conversation
+        openai_messages.append(msg.model_dump())
 
-        for part in candidate.content.parts:
-            if getattr(part, "thought", False):
-                if part.text:
-                    thought_parts.append(part.text)
-                    all_thinking.append({"type": "thinking", "text": part.text[:200]})
-                continue
-            if part.text:
-                text_parts.append(part.text)
-            if part.function_call:
-                fc_name = part.function_call.name
-                fc_args = _deep_to_dict(part.function_call.args) if part.function_call.args else {}
-                tool_calls.append({"name": fc_name, "args": fc_args, "part": part})
+        for tc in msg.tool_calls:
+            tc_name = tc.function.name
+            try:
+                tc_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+            except json.JSONDecodeError:
+                tc_args = {}
 
-        if not tool_calls:
-            final_message = "\n".join(text_parts).strip()
-            break
-
-        # Add model response to contents
-        from google.genai import types as gtypes
-        model_parts = []
-        for tp in text_parts:
-            model_parts.append(gtypes.Part(text=tp))
-        for tc in tool_calls:
-            model_parts.append(tc["part"])
-        if model_parts:
-            contents.append(gtypes.Content(role="model", parts=model_parts))
-
-        # Execute tools
-        tool_result_parts = []
-        for tc in tool_calls:
             start_ms = _now_ms()
             try:
-                result = _execute_tool(tc["name"], document, tc["args"], all_patches)
+                result = _execute_tool(tc_name, document, tc_args, all_patches)
                 duration = _now_ms() - start_ms
 
-                if tc["name"] == "edit_document" and tc["args"].get("ops"):
-                    ops = _normalize_ops(tc["args"]["ops"])
+                if tc_name == "edit_document" and tc_args.get("ops"):
+                    ops = _normalize_ops(tc_args["ops"])
                     all_patches.extend(ops)
 
                 all_thinking.append({
                     "type": "tool_call",
-                    "text": f"{tc['name']}: {_summarize_result(tc['name'], result)}",
-                    "tool": tc["name"],
+                    "text": f"{tc_name}: {_summarize_result(tc_name, result)}",
+                    "tool": tc_name,
                     "duration": duration,
                 })
-                tool_result_parts.append(
-                    gtypes.Part.from_function_response(name=tc["name"], response=result)
-                )
+                openai_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": json.dumps(result, ensure_ascii=False),
+                })
             except Exception as e:
-                tool_result_parts.append(
-                    gtypes.Part.from_function_response(name=tc["name"], response={"error": str(e)[:200]})
-                )
-
-        if tool_result_parts:
-            contents.append(gtypes.Content(role="user", parts=tool_result_parts))
+                openai_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": json.dumps({"error": str(e)[:200]}, ensure_ascii=False),
+                })
 
     if not final_message:
         if all_patches:
@@ -1476,7 +1462,6 @@ async def chat(messages: list[dict], document: dict) -> dict:
         else:
             final_message = "応答を取得できませんでした。"
 
-    # Check for embedded patches
     if not all_patches and final_message:
         extracted = _extract_json_patches(final_message)
         if extracted:

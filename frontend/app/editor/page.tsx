@@ -230,8 +230,8 @@ export default function EditorPage() {
           />
         )}
 
-        {/* ── Sidebar (panel + activity bar) — unified column ── */}
-        <div className="flex flex-shrink-0 border-l border-foreground/[0.06] bg-background/80 dark:bg-surface-1/80 backdrop-blur-xl">
+        {/* ── Sidebar (panel + activity bar) — VSCode-style ── */}
+        <div className="flex flex-shrink-0 border-l border-foreground/[0.08] bg-background/90 dark:bg-surface-1/90 backdrop-blur-xl">
           {/* Panel content */}
           <div
             className="overflow-hidden flex flex-col"
@@ -278,8 +278,8 @@ export default function EditorPage() {
             )}
           </div>
 
-          {/* Activity bar — right edge */}
-          <div className="w-11 flex flex-col items-center pt-1 pb-1 border-l border-foreground/[0.04] bg-background/50 dark:bg-surface-0/60 shrink-0">
+          {/* Activity bar — right edge (VSCode-style) */}
+          <div className="activity-bar w-11 flex flex-col items-center pt-1.5 pb-1.5 border-l border-foreground/[0.06] bg-surface-1/80 dark:bg-surface-0/80 shrink-0">
           {/* AI アシスタント */}
           {(["ai", "latex", "scoring"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Sparkles : tab === "scoring" ? ClipboardCheck : FileCode2;

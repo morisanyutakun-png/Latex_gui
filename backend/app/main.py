@@ -25,7 +25,7 @@ from .batch_service import (
     create_batch_zip, parse_csv_variables, parse_json_variables,
 )
 from .ai_service import chat as ai_chat, chat_stream as ai_chat_stream
-from .omr_service import analyze_image as omr_analyze_image
+from .omr_service import analyze_image as omr_analyze_image, analyze_image_stream as omr_analyze_image_stream
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -655,6 +655,53 @@ async def omr_analyze_endpoint(
             status_code=500,
             detail={"message": "画像解析中にエラーが発生しました。"},
         )
+
+
+@app.post("/api/omr/analyze/stream")
+async def omr_analyze_stream_endpoint(
+    image: UploadFile = File(...),
+    document: str = Form("{}"),
+    hint: str = Form(""),
+):
+    """OMR解析 SSEストリーミング — 進捗をリアルタイムで返す"""
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "OMR機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "code": "MISSING_API_KEY",
+            },
+        )
+
+    image_bytes = await image.read()
+    max_size = 20 * 1024 * 1024
+    if len(image_bytes) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "ファイルサイズは20MB以下にしてください"},
+        )
+
+    media_type = image.content_type or "image/jpeg"
+    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"}
+    if media_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "JPEG, PNG, GIF, WEBP, PDF に対応しています"},
+        )
+
+    try:
+        doc_dict = json.loads(document) if document else {}
+    except json.JSONDecodeError:
+        doc_dict = {}
+
+    return StreamingResponse(
+        omr_analyze_image_stream(image_bytes, media_type, doc_dict, hint),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ─────────────── Scoring (採点) ───────────────

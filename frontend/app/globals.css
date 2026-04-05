@@ -130,20 +130,59 @@
   }
 }
 
-/* Scrollbar */
+/* ── VSCode-style Scrollbar ── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 14px;
+  height: 14px;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.15);
-  border-radius: 3px;
+  background: hsl(var(--muted-foreground) / 0.0);
+  border: 4px solid transparent;
+  border-radius: 7px;
+  background-clip: padding-box;
+  transition: background 0.2s;
+}
+/* Show thumb only on hover (VSCode behavior) */
+*:hover > ::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-thumb:hover,
+*:hover::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.18);
+  border: 4px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.35);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active {
+  background: hsl(var(--muted-foreground) / 0.5);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+/* Thin scrollbar variant for panels */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background-clip: padding-box;
+}
+/* Firefox scrollbar support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: hsl(var(--muted-foreground) / 0.18) transparent;
 }
 
 /* Smooth transitions */
@@ -376,24 +415,31 @@ html {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
 
-/* ── Resize handle (VSCode-style) ── */
+/* ── Resize handle (VSCode sash) ── */
 .resize-handle {
   width: 4px;
   cursor: col-resize;
   background: transparent;
-  transition: background var(--transition-fast);
+  transition: background 0.15s ease;
   position: relative;
   flex-shrink: 0;
   z-index: 10;
 }
 .resize-handle:hover,
 .resize-handle.is-dragging {
-  background: hsl(var(--primary) / 0.4);
+  background: hsl(var(--primary) / 0.6);
 }
 .resize-handle::after {
   content: '';
   position: absolute;
   inset: 0 -4px;
+}
+/* Delay hover effect like VSCode (300ms) */
+.resize-handle {
+  transition: background 0.15s ease 0.3s;
+}
+.resize-handle.is-dragging {
+  transition: background 0s;
 }
 
 /* ── Interactive button base ── */
@@ -443,4 +489,107 @@ html {
 }
 .chat-markdown > :last-child {
   margin-bottom: 0;
+}
+
+/* ── VSCode IDE-style enhancements ── */
+
+/* Activity bar — subtle top/bottom separators */
+.activity-bar {
+  position: relative;
+}
+.activity-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent, hsl(var(--foreground) / 0.06), transparent);
+}
+
+/* Panel title bar — VSCode style with subtle gradient */
+.panel-titlebar {
+  background: linear-gradient(to bottom,
+    hsl(var(--foreground) / 0.02),
+    transparent
+  );
+  user-select: none;
+}
+
+/* Status bar — VSCode accent color on left edge */
+.status-bar-accent {
+  position: relative;
+}
+.status-bar-accent::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: hsl(var(--primary));
+}
+
+/* Editor gutter — line number style */
+.editor-gutter {
+  color: hsl(var(--muted-foreground) / 0.3);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.editor-gutter:hover {
+  color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* VSCode-style tab focus indicator */
+.tab-active-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: hsl(var(--primary));
+}
+
+/* Minimap-style scrollbar overlay */
+.minimap-overlay {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 60px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+*:hover > .minimap-overlay {
+  opacity: 0.5;
+}
+
+/* Command palette style input */
+.command-input {
+  border: 1px solid hsl(var(--primary) / 0.4);
+  background: var(--surface-2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+.command-input:focus {
+  border-color: hsl(var(--primary) / 0.8);
+  outline: none;
+}
+
+/* VSCode-style hover highlight for list items */
+.list-item-hover {
+  transition: background var(--transition-fast);
+}
+.list-item-hover:hover {
+  background: hsl(var(--foreground) / 0.04);
+}
+.list-item-hover.active {
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary));
+}
+
+/* Breadcrumb separator */
+.breadcrumb-sep {
+  color: hsl(var(--muted-foreground) / 0.3);
+  margin: 0 2px;
+  font-size: 0.75em;
 }

@@ -65,16 +65,23 @@ export function StatusBar() {
   const zoomPercent = Math.round(zoom * 100);
 
   return (
-    <div className="flex items-center justify-between h-7 px-2 shrink-0 select-none bg-surface-1 dark:bg-surface-0 text-foreground/50 border-t border-border/30">
-      {/* Left — block info */}
-      <div className="flex items-center gap-3 text-[11px] font-mono">
-        <span className="text-foreground/40">
-          {blockCount} {isJa ? "要素" : "elements"}
+    <div className="status-bar-accent flex items-center justify-between h-[22px] px-2 shrink-0 select-none bg-surface-1 dark:bg-surface-0 text-foreground/50 border-t border-foreground/[0.06]">
+      {/* Left — block info (VSCode-style) */}
+      <div className="flex items-center gap-0 text-[11px] font-mono">
+        <span className="px-1.5 h-full flex items-center text-primary-foreground/90 bg-primary/80 text-[10px] font-semibold tracking-wide">
+          {blockCount} {isJa ? "要素" : "el"}
         </span>
         {selectedBlock && selectedIdx >= 0 && typeLabel && (
-          <span className="text-foreground/30">
-            {selectedIdx + 1}行目 · {typeLabel}
-          </span>
+          <>
+            <span className="breadcrumb-sep">/</span>
+            <span className="px-1.5 text-foreground/40 hover:text-foreground/60 transition-colors cursor-default">
+              Ln {selectedIdx + 1}
+            </span>
+            <span className="breadcrumb-sep">·</span>
+            <span className="px-1.5 text-foreground/40 hover:text-foreground/60 transition-colors cursor-default">
+              {typeLabel}
+            </span>
+          </>
         )}
       </div>
 
