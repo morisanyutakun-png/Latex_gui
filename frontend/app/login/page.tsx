@@ -1,9 +1,19 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, AlertTriangle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
+  const [authConfigured, setAuthConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/status")
+      .then((res) => res.json())
+      .then((data) => setAuthConfigured(data.configured))
+      .catch(() => setAuthConfigured(false));
+  }, []);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-0 dark:bg-[#08090c] relative overflow-hidden">
       {/* Background decorations */}
@@ -35,10 +45,32 @@ export default function LoginPage() {
             Googleアカウントで簡単にログインできます
           </p>
 
+          {authConfigured === false && (
+            <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                    Google認証が未設定です
+                  </p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    <code className="text-[11px] bg-foreground/5 px-1 py-0.5 rounded">GOOGLE_CLIENT_ID</code> と{" "}
+                    <code className="text-[11px] bg-foreground/5 px-1 py-0.5 rounded">GOOGLE_CLIENT_SECRET</code> を{" "}
+                    <code className="text-[11px] bg-foreground/5 px-1 py-0.5 rounded">.env.local</code> に設定してください。
+                  </p>
+                  <p className="text-xs text-muted-foreground/40 mt-2">
+                    Google Cloud Console → APIとサービス → 認証情報 で OAuth 2.0 クライアントIDを作成できます。
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Google login button */}
           <button
             onClick={() => signIn("google", { callbackUrl: "/" })}
-            className="w-full flex items-center justify-center gap-3 h-12 rounded-xl bg-white dark:bg-surface-4 border border-foreground/[0.08] text-foreground/80 font-medium text-sm hover:bg-foreground/[0.02] hover:border-foreground/[0.12] hover:shadow-lg transition-all duration-200 active:scale-[0.98]"
+            disabled={authConfigured === false}
+            className="w-full flex items-center justify-center gap-3 h-12 rounded-xl bg-white dark:bg-surface-4 border border-foreground/[0.08] text-foreground/80 font-medium text-sm hover:bg-foreground/[0.02] hover:border-foreground/[0.12] hover:shadow-lg transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
