@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
 import { DocumentOutline } from "@/components/layout/document-outline";
+import { UserMenu } from "@/components/auth/user-menu";
 import { LastAIAction } from "@/store/ui-store";
 
 function OpCountIcons({ counts }: { counts: LastAIAction["opCounts"] }) {
@@ -391,6 +392,8 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         </button>
 
         <ThemeToggle />
+
+        <UserMenu />
       </div>
 
       {/* PDF export — prominent button */}

@@ -53,14 +53,28 @@ export function PricingModal() {
   const { locale } = useI18n();
   const isJa = locale === "ja";
 
-  const handleSelect = (planId: PlanId) => {
+  const handleSelect = async (planId: PlanId) => {
     if (planId === "free") {
       setPlan(planId);
       setShowPricing(false);
+      // 未ログインならログインページへ誘導
+      const { getSession } = await import("next-auth/react");
+      const session = await getSession();
+      if (!session) {
+        const { signIn } = await import("next-auth/react");
+        signIn("google", { callbackUrl: "/" });
+      }
       return;
     }
-    // Pro / Premium: 将来的にStripe決済へ遷移
-    // 現段階ではデモ用にプラン切り替えを許可
+    // Pro / Premium: 未ログインならログイン→将来的にStripe決済
+    const { getSession } = await import("next-auth/react");
+    const session = await getSession();
+    if (!session) {
+      const { signIn } = await import("next-auth/react");
+      signIn("google", { callbackUrl: "/" });
+      return;
+    }
+    // TODO: Stripe checkout session へ遷移
     setPlan(planId);
     setShowPricing(false);
   };

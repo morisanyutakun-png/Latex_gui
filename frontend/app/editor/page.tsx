@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Terminal, Sparkles, FileCode2, Globe, FileText, X, BookOpen, Sigma, ClipboardCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { EditorHints } from "@/components/layout/editor-hints";
 
 type SidebarTab = "ai" | "advanced" | "latex" | "guide" | "math" | "scoring";
 
@@ -215,6 +216,9 @@ export default function EditorPage() {
 
       {/* Edit toolbar — always visible */}
       <EditToolbar />
+
+      {/* Inline editing hints */}
+      <EditorHints />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* ── Document editor — always editable ── */}

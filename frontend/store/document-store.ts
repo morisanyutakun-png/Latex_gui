@@ -256,45 +256,57 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     let settings = { ...currentDoc.settings };
 
     for (const op of patch.ops) {
-      if (op.op === "add_block") {
-        const newBlock = normalizeAIBlock(op.block);
-        if (op.afterId === null) {
-          blocks = [newBlock, ...blocks];
-        } else {
-          const idx = blocks.findIndex((b) => b.id === op.afterId);
-          if (idx === -1) {
-            blocks = [...blocks, newBlock];
+      try {
+        if (op.op === "add_block") {
+          if (!op.block || typeof op.block !== "object") continue;
+          const newBlock = normalizeAIBlock(op.block);
+          if (!newBlock || !newBlock.id) continue;
+          if (op.afterId === null || op.afterId === undefined) {
+            blocks = [newBlock, ...blocks];
           } else {
-            const copy = [...blocks];
-            copy.splice(idx + 1, 0, newBlock);
-            blocks = copy;
+            const idx = blocks.findIndex((b) => b?.id === op.afterId);
+            if (idx === -1) {
+              blocks = [...blocks, newBlock];
+            } else {
+              const copy = [...blocks];
+              copy.splice(idx + 1, 0, newBlock);
+              blocks = copy;
+            }
           }
+        } else if (op.op === "update_block") {
+          if (!op.blockId) continue;
+          blocks = blocks.map((b) => {
+            if (!b || b.id !== op.blockId) return b;
+            const merged = {
+              ...b,
+              content: op.content ? { ...b.content, ...op.content } as BlockContent : b.content,
+              style: op.style ? { ...b.style, ...op.style } : b.style,
+            };
+            return normalizeAIBlock(merged);
+          });
+        } else if (op.op === "delete_block") {
+          if (!op.blockId) continue;
+          blocks = blocks.filter((b) => b?.id !== op.blockId);
+        } else if (op.op === "reorder") {
+          if (!op.blockIds || !Array.isArray(op.blockIds)) continue;
+          const validBlocks = blocks.filter((b): b is Block => !!b && !!b.id);
+          const blockMap = new Map(validBlocks.map((b) => [b.id, b]));
+          const reordered = op.blockIds.map((id) => blockMap.get(id)).filter((b): b is Block => !!b);
+          const mentioned = new Set(op.blockIds);
+          const remainder = validBlocks.filter((b) => !mentioned.has(b.id));
+          blocks = [...reordered, ...remainder];
+        } else if (op.op === "update_design") {
+          const defaultDesign: PaperDesign = { theme: "plain", paperColor: "#ffffff", accentColor: "#4f46e5", headerBorder: false, sectionDividers: false, designPreset: "none" };
+          const current = settings.paperDesign || defaultDesign;
+          settings = { ...settings, paperDesign: { ...current, ...op.paperDesign } };
         }
-      } else if (op.op === "update_block") {
-        blocks = blocks.map((b) => {
-          if (b.id !== op.blockId) return b;
-          const merged = {
-            ...b,
-            content: op.content ? { ...b.content, ...op.content } as BlockContent : b.content,
-            style: op.style ? { ...b.style, ...op.style } : b.style,
-          };
-          // normalizeAIBlock で必須フィールドの補完・型の保証を行う
-          return normalizeAIBlock(merged);
-        });
-      } else if (op.op === "delete_block") {
-        blocks = blocks.filter((b) => b.id !== op.blockId);
-      } else if (op.op === "reorder") {
-        const blockMap = new Map(blocks.map((b) => [b.id, b]));
-        const reordered = op.blockIds.map((id) => blockMap.get(id)).filter((b): b is Block => !!b);
-        const mentioned = new Set(op.blockIds);
-        const remainder = blocks.filter((b) => !mentioned.has(b.id));
-        blocks = [...reordered, ...remainder];
-      } else if (op.op === "update_design") {
-        const defaultDesign: PaperDesign = { theme: "plain", paperColor: "#ffffff", accentColor: "#4f46e5", headerBorder: false, sectionDividers: false, designPreset: "none" };
-        const current = settings.paperDesign || defaultDesign;
-        settings = { ...settings, paperDesign: { ...current, ...op.paperDesign } };
+      } catch (e) {
+        console.warn("[applyPatch] Skipping invalid op:", op, e);
+        continue;
       }
     }
+    // Sanitize: remove any undefined/null blocks
+    blocks = blocks.filter((b): b is Block => !!b && !!b.id);
 
     set({ document: { ...currentDoc, blocks, settings } });
   },

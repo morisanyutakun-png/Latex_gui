@@ -3,6 +3,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/lib/i18n";
+import { SessionProvider } from "@/components/auth/session-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,16 +19,18 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body className="antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <I18nProvider>
-            <TooltipProvider>
-              <div className="animate-page-fade-in">
-                {children}
-              </div>
-            </TooltipProvider>
-            <Toaster richColors position="bottom-center" />
-          </I18nProvider>
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <I18nProvider>
+              <TooltipProvider>
+                <div className="animate-page-fade-in">
+                  {children}
+                </div>
+              </TooltipProvider>
+              <Toaster richColors position="bottom-center" />
+            </I18nProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );
