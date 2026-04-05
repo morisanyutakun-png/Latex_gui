@@ -147,19 +147,28 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       if (result.patches && result.patches.ops && result.patches.ops.length > 0) {
         setOmrProgress(isJa ? "ブロックを適用中..." : "Applying blocks...");
         // OMR結果を既存文書の末尾に差分追加する
-        // 最初のブロック(afterId=null)を最後の既存ブロックの後に配置
         const currentBlocks = useDocumentStore.getState().document?.blocks ?? [];
         const lastBlockId = currentBlocks.length > 0 ? currentBlocks[currentBlocks.length - 1].id : null;
-        const adjustedOps = result.patches.ops.map((op, i) => {
-          if (op.op === "add_block" && i === 0 && op.afterId === null) {
-            return { ...op, afterId: lastBlockId };
-          }
-          return op;
+
+        // 全 add_block の afterId チェーンを修復して末尾に追加
+        const addOps = result.patches.ops.filter(op => op.op === "add_block");
+        const otherOps = result.patches.ops.filter(op => op.op !== "add_block");
+        let prevId = lastBlockId;
+        const fixedAddOps = addOps.map((op) => {
+          if (op.op !== "add_block") return op;
+          const addOp = op as Extract<typeof op, { op: "add_block" }>;
+          const fixedOp = { ...addOp, afterId: prevId };
+          prevId = addOp.block?.id ?? prevId;
+          return fixedOp;
         });
+        const adjustedOps = [...fixedAddOps, ...otherOps];
+
+        console.log("[OMR] Applying patches:", adjustedOps.length, "ops");
         useDocumentStore.getState().applyPatch({ ops: adjustedOps });
+        const appliedCount = addOps.length;
         toast.success(isJa
-          ? `${result.patches.ops.length}件のブロックを追加しました`
-          : `Added ${result.patches.ops.length} blocks`);
+          ? `${appliedCount}件のブロックを追加しました`
+          : `Added ${appliedCount} blocks`);
 
         // 最新ドキュメントで自動PDF生成
         const updatedDoc = useDocumentStore.getState().document;

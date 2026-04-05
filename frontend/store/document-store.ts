@@ -260,14 +260,22 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     for (const op of patch.ops as any[]) {
       try {
         if (op.op === "add_block") {
-          if (!op.block || typeof op.block !== "object") continue;
+          if (!op.block || typeof op.block !== "object") {
+            console.warn("[applyPatch] add_block: missing block object", op);
+            continue;
+          }
           const newBlock = normalizeAIBlock(op.block as Block);
-          if (!newBlock || !newBlock.id) continue;
+          if (!newBlock || !newBlock.id) {
+            console.warn("[applyPatch] add_block: normalization failed", op.block);
+            continue;
+          }
           if (op.afterId === null || op.afterId === undefined) {
+            // afterId 未指定 → 先頭に追加
             blocks = [newBlock, ...blocks];
           } else {
             const idx = blocks.findIndex((b) => b?.id === op.afterId);
             if (idx === -1) {
+              // afterId が見つからない → 末尾に追加（フォールバック）
               blocks = [...blocks, newBlock];
             } else {
               const copy = [...blocks];

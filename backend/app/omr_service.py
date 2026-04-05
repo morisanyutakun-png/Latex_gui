@@ -38,13 +38,30 @@ structured document blocks that can be imported into the editor.
 ## CRITICAL Instructions
 - You MUST call the `edit_document` tool to return the extracted blocks.
 - Do NOT describe the content in chat — always use the tool to create blocks.
-- Use null for afterId on the first block; for each subsequent block, set afterId to the previous block's id.
 - Generate IDs like "omr-001", "omr-002", "omr-003", etc.
-- Default style: { "textAlign": "left", "fontSize": 11, "fontFamily": "serif" }
+- Default style: { "textAlign": "left", "fontSize": 11, "fontFamily": "sans" }
 - If confidence is low for any region, add "(要確認)" at the end.
 - Respond in Japanese.
 - Even if the content is unclear, extract whatever you can. Do not refuse.
 - For math expressions: use proper LaTeX (e.g. \\frac{a}{b}, \\sum_{i=1}^{n}, \\sqrt{x})
+
+## Block format (MUST follow exactly)
+Each block in ops must have this structure:
+```json
+{"op": "add_block", "afterId": null, "block": {
+  "id": "omr-001",
+  "content": {"type": "heading", "text": "タイトル", "level": 1},
+  "style": {"textAlign": "left", "fontSize": 11, "fontFamily": "sans"}
+}}
+```
+
+Block types and their content fields:
+- heading: {"type": "heading", "text": "...", "level": 1}
+- paragraph: {"type": "paragraph", "text": "..."}
+- math: {"type": "math", "latex": "...", "displayMode": true}
+- list: {"type": "list", "style": "numbered", "items": ["item1", "item2"]}
+
+IMPORTANT: content MUST be a nested object with "type" field. Do NOT use flat format.
 """
 
 OMR_PDF_SYSTEM_PROMPT = OMR_SYSTEM_PROMPT + """
@@ -246,6 +263,95 @@ async def _extract_pdf_content(pdf_bytes: bytes, progress_callback=None):
 # ─── Response parsing ──────────────────────────────────────────────────────
 
 
+def _normalize_omr_block(block: dict, block_id: str) -> dict:
+    """OMR ブロックを正規化して content/style 構造を保証する。"""
+    if not isinstance(block, dict):
+        return None
+
+    bid = block.get("id") or block_id
+
+    # content が既に構造化されている場合
+    content = block.get("content")
+    if isinstance(content, dict) and "type" in content:
+        style = block.get("style") or {"textAlign": "left", "fontSize": 11, "fontFamily": "sans"}
+        return {"id": bid, "content": content, "style": style}
+
+    # フラット形式: { id, type: "heading", text: "...", level: 2, style: {...} }
+    btype = block.get("type")
+    if btype:
+        meta_keys = {"id", "style"}
+        content = {k: v for k, v in block.items() if k not in meta_keys}
+        style = block.get("style") or {"textAlign": "left", "fontSize": 11, "fontFamily": "sans"}
+        return {"id": bid, "content": content, "style": style}
+
+    return None
+
+
+def _normalize_omr_patches(raw_patches: dict | list) -> dict | None:
+    """OMR パッチを正規化し、afterId チェーンを修復する。"""
+    if isinstance(raw_patches, list):
+        ops = raw_patches
+    elif isinstance(raw_patches, dict):
+        ops = raw_patches.get("ops") or raw_patches.get("operations") or []
+        if not ops and "op" in raw_patches:
+            # 単一のオペレーション
+            ops = [raw_patches]
+    else:
+        return None
+
+    if not isinstance(ops, list) or len(ops) == 0:
+        return None
+
+    normalized_ops = []
+    prev_id = None
+
+    for i, op in enumerate(ops):
+        if not isinstance(op, dict):
+            continue
+
+        op_type = op.get("op") or op.get("operation") or op.get("type")
+        if not op_type:
+            continue
+
+        # op名の正規化
+        if op_type in ("add", "add_block", "insert"):
+            block = op.get("block") or {k: v for k, v in op.items() if k not in ("op", "operation", "type", "afterId", "after_id")}
+            block_id = f"omr-{i+1:03d}"
+            normalized_block = _normalize_omr_block(block, block_id)
+            if not normalized_block:
+                continue
+
+            # afterId チェーンを修復
+            after_id = op.get("afterId") or op.get("after_id")
+            if after_id is None and prev_id is not None:
+                after_id = prev_id
+
+            normalized_ops.append({
+                "op": "add_block",
+                "afterId": after_id,
+                "block": normalized_block,
+            })
+            prev_id = normalized_block["id"]
+
+        elif op_type in ("update", "update_block"):
+            normalized_ops.append({
+                "op": "update_block",
+                "blockId": op.get("blockId") or op.get("block_id"),
+                "content": op.get("content"),
+                "style": op.get("style"),
+            })
+        elif op_type in ("delete", "delete_block"):
+            normalized_ops.append({
+                "op": "delete_block",
+                "blockId": op.get("blockId") or op.get("block_id"),
+            })
+
+    if not normalized_ops:
+        return None
+
+    return {"ops": normalized_ops}
+
+
 def _extract_patches_from_response(response) -> tuple[list[str], dict | None]:
     """Extract text and patches from an OpenAI response."""
     text_parts: list[str] = []
@@ -262,13 +368,12 @@ def _extract_patches_from_response(response) -> tuple[list[str], dict | None]:
                 if tc.function.name == "edit_document":
                     try:
                         parsed = json.loads(tc.function.arguments)
-                        # Handle both {"ops": [...]} and direct ops list
-                        if isinstance(parsed, dict) and "ops" in parsed:
-                            patches = parsed
-                        elif isinstance(parsed, list):
-                            patches = {"ops": parsed}
+                        patches = _normalize_omr_patches(parsed)
+                        if patches:
+                            logger.info("OMR: Extracted %d ops from edit_document",
+                                        len(patches.get("ops", [])))
                         else:
-                            patches = parsed
+                            logger.warning("OMR: edit_document returned empty/invalid patches")
                     except json.JSONDecodeError as e:
                         logger.warning("OMR: edit_document args parse failed: %s (args: %s...)",
                                        e, tc.function.arguments[:200])
