@@ -205,7 +205,7 @@ export default function EditorPage() {
   const meta = panelMeta[activeTab];
 
   return (
-    <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#eceafd] dark:bg-[#06050e]">
       {/* OMR split-view overlay */}
       <OMRSplitView />
 

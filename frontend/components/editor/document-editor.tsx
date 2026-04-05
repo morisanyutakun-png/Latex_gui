@@ -1876,19 +1876,19 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
     {/* Canvas */}
     <div
       ref={canvasRef}
-      className="flex-1 overflow-auto bg-surface-0 dark:bg-surface-2"
+      className="flex-1 overflow-auto editor-canvas"
       onClick={() => selectBlock(null)}
     >
-      <div className="flex flex-col items-center py-6">
+      <div className="flex flex-col items-center py-8">
 
         {/* Paper size label */}
-        <div className="mb-2 text-[10px] font-mono text-[#aaa] dark:text-[#555] select-none self-start" style={{ marginLeft: `calc(50% - ${paper.w / 2}px)` }}>
+        <div className="mb-3 editor-paper-label self-start" style={{ marginLeft: `calc(50% - ${paper.w / 2}px)` }}>
           {paper.label}
         </div>
 
         {/* Paper card */}
         <div
-          className={`latex-paper flex-shrink-0 relative shadow-[0_4px_24px_rgba(0,0,0,0.18)] ${editMode ? "cursor-text" : ""}`}
+          className={`latex-paper editor-paper flex-shrink-0 relative ${editMode ? "cursor-text" : ""}`}
           style={{
             width: paper.w,
             minHeight: Math.round(paper.w * 1.4142),

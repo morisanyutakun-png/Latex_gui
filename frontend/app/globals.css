@@ -26,11 +26,11 @@
   --ring: 211 100% 50%;
   --radius: 0.75rem;
 
-  /* VSCode-style surface layers (light) */
-  --surface-0: #e8e8ec;
-  --surface-1: #f0f1f3;
-  --surface-2: #f2f3f5;
-  --surface-3: #f8f9fa;
+  /* Surface layers — soft lavender tint for panels */
+  --surface-0: #e6e5f0;
+  --surface-1: #efeefc;
+  --surface-2: #f3f2fd;
+  --surface-3: #f8f7ff;
   --surface-4: #ffffff;
   --surface-5: #ffffff;
 
@@ -69,13 +69,13 @@
   --input: 224 14% 14%;
   --ring: 211 100% 55%;
 
-  /* VSCode-style surface layers (dark) */
-  --surface-0: #0a0c10;
-  --surface-1: #0f1117;
-  --surface-2: #16181c;
-  --surface-3: #1a1c22;
-  --surface-4: #1e2027;
-  --surface-5: #23262e;
+  /* Surface layers — deep cosmic violet for panels */
+  --surface-0: #080714;
+  --surface-1: #0d0b1c;
+  --surface-2: #120f22;
+  --surface-3: #17142a;
+  --surface-4: #1d1932;
+  --surface-5: #231f3a;
 
   /* Darker shadows for dark mode */
   --shadow-xs: 0 1px 2px rgba(0,0,0,0.2);
@@ -443,15 +443,14 @@ html {
 .resize-handle {
   width: 4px;
   cursor: col-resize;
-  /* サイドバー背景と同色にして白い帯を消す */
-  background: var(--surface-2);
+  background: #f3f2fd;
   transition: background 0.15s ease 0.3s;
   position: relative;
   flex-shrink: 0;
   z-index: 10;
 }
 .dark .resize-handle {
-  background: var(--surface-1);
+  background: #0d0b1c;
 }
 .resize-handle:hover,
 .resize-handle.is-dragging {
@@ -773,20 +772,124 @@ html {
   100% { transform: scale(1.45); opacity: 0; }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Eddivom Studio — Editor Design System
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Editor canvas (the workspace around the paper) ── */
+.editor-canvas {
+  background:
+    radial-gradient(ellipse at 28% 15%, rgba(99, 102, 241, 0.09) 0%, transparent 48%),
+    radial-gradient(ellipse at 72% 82%, rgba(139, 92, 246, 0.07) 0%, transparent 44%),
+    radial-gradient(ellipse at 55% 48%, rgba(196, 132, 252, 0.04) 0%, transparent 52%),
+    linear-gradient(160deg, #eceafd 0%, #e9e6f9 30%, #ece8fc 60%, #efecfe 100%);
+  min-height: 100%;
+}
+.dark .editor-canvas {
+  background:
+    radial-gradient(ellipse at 25% 18%, rgba(99, 102, 241, 0.16) 0%, transparent 45%),
+    radial-gradient(ellipse at 75% 78%, rgba(139, 92, 246, 0.13) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, rgba(79, 70, 229, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 12% 65%, rgba(196, 132, 252, 0.07) 0%, transparent 35%),
+    #06050e;
+  min-height: 100%;
+}
+
+/* ── Paper card — gallery presentation ── */
+.editor-paper {
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 8px 32px rgba(99, 102, 241, 0.09),
+    0 20px 64px rgba(0, 0, 0, 0.10);
+  transition: box-shadow 0.3s ease;
+}
+.dark .editor-paper {
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.14),
+    0 2px 12px rgba(0, 0, 0, 0.40),
+    0 8px 48px rgba(99, 102, 241, 0.16),
+    0 32px 96px rgba(0, 0, 0, 0.60);
+}
+.editor-paper:focus-within {
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.10),
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 8px 40px rgba(99, 102, 241, 0.14),
+    0 20px 72px rgba(0, 0, 0, 0.12);
+}
+.dark .editor-paper:focus-within {
+  box-shadow:
+    0 0 0 1px rgba(139, 92, 246, 0.22),
+    0 2px 12px rgba(0, 0, 0, 0.40),
+    0 8px 56px rgba(99, 102, 241, 0.22),
+    0 32px 96px rgba(0, 0, 0, 0.65);
+}
+
+/* Paper size label */
+.editor-paper-label {
+  font-family: "Menlo", "Consolas", "SF Mono", monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: rgba(99, 102, 241, 0.35);
+  text-transform: uppercase;
+  user-select: none;
+}
+.dark .editor-paper-label {
+  color: rgba(139, 92, 246, 0.30);
+}
+
+/* ── App header — Eddivom branded frosted glass ── */
+.editor-header {
+  background: rgba(248, 247, 255, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.10);
+}
+.dark .editor-header {
+  background: rgba(7, 6, 16, 0.90);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.12);
+}
+
+/* ── Edit toolbar — frosted glass ── */
+.editor-toolbar {
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+}
+.dark .editor-toolbar {
+  border-bottom: 1px solid rgba(99, 102, 241, 0.10);
+}
+
+/* ── Status bar — deep premium ── */
+.editor-statusbar {
+  background: rgba(236, 234, 253, 0.95);
+  border-top: 1px solid rgba(99, 102, 241, 0.12);
+}
+.dark .editor-statusbar {
+  background: rgba(5, 4, 12, 0.96);
+  border-top: 1px solid rgba(99, 102, 241, 0.10);
+}
+
 /* ── Chat panel background ── */
 .chat-aurora-panel {
   background:
-    radial-gradient(ellipse at 15% 10%, rgba(99, 102, 241, 0.07) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 45%),
-    radial-gradient(ellipse at 50% 50%, rgba(196, 132, 252, 0.03) 0%, transparent 60%),
-    var(--surface-2);
+    radial-gradient(ellipse at 15% 8%,  rgba(99, 102, 241, 0.10) 0%, transparent 48%),
+    radial-gradient(ellipse at 85% 82%, rgba(139, 92, 246, 0.09) 0%, transparent 42%),
+    radial-gradient(ellipse at 50% 50%, rgba(196, 132, 252, 0.05) 0%, transparent 58%),
+    #f3f2fd;
 }
 .dark .chat-aurora-panel {
   background:
-    radial-gradient(ellipse at 20% 10%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
-    radial-gradient(ellipse at 80% 85%, rgba(139, 92, 246, 0.10) 0%, transparent 40%),
-    radial-gradient(ellipse at 50% 50%, rgba(79, 70, 229, 0.05) 0%, transparent 60%),
-    var(--surface-1);
+    radial-gradient(ellipse at 18% 8%,  rgba(99, 102, 241, 0.18) 0%, transparent 42%),
+    radial-gradient(ellipse at 82% 85%, rgba(139, 92, 246, 0.15) 0%, transparent 38%),
+    radial-gradient(ellipse at 50% 45%, rgba(79, 70, 229, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 30% 70%, rgba(196, 132, 252, 0.06) 0%, transparent 35%),
+    #0d0b1c;
 }
 
 /* ── Message list scroll area ── */

@@ -86,24 +86,22 @@ export function EditToolbar() {
   // テーマカラー
   const theme = isMathEditing
     ? {
-        bg: "bg-gradient-to-r from-violet-50/90 via-violet-50/70 to-background dark:from-violet-950/30 dark:via-violet-950/20 dark:to-background",
-        border: "border-violet-200/50 dark:border-violet-800/30",
-        badge: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-300/40 dark:border-violet-700/40",
+        bg: "bg-[rgba(245,243,255,0.82)] dark:bg-[rgba(18,12,30,0.88)]",
+        badge: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-300/35 dark:border-violet-700/30",
         badgeGlow: "bg-violet-400",
-        selectBorder: "border-violet-200/60 dark:border-violet-800/40 focus:border-violet-400/60",
-        hint: "text-violet-400/70",
+        selectBorder: "border-violet-200/50 dark:border-violet-800/30 focus:border-violet-400/50",
+        hint: "text-violet-400/60",
       }
     : {
-        bg: "bg-gradient-to-r from-sky-50/90 via-sky-50/50 to-background dark:from-sky-950/20 dark:via-sky-950/10 dark:to-background",
-        border: "border-sky-200/40 dark:border-sky-800/20",
-        badge: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-300/40 dark:border-sky-700/40",
-        badgeGlow: "bg-sky-400",
-        selectBorder: "border-sky-200/60 dark:border-sky-800/40 focus:border-sky-400/60",
-        hint: "text-sky-400/70",
+        bg: "bg-[rgba(245,244,255,0.82)] dark:bg-[rgba(10,9,20,0.88)]",
+        badge: "bg-indigo-500/8 text-indigo-600 dark:text-indigo-400 border border-indigo-300/30 dark:border-indigo-700/25",
+        badgeGlow: "bg-indigo-400",
+        selectBorder: "border-indigo-200/40 dark:border-indigo-800/25 focus:border-indigo-400/50",
+        hint: "text-indigo-400/55",
       };
 
   return (
-    <div className={`flex items-center gap-1 px-3 h-10 border-b shrink-0 backdrop-blur-sm transition-all duration-300 ${theme.bg} ${theme.border}`}>
+    <div className={`editor-toolbar flex items-center gap-1 px-3 h-10 shrink-0 transition-all duration-300 ${theme.bg}`}>
 
       {/* モードバッジ */}
       <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold mr-1 shrink-0 transition-all duration-300 ${theme.badge}`}>

@@ -351,6 +351,269 @@ function TrustBadge({ icon, label }: { icon: React.ReactNode; label: string }) {
   );
 }
 
+/* ── Worksheet Paper Mock ── */
+type PrintVariant = "junior" | "senior" | "answer";
+
+const WORKSHEET_DATA: Record<PrintVariant, {
+  titleJa: string; titleEn: string;
+  gradeJa: string; gradeEn: string;
+  accentClass: string;
+  problems: Array<{ q: string; a?: string }>;
+}> = {
+  junior: {
+    titleJa: "一次方程式　練習プリント", titleEn: "Linear Equations Worksheet",
+    gradeJa: "中学2年  数学", gradeEn: "Grade 8 · Mathematics",
+    accentClass: "from-blue-500 to-cyan-500",
+    problems: [
+      { q: "2x + 5 = 11" }, { q: "3x − 7 = 8" }, { q: "−2x + 9 = 1" },
+      { q: "4(x − 2) = 12" }, { q: "5x + 3 = 2x + 12" },
+    ],
+  },
+  senior: {
+    titleJa: "二次方程式　練習プリント", titleEn: "Quadratic Equations Worksheet",
+    gradeJa: "高校1年  数学Ⅰ", gradeEn: "Grade 10 · Math I",
+    accentClass: "from-violet-500 to-fuchsia-500",
+    problems: [
+      { q: "x² − 5x + 6 = 0" }, { q: "2x² + x − 3 = 0" }, { q: "x² − 4 = 0" },
+      { q: "3x² − 7x + 2 = 0" }, { q: "x² + 2x + 1 = 0" },
+    ],
+  },
+  answer: {
+    titleJa: "二次方程式　解答・解説", titleEn: "Quadratic Equations · Answer Key",
+    gradeJa: "高校1年  数学Ⅰ", gradeEn: "Grade 10 · Math I",
+    accentClass: "from-emerald-500 to-teal-500",
+    problems: [
+      { q: "x² − 5x + 6 = 0", a: "x = 2, 3" },
+      { q: "2x² + x − 3 = 0", a: "x = 1,  −3⁄2" },
+      { q: "x² − 4 = 0", a: "x = ±2" },
+      { q: "3x² − 7x + 2 = 0", a: "x = 2, 1⁄3" },
+      { q: "x² + 2x + 1 = 0", a: "x = −1（重解）" },
+    ],
+  },
+};
+
+function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolean }) {
+  const d = WORKSHEET_DATA[variant];
+  return (
+    <div className="bg-white rounded-xl shadow-2xl border border-gray-200/50 overflow-hidden select-none">
+      <div className={`h-1.5 bg-gradient-to-r ${d.accentClass}`} />
+      <div className="p-5 sm:p-6">
+        <div className="flex items-start justify-between mb-3 pb-3 border-b border-gray-200">
+          <div>
+            <p className="text-[7px] text-gray-400 tracking-widest uppercase mb-0.5 font-mono">{isJa ? d.gradeJa : d.gradeEn}</p>
+            <h3 className="text-[15px] font-bold text-gray-900 leading-tight">{isJa ? d.titleJa : d.titleEn}</h3>
+          </div>
+          <div className="border border-gray-300 rounded px-2.5 py-1 text-center shrink-0 ml-3">
+            <p className="text-[7px] text-gray-400">{isJa ? "得点" : "Score"}</p>
+            <div className="h-2.5" />
+            <div className="border-t border-gray-300 mt-0.5 pt-0.5">
+              <p className="text-[7px] text-gray-400">/ 100</p>
+            </div>
+          </div>
+        </div>
+        <p className="text-[9px] text-gray-500 mb-3.5">
+          {variant === "answer"
+            ? (isJa ? "【解答】" : "[Answer Key]")
+            : (isJa ? "【問題】次の方程式を解きなさい。" : "Solve each equation. Show your work.")}
+        </p>
+        <div className="space-y-3">
+          {d.problems.map((p, i) => (
+            <div key={i}>
+              <div className="flex items-baseline gap-2">
+                <span className="text-[9px] font-bold text-gray-500 shrink-0 w-4 text-right">{i + 1}.</span>
+                <span className="text-[13px] font-medium text-gray-800" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{p.q}</span>
+              </div>
+              {p.a ? (
+                <div className="ml-6 mt-1 flex items-center gap-2">
+                  <span className="text-[8px] text-gray-400">{isJa ? "答え" : "Ans."}</span>
+                  <span className="text-[12px] font-bold text-emerald-600" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{p.a}</span>
+                </div>
+              ) : (
+                <div className="ml-6 mt-1.5 h-6 border-b border-dashed border-gray-200" />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 pt-2 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-[7px] text-gray-300 font-mono">Created with Eddivom</span>
+          <span className="text-[7px] text-gray-300 font-mono">1 / 1</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Sample Output Showcase ── */
+function SampleShowcase({ isJa, onTryNow }: { isJa: boolean; onTryNow: () => void }) {
+  const fadeIn = useFadeIn(0);
+  const [active, setActive] = useState<PrintVariant>("junior");
+
+  const tabs: Array<{ id: PrintVariant; ja: string; en: string }> = [
+    { id: "junior", ja: "中学計算プリント", en: "Junior High" },
+    { id: "senior", ja: "高校数式プリント", en: "High School" },
+    { id: "answer", ja: "解答付き版", en: "Answer Key" },
+  ];
+
+  return (
+    <section id="sample-output" ref={fadeIn.ref} className={`relative py-24 overflow-hidden transition-all duration-1000 ${fadeIn.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_50%,hsl(var(--primary)/0.03),transparent_70%)]" />
+      <div className="relative max-w-2xl mx-auto px-6">
+        <div className="text-center mb-10">
+          <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
+            {isJa ? "完成した紙面を見てみる" : "See the finished output"}
+          </p>
+          <h2 className="text-[clamp(1.5rem,4vw,2.4rem)] font-bold tracking-tight mb-4">
+            {isJa ? "こんなプリントが、数分で完成。" : "This is what prints in minutes."}
+          </h2>
+          <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
+            {isJa
+              ? "AIが問題を生成し、LuaLaTeXが美しく組版。印刷品質のPDFが即座に完成します。"
+              : "AI generates the content, LuaLaTeX typesets it. Print-ready PDF in seconds."}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-center gap-2 mb-8 flex-wrap">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActive(tab.id)}
+              className={`px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all duration-200 ${
+                active === tab.id
+                  ? "bg-foreground text-background shadow-md scale-105"
+                  : "bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.08] border border-foreground/[0.06]"
+              }`}
+            >
+              {isJa ? tab.ja : tab.en}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex justify-center">
+          <div className="relative w-full max-w-sm">
+            <div className="absolute inset-0 translate-x-2 translate-y-2 bg-gray-200/60 dark:bg-gray-800/40 rounded-xl opacity-50" />
+            <div className="absolute inset-0 translate-x-1 translate-y-1 bg-gray-100/80 dark:bg-gray-800/25 rounded-xl opacity-70" />
+            <div className="relative">
+              <WorksheetPaper variant={active} isJa={isJa} />
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center mt-12">
+          <button
+            onClick={onTryNow}
+            className="group inline-flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[14px] shadow-xl shadow-blue-500/20 hover:shadow-blue-500/35 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
+          >
+            {isJa ? "このプリントを自分で作る" : "Make this worksheet yourself"}
+            <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+          </button>
+          <p className="text-[11px] text-muted-foreground/40 mt-3">
+            {isJa ? "無料で試せます · カード不要" : "Free to try · No credit card needed"}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── Before / After ── */
+function BeforeAfterSection({ isJa }: { isJa: boolean }) {
+  const fadeIn = useFadeIn(0);
+
+  return (
+    <section ref={fadeIn.ref} className={`relative py-24 border-t border-foreground/[0.04] overflow-hidden transition-all duration-1000 ${fadeIn.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_50%,hsl(var(--primary)/0.025),transparent_70%)]" />
+      <div className="relative max-w-5xl mx-auto px-6">
+        <div className="text-center mb-14">
+          <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
+            Before / After
+          </p>
+          <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
+            {isJa ? "古い教材が、3ステップで新品に。" : "Old worksheet → polished printout in 3 steps."}
+          </h2>
+          <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
+            {isJa
+              ? "過去問・スキャン・古いPDF。何からでも始められます。"
+              : "Start from any old worksheet, scan, or PDF — Eddivom handles the rest."}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 md:gap-4 items-start">
+          {/* Before */}
+          <div className="flex flex-col items-center gap-3">
+            <span className="text-[10px] font-bold tracking-wider uppercase px-3 py-1 rounded-full border border-foreground/[0.08] text-muted-foreground/50 bg-foreground/[0.02]">
+              {isJa ? "元の教材" : "Before"}
+            </span>
+            <div className="relative w-full max-w-[230px] mx-auto">
+              <div className="bg-[#fdfcf4] dark:bg-[#2c2a1e] rounded-lg border border-amber-200/40 dark:border-amber-800/30 shadow-lg p-5 rotate-[-1.5deg] hover:rotate-0 transition-transform duration-300">
+                <div className="space-y-1 mb-3">
+                  <div className="h-2 bg-gray-700/30 rounded-full w-2/3 mx-auto" />
+                  <div className="h-1.5 bg-gray-500/20 rounded-full w-1/2 mx-auto" />
+                </div>
+                <div className="border-t border-gray-400/20 pt-3 space-y-3 opacity-70">
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="flex gap-1.5">
+                      <span className="text-[8px] text-gray-500/60 mt-0.5 shrink-0">({n})</span>
+                      <div className="flex-1 space-y-1">
+                        <div className="h-1 bg-gray-600/20 rounded-full w-full" />
+                        <div className="h-1 bg-gray-500/15 rounded-full w-4/5" />
+                        <div className="h-6 border-b border-dashed border-gray-400/20" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="absolute inset-0 rounded-lg pointer-events-none opacity-[0.06]"
+                  style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.02) 3px, rgba(0,0,0,0.02) 4px)" }} />
+              </div>
+            </div>
+            <p className="text-[12px] text-muted-foreground/70 text-center leading-snug">
+              {isJa ? "過去問・古いプリント・スキャンPDF" : "Old exams, scanned worksheets, PDFs"}
+            </p>
+          </div>
+
+          {/* Steps connector */}
+          <div className="hidden md:flex flex-col items-center justify-start gap-1 pt-10 min-w-[120px]">
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                <Upload className="h-4 w-4 text-white" />
+              </div>
+              <p className="text-[9px] text-muted-foreground/50 text-center leading-tight">
+                {isJa ? "アップロード\nAI抽出" : "Upload\nAI extract"}
+              </p>
+              <div className="h-6 w-px bg-gradient-to-b from-violet-500/30 to-fuchsia-500/30" />
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                <PenLine className="h-4 w-4 text-white" />
+              </div>
+              <p className="text-[9px] text-muted-foreground/50 text-center leading-tight">
+                {isJa ? "編集・類題\n追加" : "Edit &\nadd variants"}
+              </p>
+              <div className="h-6 w-px bg-gradient-to-b from-fuchsia-500/30 to-emerald-500/30" />
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                <FileDown className="h-4 w-4 text-white" />
+              </div>
+              <p className="text-[9px] text-muted-foreground/50 text-center leading-tight">
+                {isJa ? "PDF出力" : "Export PDF"}
+              </p>
+            </div>
+          </div>
+
+          {/* After */}
+          <div className="flex flex-col items-center gap-3">
+            <span className="text-[10px] font-bold tracking-wider uppercase px-3 py-1 rounded-full border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/[0.06]">
+              {isJa ? "完成品" : "After"}
+            </span>
+            <div className="relative w-full max-w-[230px] mx-auto">
+              <WorksheetPaper variant="answer" isJa={isJa} />
+            </div>
+            <p className="text-[12px] text-muted-foreground/70 text-center leading-snug">
+              {isJa ? "美しく組版された印刷品質のPDF" : "Beautifully typeset, print-ready PDF"}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function TemplateGallery() {
   const router = useRouter();
   const setDocument = useDocumentStore((s) => s.setDocument);
@@ -370,6 +633,9 @@ export function TemplateGallery() {
   const scrollToPricing = () => {
     document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
   };
+  const scrollToSample = () => {
+    document.getElementById("sample-output")?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
     const t = setTimeout(() => setHeroLoaded(true), 60);
@@ -379,10 +645,12 @@ export function TemplateGallery() {
   const handleStart = async () => {
     // 認証が設定されている場合のみログインチェック
     try {
+      // @ts-ignore — next-auth is optional; absence is caught below
       const { getSession } = await import("next-auth/react");
       const session = await getSession();
       if (!session) {
         // セッション取得できるが未ログイン → ログインへ
+        // @ts-ignore
         const { signIn } = await import("next-auth/react");
         signIn("google", { callbackUrl: "/editor?new=1" });
         return;
@@ -493,10 +761,10 @@ export function TemplateGallery() {
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
               <button
-                onClick={scrollToPricing}
+                onClick={scrollToSample}
                 className="group flex items-center gap-3 px-8 py-4 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
               >
-                {isJa ? "料金プランを見る" : "See plans & pricing"}
+                {isJa ? "完成イメージを見る" : "See sample output"}
                 <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
               </button>
             </div>
@@ -526,6 +794,8 @@ export function TemplateGallery() {
           <TrustBadge icon={<Star className="h-3.5 w-3.5" />} label={isJa ? "数式・図・化学式対応" : "Math, diagrams, chemistry"} />
         </div>
       </section>
+
+      <SampleShowcase isJa={isJa} onTryNow={handleStart} />
 
       {/* ━━ Who is this for ━━ */}
       <section className="relative py-24 overflow-hidden">
@@ -658,6 +928,8 @@ export function TemplateGallery() {
           </div>
         </div>
       </section>
+
+      <BeforeAfterSection isJa={isJa} />
 
       {/* ━━ Workflow ━━ */}
       <section className="relative py-28 overflow-hidden">

@@ -65,7 +65,7 @@ export function StatusBar() {
   const zoomPercent = Math.round(zoom * 100);
 
   return (
-    <div className="status-bar-accent flex items-center justify-between h-[22px] px-2 shrink-0 select-none bg-surface-1 dark:bg-surface-0 text-foreground/50 border-t border-foreground/[0.06]">
+    <div className="status-bar-accent editor-statusbar flex items-center justify-between h-[22px] px-2 shrink-0 select-none text-foreground/50">
       {/* Left — block info (VSCode-style) */}
       <div className="flex items-center gap-0 text-[11px] font-mono">
         <span className="px-1.5 h-full flex items-center text-primary-foreground/90 bg-primary/80 text-[10px] font-semibold tracking-wide">

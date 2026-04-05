@@ -199,7 +199,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
   return (
     <header
-      className="relative flex items-center gap-2 px-3 h-12 border-b border-border/40 bg-background/80 backdrop-blur-xl sticky top-0 z-40 shrink-0"
+      className="editor-header relative flex items-center gap-2 px-3 h-12 sticky top-0 z-40 shrink-0"
     >
 
       {/* Logo + Back */}
