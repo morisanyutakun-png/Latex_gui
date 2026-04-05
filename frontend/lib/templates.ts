@@ -168,6 +168,63 @@ function letterBlocks(): Block[] {
 }
 
 // ──────────────────────────────────────────
+// exam — 試験問題・テスト用紙
+// ──────────────────────────────────────────
+function examBlocks(): Block[] {
+  return [
+    b({ type: "heading", text: "数学 I　確認テスト", level: 1 }, { textAlign: "center", fontSize: 20 }),
+    b({ type: "paragraph", text: "組　　番号　　名前　　　　　　　　" }, { textAlign: "right" }),
+    b({ type: "divider", style: "solid" }),
+    b({ type: "paragraph", text: "以下の問いに答えなさい。（各10点、計50点）" }),
+    b({ type: "heading", text: "第1問　計算問題", level: 2 }),
+    b({ type: "paragraph", text: "次の計算をせよ。" }),
+    b({ type: "list", style: "numbered", items: [
+      "$3x^2 + 5x - 2 = 0$ を解け。",
+      "$\\log_2 8 + \\log_2 4$ の値を求めよ。",
+    ] }),
+    b({ type: "heading", text: "第2問　関数", level: 2 }),
+    b({ type: "paragraph", text: "関数 $f(x) = x^2 - 4x + 3$ について、次の問いに答えよ。" }),
+    b({ type: "list", style: "numbered", items: [
+      "頂点の座標を求めよ。",
+      "$f(x) = 0$ となる $x$ の値を全て求めよ。",
+      "$0 \\leq x \\leq 5$ における最大値と最小値を求めよ。",
+    ] }),
+    b({ type: "heading", text: "第3問　数列", level: 2 }),
+    b({ type: "paragraph", text: "初項 $a_1 = 3$、公差 $d = 4$ の等差数列 $\\{a_n\\}$ について答えよ。" }),
+    b({ type: "list", style: "numbered", items: [
+      "$a_{10}$ の値を求めよ。",
+      "初項から第 $n$ 項までの和 $S_n$ を求めよ。",
+    ] }),
+  ];
+}
+
+// ──────────────────────────────────────────
+// worksheet — 演習プリント・ワークシート
+// ──────────────────────────────────────────
+function worksheetBlocks(): Block[] {
+  return [
+    b({ type: "heading", text: "練習問題プリント", level: 1 }, { textAlign: "center", fontSize: 20 }),
+    b({ type: "paragraph", text: "単元：二次関数　　年　組　番　名前　　　　　　" }),
+    b({ type: "divider", style: "solid" }),
+    b({ type: "heading", text: "基本問題", level: 2 }),
+    b({ type: "paragraph", text: "次の二次関数のグラフの頂点と軸を求めなさい。" }),
+    b({ type: "list", style: "numbered", items: [
+      "$y = x^2 - 6x + 5$",
+      "$y = -2x^2 + 8x - 3$",
+      "$y = 3(x-1)^2 + 4$",
+    ] }),
+    b({ type: "heading", text: "応用問題", level: 2 }),
+    b({ type: "paragraph", text: "次の問いに答えなさい。途中の計算過程も書くこと。" }),
+    b({ type: "list", style: "numbered", items: [
+      "二次関数 $y = x^2 + ax + b$ が点 $(1, 3)$ と $(2, 5)$ を通るとき、$a, b$ の値を求めよ。",
+      "$x^2 - 2x - 3 > 0$ を満たす $x$ の範囲を求めよ。",
+    ] }),
+    b({ type: "heading", text: "発展問題", level: 2 }),
+    b({ type: "paragraph", text: "二次関数 $f(x) = x^2 - 2ax + a + 2$ が $0 \\leq x \\leq 3$ で常に正となる $a$ の範囲を求めよ。" }),
+  ];
+}
+
+// ──────────────────────────────────────────
 // blank — 白紙
 // ──────────────────────────────────────────
 function blankBlocks(): Block[] {
@@ -248,6 +305,28 @@ export const TEMPLATES: TemplateDefinition[] = [
     documentClass: "letter",
     defaultPreset: "slate-minimal",
     blocks: letterBlocks,
+  },
+  {
+    id: "exam",
+    name: "試験問題・テスト",
+    description: "定期テスト・小テスト・確認テストに",
+    gradient: "from-rose-500 via-red-400 to-orange-400",
+    accentColor: "bg-rose-500",
+    icon: "📝",
+    documentClass: "article",
+    defaultPreset: "none",
+    blocks: examBlocks,
+  },
+  {
+    id: "worksheet",
+    name: "演習プリント",
+    description: "授業用の練習問題・ワークシートに",
+    gradient: "from-teal-500 via-cyan-400 to-sky-400",
+    accentColor: "bg-teal-500",
+    icon: "📋",
+    documentClass: "article",
+    defaultPreset: "none",
+    blocks: worksheetBlocks,
   },
   {
     id: "blank",

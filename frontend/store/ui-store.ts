@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { ChatMessage, DocumentPatch } from "@/lib/types";
+import { Block, ChatMessage, DocumentPatch } from "@/lib/types";
 
 export type PaperSize = "a4" | "a3" | "b5" | "letter";
 export type GuideContext = "none" | "math" | "heading" | "list" | "table" | "code" | "general";
@@ -39,6 +39,14 @@ interface UIState {
   // Programmatic chat message (e.g. from 類題作成)
   pendingChatMessage: string | null;
 
+  // OMR split-view mode
+  omrMode: boolean;
+  omrSourceUrl: string | null;       // Object URL for file preview
+  omrSourceName: string | null;
+  omrExtractedBlocks: Block[];
+  omrProcessing: boolean;
+  omrProgress: string;
+
   selectBlock: (id: string | null) => void;
   setEditingBlock: (id: string | null) => void;
   setMathEditing: (v: boolean) => void;
@@ -65,6 +73,13 @@ interface UIState {
   updateStreamingContent: (id: string, content: string) => void;
   setStreamingComplete: (id: string) => void;
   setPendingChatMessage: (msg: string | null) => void;
+
+  // OMR actions
+  openOMR: (sourceUrl: string, sourceName: string) => void;
+  closeOMR: () => void;
+  setOMRBlocks: (blocks: Block[]) => void;
+  setOMRProcessing: (v: boolean) => void;
+  setOMRProgress: (msg: string) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -84,6 +99,12 @@ export const useUIStore = create<UIState>((set) => ({
   isChatLoading: false,
   streamingMessageId: null,
   pendingChatMessage: null,
+  omrMode: false,
+  omrSourceUrl: null,
+  omrSourceName: null,
+  omrExtractedBlocks: [],
+  omrProcessing: false,
+  omrProgress: "",
 
   selectBlock: (id) => set(
     id === null
@@ -123,4 +144,13 @@ export const useUIStore = create<UIState>((set) => ({
     streamingMessageId: null,
   })),
   setPendingChatMessage: (msg) => set({ pendingChatMessage: msg }),
+
+  openOMR: (sourceUrl, sourceName) => set({ omrMode: true, omrSourceUrl: sourceUrl, omrSourceName: sourceName, omrExtractedBlocks: [], omrProcessing: false, omrProgress: "" }),
+  closeOMR: () => set((s) => {
+    if (s.omrSourceUrl) URL.revokeObjectURL(s.omrSourceUrl);
+    return { omrMode: false, omrSourceUrl: null, omrSourceName: null, omrExtractedBlocks: [], omrProcessing: false, omrProgress: "" };
+  }),
+  setOMRBlocks: (blocks) => set({ omrExtractedBlocks: blocks }),
+  setOMRProcessing: (v) => set({ omrProcessing: v }),
+  setOMRProgress: (msg) => set({ omrProgress: msg }),
 }));

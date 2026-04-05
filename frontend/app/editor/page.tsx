@@ -23,6 +23,7 @@ import { createDefaultDocument } from "@/lib/types";
 import { Terminal, Sparkles, FileCode2, Globe, FileText, X, BookOpen, Sigma, ClipboardCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { EditorHints } from "@/components/layout/editor-hints";
+import { OMRSplitView } from "@/components/omr/omr-split-view";
 
 type SidebarTab = "ai" | "advanced" | "latex" | "guide" | "math" | "scoring";
 
@@ -205,6 +206,9 @@ export default function EditorPage() {
 
   return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden">
+      {/* OMR split-view overlay */}
+      <OMRSplitView />
+
       {/* Header — spans full width */}
       <AppHeader isAIActive={isAIActive} />
 

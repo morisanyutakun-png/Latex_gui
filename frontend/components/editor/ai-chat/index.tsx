@@ -708,19 +708,27 @@ export function AIChatPanel() {
 function _summarizeToolResult(name: string, result: Record<string, unknown>): string {
   switch (name) {
     case "read_document":
-      return `${result.blockCount || 0}ブロックの文書を読み込み`;
+      return `Read: ${result.blockCount || 0}ブロックの文書を読み込み`;
     case "search_blocks":
-      return `${result.count || 0}件の一致`;
+      return `Search: ${result.count || 0}件の一致`;
     case "edit_document": {
       const summary = (result.summary as string) || "適用完了";
       const bc = result.current_block_count;
-      return bc ? `${summary} (計${bc}ブロック)` : summary;
+      return `Write: ${bc ? `${summary} (計${bc}ブロック)` : summary}`;
     }
-    case "compile_check":
-      return result.success ? "OK" : (result.message as string) || "エラーあり";
+    case "compile_check": {
+      const msg = result.message as string;
+      if (result.success) {
+        const pdfSize = result.pdf_size ? ` (PDF ${Math.round((result.pdf_size as number) / 1024)}KB)` : "";
+        return `Build ✓: ${msg || "コンパイル成功"}${pdfSize}`;
+      }
+      const errors = result.issues as string[] | undefined;
+      const firstError = errors?.[0] || msg || "エラー";
+      return `Build ✗: ${firstError.slice(0, 100)}`;
+    }
     case "get_latex_source":
-      return `${result.total_length || 0}文字のLaTeX`;
+      return `Inspect: ${result.total_length || 0}文字のLaTeX`;
     default:
-      return JSON.stringify(result).slice(0, 60);
+      return JSON.stringify(result).slice(0, 80);
   }
 }

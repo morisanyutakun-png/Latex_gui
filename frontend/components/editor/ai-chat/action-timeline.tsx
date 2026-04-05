@@ -2,15 +2,15 @@ import React from "react";
 import { ThinkingStep } from "@/lib/types";
 import {
   Brain, Terminal, CheckCircle, AlertCircle, ChevronRight,
-  FileText, Search, Wrench, Code2, Eye,
+  Search, Wrench, Code2, BookOpen, Hammer,
 } from "lucide-react";
 import { formatDuration } from "./utils";
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
-  read_document: FileText,
+  read_document: BookOpen,
   search_blocks: Search,
   edit_document: Wrench,
-  compile_check: CheckCircle,
+  compile_check: Hammer,
   get_latex_source: Code2,
 };
 

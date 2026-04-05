@@ -2,24 +2,24 @@ import React from "react";
 import { ThinkingStep } from "@/lib/types";
 import {
   Bot, Brain, Terminal, CheckCircle, AlertCircle,
-  Search, FileText, Wrench, Code2, Eye,
+  Search, FileText, Wrench, Code2, Eye, Hammer, BookOpen,
 } from "lucide-react";
 import { formatDuration } from "./utils";
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
-  read_document: FileText,
+  read_document: BookOpen,
   search_blocks: Search,
   edit_document: Wrench,
-  compile_check: CheckCircle,
+  compile_check: Hammer,
   get_latex_source: Code2,
 };
 
 const TOOL_LABELS: Record<string, string> = {
-  read_document: "文書を読み込み中",
-  search_blocks: "ブロックを検索中",
-  edit_document: "文書を編集中",
-  compile_check: "コンパイルチェック中",
-  get_latex_source: "LaTeXソースを取得中",
+  read_document: "Read — 文書を読み込み中",
+  search_blocks: "Search — ブロックを検索中",
+  edit_document: "Write — 文書を編集中",
+  compile_check: "Build — LuaLaTeX コンパイル中",
+  get_latex_source: "Inspect — LaTeXソースを取得中",
 };
 
 export function ThinkingIndicator({

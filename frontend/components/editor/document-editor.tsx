@@ -89,7 +89,7 @@ function BlockInsertLine({ index }: { index: number }) {
   };
 
   return (
-    <div className="group/insert relative h-2 -my-0.5 flex items-center justify-center z-10">
+    <div className="group/insert relative h-0 hover:h-2 -my-px flex items-center justify-center z-10 transition-[height] duration-100">
       {/* Hover line */}
       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-primary/0 group-hover/insert:bg-primary/20 transition-colors" />
       {/* Buttons */}

@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { generatePDF, streamOMRAnalyze } from "@/lib/api";
-import type { OMRStreamEvent } from "@/lib/api";
+import { generatePDF } from "@/lib/api";
 import { saveToLocalStorage, downloadAsJSON } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
@@ -63,8 +62,6 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
   const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
   const { isGenerating, setGenerating, lastAIAction, toggleOutline, isOutlineOpen, isChatLoading } = useUIStore();
   const [indicatorVisible, setIndicatorVisible] = useState(false);
-  const [isOMRProcessing, setOMRProcessing] = useState(false);
-  const [omrProgress, setOmrProgress] = useState<string>("");
   const omrFileRef = useRef<HTMLInputElement>(null);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
@@ -132,99 +129,9 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
     if (!file || !doc) return;
     e.target.value = "";
 
-    setOMRProcessing(true);
-    setOmrProgress(isJa ? "ファイルを準備中..." : "Preparing file...");
-    try {
-      const result = await streamOMRAnalyze(
-        file,
-        doc,
-        (event: OMRStreamEvent) => {
-          if (event.type === "progress") {
-            setOmrProgress(event.message);
-          }
-        },
-      );
-      if (result.patches && result.patches.ops && result.patches.ops.length > 0) {
-        setOmrProgress(isJa ? "ブロックを適用中..." : "Applying blocks...");
-        // OMR結果を既存文書の末尾に差分追加する
-        const currentBlocks = useDocumentStore.getState().document?.blocks ?? [];
-        const lastBlockId = currentBlocks.length > 0 ? currentBlocks[currentBlocks.length - 1].id : null;
-
-        // 全 add_block の afterId チェーンを修復して末尾に追加
-        const addOps = result.patches.ops.filter(op => op.op === "add_block");
-        const otherOps = result.patches.ops.filter(op => op.op !== "add_block");
-        let prevId = lastBlockId;
-        const fixedAddOps = addOps.map((op) => {
-          if (op.op !== "add_block") return op;
-          const addOp = op as Extract<typeof op, { op: "add_block" }>;
-          const fixedOp = { ...addOp, afterId: prevId };
-          prevId = addOp.block?.id ?? prevId;
-          return fixedOp;
-        });
-        const adjustedOps = [...fixedAddOps, ...otherOps];
-
-        console.log("[OMR] Applying patches:", adjustedOps.length, "ops");
-        useDocumentStore.getState().applyPatch({ ops: adjustedOps });
-        const appliedCount = addOps.length;
-        toast.success(isJa
-          ? `${appliedCount}件のブロックを追加しました`
-          : `Added ${appliedCount} blocks`);
-
-        // 最新ドキュメントで自動PDF生成
-        const updatedDoc = useDocumentStore.getState().document;
-        if (updatedDoc) {
-          setGenerating(true);
-          setOmrProgress(isJa ? "PDF生成中..." : "Generating PDF...");
-          try {
-            const blob = await generatePDF(updatedDoc);
-            const defaultName = `${updatedDoc.metadata.title || "document"}.pdf`;
-            if ("showSaveFilePicker" in window) {
-              try {
-                const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
-                  suggestedName: defaultName,
-                  types: [{ description: "PDF Document", accept: { "application/pdf": [".pdf"] } }],
-                });
-                const writable = await handle.createWritable();
-                await writable.write(blob);
-                await writable.close();
-                toast.success(t("toast.pdf.done"));
-              } catch (saveErr) {
-                if (saveErr instanceof DOMException && saveErr.name === "AbortError") return;
-                setPdfBlob(blob);
-                setPdfFilename(defaultName);
-                setShowSaveDialog(true);
-              }
-            } else {
-              setPdfBlob(blob);
-              setPdfFilename(defaultName);
-              setShowSaveDialog(true);
-            }
-          } catch (pdfErr: unknown) {
-            const message = pdfErr instanceof Error ? pdfErr.message : "PDF生成エラー";
-            toast.error(`PDF生成失敗: ${message}`, { duration: 8000 });
-          } finally {
-            setGenerating(false);
-          }
-        }
-      } else {
-        const desc = result.description || "";
-        if (desc) {
-          toast.error(isJa
-            ? `読み取りに失敗しました: ${desc}`
-            : `Scan failed: ${desc}`, { duration: 8000 });
-        } else {
-          toast.error(isJa
-            ? "ブロックを抽出できませんでした。ファイルが読み取り可能か確認してください。"
-            : "No blocks extracted. Please check if the file is readable.", { duration: 8000 });
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "OMR解析エラー";
-      toast.error(msg, { duration: 8000 });
-    } finally {
-      setOMRProcessing(false);
-      setOmrProgress("");
-    }
+    // OMR split-view モードを開く
+    const sourceUrl = URL.createObjectURL(file);
+    useUIStore.getState().openOMR(sourceUrl, file.name);
   };
 
   // PDF保存ダイアログ（ファイル名入力）
@@ -384,19 +291,13 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         <input ref={omrFileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={handleOMRFromToolbar} />
         <button
           onClick={() => omrFileRef.current?.click()}
-          disabled={isOMRProcessing || isGenerating}
+          disabled={isGenerating}
           className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[13px] font-medium border border-emerald-300/40 dark:border-emerald-700/40 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/80 dark:hover:bg-emerald-950/40 hover:border-emerald-400/60 dark:hover:border-emerald-600/50 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97] shrink-0"
-          title={omrProgress || (isJa ? "画像やPDFをAIが読み取り、自動でドキュメントに変換します" : "AI reads images/PDFs and converts them to document blocks")}
+          title={isJa ? "画像やPDFをAIが読み取り、自動でドキュメントに変換します" : "AI reads images/PDFs and converts them to document blocks"}
         >
-          {isOMRProcessing ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <ScanLine className="h-3.5 w-3.5" />
-          )}
+          <ScanLine className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">
-            {isOMRProcessing && omrProgress
-              ? omrProgress
-              : isJa ? "読み取り" : "Scan"}
+            {isJa ? "読み取り" : "Scan"}
           </span>
         </button>
 
