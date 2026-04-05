@@ -86,16 +86,47 @@ INLINE_MATH_PACKAGES = [
 ]
 
 
+# latex ブロック内で使用される可能性のあるパッケージを自動検出するマッピング
+# キー: LaTeX ソース中に現れるパターン, 値: 必要なパッケージ
+_LATEX_BLOCK_PACKAGE_PATTERNS: list[tuple[str, list[str]]] = [
+    ("tcolorbox", ["\\usepackage{tcolorbox}"]),
+    ("multicol", ["\\usepackage{multicol}"]),
+    ("\\begin{tikzpicture}", [
+        "\\usepackage{tikz}",
+        "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,decorations.markings,automata,fit}",
+    ]),
+    ("pgfplots", ["\\usepackage{pgfplots}", "\\pgfplotsset{compat=1.18}"]),
+    ("\\ce{", ["\\usepackage[version=4]{mhchem}"]),
+    ("circuitikz", ["\\usepackage{tikz}", "\\usepackage{circuitikz}"]),
+    ("\\SI{", ["\\usepackage{siunitx}"]),
+    ("fancyhdr", ["\\usepackage{fancyhdr}"]),
+    ("\\begin{figure}", ["\\usepackage{graphicx}"]),
+    ("\\includegraphics", ["\\usepackage{graphicx}"]),
+    ("\\begin{tabular", ["\\usepackage{booktabs}"]),
+    ("\\begin{align", ["\\usepackage{amsmath,amssymb,amsthm}", "\\usepackage{mathtools}"]),
+    ("\\frac{", ["\\usepackage{amsmath,amssymb,amsthm}"]),
+]
+
+
 def _detect_required_packages(doc: DocumentModel, engine: str = "lualatex") -> list[str]:
     """Scan all blocks and determine which packages are needed."""
     block_types_used: set[str] = set()
     has_inline_math = False
+    latex_block_codes: list[str] = []
 
     for block in doc.blocks:
-        block_types_used.add(block.content.type)
+        try:
+            block_types_used.add(block.content.type)
+        except (AttributeError, TypeError):
+            continue
         if block.content.type == "paragraph":
-            if "$" in block.content.text:
+            if hasattr(block.content, 'text') and "$" in block.content.text:
                 has_inline_math = True
+        # latex ブロックのコードを収集して後でパッケージ検出に使用
+        if block.content.type == "latex":
+            code = getattr(block.content, 'code', '') or ''
+            if code:
+                latex_block_codes.append(code)
 
     seen: set[str] = set()
     packages: list[str] = []
@@ -106,7 +137,6 @@ def _detect_required_packages(doc: DocumentModel, engine: str = "lualatex") -> l
             packages.append(line)
 
     # Always-required base packages (LuaLaTeX + luatexja)
-    # engine 引数は後方互換のため残すが、常に luatexja-preset を使用
     add("\\usepackage[haranoaji]{luatexja-preset}")
     add("\\usepackage{xcolor}")
     add("\\usepackage{hyperref}")
@@ -121,6 +151,14 @@ def _detect_required_packages(doc: DocumentModel, engine: str = "lualatex") -> l
         if btype in BLOCK_PACKAGE_MAP:
             for pkg in BLOCK_PACKAGE_MAP[btype]:
                 add(pkg)
+
+    # latex ブロック内のコードからパッケージを自動検出
+    if latex_block_codes:
+        all_latex_code = "\n".join(latex_block_codes)
+        for pattern, pkgs in _LATEX_BLOCK_PACKAGE_PATTERNS:
+            if pattern in all_latex_code:
+                for pkg in pkgs:
+                    add(pkg)
 
     return packages
 

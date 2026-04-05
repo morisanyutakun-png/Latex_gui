@@ -146,7 +146,17 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       );
       if (result.patches && result.patches.ops && result.patches.ops.length > 0) {
         setOmrProgress(isJa ? "ブロックを適用中..." : "Applying blocks...");
-        useDocumentStore.getState().applyPatch(result.patches);
+        // OMR結果を既存文書の末尾に差分追加する
+        // 最初のブロック(afterId=null)を最後の既存ブロックの後に配置
+        const currentBlocks = useDocumentStore.getState().document?.blocks ?? [];
+        const lastBlockId = currentBlocks.length > 0 ? currentBlocks[currentBlocks.length - 1].id : null;
+        const adjustedOps = result.patches.ops.map((op, i) => {
+          if (op.op === "add_block" && i === 0 && op.afterId === null) {
+            return { ...op, afterId: lastBlockId };
+          }
+          return op;
+        });
+        useDocumentStore.getState().applyPatch({ ops: adjustedOps });
         toast.success(isJa
           ? `${result.patches.ops.length}件のブロックを追加しました`
           : `Added ${result.patches.ops.length} blocks`);

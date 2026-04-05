@@ -495,7 +495,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   }, [content.text]);
 
   // Auto-focus — isEditing変更時にtextareaにフォーカスを当てる
-  // requestAnimationFrameで確実にDOM更新後に実行
   useEffect(() => {
     if (isEditing) {
       const tryFocus = () => {
@@ -506,12 +505,19 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           textareaRef.current.selectionEnd = len;
         }
       };
-      // DOM更新を2フレーム待ってフォーカス（マウント直後に確実に当てる）
       requestAnimationFrame(() => requestAnimationFrame(tryFocus));
     }
     if (!isEditing && mathMode) { finishMathMode(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing]);
+
+  // Auto-resize — 通常モードtextareaの高さ自動調整
+  useEffect(() => {
+    if (textareaRef.current && isEditing && !mathMode) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
+    }
+  }, [content.text, isEditing, mathMode]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -637,8 +643,12 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     }
   }, [mathMode, finishMathMode, mathAnchor, showPalette, filteredPalette, paletteIdx, handleSelectPaletteItem, block.id, addBlock, content.text, enterMathMode, updateContent, setMathEditing]);
 
+  // fontSize を 8〜24pt にクランプして異常な大きさを防止
+  const clampedFontSize = block.style.fontSize
+    ? Math.max(8, Math.min(24, block.style.fontSize))
+    : undefined;
   const baseStyle: React.CSSProperties = {
-    fontSize: block.style.fontSize ? `${block.style.fontSize}pt` : undefined,
+    fontSize: clampedFontSize ? `${clampedFontSize}pt` : undefined,
     fontFamily: block.style.fontFamily === "serif" ? '"Hiragino Mincho ProN", serif' : '"Hiragino Sans", sans-serif',
     textAlign: block.style.textAlign || "left",
     fontWeight: block.style.bold ? "bold" : undefined,
@@ -675,18 +685,36 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const tokensBeforeCursor = mathMode && beforeCursor && !imeComposing ? highlightMathTokens(beforeCursor) : [];
   const tokensAfterCursor  = mathMode && afterCursor  && !imeComposing ? highlightMathTokens(afterCursor)  : [];
 
+  // 通常編集モード（数式モードでない）では直接textareaを表示してネイティブ編集
+  const showDirectTextarea = showTextarea && isEditing && !mathMode;
+
   return (
     <div className="relative">
-      {/* ── 紙面: 常にレンダリング済み表示のみ ── */}
+      {/* ── 通常編集モード: 直接 textarea を表示（選択・カーソル操作がネイティブに動く） ── */}
+      {showDirectTextarea ? (
+        <textarea
+          ref={textareaRef}
+          value={content.text}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={() => setImeComposing(true)}
+          onCompositionEnd={() => { setImeComposing(false); }}
+          onFocus={() => setHasFocus(true)}
+          onBlur={() => setHasFocus(false)}
+          placeholder={isJa ? "テキストを入力... (Tab で数式モード)" : "Type text... (Tab for math)"}
+          className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 focus-visible:outline-none p-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em]"
+          style={baseStyle}
+          rows={1}
+        />
+      ) : (
+      /* ── 表示モード / 数式モード: レンダリング済み表示 ── */
       <div
         className={`px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text`}
         style={baseStyle}
         onClick={() => {
-          // textareaがまだ存在しない場合は編集状態に入る
           if (!showTextarea) {
             setEditingBlock(block.id);
           }
-          // 次のtickでfocusを当てる（state更新でtextareaがマウントされるのを待つ）
           setTimeout(() => textareaRef.current?.focus(), 0);
         }}
       >
@@ -703,20 +731,19 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             <MathRenderer latex={composingLatex} displayMode={false} />
           </span>
         )}
-        {/* IME変換中はそのまま表示 */}
         {mathMode && imeComposing && composingText && (
           <span className="text-violet-500/60">{composingText}</span>
         )}
-        {/* 入力がまだLaTeXに変換できない短いテキストの場合 */}
         {mathMode && composingText && !imeComposing && !composingLatex && (
           <span className="text-violet-500/60">{composingText}</span>
         )}
 
-        {/* 擬似カーソル */}
-        {showCursor && (
-          <span className={`inline-block w-[2px] h-[1.1em] align-middle animate-[cursor-blink_1s_step-end_infinite] ${mathMode ? "bg-violet-500" : "bg-foreground"}`} />
+        {/* 擬似カーソル（数式モード時のみ） */}
+        {showCursor && mathMode && (
+          <span className="inline-block w-[2px] h-[1.1em] align-middle animate-[cursor-blink_1s_step-end_infinite] bg-violet-500" />
         )}
       </div>
+      )}
 
       {/* ── 数式モード 下段: 自然言語入力 (IDE風シンタックスハイライト) ── */}
       {mathMode && (
@@ -770,19 +797,19 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
         </div>
       )}
 
-      {/* ── textarea（画面外に隠蔽 — キー入力のみ受け取る） ── */}
-      {showTextarea && (
+      {/* ── textarea（数式モード時のみ隠蔽 — キー入力のみ受け取る） ── */}
+      {showTextarea && mathMode && (
         <textarea
           ref={textareaRef}
           value={content.text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          onKeyUp={() => { if (mathMode && textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart); }}
-          onSelect={() => { if (mathMode && textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart); }}
+          onKeyUp={() => { if (textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart); }}
+          onSelect={() => { if (textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart); }}
           onCompositionStart={() => setImeComposing(true)}
           onCompositionEnd={() => {
             setImeComposing(false);
-            if (mathMode && textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart);
+            if (textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart);
           }}
           onFocus={() => setHasFocus(true)}
           onBlur={() => setHasFocus(false)}
