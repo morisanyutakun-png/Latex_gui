@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
-  Trash2, KeyRound, ScanLine, Terminal,
+  Sparkles, Trash2, KeyRound, ScanLine, PenLine, Calculator, TableProperties, Bug,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
@@ -535,16 +535,19 @@ export function AIChatPanel() {
   return (
     <div className="flex flex-col h-full bg-surface-2 dark:bg-surface-1">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 shrink-0 bg-surface-1 dark:bg-surface-0">
-        <div className="h-5 w-5 rounded bg-slate-600 dark:bg-slate-500 flex items-center justify-center shrink-0">
-          <Terminal className="h-3 w-3 text-white" />
+      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0 bg-white/80 dark:bg-surface-0/90 backdrop-blur-sm">
+        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
+          <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
-        <p className="flex-1 min-w-0 text-xs font-semibold text-foreground/80 truncate">LaTeX Assistant</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-foreground/90 truncate leading-tight">Eddivom AI</p>
+          <p className="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">LaTeX 編集アシスタント</p>
+        </div>
         <div className="flex items-center gap-1">
           {chatMessages.length > 0 && (
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v2"); } catch { /**/ } }}
-              className="p-1 rounded text-slate-500/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              className="p-1.5 rounded-full text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
               title={t("chat.clear")}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -581,40 +584,50 @@ export function AIChatPanel() {
       )}
 
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-surface-2 dark:bg-surface-1 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-surface-2/50 dark:bg-surface-1 scrollbar-thin">
         {chatMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-4 py-6 select-none">
-            <div className="text-center space-y-1">
-              <p className="text-sm font-medium text-foreground/60">{t("chat.empty.title")}</p>
-              <p className="text-[11px] text-muted-foreground/50 font-mono">
-                文書の編集・作成・修正を指示してください
+          <div className="flex flex-col items-center justify-center h-full gap-5 py-8 px-2 select-none">
+            {/* Hero avatar */}
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+              <Sparkles className="h-7 w-7 text-white" />
+            </div>
+            <div className="text-center space-y-1.5">
+              <p className="text-[15px] font-semibold text-foreground/85">{t("chat.empty.title")}</p>
+              <p className="text-xs text-muted-foreground/60 leading-relaxed">
+                文書の作成・編集・修正をお手伝いします。<br />
+                何でもお気軽にどうぞ。
               </p>
             </div>
 
-            {/* OMR upload */}
+            {/* OMR upload card */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-border/50 text-left text-xs text-muted-foreground/60 hover:text-foreground/70 hover:border-border hover:bg-surface-3 dark:hover:bg-surface-2 transition-colors"
+              className="group w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03] text-left hover:bg-white dark:hover:bg-white/[0.06] hover:shadow-sm transition-all duration-200"
             >
-              <ScanLine className="h-4 w-4 shrink-0" />
-              <span>画像・PDFから読み取り</span>
+              <div className="h-9 w-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/15 transition-colors">
+                <ScanLine className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-foreground/80">画像・PDFから読み取り</p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5">写真やPDFをアップロードして自動変換</p>
+              </div>
             </button>
 
             {/* Suggestion cards */}
-            <div className="flex flex-col gap-1.5 w-full">
-              {[
-                t("chat.suggestion.1"),
-                t("chat.suggestion.2"),
-                t("chat.suggestion.3"),
-                t("chat.suggestion.4"),
-              ].map((s) => (
+            <div className="grid grid-cols-2 gap-2 w-full">
+              {([
+                { text: t("chat.suggestion.1"), icon: PenLine },
+                { text: t("chat.suggestion.2"), icon: Calculator },
+                { text: t("chat.suggestion.3"), icon: TableProperties },
+                { text: t("chat.suggestion.4"), icon: Bug },
+              ] as const).map(({ text, icon: Icon }) => (
                 <button
-                  key={s}
-                  onClick={() => { setInput(s); textareaRef.current?.focus(); }}
-                  className="text-left text-xs px-3 py-2 rounded-md border border-transparent text-muted-foreground/50 hover:text-foreground/70 hover:bg-surface-3 dark:hover:bg-surface-2 transition-colors font-mono"
+                  key={text}
+                  onClick={() => { setInput(text); textareaRef.current?.focus(); }}
+                  className="flex items-start gap-2 text-left text-[12px] px-3 py-2.5 rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03] text-foreground/70 hover:bg-white dark:hover:bg-white/[0.06] hover:shadow-sm transition-all duration-200 leading-snug"
                 >
-                  <span className="text-muted-foreground/30 mr-1.5">{'>'}</span>
-                  {s}
+                  <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-violet-400" />
+                  <span>{text}</span>
                 </button>
               ))}
             </div>

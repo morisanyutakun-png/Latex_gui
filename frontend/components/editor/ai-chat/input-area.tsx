@@ -1,7 +1,7 @@
 import React from "react";
 import { useI18n } from "@/lib/i18n";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, ScanLine } from "lucide-react";
+import { ArrowUp, Loader2, ScanLine } from "lucide-react";
 
 export function InputArea({
   input, setInput, onSend, onKeyDown, isChatLoading, agentMode,
@@ -20,53 +20,56 @@ export function InputArea({
   const { t } = useI18n();
 
   return (
-    <div className="border-t border-border/50 px-3 py-2.5 shrink-0 bg-surface-1 dark:bg-surface-0">
-      <div className="flex items-end gap-2">
-        <div className="flex flex-col gap-1 pb-1">
-          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={onOMRUpload} />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isChatLoading}
-            className="p-1 rounded text-muted-foreground/40 hover:text-foreground/60 hover:bg-surface-3 dark:hover:bg-surface-2 transition-colors disabled:opacity-20"
-            title="画像・PDFを読み取り"
-          >
-            <ScanLine className="h-4 w-4" />
-          </button>
-        </div>
+    <div className="px-3 pb-3 pt-2 shrink-0 bg-surface-2/80 dark:bg-surface-1/80">
+      <div className="rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white dark:bg-surface-0 shadow-sm overflow-hidden">
+        <div className="flex items-end gap-1 px-3 py-2.5">
+          {/* File upload */}
+          <div className="flex items-center pb-0.5">
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={onOMRUpload} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isChatLoading}
+              className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors disabled:opacity-20"
+              title="画像・PDFを読み取り"
+            >
+              <ScanLine className="h-4 w-4" />
+            </button>
+          </div>
 
-        <div className="flex-1 flex items-end gap-2 rounded-md border border-border/60 bg-surface-0/50 dark:bg-surface-0/80 px-3 py-2 focus-within:border-foreground/20 transition-colors">
+          {/* Textarea */}
           <Textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder={"> 編集を指示..."}
-            className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 font-mono bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-foreground/20"
+            placeholder="メッセージを入力..."
+            className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-foreground/25"
             disabled={isChatLoading}
           />
-          <button
-            onClick={onSend}
-            disabled={isChatLoading || !input.trim()}
-            className={`h-7 w-7 rounded-md flex items-center justify-center shrink-0 transition-colors ${
-              input.trim() && !isChatLoading
-                ? "bg-foreground/80 text-background hover:bg-foreground/90"
-                : "bg-foreground/[0.06] text-foreground/20"
-            }`}
-            title="送信 (Enter)"
-          >
-            {isChatLoading
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : <Send className="h-3.5 w-3.5" />
-            }
-          </button>
+
+          {/* Send button */}
+          <div className="flex items-center pb-0.5">
+            <button
+              onClick={onSend}
+              disabled={isChatLoading || !input.trim()}
+              className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 ${
+                input.trim() && !isChatLoading
+                  ? "bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
+                  : "bg-black/[0.05] dark:bg-white/[0.06] text-foreground/20"
+              }`}
+              title="送信 (Enter)"
+            >
+              {isChatLoading
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <ArrowUp className="h-4 w-4" />
+              }
+            </button>
+          </div>
         </div>
       </div>
-
-      <div className="flex items-center justify-center mt-1.5">
-        <span className="text-[10px] text-muted-foreground/30 font-mono">
-          Enter で送信 · Shift+Enter で改行 · Esc で中断
-        </span>
-      </div>
+      <p className="text-center text-[10px] text-muted-foreground/30 mt-1.5">
+        Enter で送信 · Shift+Enter で改行
+      </p>
     </div>
   );
 }

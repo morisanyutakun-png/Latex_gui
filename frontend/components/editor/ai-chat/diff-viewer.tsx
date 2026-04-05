@@ -21,40 +21,38 @@ export function DiffViewer({ patches }: { patches: DocumentPatch }) {
   if (deleted) badges.push(<span key="d" className="text-red-600 dark:text-red-400">-{deleted}</span>);
 
   return (
-    <div className="w-full mt-1">
+    <div className="w-full border-t border-emerald-200/40 dark:border-emerald-500/10">
       {/* Summary header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 px-1 py-1 rounded-md text-[11px] font-mono hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors w-full"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] hover:bg-emerald-50/50 dark:hover:bg-emerald-500/5 transition-colors w-full"
       >
-        <ChevronRight className={`h-3 w-3 transition-transform duration-200 text-slate-400 ${expanded ? "rotate-90" : ""}`} />
-        <span className="text-slate-500 dark:text-slate-400">Changes</span>
-        <span className="flex items-center gap-1.5 font-mono font-bold text-[11px]">
+        <ChevronRight className={`h-3 w-3 transition-transform duration-200 text-emerald-400 ${expanded ? "rotate-90" : ""}`} />
+        <span className="text-emerald-600/70 dark:text-emerald-400/70">変更内容</span>
+        <span className="flex items-center gap-1.5 font-medium text-[11px]">
           {badges}
         </span>
       </button>
 
       {/* Expanded diff lines */}
       {expanded && (
-        <div className="mt-1 rounded-lg bg-surface-0 dark:bg-surface-0 border border-slate-700/60 overflow-hidden font-mono text-[11px]">
-          <div className="px-3 py-2 space-y-0.5">
-            {ops.map((op, i) => {
-              const { icon, label, color } = describeOp(op);
-              const bgClass = op.op === "add_block"
-                ? "bg-emerald-500/8"
-                : op.op === "delete_block"
-                ? "bg-red-500/8"
-                : op.op === "update_block"
-                ? "bg-blue-500/8"
-                : "";
-              return (
-                <div key={i} className={`flex items-start gap-2 px-2 py-1 rounded ${bgClass}`}>
-                  <span className={`font-bold shrink-0 ${color}`}>{icon}</span>
-                  <span className="text-slate-300 break-all">{label}</span>
-                </div>
-              );
-            })}
-          </div>
+        <div className="px-3 pb-2.5 space-y-0.5">
+          {ops.map((op, i) => {
+            const { icon, label, color } = describeOp(op);
+            const bgClass = op.op === "add_block"
+              ? "bg-emerald-50/80 dark:bg-emerald-500/5"
+              : op.op === "delete_block"
+              ? "bg-red-50/80 dark:bg-red-500/5"
+              : op.op === "update_block"
+              ? "bg-blue-50/80 dark:bg-blue-500/5"
+              : "";
+            return (
+              <div key={i} className={`flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-[11px] ${bgClass}`}>
+                <span className={`font-bold shrink-0 ${color}`}>{icon}</span>
+                <span className="text-foreground/60 break-all">{label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

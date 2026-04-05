@@ -1,7 +1,7 @@
 import React from "react";
 import { ThinkingStep } from "@/lib/types";
 import {
-  Brain, Terminal, CheckCircle, AlertCircle,
+  Sparkles, Brain, Terminal, CheckCircle, AlertCircle,
   Search, FileText, Wrench, Code2, Eye, Hammer, BookOpen,
 } from "lucide-react";
 import { formatDuration } from "./utils";
@@ -15,11 +15,11 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
 };
 
 const TOOL_LABELS: Record<string, string> = {
-  read_document: "Read — 文書を読み込み中",
-  search_blocks: "Search — ブロックを検索中",
-  edit_document: "Write — 文書を編集中",
-  compile_check: "Build — LuaLaTeX コンパイル中",
-  get_latex_source: "Inspect — LaTeXソースを取得中",
+  read_document: "文書を読み込み中",
+  search_blocks: "ブロックを検索中",
+  edit_document: "文書を編集中",
+  compile_check: "コンパイルを検証中",
+  get_latex_source: "LaTeXソースを取得中",
 };
 
 export function ThinkingIndicator({
@@ -46,89 +46,86 @@ export function ThinkingIndicator({
   const hasSteps = liveSteps && liveSteps.length > 0;
   const isLongWait = elapsed >= 15;
   const statusText = currentTool
-    ? TOOL_LABELS[currentTool] || `${currentTool} 実行中`
+    ? TOOL_LABELS[currentTool] || `${currentTool} を実行中`
     : hasSteps
-    ? "エージェント実行中"
-    : "思考中";
+    ? "作業中..."
+    : "考えています...";
 
   return (
-    <div className="w-full">
-      {/* Role label */}
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-xs font-medium text-foreground/50 font-mono uppercase">assistant</span>
-        <span className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/50">
-          <span className={`h-1.5 w-1.5 rounded-full ${isLongWait ? 'bg-amber-400' : 'bg-foreground/40'} animate-pulse`} />
-          {statusText}
-          <span className="text-foreground/20">{elapsed}s</span>
-        </span>
+    <div className="flex gap-2.5">
+      {/* Avatar */}
+      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+        <Sparkles className="h-3.5 w-3.5 text-white" />
       </div>
 
-      {/* Agent activity terminal */}
-      <div className="rounded-lg overflow-hidden border border-foreground/[0.06] bg-surface-0 dark:bg-[#0d0f14]">
-        {/* Terminal header */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-foreground/[0.02] dark:bg-white/[0.02] border-b border-foreground/[0.04]">
-          <span className="text-[10px] font-mono text-foreground/25">agent</span>
+      <div className="flex-1 min-w-0">
+        {/* Name + status */}
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[13px] font-medium text-foreground/80">Eddivom AI</span>
+          <span className="flex items-center gap-1.5 text-[11px] text-violet-500/70">
+            <span className={`h-1.5 w-1.5 rounded-full ${isLongWait ? 'bg-amber-400' : 'bg-violet-500'} animate-pulse`} />
+            {statusText}
+          </span>
+          <span className="text-[11px] text-muted-foreground/30">{elapsed}s</span>
         </div>
 
-        {/* Terminal content */}
-        <div className="px-3 py-2 font-mono text-[11px] space-y-1 min-h-[40px] max-h-[320px] overflow-y-auto scroll-smooth scrollbar-thin">
-          {/* Live steps */}
-          {hasSteps && liveSteps.map((step, i) => {
-            const Icon = step.tool ? (TOOL_ICONS[step.tool] || Terminal) :
-              step.type === "thinking" ? Brain :
-              step.type === "error" ? AlertCircle : Eye;
+        {/* Activity steps — soft card design */}
+        <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.03] overflow-hidden">
+          <div className="px-3 py-2.5 space-y-1.5 text-[12px] min-h-[40px] max-h-[280px] overflow-y-auto scroll-smooth scrollbar-thin">
+            {/* Live steps */}
+            {hasSteps && liveSteps.map((step, i) => {
+              const Icon = step.tool ? (TOOL_ICONS[step.tool] || Terminal) :
+                step.type === "thinking" ? Brain :
+                step.type === "error" ? AlertCircle : Eye;
 
-            const color = step.type === "error" ? "text-red-400" :
-              step.type === "tool_call" ? "text-blue-400" :
-              step.type === "tool_result" ? "text-emerald-400" :
-              "text-foreground/35";
+              const colorClass = step.type === "error"
+                ? "text-red-500"
+                : step.type === "tool_call"
+                ? "text-blue-500"
+                : step.type === "tool_result"
+                ? "text-emerald-500"
+                : "text-muted-foreground/50";
 
-            return (
-              <div key={i} className="flex items-start gap-2 pl-2">
-                <Icon className={`h-3 w-3 mt-0.5 shrink-0 ${color}`} />
-                <span className={`${color} break-all`}>
-                  {step.text}
+              return (
+                <div key={i} className="flex items-start gap-2">
+                  <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${colorClass}`} />
+                  <span className={`${colorClass} break-all leading-relaxed`}>{step.text}</span>
+                  {step.duration != null && step.duration > 0 && (
+                    <span className="text-muted-foreground/25 shrink-0 ml-auto text-[11px]">{formatDuration(step.duration)}</span>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Current activity */}
+            {currentTool && (
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const Icon = TOOL_ICONS[currentTool] || Terminal;
+                  return <Icon className="h-3.5 w-3.5 text-violet-500/70 animate-pulse" />;
+                })()}
+                <span className="text-violet-500/70">
+                  {TOOL_LABELS[currentTool] || currentTool}...
                 </span>
-                {step.duration != null && step.duration > 0 && (
-                  <span className="text-foreground/15 shrink-0 ml-auto font-mono">{formatDuration(step.duration)}</span>
-                )}
               </div>
-            );
-          })}
+            )}
 
-          {/* Current activity indicator */}
-          {currentTool && (
-            <div className="flex items-center gap-2 pl-2">
-              {(() => {
-                const Icon = TOOL_ICONS[currentTool] || Terminal;
-                return <Icon className="h-3 w-3 text-amber-400/70 animate-pulse" />;
-              })()}
-              <span className="text-amber-300/70">
-                {TOOL_LABELS[currentTool] || currentTool}...
-              </span>
-              <span className="w-[6px] h-[12px] bg-foreground/40 animate-terminal-blink" />
-            </div>
-          )}
+            {/* No steps — generic thinking */}
+            {!hasSteps && !currentTool && (
+              <div className="flex items-center gap-2">
+                <Brain className="h-3.5 w-3.5 text-violet-500/50 animate-pulse" />
+                <span className="text-muted-foreground/50">リクエストを分析中...</span>
+              </div>
+            )}
 
-          {/* No steps yet — show generic activity */}
-          {!hasSteps && !currentTool && (
-            <div className="flex items-center gap-2 pl-2">
-              <Brain className="h-3 w-3 text-foreground/25 animate-pulse" />
-              <span className="text-foreground/30">
-                リクエストを分析中...
-              </span>
-              <span className="w-[6px] h-[12px] bg-foreground/40 animate-terminal-blink" />
-            </div>
-          )}
+            {isLongWait && (
+              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-amber-500/60">
+                API応答を待機中...
+              </div>
+            )}
 
-          {isLongWait && (
-            <div className="flex items-center gap-1.5 pl-2 mt-1">
-              <span className="text-amber-400/40">⏳</span>
-              <span className="text-amber-400/50 text-[10px]">API応答を待機中...</span>
-            </div>
-          )}
-
-          <div ref={logEndRef} />
+            <div ref={logEndRef} />
+          </div>
         </div>
       </div>
     </div>

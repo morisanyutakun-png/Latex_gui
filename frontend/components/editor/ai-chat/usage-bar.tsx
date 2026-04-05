@@ -10,33 +10,33 @@ export function UsageBar({
     ? "bg-red-500"
     : isNearLimit
     ? "bg-amber-400"
-    : "bg-indigo-500";
+    : "bg-violet-500";
 
   return (
-    <div className="mx-3 mt-2 shrink-0">
+    <div className="mx-4 mt-2 shrink-0">
       <div className="flex items-center justify-between text-[10px] mb-1">
         <div className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded bg-foreground/[0.06] text-muted-foreground/60 font-mono font-medium text-[9px]">
+          <span className="px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400 font-medium text-[9px]">
             {planName}
           </span>
-          <span className="text-slate-500">
-            {todayUsage}/{dailyLimit} today
+          <span className="text-muted-foreground/50">
+            {todayUsage}/{dailyLimit} 本日
           </span>
-          <span className="text-slate-600">·</span>
-          <span className="text-slate-500">
-            {monthUsage}/{monthlyLimit.toLocaleString()} mo
+          <span className="text-muted-foreground/25">·</span>
+          <span className="text-muted-foreground/50">
+            {monthUsage}/{monthlyLimit.toLocaleString()} 月
           </span>
         </div>
         {dailyPercent >= 60 && (
           <button
             onClick={onUpgrade}
-            className="text-[9px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+            className="text-[9px] text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 font-medium transition-colors"
           >
-            Upgrade
+            アップグレード
           </button>
         )}
       </div>
-      <div className="h-1 rounded-full bg-slate-700/50 overflow-hidden">
+      <div className="h-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${barColor}`}
           style={{ width: `${Math.min(100, dailyPercent)}%` }}

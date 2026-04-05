@@ -11,7 +11,7 @@ export function ChatMarkdown({ content }: { content: string }) {
       rehypePlugins={[rehypeKatex]}
       components={{
         pre: ({ children }) => (
-          <pre className="rounded-lg p-3 my-2 overflow-x-auto text-[12px] font-mono bg-slate-100 dark:bg-surface-3 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/40">
+          <pre className="rounded-xl p-3 my-2 overflow-x-auto text-[12px] font-mono bg-slate-50 dark:bg-surface-3 text-slate-800 dark:text-slate-200 border border-black/[0.06] dark:border-white/[0.06]">
             {children}
           </pre>
         ),
@@ -19,7 +19,7 @@ export function ChatMarkdown({ content }: { content: string }) {
           const isInline = !className;
           if (isInline) {
             return (
-              <code className="px-1.5 py-0.5 rounded text-[12px] font-mono bg-slate-100 dark:bg-slate-800 text-foreground/80">
+              <code className="px-1.5 py-0.5 rounded-md text-[12px] font-mono bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300">
                 {children}
               </code>
             );
@@ -28,7 +28,7 @@ export function ChatMarkdown({ content }: { content: string }) {
         },
         a: ({ href, children }) => (
           <a href={href} target="_blank" rel="noopener noreferrer"
-            className="text-blue-600 dark:text-blue-400 hover:underline">
+            className="text-violet-600 dark:text-violet-400 hover:underline">
             {children}
           </a>
         ),
@@ -42,26 +42,26 @@ export function ChatMarkdown({ content }: { content: string }) {
         h3: ({ children }) => <p className="font-semibold text-[13px] mt-1.5 mb-0.5">{children}</p>,
         p: ({ children }) => <p className="leading-relaxed my-0.5">{children}</p>,
         blockquote: ({ children }) => (
-          <blockquote className="border-l-2 pl-3 my-1.5 italic border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400">
+          <blockquote className="border-l-2 pl-3 my-1.5 italic border-violet-200 dark:border-violet-500/30 text-slate-600 dark:text-slate-400">
             {children}
           </blockquote>
         ),
         table: ({ children }) => (
-          <div className="overflow-x-auto my-2">
-            <table className="text-[11px] border-collapse w-full">{children}</table>
+          <div className="overflow-x-auto my-2 rounded-lg border border-black/[0.06] dark:border-white/[0.06]">
+            <table className="text-[12px] border-collapse w-full">{children}</table>
           </div>
         ),
         th: ({ children }) => (
-          <th className="px-2 py-1 text-left font-semibold border-b border-slate-300 dark:border-slate-600">
+          <th className="px-2.5 py-1.5 text-left font-semibold border-b border-black/[0.06] dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.03]">
             {children}
           </th>
         ),
         td: ({ children }) => (
-          <td className="px-2 py-1 border-b border-slate-200 dark:border-slate-700">
+          <td className="px-2.5 py-1.5 border-b border-black/[0.04] dark:border-white/[0.04]">
             {children}
           </td>
         ),
-        hr: () => <hr className="my-2 border-slate-200 dark:border-slate-700" />,
+        hr: () => <hr className="my-3 border-black/[0.06] dark:border-white/[0.06]" />,
       }}
     >
       {content}
