@@ -129,10 +129,14 @@ def _wrap_block_latex(code: str, block_type: str) -> str:
 
 
 def _compile_to_svg(latex_source: str) -> str:
-    """Compile LaTeX source to SVG.
-    
-    Pipeline: lualatex → PDF → pdftocairo → SVG
+    """Compile LaTeX source to SVG (browser-independent).
+
+    Pipeline: lualatex → PDF → dvisvgm(--no-fonts) → SVG
+    --no-fonts でテキストをパスに変換し、ブラウザのフォント環境に依存しない。
+    フォールバック: pdftocairo PNG → base64 data URL
     """
+    import base64
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = Path(tmpdir) / "preview.tex"
         pdf_path = Path(tmpdir) / "preview.pdf"
@@ -167,7 +171,56 @@ def _compile_to_svg(latex_source: str) -> str:
             logger.error(f"Preview compilation failed: {error_msg}")
             raise RuntimeError(f"LaTeX compilation error: {error_msg}")
 
-        # Step 2: PDF → SVG (pdftocairo: reliable on macOS, no Ghostscript lib needed)
+        # Step 2: PDF → SVG (dvisvgm 優先 — --no-fonts でブラウザ非依存)
+        # dvisvgm は全テキストをSVGパスに変換するため、CJKフォント問題が発生しない
+        if DVISVGM_CMD:
+            try:
+                result = subprocess.run(
+                    [DVISVGM_CMD, "--pdf", "--no-fonts", "--exact-bbox",
+                     "-o", str(svg_path), str(pdf_path)],
+                    capture_output=True, text=True, timeout=10,
+                    cwd=tmpdir, env=TEX_ENV,
+                )
+                if result.returncode == 0 and svg_path.exists():
+                    svg_content = svg_path.read_text(encoding="utf-8")
+                    if svg_content.strip():
+                        logger.info("Preview SVG generated via dvisvgm (no-fonts)")
+                        return svg_content
+                logger.warning(f"dvisvgm failed (rc={result.returncode}): {result.stderr[:200]}")
+            except Exception as e:
+                logger.warning(f"dvisvgm error: {e}")
+
+        # Fallback: pdftocairo → PNG → base64 (フォント問題を完全回避)
+        if PDFTOCAIRO_CMD and shutil.which(PDFTOCAIRO_CMD):
+            try:
+                png_prefix = str(Path(tmpdir) / "preview")
+                result = subprocess.run(
+                    [PDFTOCAIRO_CMD, "-png", "-r", "200", "-singlefile",
+                     str(pdf_path), png_prefix],
+                    capture_output=True, text=True, timeout=5,
+                    cwd=tmpdir, env=TEX_ENV,
+                )
+                png_path = Path(tmpdir) / "preview.png"
+                if result.returncode == 0 and png_path.exists():
+                    png_bytes = png_path.read_bytes()
+                    b64 = base64.b64encode(png_bytes).decode("ascii")
+                    # SVG でラップして既存のフロントエンドと互換性を保つ
+                    svg_wrapper = (
+                        f'<svg xmlns="http://www.w3.org/2000/svg" '
+                        f'xmlns:xlink="http://www.w3.org/1999/xlink" '
+                        f'width="100%" viewBox="0 0 100 100" '
+                        f'preserveAspectRatio="xMidYMid meet">'
+                        f'<image width="100%" height="100%" '
+                        f'href="data:image/png;base64,{b64}" />'
+                        f'</svg>'
+                    )
+                    logger.info("Preview generated via pdftocairo PNG fallback")
+                    return svg_wrapper
+                logger.warning(f"pdftocairo PNG failed: {result.stderr[:200]}")
+            except Exception as e:
+                logger.warning(f"pdftocairo PNG error: {e}")
+
+        # Last resort: pdftocairo SVG (フォント依存だが動作はする)
         if PDFTOCAIRO_CMD and shutil.which(PDFTOCAIRO_CMD):
             try:
                 result = subprocess.run(
@@ -176,25 +229,10 @@ def _compile_to_svg(latex_source: str) -> str:
                     cwd=tmpdir, env=TEX_ENV,
                 )
                 if result.returncode == 0 and svg_path.exists():
+                    logger.warning("Preview SVG via pdftocairo (font-dependent, may garble CJK)")
                     return svg_path.read_text(encoding="utf-8")
-                logger.warning(f"pdftocairo failed: {result.stderr}")
             except Exception as e:
-                logger.warning(f"pdftocairo error: {e}")
-
-        # Fallback: dvisvgm (if LIBGS is set in TEX_ENV)
-        if DVISVGM_CMD:
-            try:
-                result = subprocess.run(
-                    [DVISVGM_CMD, "--pdf", "--no-fonts", "--exact-bbox",
-                     "-o", str(svg_path), str(pdf_path)],
-                    capture_output=True, text=True, timeout=5,
-                    cwd=tmpdir, env=TEX_ENV,
-                )
-                if result.returncode == 0 and svg_path.exists():
-                    return svg_path.read_text(encoding="utf-8")
-                logger.warning(f"dvisvgm failed: {result.stderr}")
-            except Exception as e:
-                logger.warning(f"dvisvgm error: {e}")
+                logger.warning(f"pdftocairo SVG error: {e}")
 
         raise RuntimeError("SVG変換に失敗しました")
 

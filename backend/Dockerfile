@@ -26,6 +26,7 @@ RUN apt-get update \
         texlive-lang-japanese \
         fonts-noto-cjk \
         poppler-utils \
+        ghostscript \
         fontconfig \
         locales \
     && rm -rf /var/lib/apt/lists/*
