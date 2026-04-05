@@ -20,21 +20,19 @@ export function InputArea({
   const { t } = useI18n();
 
   return (
-    <div className="px-3 pb-3 pt-2 shrink-0 bg-surface-2 dark:bg-surface-1">
+    <div className="px-3 pb-3 pt-3 shrink-0 bg-surface-2 dark:bg-surface-1">
       <div className="ai-input-box rounded-2xl bg-white dark:bg-surface-0 shadow-sm overflow-hidden">
-        <div className="flex items-end gap-1 px-3 py-2.5">
+        <div className="flex items-center gap-1 px-2.5 py-2">
           {/* File upload */}
-          <div className="flex items-center pb-0.5">
-            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={onOMRUpload} />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isChatLoading}
-              className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors disabled:opacity-20"
-              title="画像・PDFを読み取り"
-            >
-              <ScanLine className="h-4 w-4" />
-            </button>
-          </div>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={onOMRUpload} />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isChatLoading}
+            className="p-1.5 rounded-lg text-muted-foreground/35 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors disabled:opacity-20 shrink-0 focus:outline-none focus-visible:outline-none"
+            title="画像・PDFを読み取り"
+          >
+            <ScanLine className="h-4 w-4" />
+          </button>
 
           {/* Textarea */}
           <Textarea
@@ -43,31 +41,29 @@ export function InputArea({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="メッセージを入力..."
-            className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 bg-transparent border-none shadow-none p-0 focus-visible:ring-0 placeholder:text-foreground/25"
+            className="min-h-[20px] max-h-32 text-[13px] resize-none flex-1 bg-transparent border-none shadow-none p-0 focus-visible:ring-0 focus:outline-none outline-none placeholder:text-foreground/25"
             disabled={isChatLoading}
           />
 
           {/* Send button */}
-          <div className="flex items-center pb-0.5">
-            <button
-              onClick={onSend}
-              disabled={isChatLoading || !input.trim()}
-              className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 ${
-                input.trim() && !isChatLoading
-                  ? "bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
-                  : "bg-black/[0.05] dark:bg-white/[0.06] text-foreground/20"
-              }`}
-              title="送信 (Enter)"
-            >
-              {isChatLoading
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <ArrowUp className="h-4 w-4" />
-              }
-            </button>
-          </div>
+          <button
+            onClick={onSend}
+            disabled={isChatLoading || !input.trim()}
+            className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 focus:outline-none focus-visible:outline-none ${
+              input.trim() && !isChatLoading
+                ? "bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
+                : "bg-black/[0.05] dark:bg-white/[0.06] text-foreground/20"
+            }`}
+            title="送信 (Enter)"
+          >
+            {isChatLoading
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <ArrowUp className="h-3.5 w-3.5" />
+            }
+          </button>
         </div>
       </div>
-      <p className="text-center text-[10px] text-muted-foreground/30 mt-1.5">
+      <p className="text-center text-[10px] text-muted-foreground/25 mt-1.5">
         Enter で送信 · Shift+Enter で改行
       </p>
     </div>
