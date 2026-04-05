@@ -397,14 +397,12 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ── 数式変換モード ──
-  // その行のtextareaに直接自然言語を書く。
-  // parseJapanesemath でリアルタイム変換し、紙面にはレンダリング結果を表示。
-  // Esc で確定終了（未確定テキストを $latex$ に変換して格納）。
   const [mathMode, setMathMode] = useState(false);
-  // 数式モード開始時のテキスト位置（確定済みテキストの末尾）
   const [mathAnchor, setMathAnchor] = useState(0);
   // IME変換中フラグ（日本語入力中の誤変換防止）
   const [imeComposing, setImeComposing] = useState(false);
+  // IME確定直後フラグ — Enter での改行を防止するためのガード
+  const imeJustFinishedRef = useRef(false);
   // 数式モード中のカーソル位置（content.text 上の絶対位置）
   const [mathCursorPos, setMathCursorPos] = useState(0);
 
@@ -636,6 +634,11 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       return;
     }
     if (e.key === "Enter" && !e.shiftKey && !showPalette) {
+      // IME確定直後のEnterは改行として扱わない（日本語入力の確定Enterと区別）
+      if (imeJustFinishedRef.current) {
+        imeJustFinishedRef.current = false;
+        return;
+      }
       e.preventDefault();
       const newId = addBlock("paragraph", idx + 1);
       if (newId) { sel(newId); setEdit(newId); }
@@ -692,20 +695,52 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     <div className="relative">
       {/* ── 通常編集モード: 直接 textarea を表示（選択・カーソル操作がネイティブに動く） ── */}
       {showDirectTextarea ? (
-        <textarea
-          ref={textareaRef}
-          value={content.text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={() => setImeComposing(true)}
-          onCompositionEnd={() => { setImeComposing(false); }}
-          onFocus={() => setHasFocus(true)}
-          onBlur={() => setHasFocus(false)}
-          placeholder={isJa ? "テキストを入力... (Tab で数式モード)" : "Type text... (Tab for math)"}
-          className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 focus-visible:outline-none p-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em]"
-          style={baseStyle}
-          rows={1}
-        />
+        /* テキストに $...$ 数式が含まれる場合はレンダリング表示、含まれない場合は直接textarea */
+        content.text.includes("$") ? (
+          /* 数式入りテキスト: レンダリング表示 + クリックでカーソル配置 */
+          <div
+            className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text"
+            style={baseStyle}
+            onClick={() => {
+              // 隠しtextareaにフォーカスを移す
+              setTimeout(() => textareaRef.current?.focus(), 0);
+            }}
+          >
+            <RenderedInlineText text={content.text} style={baseStyle} />
+            {hasFocus && (
+              <span className="inline-block w-[2px] h-[1.1em] align-middle animate-[cursor-blink_1s_step-end_infinite] bg-foreground" />
+            )}
+            {/* 隠しtextarea — キー入力受付用 */}
+            <textarea
+              ref={textareaRef}
+              value={content.text}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onCompositionStart={() => { setImeComposing(true); imeJustFinishedRef.current = false; }}
+              onCompositionEnd={() => { setImeComposing(false); imeJustFinishedRef.current = true; setTimeout(() => { imeJustFinishedRef.current = false; }, 300); }}
+              onFocus={() => setHasFocus(true)}
+              onBlur={() => setHasFocus(false)}
+              className="sr-only"
+              rows={1}
+            />
+          </div>
+        ) : (
+          /* 通常テキスト: 直接 textarea */
+          <textarea
+            ref={textareaRef}
+            value={content.text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={() => { setImeComposing(true); imeJustFinishedRef.current = false; }}
+            onCompositionEnd={() => { setImeComposing(false); imeJustFinishedRef.current = true; setTimeout(() => { imeJustFinishedRef.current = false; }, 300); }}
+            onFocus={() => setHasFocus(true)}
+            onBlur={() => setHasFocus(false)}
+            placeholder={isJa ? "テキストを入力... (Tab で数式モード)" : "Type text... (Tab for math)"}
+            className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 focus-visible:outline-none p-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em]"
+            style={baseStyle}
+            rows={1}
+          />
+        )
       ) : (
       /* ── 表示モード / 数式モード: レンダリング済み表示 ── */
       <div
@@ -806,9 +841,11 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
           onKeyDown={handleKeyDown}
           onKeyUp={() => { if (textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart); }}
           onSelect={() => { if (textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart); }}
-          onCompositionStart={() => setImeComposing(true)}
+          onCompositionStart={() => { setImeComposing(true); imeJustFinishedRef.current = false; }}
           onCompositionEnd={() => {
             setImeComposing(false);
+            imeJustFinishedRef.current = true;
+            setTimeout(() => { imeJustFinishedRef.current = false; }, 300);
             if (textareaRef.current) setMathCursorPos(textareaRef.current.selectionStart);
           }}
           onFocus={() => setHasFocus(true)}
@@ -1401,9 +1438,12 @@ function LaTeXPreview({ code, caption }: { code: string; caption?: string }) {
 
   React.useEffect(() => {
     if (code === lastCodeRef.current) return;
+    const isInitial = lastCodeRef.current === "";
     lastCodeRef.current = code;
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => fetchPreview(code), 1000);
+    // 初回マウント時は即座にプレビュー取得、以降は1秒デバウンス
+    const delay = isInitial ? 100 : 1000;
+    timerRef.current = setTimeout(() => fetchPreview(code), delay);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [code, fetchPreview]);
 
@@ -1805,8 +1845,9 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
             minHeight: Math.round(paper.w * 1.4142),
             padding: "64px 72px 80px",
             zoom: zoom,
+            fontSize: "14px",
             color: activePreset?.colors.text ?? "#1a1a1a",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif',
             backgroundColor: paperBg,
             backgroundImage: themeBackground,
             backgroundSize: themeBgSize,

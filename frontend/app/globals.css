@@ -202,10 +202,31 @@ html {
   border-radius: 6px;
 }
 
-/* Editor paper — seamless editing, no focus rings on form elements */
+/* Editor paper — base typography normalization */
+.latex-paper {
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* textarea は親のフォント設定を継承 */
+.latex-paper textarea {
+  font: inherit;
+  font-size: inherit;
+}
+
+/* seamless editing, no focus rings on form elements */
 .latex-paper textarea:focus-visible,
 .latex-paper input:focus-visible {
   outline: none;
+}
+
+/* SVG previews — コンテナに収まるように制限 */
+.latex-paper [dangerouslysetinnerhtml] svg,
+.latex-paper svg {
+  max-width: 100%;
+  height: auto;
 }
 
 /* Apple-style glassmorphism */
