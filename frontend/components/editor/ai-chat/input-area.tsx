@@ -35,7 +35,7 @@ export function InputArea({
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isChatLoading}
-            className="p-1.5 mb-0.5 rounded-lg text-muted-foreground/30 hover:text-violet-500/80 hover:bg-violet-50/60 dark:hover:bg-violet-500/8 transition-all duration-150 disabled:opacity-20 shrink-0 focus:outline-none"
+            className="p-1.5 mb-0.5 rounded-lg text-muted-foreground/30 hover:text-amber-500/80 hover:bg-amber-50/60 dark:hover:bg-amber-500/8 transition-all duration-150 disabled:opacity-20 shrink-0 focus:outline-none"
             title="画像・PDFを読み取り"
           >
             <Paperclip className="h-3.5 w-3.5" />

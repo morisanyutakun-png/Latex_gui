@@ -208,7 +208,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         className="flex items-center gap-2 group shrink-0 mr-0.5"
         title={t("header.home")}
       >
-        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md shadow-blue-500/20 group-hover:shadow-blue-500/40 group-hover:scale-105 transition-all">
+        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-700 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md shadow-violet-500/20 group-hover:shadow-violet-500/40 group-hover:scale-105 transition-all">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
             <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
             <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />

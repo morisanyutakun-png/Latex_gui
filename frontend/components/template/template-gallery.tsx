@@ -9,6 +9,8 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { UserMenu } from "@/components/auth/user-menu";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 import {
   ArrowRight,
   ChevronRight,
@@ -192,103 +194,83 @@ function TypingLine({ lines }: { lines: string[] }) {
 function EditorMockup({ isJa }: { isJa: boolean }) {
   const [step, setStep] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setStep((s) => (s + 1) % 4), 2000);
+    const t = setInterval(() => setStep((s) => (s + 1) % 4), 2200);
     return () => clearInterval(t);
   }, []);
 
   const chatMessages = [
-    { role: "user", text: isJa ? "二次方程式の練習問題を5問作って" : "Make 5 quadratic equation problems" },
-    { role: "ai",   text: isJa ? "5問作成しました。紙面に反映しています。" : "Done — 5 problems added to your worksheet.", done: true },
+    { role: "user", text: isJa ? "二次方程式の練習問題を5問作って" : "Make 5 quadratic problems" },
+    { role: "ai",   text: isJa ? "5問作成しました。紙面に反映しました。" : "Done — 5 problems added!", done: true },
     { role: "user", text: isJa ? "もう少し難しくして" : "Make them harder" },
     { role: "ai",   text: isJa ? "難易度を上げました。" : "Updated with harder variants.", done: true },
   ];
 
   return (
     <div className="relative w-full max-w-4xl mx-auto">
-      {/* Glow behind mockup */}
-      <div className="absolute -inset-4 bg-gradient-to-b from-blue-500/[0.05] via-violet-500/[0.05] to-fuchsia-500/[0.03] rounded-3xl blur-2xl pointer-events-none" />
+      <div className="absolute -inset-4 bg-gradient-to-b from-violet-500/[0.05] to-fuchsia-500/[0.03] rounded-3xl blur-2xl pointer-events-none" />
       <div className="relative rounded-2xl border border-foreground/[0.08] bg-card/90 backdrop-blur-xl shadow-2xl shadow-foreground/[0.06] overflow-hidden">
-        {/* Title bar */}
+
+        {/* Title bar — matches real app-header */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-foreground/[0.06] bg-foreground/[0.02]">
           <div className="flex gap-1.5">
             <div className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
             <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/70" />
             <div className="w-2.5 h-2.5 rounded-full bg-green-400/70" />
           </div>
-          <div className="h-5 w-5 rounded-md bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center ml-2 shadow shadow-violet-500/30">
+          <div className="h-5 w-5 rounded-md bg-gradient-to-br from-violet-700 via-violet-500 to-fuchsia-500 flex items-center justify-center ml-2 shadow shadow-violet-500/30">
             <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none">
               <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
               <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
             </svg>
           </div>
           <span className="text-[11px] text-muted-foreground/60 font-medium">Eddivom</span>
+          <div className="w-px h-4 bg-border/30 mx-1" />
+          <span className="hidden sm:block text-[10px] text-muted-foreground/35 px-2 py-0.5 border border-foreground/[0.05] rounded">
+            {isJa ? "数学Ⅰ　確認テスト" : "Math I — Quiz"}
+          </span>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/10">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/15">
               {isJa ? "PDF出力" : "Export PDF"}
             </span>
           </div>
         </div>
 
         {/* 2-pane + activity bar */}
-        <div className="flex min-h-[320px] sm:min-h-[360px]">
-          {/* Left: PDF paper */}
-          <div className="flex-1 bg-gray-100/60 dark:bg-gray-950/40 p-4 flex justify-center overflow-hidden">
-            <div className="bg-white dark:bg-white/[0.97] rounded-lg shadow-xl border border-gray-200/50 w-full max-w-[300px] p-5 space-y-3">
-              <div className="text-center space-y-1 pb-3 border-b border-gray-100">
-                <div className="h-2.5 w-3/4 bg-gray-800 rounded-full mx-auto" />
-                <div className="h-1.5 w-1/2 bg-gray-400 rounded-full mx-auto mt-1" />
-              </div>
-              {[1, 2, 3].map((n) => (
-                <div key={n} className={`space-y-1.5 transition-all duration-500 ${step >= n - 1 ? "opacity-100" : "opacity-30"}`}>
-                  <div className="flex items-start gap-2">
-                    <span className="text-[9px] font-bold text-gray-700 mt-0.5">{n}.</span>
-                    <div className="flex-1 space-y-1">
-                      <div className="h-1 bg-gray-200 rounded-full w-full" />
-                      <div className="h-1 bg-gray-200 rounded-full w-4/5" />
-                    </div>
-                  </div>
-                  <div className="ml-4 bg-gray-50 rounded px-2 py-1.5 text-center">
-                    <span className="text-[11px] font-medium text-gray-600 font-mono">
-                      {["2x² − 5x + 3 = 0", "x² + 4x − 12 = 0", "3x² − 7x + 2 = 0"][n - 1]}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              <div className={`space-y-1 transition-all duration-700 ${step >= 3 ? "opacity-100" : "opacity-20"}`}>
-                <div className="flex items-start gap-2">
-                  <span className="text-[9px] font-bold text-gray-700 mt-0.5">4.</span>
-                  <div className="flex-1 space-y-1">
-                    <div className="h-1 bg-gray-200 rounded-full w-full" />
-                    <div className="h-1 bg-gray-200 rounded-full w-2/3" />
-                  </div>
-                </div>
+        <div className="flex" style={{ minHeight: "340px" }}>
+          {/* Left: real worksheet paper, scaled to fit */}
+          <div className="flex-1 bg-gray-100/60 dark:bg-gray-950/40 flex justify-center items-start py-4 px-3 overflow-hidden">
+            <div className="overflow-hidden rounded-md shadow-xl" style={{ width: "248px", height: "308px" }}>
+              <div style={{ transform: "scale(0.645)", transformOrigin: "top left", width: "385px", pointerEvents: "none" }}>
+                <WorksheetPaper variant="exam" isJa={isJa} />
               </div>
             </div>
           </div>
 
-          {/* Right: AI chat */}
-          <div className="w-[200px] sm:w-[240px] border-l border-foreground/[0.06] flex flex-col bg-surface-1/[0.02] dark:bg-surface-1/60">
-            {/* Panel header */}
-            <div className="px-3 py-2 border-b border-foreground/[0.06] bg-surface-1/[0.04] dark:bg-surface-1/80 flex items-center gap-2">
-              <div className="h-4 w-4 rounded bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
+          {/* Right: AI chat panel — amber, matching real product */}
+          <div className="w-[196px] sm:w-[230px] border-l border-foreground/[0.06] flex flex-col dark:bg-[#100e03]"
+               style={{ background: "rgba(255,253,245,0.98)" }}>
+            <div className="px-3 py-2 border-b flex items-center gap-2"
+                 style={{ borderColor: "rgba(245,158,11,0.18)", background: "rgba(255,251,235,0.85)" }}>
+              <div className="h-4 w-4 rounded bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-sm">
                 <Sparkles className="h-2.5 w-2.5 text-white" />
               </div>
-              <span className="text-[10px] font-bold text-indigo-400 tracking-wide">EddivomAI</span>
+              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 tracking-wide">EddivomAI</span>
               <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             </div>
-            {/* Chat */}
             <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
               {chatMessages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex transition-all duration-700 ${i < step + 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"} ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div className={`rounded-xl px-2.5 py-1.5 max-w-[90%] ${msg.role === "user" ? "bg-gradient-to-br from-indigo-600 to-violet-700 rounded-tr-sm" : "bg-white/[0.04] dark:bg-white/[0.06] border border-white/[0.06] rounded-tl-sm"}`}>
-                    <p className={`text-[9px] leading-relaxed ${msg.role === "user" ? "text-white/90" : "text-foreground/60"}`}>
+                <div key={i} className={`flex transition-all duration-700 ${i < step + 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"} ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`rounded-xl px-2.5 py-1.5 max-w-[90%] ${msg.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm border shadow-sm"}`}
+                    style={msg.role === "user"
+                      ? { background: "linear-gradient(135deg, #b45309, #d97706)" }
+                      : { background: "white", borderColor: "rgba(245,158,11,0.18)" }}
+                  >
+                    <p className={`text-[9px] leading-relaxed ${msg.role === "user" ? "text-white/90" : "text-gray-600"}`}>
                       {msg.text}
                     </p>
                     {msg.done && (
-                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 font-medium mt-1 inline-block">
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 font-medium mt-1 inline-block">
                         {isJa ? "✓ 反映済み" : "✓ Applied"}
                       </span>
                     )}
@@ -296,21 +278,25 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
                 </div>
               ))}
             </div>
-            {/* Input */}
-            <div className="p-2 border-t border-foreground/[0.06]">
-              <div className="flex items-center gap-1.5 bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-white/[0.06]">
-                <span className="text-[9px] text-muted-foreground/30 flex-1 truncate">
+            <div className="p-2 border-t" style={{ borderColor: "rgba(245,158,11,0.15)" }}>
+              <div className="flex items-center gap-1.5 bg-white dark:bg-black/20 rounded-lg px-2.5 py-1.5 border shadow-sm"
+                   style={{ borderColor: "rgba(245,158,11,0.28)" }}>
+                <span className="text-[9px] text-gray-400 flex-1 truncate">
                   {isJa ? "指示を入力…" : "Type a prompt…"}
                 </span>
-                <ArrowRight className="h-3 w-3 text-indigo-500/40" />
+                <div className="h-4 w-4 rounded-full flex items-center justify-center shrink-0"
+                     style={{ background: "linear-gradient(135deg, #d97706, #f59e0b)" }}>
+                  <ArrowRight className="h-2.5 w-2.5 text-white" />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Activity Bar */}
           <div className="w-8 border-l border-foreground/[0.06] bg-foreground/[0.02] flex flex-col items-center py-2 gap-2">
-            <div className="w-5 h-5 rounded bg-indigo-500/15 flex items-center justify-center border-l-2 border-indigo-500">
-              <Sparkles className="h-3 w-3 text-indigo-400" />
+            <div className="w-5 h-5 rounded flex items-center justify-center border-l-2 border-amber-500"
+                 style={{ background: "rgba(245,158,11,0.10)" }}>
+              <Sparkles className="h-3 w-3 text-amber-500" />
             </div>
             {[Code2, PenLine, BookOpen].map((Icon, i) => (
               <div key={i} className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground/25">
@@ -365,6 +351,16 @@ const PaperFooter = () => (
   </div>
 );
 
+/* KaTeX inline math — renders exactly like real LaTeX output */
+function M({ t }: { t: string }) {
+  try {
+    const html = katex.renderToString(t, { throwOnError: false, displayMode: false, trust: true });
+    return <span className="align-middle" dangerouslySetInnerHTML={{ __html: html }} />;
+  } catch {
+    return <span className="font-mono text-[0.9em]">{t}</span>;
+  }
+}
+
 function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolean }) {
   if (variant === "exam") {
     return (
@@ -394,16 +390,16 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
             <p className="text-[10px] text-gray-600 mb-2.5">{isJa ? "次の計算をせよ。" : "Solve each."}</p>
             <div className="space-y-3">
               <div>
-                <p className="text-[11.5px] text-gray-800 leading-relaxed">
-                  <span className="text-gray-500 mr-2">(1)</span>
-                  3x<sup className="text-[8px]">2</sup> + 5x − 2 = 0　{isJa ? "を解け。" : ""}
+                <p className="text-[11.5px] text-gray-800 leading-relaxed flex items-baseline gap-1">
+                  <span className="text-gray-500 mr-1">(1)</span>
+                  <M t="3x^2 + 5x - 2 = 0" />{isJa ? "　を解け。" : ""}
                 </p>
                 <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
               </div>
               <div>
-                <p className="text-[11.5px] text-gray-800 leading-relaxed">
-                  <span className="text-gray-500 mr-2">(2)</span>
-                  log<sub className="text-[8px]">2</sub>8 + log<sub className="text-[8px]">2</sub>4　{isJa ? "の値を求めよ。" : "= ?"}
+                <p className="text-[11.5px] text-gray-800 leading-relaxed flex items-baseline gap-1">
+                  <span className="text-gray-500 mr-1">(2)</span>
+                  <M t="\log_2 8 + \log_2 4" />{isJa ? "　の値を求めよ。" : " = ?"}
                 </p>
                 <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
               </div>
@@ -415,8 +411,8 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
             </p>
             <p className="text-[10px] text-gray-600 mb-2.5">
               {isJa
-                ? <span>関数 f(x) = x<sup className="text-[8px]">2</sup> − 4x + 3 について、次の問いに答えよ。</span>
-                : <span>f(x) = x<sup className="text-[8px]">2</sup> − 4x + 3 — answer the following.</span>}
+                ? <span>関数 <M t="f(x) = x^2 - 4x + 3" /> について、次の問いに答えよ。</span>
+                : <span><M t="f(x) = x^2 - 4x + 3" /> — answer the following.</span>}
             </p>
             <div className="space-y-3">
               <div>
@@ -443,9 +439,9 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
 
   if (variant === "worksheet") {
     const problems: React.ReactNode[] = [
-      <span key="p1">y = x<sup className="text-[8px]">2</sup> − 6x + 5</span>,
-      <span key="p2">y = −2x<sup className="text-[8px]">2</sup> + 8x − 3</span>,
-      <span key="p3">y = 3(x−1)<sup className="text-[8px]">2</sup> + 4</span>,
+      <M key="p1" t="y = x^2 - 6x + 5" />,
+      <M key="p2" t="y = -2x^2 + 8x - 3" />,
+      <M key="p3" t="y = 3(x-1)^2 + 4" />,
     ];
     return (
       <div className="bg-white rounded-lg shadow-2xl border border-gray-300/50 overflow-hidden select-none" style={SERIF}>
@@ -485,9 +481,9 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
               {isJa ? "途中の計算過程も書くこと。" : "Show all working."}
             </p>
             <div>
-              <p className="text-[11.5px] text-gray-800">
-                <span className="text-gray-500 mr-2">(1)</span>
-                x<sup className="text-[8px]">2</sup> − 2x − 3 &gt; 0　{isJa ? "を満たす x の範囲を求めよ。" : "find range of x."}
+              <p className="text-[11.5px] text-gray-800 flex items-baseline gap-1">
+                <span className="text-gray-500 mr-1">(1)</span>
+                <M t="x^2 - 2x - 3 > 0" />{isJa ? "　を満たす x の範囲を求めよ。" : " find range of x."}
               </p>
               <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
             </div>
@@ -519,24 +515,24 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
           </p>
           <div className="space-y-2.5">
             <div>
-              <p className="text-[11px] text-gray-600">
-                <span className="mr-2 text-gray-400">(1)</span>
-                3x<sup className="text-[8px]">2</sup> + 5x − 2 = 0
+              <p className="text-[11px] text-gray-600 flex items-baseline gap-1">
+                <span className="text-gray-400">(1)</span>
+                <M t="3x^2 + 5x - 2 = 0" />
               </p>
               <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
                 <p className="text-[10.5px] text-red-700 leading-relaxed">
-                  (3x − 1)(x + 2) = 0　∴　<strong>x = <sup className="text-[8px]">1</sup>⁄<sub className="text-[8px]">3</sub>, −2</strong>
+                  <M t="(3x-1)(x+2)=0 \quad \therefore\; x=\dfrac{1}{3},\; -2" />
                 </p>
               </div>
             </div>
             <div>
-              <p className="text-[11px] text-gray-600">
-                <span className="mr-2 text-gray-400">(2)</span>
-                log<sub className="text-[8px]">2</sub>8 + log<sub className="text-[8px]">2</sub>4
+              <p className="text-[11px] text-gray-600 flex items-baseline gap-1">
+                <span className="text-gray-400">(2)</span>
+                <M t="\log_2 8 + \log_2 4" />
               </p>
               <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
                 <p className="text-[10.5px] text-red-700">
-                  = log<sub className="text-[8px]">2</sub>32 = <strong>5</strong>
+                  <M t="= \log_2 32 = \mathbf{5}" />
                 </p>
               </div>
             </div>
@@ -554,7 +550,7 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
               </p>
               <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
                 <p className="text-[10.5px] text-red-700">
-                  f(x) = (x−2)<sup className="text-[8px]">2</sup> − 1　∴　<strong>{isJa ? "頂点 (2, −1)" : "(2, −1)"}</strong>
+                  <M t="f(x)=(x-2)^2-1 \quad \therefore\;" /><strong>{isJa ? "頂点 (2, −1)" : "(2, −1)"}</strong>
                 </p>
               </div>
             </div>
