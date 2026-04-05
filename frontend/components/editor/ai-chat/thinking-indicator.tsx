@@ -1,7 +1,7 @@
 import React from "react";
 import { ThinkingStep } from "@/lib/types";
 import {
-  Bot, Brain, Terminal, CheckCircle, AlertCircle,
+  Brain, Terminal, CheckCircle, AlertCircle,
   Search, FileText, Wrench, Code2, Eye, Hammer, BookOpen,
 } from "lucide-react";
 import { formatDuration } from "./utils";
@@ -54,40 +54,24 @@ export function ThinkingIndicator({
   return (
     <div className="w-full">
       {/* Role label */}
-      <div className="flex items-center gap-2.5 mb-2">
-        <div className="h-5 w-5 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm shadow-indigo-500/20">
-          <Bot className="h-3 w-3 text-white" />
-        </div>
-        <span className="text-[11px] font-bold text-gradient-ai tracking-wide">EDDIVOM AI</span>
-        <span className="flex items-center gap-1.5 text-[10px] font-mono text-indigo-400/50">
-          <span className={`h-1.5 w-1.5 rounded-full ${isLongWait ? 'bg-amber-400' : 'bg-indigo-400'} animate-pulse`} />
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-xs font-medium text-foreground/50 font-mono uppercase">assistant</span>
+        <span className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground/50">
+          <span className={`h-1.5 w-1.5 rounded-full ${isLongWait ? 'bg-amber-400' : 'bg-foreground/40'} animate-pulse`} />
           {statusText}
-          <span className="text-foreground/20 ml-0.5">{elapsed}s</span>
+          <span className="text-foreground/20">{elapsed}s</span>
         </span>
       </div>
 
-      {/* Agent activity terminal — premium design */}
-      <div className="ml-7 rounded-lg overflow-hidden border border-foreground/[0.06] bg-surface-0 dark:bg-[#0d0f14]">
-        {/* Terminal header with traffic lights */}
+      {/* Agent activity terminal */}
+      <div className="rounded-lg overflow-hidden border border-foreground/[0.06] bg-surface-0 dark:bg-[#0d0f14]">
+        {/* Terminal header */}
         <div className="flex items-center gap-2 px-3 py-1.5 bg-foreground/[0.02] dark:bg-white/[0.02] border-b border-foreground/[0.04]">
-          <div className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-red-500/40" />
-            <span className="h-2 w-2 rounded-full bg-amber-500/40" />
-            <span className="h-2 w-2 rounded-full bg-emerald-500/40" />
-          </div>
-          <span className="text-[10px] font-mono text-foreground/20 ml-1">eddivom-agent</span>
+          <span className="text-[10px] font-mono text-foreground/25">agent</span>
         </div>
 
         {/* Terminal content */}
         <div className="px-3 py-2 font-mono text-[11px] space-y-1 min-h-[40px] max-h-[320px] overflow-y-auto scroll-smooth scrollbar-thin">
-          {/* Header line */}
-          <div className="flex items-center gap-2 text-foreground/25">
-            <span className="text-indigo-400/40 shrink-0">$</span>
-            <span className="text-emerald-400/50">eddivom-agent</span>
-            <span className="text-foreground/20">run</span>
-            <span className="text-amber-400/40">--auto</span>
-          </div>
-
           {/* Live steps */}
           {hasSteps && liveSteps.map((step, i) => {
             const Icon = step.tool ? (TOOL_ICONS[step.tool] || Terminal) :
@@ -122,7 +106,7 @@ export function ThinkingIndicator({
               <span className="text-amber-300/70">
                 {TOOL_LABELS[currentTool] || currentTool}...
               </span>
-              <span className="w-[6px] h-[12px] bg-indigo-400/60 animate-terminal-blink" />
+              <span className="w-[6px] h-[12px] bg-foreground/40 animate-terminal-blink" />
             </div>
           )}
 
@@ -133,7 +117,7 @@ export function ThinkingIndicator({
               <span className="text-foreground/30">
                 リクエストを分析中...
               </span>
-              <span className="w-[6px] h-[12px] bg-indigo-400/60 animate-terminal-blink" />
+              <span className="w-[6px] h-[12px] bg-foreground/40 animate-terminal-blink" />
             </div>
           )}
 

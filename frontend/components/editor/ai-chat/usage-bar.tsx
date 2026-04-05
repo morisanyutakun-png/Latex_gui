@@ -16,7 +16,7 @@ export function UsageBar({
     <div className="mx-3 mt-2 shrink-0">
       <div className="flex items-center justify-between text-[10px] mb-1">
         <div className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 font-bold text-[9px]">
+          <span className="px-1.5 py-0.5 rounded bg-foreground/[0.06] text-muted-foreground/60 font-mono font-medium text-[9px]">
             {planName}
           </span>
           <span className="text-slate-500">

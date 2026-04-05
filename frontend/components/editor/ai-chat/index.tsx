@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
-  Sparkles, Trash2, KeyRound, ScanLine, FileText, Image as ImageIcon, ArrowRight,
+  Trash2, KeyRound, ScanLine, Terminal,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
@@ -534,34 +534,17 @@ export function AIChatPanel() {
 
   return (
     <div className="flex flex-col h-full bg-surface-2 dark:bg-surface-1">
-      {/* Header — Premium glass design */}
-      <div className="relative flex items-center gap-3 px-4 py-3 border-b border-indigo-500/[0.08] dark:border-indigo-400/[0.06] shrink-0 overflow-hidden">
-        {/* Background layers */}
-        <div className="absolute inset-0 bg-gradient-to-r from-surface-1/98 via-surface-1/95 to-indigo-500/[0.02] dark:from-surface-0/98 dark:via-surface-0/95 dark:to-indigo-500/[0.03] backdrop-blur-2xl" />
-        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/[0.03] to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
-
-        {/* Logo */}
-        <div className="relative h-9 w-9 rounded-[10px] bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 flex items-center justify-center shrink-0 ring-1 ring-white/20 shadow-lg shadow-indigo-500/25 animate-glow-pulse">
-          <Sparkles className="h-4.5 w-4.5 text-white drop-shadow-sm" />
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 shrink-0 bg-surface-1 dark:bg-surface-0">
+        <div className="h-5 w-5 rounded bg-slate-600 dark:bg-slate-500 flex items-center justify-center shrink-0">
+          <Terminal className="h-3 w-3 text-white" />
         </div>
-        <div className="relative flex-1 min-w-0">
-          <p className="text-[13px] font-extrabold tracking-wider leading-none text-gradient-ai">
-            EDDIVOM AI
-          </p>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-50" />
-              <span className="relative rounded-full h-1.5 w-1.5 bg-emerald-400" />
-            </span>
-            <p className="text-[10px] font-medium text-slate-400/80 tracking-wide uppercase">Agent Online</p>
-          </div>
-        </div>
-        <div className="relative flex items-center gap-1">
+        <p className="flex-1 min-w-0 text-xs font-semibold text-foreground/80 truncate">LaTeX Assistant</p>
+        <div className="flex items-center gap-1">
           {chatMessages.length > 0 && (
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v2"); } catch { /**/ } }}
-              className="p-1.5 rounded-lg text-slate-500/60 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+              className="p-1 rounded text-slate-500/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title={t("chat.clear")}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -600,67 +583,37 @@ export function AIChatPanel() {
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 min-h-0 bg-surface-2 dark:bg-surface-1 scrollbar-thin">
         {chatMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-6 py-8 select-none">
-            {/* Hero icon with glow */}
-            <div className="relative">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-600/20 blur-xl scale-150" />
-              <div className="relative h-16 w-16 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-violet-600/10 dark:from-indigo-500/15 dark:to-violet-600/15 flex items-center justify-center ring-1 ring-indigo-400/15 backdrop-blur-sm">
-                <Sparkles className="h-8 w-8 text-indigo-400/80" />
-              </div>
-            </div>
-            <div className="text-center space-y-2">
-              <p className="text-sm font-semibold text-foreground/70">{t("chat.empty.title")}</p>
-              <p className="text-[11px] text-muted-foreground/40 font-mono tracking-wide">
-                <span className="text-indigo-400/50">{'>'}</span> Agent Mode — 自動で文書を読み、編集し、検証します
+          <div className="flex flex-col items-center justify-center h-full gap-4 py-6 select-none">
+            <div className="text-center space-y-1">
+              <p className="text-sm font-medium text-foreground/60">{t("chat.empty.title")}</p>
+              <p className="text-[11px] text-muted-foreground/50 font-mono">
+                文書の編集・作成・修正を指示してください
               </p>
             </div>
-            {/* OMR promo card — premium glass style */}
+
+            {/* OMR upload */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="group w-full rounded-xl border border-emerald-400/15 dark:border-emerald-500/10 bg-gradient-to-br from-emerald-500/[0.04] via-transparent to-teal-500/[0.04] dark:from-emerald-500/[0.06] dark:via-transparent dark:to-teal-500/[0.06] p-4 text-left hover:border-emerald-400/30 dark:hover:border-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 animate-scale-in backdrop-blur-sm"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-border/50 text-left text-xs text-muted-foreground/60 hover:text-foreground/70 hover:border-border hover:bg-surface-3 dark:hover:bg-surface-2 transition-colors"
             >
-              <div className="flex items-start gap-3.5">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0 group-hover:scale-110 group-hover:shadow-emerald-500/30 transition-all duration-300">
-                  <ScanLine className="h-5 w-5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-200 flex items-center gap-2">
-                    画像・PDFから自動読み取り
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 ring-1 ring-emerald-500/20 uppercase tracking-wider">Vision</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground/50 mt-1.5 leading-relaxed">
-                    プリント・手書きノートの画像やPDFをアップロード → AIが自動変換
-                  </p>
-                  <div className="flex items-center gap-3 mt-3">
-                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground/30 font-mono">
-                      <ImageIcon className="h-3 w-3" />
-                      IMG
-                    </span>
-                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground/30 font-mono">
-                      <FileText className="h-3 w-3" />
-                      PDF
-                    </span>
-                    <ArrowRight className="h-3.5 w-3.5 text-emerald-500/40 ml-auto group-hover:translate-x-1 group-hover:text-emerald-400 transition-all duration-300" />
-                  </div>
-                </div>
-              </div>
+              <ScanLine className="h-4 w-4 shrink-0" />
+              <span>画像・PDFから読み取り</span>
             </button>
 
-            {/* AI suggestion cards */}
+            {/* Suggestion cards */}
             <div className="flex flex-col gap-1.5 w-full">
               {[
                 t("chat.suggestion.1"),
                 t("chat.suggestion.2"),
                 t("chat.suggestion.3"),
                 t("chat.suggestion.4"),
-              ].map((s, i) => (
+              ].map((s) => (
                 <button
                   key={s}
                   onClick={() => { setInput(s); textareaRef.current?.focus(); }}
-                  className="group/s text-left text-xs px-4 py-3 rounded-lg border border-foreground/[0.04] bg-foreground/[0.01] dark:bg-foreground/[0.02] text-foreground/50 hover:text-indigo-500 dark:hover:text-indigo-300 hover:border-indigo-500/20 dark:hover:border-indigo-400/15 hover:bg-indigo-500/[0.04] dark:hover:bg-indigo-500/[0.06] transition-all duration-200 animate-scale-in"
-                  style={{ animationDelay: `${i * 50}ms` }}
+                  className="text-left text-xs px-3 py-2 rounded-md border border-transparent text-muted-foreground/50 hover:text-foreground/70 hover:bg-surface-3 dark:hover:bg-surface-2 transition-colors font-mono"
                 >
-                  <span className="opacity-40 group-hover/s:opacity-70 mr-2 text-[10px] font-mono transition-opacity">{'>'}</span>
+                  <span className="text-muted-foreground/30 mr-1.5">{'>'}</span>
                   {s}
                 </button>
               ))}

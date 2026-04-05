@@ -19,7 +19,7 @@ export function ChatMarkdown({ content }: { content: string }) {
           const isInline = !className;
           if (isInline) {
             return (
-              <code className="px-1.5 py-0.5 rounded text-[12px] font-mono bg-slate-100 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300">
+              <code className="px-1.5 py-0.5 rounded text-[12px] font-mono bg-slate-100 dark:bg-slate-800 text-foreground/80">
                 {children}
               </code>
             );
@@ -28,7 +28,7 @@ export function ChatMarkdown({ content }: { content: string }) {
         },
         a: ({ href, children }) => (
           <a href={href} target="_blank" rel="noopener noreferrer"
-            className="text-indigo-600 dark:text-indigo-400 hover:underline">
+            className="text-blue-600 dark:text-blue-400 hover:underline">
             {children}
           </a>
         ),
