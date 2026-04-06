@@ -100,12 +100,13 @@ export default function EditorPage() {
       latexSourceViewerOpen ||
       isHeavyBlockEdit
     );
-  // Wide (1:1 ratio) only for heavy block editing where preset grids need space.
-  // Other modes (palette, latex source, latex inspect) use a narrower panel so the paper stays visible.
+  // OMR-style 1:1 split for ALL left-panel modes (heavy block edit, palette,
+  // latex source, latex inspect). Cap is generous so on wide displays we still
+  // get a balanced two-column layout that mirrors OMRSplitView.
   const leftPanelWidth = isHeavyBlockEdit
-    ? "min(50%, 720px)"
-    : "min(38%, 540px)";
-  const leftPanelMinWidth = isHeavyBlockEdit ? 440 : 380;
+    ? "min(50%, 760px)"
+    : "min(50%, 720px)";
+  const leftPanelMinWidth = isHeavyBlockEdit ? 460 : 420;
 
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
@@ -250,17 +251,41 @@ export default function EditorPage() {
         {/* ── Left review panel — heavy block edit / Cmd+K palette / LaTeX inspect / LaTeX source viewer ── */}
         {leftPanelActive && (
           <div
-            className="flex flex-shrink-0 border-r border-border/40 bg-background overflow-hidden"
+            className="flex flex-shrink-0 border-r-2 border-border/60 bg-background overflow-hidden shadow-[1px_0_0_0_rgba(0,0,0,0.04)]"
             style={{ width: leftPanelWidth, minWidth: leftPanelMinWidth }}
           >
             <LeftReviewPanel />
           </div>
         )}
 
-        {/* ── Document editor — always editable ── */}
-        <div className="flex-1 overflow-auto min-w-0">
-          <DocumentEditor editMode={true} />
-        </div>
+        {/* ── Document editor — always editable.
+            When the left panel is active, wrap with an OMR-style section header
+            so that the two columns visually pair up like a split-view. ── */}
+        {leftPanelActive ? (
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-muted/10">
+            <div className="h-12 border-b border-border/40 bg-background/95 backdrop-blur flex items-center justify-between px-4 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <FileText className="h-4 w-4 text-sky-500 shrink-0" />
+                <span className="text-sm font-medium text-foreground/90 truncate">
+                  {isJa ? "ドキュメントプレビュー" : "Document Preview"}
+                </span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {doc.metadata.title || (isJa ? "無題" : "Untitled")}
+                </span>
+              </div>
+              <span className="text-[10px] text-muted-foreground/60 font-mono uppercase tracking-wider">
+                {doc.blocks.length} {isJa ? "ブロック" : "blocks"}
+              </span>
+            </div>
+            <div className="flex-1 overflow-auto min-w-0">
+              <DocumentEditor editMode={true} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto min-w-0">
+            <DocumentEditor editMode={true} />
+          </div>
+        )}
 
         {/* ── Resize handle ── */}
         {sidebarOpen && !leftPanelActive && (
