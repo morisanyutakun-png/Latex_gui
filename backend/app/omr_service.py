@@ -9,6 +9,7 @@ PDFテキスト抽出は2段構え:
 import base64
 import json
 import logging
+import re
 import subprocess
 import tempfile
 import os
@@ -27,17 +28,46 @@ structured document blocks that can be imported into the editor.
 ## What to extract
 - Text headings → heading blocks (with appropriate level: 1, 2, or 3)
 - Body text / explanations → paragraph blocks
-- Mathematical expressions:
-  - **Inline math** (within a sentence) → embed as $...$ INSIDE paragraph text
-    - Example: "速度 $v = \\frac{dx}{dt}$ を微分すると加速度 $a = \\frac{dv}{dt}$ が得られる"
-    - Use $...$ for: variables, short expressions, inline fractions, single equations in text
-  - **Display math** (standalone equation line, boxed, numbered) → math block (displayMode: true)
-    - Use math blocks for: large integrals, multi-line derivations, important results on their own line
+- Mathematical expressions: **CAREFULLY distinguish inline vs display math** (see rules below)
 - Lists or numbered items → list blocks (style: "bullet" or "numbered")
 - Tables / grids → table blocks (with headers and rows arrays)
 - Chemical formulas → chemistry blocks
 - Diagrams / figures / graphs / illustrations → latex blocks with \\begin{figure} placeholder
 - For OMR answer sheets (bubble sheets): extract question number + selected choice
+
+## ★★ Math classification — FOLLOW STRICTLY ★★
+
+You MUST decide between two cases for every formula. Do NOT default to inline.
+
+### Case A — DISPLAY math → separate math block (displayMode: true)
+Create a SEPARATE math block when ANY of these visual cues are present:
+- The formula sits on its OWN LINE, separated from surrounding text by blank lines or line breaks
+- The formula is HORIZONTALLY CENTERED on its own line
+- The formula is INDENTED away from the body text
+- The formula has an EQUATION NUMBER like (1), (2.3), [式1] on the right edge
+- The formula is BOXED, FRAMED, or has a colored background
+- The formula is LARGER than the body text font (e.g. tall fractions, big integrals, summations with limits)
+- The formula contains \\sum, \\int, \\prod, \\lim, \\frac with multi-line arguments, matrices, cases — these are almost always display
+- Multi-line derivations / aligned equations
+- The formula introduces an important result that the surrounding text refers to (例: "次式が成り立つ:" の直後)
+
+### Case B — INLINE math → embed as $...$ inside the paragraph text
+Use inline ONLY when the formula:
+- Appears in the MIDDLE of a sentence with text on BOTH sides on the SAME line
+- Is a SHORT symbol or expression (variable name, simple ratio, single function call)
+- Examples: 速度 $v$, 質量 $m$, 関数 $f(x)$, 比 $a/b$, 角度 $\\theta$
+
+### Default rule
+If you are uncertain → choose DISPLAY math (separate block). It is far better to over-split
+into display blocks than to cram everything inline. Inline math should be the EXCEPTION,
+reserved for short symbols woven into prose.
+
+## ★★ Line breaks and paragraph structure ★★
+- PRESERVE paragraph breaks visible in the source. Do NOT merge separate paragraphs into one.
+- When you see a blank line or visible vertical gap between text regions, create SEPARATE paragraph blocks.
+- When a single sentence wraps across multiple visual lines, JOIN them into one paragraph (do not insert artificial breaks).
+- A heading is followed by its body — keep them as separate blocks.
+- Use \\n inside paragraph text ONLY for hard line breaks (like poetry or addresses); normally use separate paragraph blocks instead.
 
 ## CRITICAL Instructions
 - You MUST call the `edit_document` tool to return the extracted blocks.
@@ -48,7 +78,6 @@ structured document blocks that can be imported into the editor.
 - Respond in Japanese.
 - Even if the content is unclear, extract whatever you can. Do not refuse.
 - For math expressions: use proper LaTeX (e.g. \\frac{a}{b}, \\sum_{i=1}^{n}, \\sqrt{x}, \\int_a^b)
-- **PREFER inline math in paragraphs** over separate math blocks unless the equation is standalone.
 
 ## Block format (MUST follow exactly)
 Each block in ops must have this structure:
@@ -294,6 +323,147 @@ def _normalize_omr_block(block: dict, block_id: str) -> dict:
     return None
 
 
+# 表示数式の特徴を持つLaTeXコマンド（これらが含まれていれば display にすべき可能性が高い）
+_DISPLAY_MATH_HINTS = (
+    "\\sum", "\\int", "\\prod", "\\lim", "\\oint", "\\iint", "\\iiint",
+    "\\begin{aligned}", "\\begin{align}", "\\begin{cases}", "\\begin{matrix}",
+    "\\begin{pmatrix}", "\\begin{bmatrix}", "\\begin{vmatrix}",
+    "\\overbrace", "\\underbrace", "\\binom",
+    "\\\\",  # 改行 → ほぼ確実に display
+)
+
+# $...$ をスキャンして (start, end, latex) を返す
+_INLINE_MATH_RE = re.compile(r"\$([^$\n]+?)\$")
+
+
+def _looks_like_display_math(latex: str) -> bool:
+    """このLaTeXは display math に昇格すべきか?"""
+    s = latex.strip()
+    if not s:
+        return False
+    if len(s) >= 40:
+        return True
+    for hint in _DISPLAY_MATH_HINTS:
+        if hint in s:
+            return True
+    # 高いフラクション (\frac{...}{...} の中身が長いものは display 向き)
+    if s.count("\\frac") >= 2:
+        return True
+    return False
+
+
+def _promote_display_math_in_paragraph(content: dict) -> list[dict]:
+    """段落テキストを走査して、独立した数式を display math ブロックに昇格させる。
+
+    返り値: 新しい content オブジェクトのリスト (1個以上)。
+    昇格対象がなければ元の content を 1 要素のリストで返す。
+    """
+    if not isinstance(content, dict) or content.get("type") != "paragraph":
+        return [content]
+
+    text = content.get("text") or ""
+    if not text or "$" not in text:
+        return [content]
+
+    matches = list(_INLINE_MATH_RE.finditer(text))
+    if not matches:
+        return [content]
+
+    # 段落全体が "$...$" 1個だけ (周囲の文字が空白だけ) → 確実に display
+    stripped = text.strip()
+    if len(matches) == 1:
+        m = matches[0]
+        before = text[:m.start()].strip()
+        after = text[m.end():].strip()
+        if not before and not after:
+            # 段落 = 数式1個 → math block (display)
+            return [{"type": "math", "latex": m.group(1).strip(), "displayMode": True}]
+
+    # 段落内に display 級の数式が混じっている → 段落を分割
+    result: list[dict] = []
+    cursor = 0
+    buffer = ""
+
+    def flush_text():
+        nonlocal buffer
+        t = buffer.strip()
+        if t:
+            result.append({"type": "paragraph", "text": t})
+        buffer = ""
+
+    for m in matches:
+        latex = m.group(1).strip()
+        if _looks_like_display_math(latex):
+            # 直前のテキストを段落として確定
+            buffer += text[cursor:m.start()]
+            flush_text()
+            # display math ブロックとして追加
+            result.append({"type": "math", "latex": latex, "displayMode": True})
+            cursor = m.end()
+        # それ以外は そのまま buffer に流し込む（後で一括コピー）
+
+    buffer += text[cursor:]
+    flush_text()
+
+    if not result:
+        return [content]
+    return result
+
+
+def _post_process_omr_blocks(ops: list[dict]) -> list[dict]:
+    """OMR が生成したブロックを後処理して、display math 検出ミスや過度なインライン化を修正する。"""
+    new_ops: list[dict] = []
+    counter = 0
+
+    for op in ops:
+        if op.get("op") != "add_block":
+            new_ops.append(op)
+            continue
+
+        block = op.get("block") or {}
+        content = block.get("content")
+        if not isinstance(content, dict):
+            new_ops.append(op)
+            continue
+
+        promoted = _promote_display_math_in_paragraph(content)
+
+        if len(promoted) == 1 and promoted[0] is content:
+            new_ops.append(op)
+            continue
+
+        # 1個以上に分割された → 元のブロックを置き換え
+        prev_after_id = op.get("afterId")
+        for i, new_content in enumerate(promoted):
+            counter += 1
+            new_block = {
+                "id": f"{block.get('id', 'omr')}-{i+1}" if i > 0 else block.get("id"),
+                "content": new_content,
+                "style": block.get("style") or {"textAlign": "left", "fontSize": 11, "fontFamily": "sans"},
+            }
+            new_ops.append({
+                "op": "add_block",
+                "afterId": prev_after_id,
+                "block": new_block,
+            })
+            prev_after_id = new_block["id"]
+
+    # afterId チェーンを再構築 (分割でズレた可能性があるため)
+    fixed: list[dict] = []
+    last_id = None
+    for op in new_ops:
+        if op.get("op") == "add_block":
+            new_op = {**op}
+            if last_id is not None and new_op.get("afterId") is None:
+                new_op["afterId"] = last_id
+            fixed.append(new_op)
+            last_id = (new_op.get("block") or {}).get("id") or last_id
+        else:
+            fixed.append(op)
+
+    return fixed
+
+
 def _normalize_omr_patches(raw_patches: dict | list) -> dict | None:
     """OMR パッチを正規化し、afterId チェーンを修復する。"""
     if isinstance(raw_patches, list):
@@ -355,6 +525,12 @@ def _normalize_omr_patches(raw_patches: dict | list) -> dict | None:
 
     if not normalized_ops:
         return None
+
+    # 後処理: 段落内に紛れ込んだ display math を昇格 / 分割
+    try:
+        normalized_ops = _post_process_omr_blocks(normalized_ops)
+    except Exception as e:
+        logger.warning("OMR post-processing failed: %s", e)
 
     return {"ops": normalized_ops}
 

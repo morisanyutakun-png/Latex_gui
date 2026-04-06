@@ -721,52 +721,22 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     <div className="relative">
       {/* ── 通常編集モード: 直接 textarea を表示（選択・カーソル操作がネイティブに動く） ── */}
       {showDirectTextarea ? (
-        /* テキストに $...$ 数式が含まれる場合はレンダリング表示、含まれない場合は直接textarea */
-        content.text.includes("$") ? (
-          /* 数式入りテキスト: レンダリング表示 + クリックでカーソル配置 */
-          <div
-            className="px-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em] cursor-text"
-            style={baseStyle}
-            onClick={() => {
-              // 隠しtextareaにフォーカスを移す
-              setTimeout(() => textareaRef.current?.focus(), 0);
-            }}
-          >
-            <RenderedInlineText text={content.text} style={baseStyle} />
-            {hasFocus && (
-              <span className="inline-block w-[2px] h-[1.1em] align-middle animate-[cursor-blink_1s_step-end_infinite] bg-foreground" />
-            )}
-            {/* 隠しtextarea — キー入力受付用 */}
-            <textarea
-              ref={textareaRef}
-              value={content.text}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              onCompositionStart={() => { setImeComposing(true); imeJustFinishedRef.current = false; }}
-              onCompositionEnd={() => { setImeComposing(false); imeJustFinishedRef.current = true; setTimeout(() => { imeJustFinishedRef.current = false; }, 300); }}
-              onFocus={() => setHasFocus(true)}
-              onBlur={() => setHasFocus(false)}
-              className="sr-only"
-              rows={1}
-            />
-          </div>
-        ) : (
-          /* 通常テキスト: 直接 textarea */
-          <textarea
-            ref={textareaRef}
-            value={content.text}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onCompositionStart={() => { setImeComposing(true); imeJustFinishedRef.current = false; }}
-            onCompositionEnd={() => { setImeComposing(false); imeJustFinishedRef.current = true; setTimeout(() => { imeJustFinishedRef.current = false; }, 300); }}
-            onFocus={() => setHasFocus(true)}
-            onBlur={() => setHasFocus(false)}
-            placeholder={isJa ? "テキストを入力... (Tab で数式モード)" : "Type text... (Tab for math)"}
-            className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 focus-visible:outline-none p-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em]"
-            style={baseStyle}
-            rows={1}
-          />
-        )
+        /* 数式の有無に関わらず常に可視 textarea — クリックでカーソル位置が決まり、選択や細部編集が可能。
+           編集中は raw な $...$ を表示し、編集終了後に KaTeX でレンダリングされる */
+        <textarea
+          ref={textareaRef}
+          value={content.text}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={() => { setImeComposing(true); imeJustFinishedRef.current = false; }}
+          onCompositionEnd={() => { setImeComposing(false); imeJustFinishedRef.current = true; setTimeout(() => { imeJustFinishedRef.current = false; }, 300); }}
+          onFocus={() => setHasFocus(true)}
+          onBlur={() => setHasFocus(false)}
+          placeholder={isJa ? "テキストを入力... (Tab で数式モード)" : "Type text... (Tab for math)"}
+          className="w-full resize-none overflow-hidden bg-transparent border-none outline-none focus:ring-0 focus-visible:outline-none p-0 py-0.5 text-[14px] leading-[1.8] min-h-[1.75em]"
+          style={baseStyle}
+          rows={1}
+        />
       ) : (
       /* ── 表示モード / 数式モード: レンダリング済み表示 ── */
       <div
