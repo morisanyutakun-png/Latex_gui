@@ -35,6 +35,9 @@ import {
   Star,
   Check,
   Crown,
+  Brain,
+  Wrench,
+  Hammer,
 } from "lucide-react";
 
 /* ── Floating math formulas background ── */
@@ -239,13 +242,39 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
   const showInputCursor = typing1 > 0 || typing2 > 0;
 
   const showUser1    = e >= T.send1;
-  const showThink1   = e >= T.think1 && e < T.ai1;
   const showAi1      = e >= T.ai1;
   const showApplied1 = e >= T.applied1;
   const showUser2    = e >= T.send2;
-  const showThink2   = e >= T.think2 && e < T.ai2;
   const showAi2      = e >= T.ai2;
   const showApplied2 = e >= T.applied2;
+  const showThink1   = e >= T.think1 && e < T.ai1;
+  const showThink2   = e >= T.think2 && e < T.ai2;
+
+  // ── Activity log steps (mirrors real ThinkingIndicator) ──
+  // Each step appears in sequence during the thinking phase, mimicking the
+  // real product's tool-call timeline (analyze → read → edit → compile).
+  type Step = { icon: React.ElementType; label: string; tone: "thinking" | "tool" | "done" };
+  const buildSteps = (start: number, end: number): { steps: Step[]; elapsedSec: number } => {
+    const dur = end - start;
+    const t = Math.max(0, e - start);
+    const stepDefs: Step[] = [
+      { icon: Brain,    label: isJa ? "リクエストを分析中..."     : "Analyzing request...",   tone: "thinking" },
+      { icon: BookOpen, label: isJa ? "文書を読み込み中"          : "Reading document",       tone: "tool" },
+      { icon: Wrench,   label: isJa ? "文書を編集中"              : "Editing document",       tone: "tool" },
+      { icon: Hammer,   label: isJa ? "コンパイルを検証中"        : "Compiling preview",      tone: "tool" },
+    ];
+    const per = dur / stepDefs.length;
+    const visible = Math.min(stepDefs.length, Math.floor(t / per) + 1);
+    return {
+      steps: stepDefs.slice(0, visible).map((s, i) => ({
+        ...s,
+        tone: i < visible - 1 ? "done" : s.tone,
+      })),
+      elapsedSec: Math.floor(t / 1000),
+    };
+  };
+  const think1Data = showThink1 ? buildSteps(T.think1, T.ai1) : null;
+  const think2Data = showThink2 ? buildSteps(T.think2, T.ai2) : null;
 
   // Content: 7 blocks staggered over 3.5s
   const contentBlocks = e >= T.content1
@@ -258,15 +287,50 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
   const opacity = e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1800)
                 : e < 600 ? e / 600 : 1;
 
-  // ── Thinking dots component ──
-  const ThinkingDots = () => (
-    <div className="flex justify-start">
-      <div className="rounded-xl rounded-tl-sm border shadow-sm px-3 py-2 flex gap-1"
-           style={{ background: "white", borderColor: "rgba(245,158,11,0.18)" }}>
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="w-1.5 h-1.5 rounded-full bg-amber-400"
-               style={{ animation: "gentle-pulse 1s ease-in-out infinite", animationDelay: `${i * 200}ms` }} />
-        ))}
+  // ── Activity log card (mirrors real ThinkingIndicator) ──
+  const ActivityLog = ({ data }: { data: { steps: { icon: React.ElementType; label: string; tone: "thinking" | "tool" | "done" }[]; elapsedSec: number } }) => (
+    <div className="flex gap-1.5 items-start">
+      <div className="h-4 w-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-sm"
+           style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)" }}>
+        <Sparkles className="h-2 w-2 text-white" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1 mb-1">
+          <span className="text-[8px] font-semibold uppercase tracking-wide text-foreground/55">EddivomAI</span>
+          <span className="flex items-center gap-0.5 text-[8px] font-medium text-violet-500/80">
+            <span className="w-1 h-1 rounded-full bg-violet-500 animate-pulse" />
+            {isJa ? "考えています…" : "Thinking…"}
+          </span>
+          <span className="ml-auto text-[7.5px] text-muted-foreground/40 tabular-nums">{data.elapsedSec}s</span>
+        </div>
+        <div className="rounded-lg rounded-tl-sm border bg-white/90 dark:bg-black/30 px-2 py-1.5 space-y-1 shadow-sm"
+             style={{ borderColor: "rgba(139,92,246,0.18)" }}>
+          {data.steps.map((s, i) => {
+            const Icon = s.icon;
+            const isDone = s.tone === "done";
+            const isThinking = s.tone === "thinking";
+            return (
+              <div key={i} className="flex items-center gap-1.5">
+                <div className={`h-3 w-3 rounded flex items-center justify-center shrink-0 ${
+                  isDone ? "bg-emerald-100/80 dark:bg-emerald-500/15"
+                  : isThinking ? "bg-violet-100/70 dark:bg-violet-500/15"
+                  : "bg-indigo-100/70 dark:bg-indigo-500/15"
+                }`}>
+                  <Icon className={`h-2 w-2 ${
+                    isDone ? "text-emerald-500"
+                    : isThinking ? "text-violet-400"
+                    : "text-indigo-400 animate-pulse"
+                  }`} />
+                </div>
+                <span className={`text-[8.5px] leading-tight ${
+                  isDone ? "text-emerald-600/85 dark:text-emerald-400/75"
+                  : isThinking ? "text-muted-foreground/55"
+                  : "text-indigo-500/85 dark:text-indigo-400/75"
+                }`}>{s.label}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -433,10 +497,10 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
             {/* Messages */}
             <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
               <Bubble role="user" text={p1} show={showUser1} />
-              {showThink1 && <ThinkingDots />}
+              {think1Data && <ActivityLog data={think1Data} />}
               <Bubble role="ai" text={a1} applied={showApplied1} show={showAi1} />
               <Bubble role="user" text={p2} show={showUser2} />
-              {showThink2 && <ThinkingDots />}
+              {think2Data && <ActivityLog data={think2Data} />}
               <Bubble role="ai" text={a2} applied={showApplied2} show={showAi2} />
             </div>
             {/* Input */}

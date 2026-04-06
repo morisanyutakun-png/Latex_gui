@@ -54,7 +54,8 @@ export function InputArea({
 
           {/* Send button */}
           <button
-            onClick={onSend}
+            type="button"
+            onClick={() => onSend()}
             disabled={isChatLoading || !hasInput}
             className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 mb-0.5 transition-all duration-200 focus:outline-none ${
               hasInput && !isChatLoading

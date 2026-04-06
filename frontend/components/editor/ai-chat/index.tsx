@@ -143,7 +143,8 @@ export function AIChatPanel() {
   }, [applyPatch, setLastAIAction]);
 
   const handleSend = async (overrideText?: string) => {
-    const text = (overrideText ?? input).trim();
+    const raw = typeof overrideText === "string" ? overrideText : input;
+    const text = raw.trim();
     if (!text || isChatLoading || !document) return;
 
     const limitCheck = canMakeRequest();
