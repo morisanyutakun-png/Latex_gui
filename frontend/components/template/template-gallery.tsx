@@ -191,26 +191,116 @@ function TypingLine({ lines }: { lines: string[] }) {
 }
 
 /* ── Editor Workspace Mockup ── */
+/* ── 30-second looping demo ── */
 function EditorMockup({ isJa }: { isJa: boolean }) {
-  const [step, setStep] = useState(0);
+  const [tick, setTick] = useState(0);
+  const CYCLE = 30000; // 30 s
+
   useEffect(() => {
-    const t = setInterval(() => setStep((s) => (s + 1) % 4), 2200);
-    return () => clearInterval(t);
+    const id = setInterval(() => setTick((t) => t + 1), 100);
+    return () => clearInterval(id);
   }, []);
 
-  const chatMessages = [
-    { role: "user", text: isJa ? "二次方程式の練習問題を5問作って" : "Make 5 quadratic problems" },
-    { role: "ai",   text: isJa ? "5問作成しました。紙面に反映しました。" : "Done — 5 problems added!", done: true },
-    { role: "user", text: isJa ? "もう少し難しくして" : "Make them harder" },
-    { role: "ai",   text: isJa ? "難易度を上げました。" : "Updated with harder variants.", done: true },
-  ];
+  const e = (tick * 100) % CYCLE; // elapsed ms in current cycle
+
+  // ── Text content ──
+  const p1 = isJa ? "二次方程式の練習問題を5問作って" : "Make 5 quadratic equation problems";
+  const p2 = isJa ? "もう少し難しくして" : "Make them harder";
+  const a1 = isJa ? "5問作成しました。紙面に反映しました。" : "Done — 5 problems created and applied!";
+  const a2 = isJa ? "難易度を上げて更新しました。" : "Updated with harder variants.";
+
+  // ── Timeline (ms) — paced to fill ~30 s cycle ──
+  const T = {
+    type1: 2000,  send1: 2000 + p1.length * 130 + 500,
+    think1: 0,    ai1: 0,      content1: 0,  applied1: 0,
+    type2: 0,     send2: 0,
+    think2: 0,    ai2: 0,      content2: 0,  applied2: 0,
+    fadeOut: 27500,
+  };
+  T.think1 = T.send1 + 400;
+  T.ai1    = T.think1 + 3000;
+  T.content1 = T.ai1 + 400;
+  T.applied1 = T.content1 + 3500;
+  T.type2    = T.applied1 + 3000;
+  T.send2    = T.type2 + p2.length * 150 + 500;
+  T.think2   = T.send2 + 400;
+  T.ai2      = T.think2 + 2800;
+  T.content2 = T.ai2 + 400;
+  T.applied2 = T.content2 + 2000;
+
+  // ── Derived state ──
+  const typingProgress = (start: number, text: string, charMs: number) => {
+    if (e < start) return 0;
+    return Math.min(text.length, Math.floor((e - start) / charMs));
+  };
+  const typing1 = e >= T.type1 && e < T.send1 ? typingProgress(T.type1, p1, 130) : 0;
+  const typing2 = e >= T.type2 && e < T.send2 ? typingProgress(T.type2, p2, 150) : 0;
+  const inputText = typing2 > 0 ? p2.slice(0, typing2) : typing1 > 0 ? p1.slice(0, typing1) : "";
+  const showInputCursor = typing1 > 0 || typing2 > 0;
+
+  const showUser1    = e >= T.send1;
+  const showThink1   = e >= T.think1 && e < T.ai1;
+  const showAi1      = e >= T.ai1;
+  const showApplied1 = e >= T.applied1;
+  const showUser2    = e >= T.send2;
+  const showThink2   = e >= T.think2 && e < T.ai2;
+  const showAi2      = e >= T.ai2;
+  const showApplied2 = e >= T.applied2;
+
+  // Content: 7 blocks staggered over 3.5s
+  const contentBlocks = e >= T.content1
+    ? Math.min(7, Math.floor((e - T.content1) / 500) + 1)
+    : 0;
+  const showHarder = e >= T.content2;
+  const harderFlash = e >= T.content2 && e < T.content2 + 600;
+
+  // Fade in/out for loop
+  const opacity = e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1800)
+                : e < 600 ? e / 600 : 1;
+
+  // ── Thinking dots component ──
+  const ThinkingDots = () => (
+    <div className="flex justify-start">
+      <div className="rounded-xl rounded-tl-sm border shadow-sm px-3 py-2 flex gap-1"
+           style={{ background: "white", borderColor: "rgba(245,158,11,0.18)" }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="w-1.5 h-1.5 rounded-full bg-amber-400"
+               style={{ animation: "gentle-pulse 1s ease-in-out infinite", animationDelay: `${i * 200}ms` }} />
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Chat message bubble ──
+  const Bubble = ({ role, text, applied, show }: { role: string; text: string; applied?: boolean; show: boolean }) => (
+    <div className={`flex transition-all duration-500 ${show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 h-0 overflow-hidden"} ${role === "user" ? "justify-end" : "justify-start"}`}>
+      <div className={`rounded-xl px-2.5 py-1.5 max-w-[90%] ${role === "user" ? "rounded-tr-sm" : "rounded-tl-sm border shadow-sm"}`}
+           style={role === "user" ? { background: "linear-gradient(135deg, #b45309, #d97706)" } : { background: "white", borderColor: "rgba(245,158,11,0.18)" }}>
+        <p className={`text-[9px] leading-relaxed ${role === "user" ? "text-white/90" : "text-gray-600"}`}>{text}</p>
+        {applied && (
+          <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 font-medium mt-1 inline-block">
+            {isJa ? "✓ 反映済み" : "✓ Applied"}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  // ── Animated worksheet content (left pane) ──
+  const wsBlock = (idx: number, node: React.ReactNode) => (
+    <div key={idx}
+         className="transition-all duration-500"
+         style={{ opacity: contentBlocks >= idx ? 1 : 0, transform: contentBlocks >= idx ? "translateY(0)" : "translateY(8px)" }}>
+      {node}
+    </div>
+  );
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto">
+    <div className="relative w-full max-w-4xl mx-auto" style={{ opacity }}>
       <div className="absolute -inset-4 bg-gradient-to-b from-violet-500/[0.05] to-fuchsia-500/[0.03] rounded-3xl blur-2xl pointer-events-none" />
       <div className="relative rounded-2xl border border-foreground/[0.08] bg-card/90 backdrop-blur-xl shadow-2xl shadow-foreground/[0.06] overflow-hidden">
 
-        {/* Title bar — matches real app-header */}
+        {/* Title bar */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-foreground/[0.06] bg-foreground/[0.02]">
           <div className="flex gap-1.5">
             <div className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
@@ -237,18 +327,101 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
 
         {/* 2-pane + activity bar */}
         <div className="flex" style={{ minHeight: "340px" }}>
-          {/* Left: real worksheet paper, scaled to fit */}
+
+          {/* Left: animated worksheet */}
           <div className="flex-1 bg-gray-100/60 dark:bg-gray-950/40 flex justify-center items-start py-4 px-3 overflow-hidden">
             <div className="overflow-hidden rounded-md shadow-xl" style={{ width: "248px", height: "308px" }}>
               <div style={{ transform: "scale(0.645)", transformOrigin: "top left", width: "385px", pointerEvents: "none" }}>
-                <WorksheetPaper variant="exam" isJa={isJa} />
+                <div className={`bg-white rounded-lg shadow-2xl border border-gray-300/50 overflow-hidden select-none transition-all duration-500 ${harderFlash ? "ring-2 ring-amber-400/40" : ""}`} style={SERIF}>
+                  {/* Title */}
+                  {wsBlock(1, <>
+                    <div className="px-6 pt-5 pb-3 border-b-2 border-gray-800">
+                      <h1 className="text-[18px] font-bold text-center text-gray-900 tracking-widest">
+                        {isJa ? "数学Ⅰ　確認テスト" : "Math I — Quiz"}
+                      </h1>
+                    </div>
+                    <div className="px-6 pt-2 pb-1.5 flex items-center justify-between text-[10px] text-gray-600">
+                      <span>{isJa ? "各10点・計50点" : "10 pts each · 50 pts total"}</span>
+                      <span className="flex items-end gap-2">
+                        {isJa ? "組" : "Class"}<span className="border-b border-gray-500 w-7 inline-block mb-0.5" />
+                        {isJa ? "番" : "#"}<span className="border-b border-gray-500 w-7 inline-block mb-0.5" />
+                        {isJa ? "名前" : "Name"}<span className="border-b border-gray-500 w-20 inline-block mb-0.5" />
+                      </span>
+                    </div>
+                    <div className="mx-6 border-b border-gray-400 mb-3" />
+                  </>)}
+
+                  <div className="px-6 pb-4 space-y-4">
+                    {/* Q1 header */}
+                    {wsBlock(2,
+                      <p className="text-[12px] font-bold text-gray-900 mb-1.5">
+                        {isJa ? "第１問　計算問題" : "Q1 — Calculations"}
+                      </p>
+                    )}
+                    {wsBlock(3,
+                      <p className="text-[10px] text-gray-600 mb-2.5">{isJa ? "次の計算をせよ。" : "Solve each."}</p>
+                    )}
+                    {/* Q1 problems */}
+                    {wsBlock(4,
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-[11.5px] text-gray-800 leading-relaxed flex items-baseline gap-1">
+                            <span className="text-gray-500 mr-1">(1)</span>
+                            <M t={showHarder ? "5x^2 - 7x + 1 = 0" : "3x^2 + 5x - 2 = 0"} />{isJa ? "　を解け。" : ""}
+                          </p>
+                          <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
+                        </div>
+                        <div>
+                          <p className="text-[11.5px] text-gray-800 leading-relaxed flex items-baseline gap-1">
+                            <span className="text-gray-500 mr-1">(2)</span>
+                            <M t={showHarder ? "\\log_3 27 \\cdot \\log_2 16" : "\\log_2 8 + \\log_2 4"} />{isJa ? "　の値を求めよ。" : " = ?"}
+                          </p>
+                          <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
+                        </div>
+                      </div>
+                    )}
+                    {/* Q2 header */}
+                    {wsBlock(5,
+                      <div className="mt-2">
+                        <p className="text-[12px] font-bold text-gray-900 mb-1.5">
+                          {isJa ? "第２問　関数" : "Q2 — Functions"}
+                        </p>
+                        <p className="text-[10px] text-gray-600 mb-2.5">
+                          {isJa
+                            ? <span>関数 <M t={showHarder ? "f(x) = 2x^2 - 8x + 5" : "f(x) = x^2 - 4x + 3"} /> について、次の問いに答えよ。</span>
+                            : <span><M t={showHarder ? "f(x) = 2x^2 - 8x + 5" : "f(x) = x^2 - 4x + 3"} /> — answer the following.</span>}
+                        </p>
+                      </div>
+                    )}
+                    {/* Q2 problems */}
+                    {wsBlock(6,
+                      <div>
+                        <p className="text-[11.5px] text-gray-800">
+                          <span className="text-gray-500 mr-2">(1)</span>
+                          {isJa ? "頂点の座標を求めよ。" : "Find the vertex."}
+                        </p>
+                        <div className="ml-6 mt-1 h-9 border-b border-dashed border-gray-200" />
+                      </div>
+                    )}
+                    {wsBlock(7,
+                      <div>
+                        <p className="text-[11.5px] text-gray-800">
+                          <span className="text-gray-500 mr-2">(2)</span>
+                          {isJa ? "f(x) = 0 となる x の値を全て求めよ。" : "Solve f(x) = 0."}
+                        </p>
+                        <div className="ml-6 mt-1 h-8 border-b border-dashed border-gray-200" />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Right: AI chat panel — amber, matching real product */}
+          {/* Right: AI chat panel */}
           <div className="w-[196px] sm:w-[230px] border-l border-foreground/[0.06] flex flex-col dark:bg-[#100e03]"
                style={{ background: "rgba(255,253,245,0.98)" }}>
+            {/* Header */}
             <div className="px-3 py-2 border-b flex items-center gap-2"
                  style={{ borderColor: "rgba(245,158,11,0.18)", background: "rgba(255,251,235,0.85)" }}>
               <div className="h-4 w-4 rounded bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-sm">
@@ -257,34 +430,30 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
               <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 tracking-wide">EddivomAI</span>
               <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             </div>
+            {/* Messages */}
             <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex transition-all duration-700 ${i < step + 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"} ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`rounded-xl px-2.5 py-1.5 max-w-[90%] ${msg.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm border shadow-sm"}`}
-                    style={msg.role === "user"
-                      ? { background: "linear-gradient(135deg, #b45309, #d97706)" }
-                      : { background: "white", borderColor: "rgba(245,158,11,0.18)" }}
-                  >
-                    <p className={`text-[9px] leading-relaxed ${msg.role === "user" ? "text-white/90" : "text-gray-600"}`}>
-                      {msg.text}
-                    </p>
-                    {msg.done && (
-                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 font-medium mt-1 inline-block">
-                        {isJa ? "✓ 反映済み" : "✓ Applied"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+              <Bubble role="user" text={p1} show={showUser1} />
+              {showThink1 && <ThinkingDots />}
+              <Bubble role="ai" text={a1} applied={showApplied1} show={showAi1} />
+              <Bubble role="user" text={p2} show={showUser2} />
+              {showThink2 && <ThinkingDots />}
+              <Bubble role="ai" text={a2} applied={showApplied2} show={showAi2} />
             </div>
+            {/* Input */}
             <div className="p-2 border-t" style={{ borderColor: "rgba(245,158,11,0.15)" }}>
               <div className="flex items-center gap-1.5 bg-white dark:bg-black/20 rounded-lg px-2.5 py-1.5 border shadow-sm"
-                   style={{ borderColor: "rgba(245,158,11,0.28)" }}>
-                <span className="text-[9px] text-gray-400 flex-1 truncate">
-                  {isJa ? "指示を入力…" : "Type a prompt…"}
+                   style={{ borderColor: inputText ? "rgba(245,158,11,0.5)" : "rgba(245,158,11,0.28)" }}>
+                <span className="text-[9px] flex-1 truncate min-w-0">
+                  {inputText ? (
+                    <span className="text-gray-700">
+                      {inputText}
+                      {showInputCursor && <span className="inline-block w-px h-3 bg-amber-500 ml-px align-middle" style={{ animation: "stream-cursor 0.9s step-end infinite" }} />}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">{isJa ? "指示を入力…" : "Type a prompt…"}</span>
+                  )}
                 </span>
-                <div className="h-4 w-4 rounded-full flex items-center justify-center shrink-0"
+                <div className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 transition-transform duration-200 ${inputText ? "scale-110" : ""}`}
                      style={{ background: "linear-gradient(135deg, #d97706, #f59e0b)" }}>
                   <ArrowRight className="h-2.5 w-2.5 text-white" />
                 </div>
