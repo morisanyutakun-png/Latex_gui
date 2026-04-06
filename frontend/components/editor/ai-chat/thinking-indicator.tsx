@@ -62,9 +62,9 @@ export function ThinkingIndicator({
         {/* Name + status */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className="text-[12px] font-semibold tracking-wide text-foreground/60 uppercase">Eddivom AI</span>
-          <span className="flex items-center gap-1.5 text-[11px] text-violet-500/75 font-medium">
+          <span className="flex items-center gap-1.5 text-[11px] text-amber-600/75 dark:text-amber-400/75 font-medium">
             <span className="thinking-dot-ripple">
-              <span className={`h-1.5 w-1.5 rounded-full inline-block ${isLongWait ? "bg-amber-400" : "bg-violet-500"}`} />
+              <span className="h-1.5 w-1.5 rounded-full inline-block bg-amber-500" />
             </span>
             {statusText}
           </span>
@@ -118,13 +118,13 @@ export function ThinkingIndicator({
             {/* Currently running tool */}
             {currentTool && (
               <div className="flex items-center gap-2.5">
-                <div className="h-5 w-5 rounded-md bg-violet-100/60 dark:bg-violet-500/10 flex items-center justify-center shrink-0">
+                <div className="h-5 w-5 rounded-md bg-amber-100/70 dark:bg-amber-500/12 flex items-center justify-center shrink-0">
                   {(() => {
                     const Icon = TOOL_ICONS[currentTool] || Terminal;
-                    return <Icon className="h-3 w-3 text-violet-500/70 animate-pulse" />;
+                    return <Icon className="h-3 w-3 text-amber-600/80 dark:text-amber-400/80 animate-pulse" />;
                   })()}
                 </div>
-                <span className="text-violet-500/70 animate-pulse">
+                <span className="text-amber-600/70 dark:text-amber-400/70 animate-pulse">
                   {TOOL_LABELS[currentTool] || currentTool}...
                 </span>
               </div>
@@ -133,8 +133,8 @@ export function ThinkingIndicator({
             {/* Generic thinking */}
             {!hasSteps && !currentTool && (
               <div className="flex items-center gap-2.5">
-                <div className="h-5 w-5 rounded-md bg-violet-100/50 dark:bg-violet-500/08 flex items-center justify-center shrink-0">
-                  <Brain className="h-3 w-3 text-violet-400/60 animate-pulse" />
+                <div className="h-5 w-5 rounded-md bg-amber-100/60 dark:bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Brain className="h-3 w-3 text-amber-500/70 dark:text-amber-400/60 animate-pulse" />
                 </div>
                 <span className="text-muted-foreground/45">リクエストを分析中...</span>
               </div>

@@ -262,7 +262,7 @@ def _trim_block_code_for_preview(code: str) -> str:
     return trimmed.strip() or code  # 全部消えてしまったら原文を返す
 
 
-_PREVIEW_WRAP_VERSION = "v2"  # _wrap_block_latex のロジック変更時にバンプ → 古いキャッシュを無効化
+_PREVIEW_WRAP_VERSION = "v3"  # _wrap_block_latex のロジック変更時にバンプ → 古いキャッシュを無効化
 
 
 def _get_cache_key(code: str, block_type: str, extra: str = "") -> str:
@@ -488,15 +488,25 @@ def _compile_to_svg(latex_source: str) -> str:
                 )
                 png_path = Path(tmpdir) / "preview.png"
                 if result.returncode == 0 and png_path.exists():
+                    import struct
                     png_bytes = png_path.read_bytes()
                     b64 = base64.b64encode(png_bytes).decode("ascii")
+                    # PNGヘッダから実際の寸法を読み取る (IHDRチャンク)
+                    try:
+                        if len(png_bytes) >= 24 and png_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+                            png_w = struct.unpack('>I', png_bytes[16:20])[0]
+                            png_h = struct.unpack('>I', png_bytes[20:24])[0]
+                        else:
+                            png_w, png_h = 800, 600
+                    except Exception:
+                        png_w, png_h = 800, 600
                     # SVG でラップして既存のフロントエンドと互換性を保つ
                     svg_wrapper = (
                         f'<svg xmlns="http://www.w3.org/2000/svg" '
                         f'xmlns:xlink="http://www.w3.org/1999/xlink" '
-                        f'width="100%" viewBox="0 0 100 100" '
-                        f'preserveAspectRatio="xMidYMid meet">'
-                        f'<image width="100%" height="100%" '
+                        f'viewBox="0 0 {png_w} {png_h}" '
+                        f'width="{png_w}" height="{png_h}">'
+                        f'<image width="{png_w}" height="{png_h}" '
                         f'href="data:image/png;base64,{b64}" />'
                         f'</svg>'
                     )

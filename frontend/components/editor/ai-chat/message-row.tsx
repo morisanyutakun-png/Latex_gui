@@ -68,8 +68,9 @@ export function MessageRow({
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
       {/* Avatar */}
       {isUser ? (
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-          <User className="h-4 w-4 text-white dark:text-slate-200" />
+        <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-sm"
+             style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 50%, #d97706 100%)", boxShadow: "0 2px 8px rgba(180,83,9,0.28), inset 0 1px 0 rgba(255,255,255,0.15)" }}>
+          <User className="h-4 w-4 text-amber-50" />
         </div>
       ) : (
         <div className="h-8 w-8 rounded-xl chat-avatar-ai-static flex items-center justify-center shrink-0 mt-0.5">
@@ -81,13 +82,15 @@ export function MessageRow({
       <div className={`flex-1 min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}>
         {/* Name + meta row */}
         <div className={`flex items-center gap-2 mb-1.5 ${isUser ? "flex-row-reverse" : ""}`}>
-          <span className="text-[12px] font-semibold tracking-wide text-foreground/60 uppercase">
+          <span className={`text-[12px] font-semibold tracking-wide uppercase ${
+            isUser ? "text-amber-700/70 dark:text-amber-500/70" : "text-foreground/55"
+          }`}>
             {isUser ? "You" : "Eddivom AI"}
           </span>
           {!isUser && msg.isStreaming && (
-            <span className="flex items-center gap-1.5 text-[11px] text-violet-500/80 font-medium">
+            <span className="flex items-center gap-1.5 text-[11px] text-amber-600/80 dark:text-amber-400/80 font-medium">
               <span className="thinking-dot-ripple">
-                <span className="h-1.5 w-1.5 rounded-full bg-violet-500 inline-block" />
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
               </span>
               生成中
             </span>
