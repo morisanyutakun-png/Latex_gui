@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   RefreshCw, Copy, Check, AlertCircle, Loader2,
   Edit3, Eye, Download, FileCode2,
@@ -33,7 +33,7 @@ export function LaTeXSourceViewer() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     if (!document) return;
     setLoading(true);
     setError(null);
@@ -46,7 +46,15 @@ export function LaTeXSourceViewer() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [document]);
+
+  // Auto-fetch on mount so the panel is immediately useful
+  const didAutoFetch = useRef(false);
+  useEffect(() => {
+    if (didAutoFetch.current || !document) return;
+    didAutoFetch.current = true;
+    void handleRefresh();
+  }, [document, handleRefresh]);
 
   const handleCopy = async () => {
     const text = editMode ? editedSource : source;
@@ -90,14 +98,14 @@ export function LaTeXSourceViewer() {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 shrink-0 gap-2">
+      <div className="flex items-center justify-between px-3 py-2 border-b-2 border-slate-300 dark:border-slate-700 shrink-0 gap-2 bg-slate-50 dark:bg-slate-900/40">
         <div className="flex items-center gap-1.5">
-          <FileCode2 className="h-3.5 w-3.5 text-slate-400" />
-          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+          <FileCode2 className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
             LaTeXソース
           </span>
           {editMode && (
-            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white rounded-full">EDIT</span>
+            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white border-2 border-amber-700 dark:border-amber-300">EDIT</span>
           )}
         </div>
         <div className="flex items-center gap-1 flex-wrap justify-end">
@@ -177,7 +185,7 @@ export function LaTeXSourceViewer() {
           ) : (
             /* ── プレビューモード: ハイライト表示 ── */
             <div className="flex-1 overflow-y-auto p-3">
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+              <div className="bg-slate-50 dark:bg-slate-900 p-3 border-2 border-slate-300 dark:border-slate-700">
                 <HighlightedSource source={currentSource} />
               </div>
             </div>

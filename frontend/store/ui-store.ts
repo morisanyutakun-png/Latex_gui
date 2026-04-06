@@ -47,8 +47,10 @@ interface UIState {
   omrProcessing: boolean;
   omrProgress: string;
 
-  // Left review panel — pops out heavy block editors and AI LaTeX inspect
+  // Left review panel — pops out heavy block editors, AI LaTeX inspect,
+  // the LaTeX source viewer, and the Cmd+K block palette
   latexInspectSource: string | null;
+  latexSourceViewerOpen: boolean;
 
   selectBlock: (id: string | null) => void;
   setEditingBlock: (id: string | null) => void;
@@ -86,6 +88,7 @@ interface UIState {
 
   // Left review panel actions
   openLatexInspect: (src: string) => void;
+  openLatexSourceViewer: () => void;
   closeLeftPanel: () => void;
 }
 
@@ -113,6 +116,7 @@ export const useUIStore = create<UIState>((set) => ({
   omrProcessing: false,
   omrProgress: "",
   latexInspectSource: null,
+  latexSourceViewerOpen: false,
 
   selectBlock: (id) => set(
     id === null
@@ -162,6 +166,22 @@ export const useUIStore = create<UIState>((set) => ({
   setOMRProcessing: (v) => set({ omrProcessing: v }),
   setOMRProgress: (msg) => set({ omrProgress: msg }),
 
-  openLatexInspect: (src) => set({ latexInspectSource: src, editingBlockId: null }),
-  closeLeftPanel: () => set({ latexInspectSource: null, editingBlockId: null }),
+  openLatexInspect: (src) => set({
+    latexInspectSource: src,
+    editingBlockId: null,
+    latexSourceViewerOpen: false,
+    showGlobalPalette: false,
+  }),
+  openLatexSourceViewer: () => set({
+    latexSourceViewerOpen: true,
+    latexInspectSource: null,
+    editingBlockId: null,
+    showGlobalPalette: false,
+  }),
+  closeLeftPanel: () => set({
+    latexInspectSource: null,
+    latexSourceViewerOpen: false,
+    editingBlockId: null,
+    showGlobalPalette: false,
+  }),
 }));

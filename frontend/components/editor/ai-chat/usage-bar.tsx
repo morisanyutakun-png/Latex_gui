@@ -13,32 +13,32 @@ export function UsageBar({
     : "bg-violet-500";
 
   return (
-    <div className="mx-4 mt-2 shrink-0">
-      <div className="flex items-center justify-between text-[10px] mb-1">
-        <div className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400 font-medium text-[9px]">
+    <div className="mx-4 mt-2.5 shrink-0">
+      <div className="flex items-center justify-between text-[10px] mb-1.5">
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 bg-violet-600 text-white border-2 border-violet-700 dark:border-violet-400 font-bold text-[9px] uppercase tracking-wider">
             {planName}
           </span>
-          <span className="text-muted-foreground/50">
-            {todayUsage}/{dailyLimit} 本日
+          <span className="text-foreground/70 font-mono tabular-nums">
+            {todayUsage}/{dailyLimit} <span className="text-muted-foreground/50">本日</span>
           </span>
-          <span className="text-muted-foreground/25">·</span>
-          <span className="text-muted-foreground/50">
-            {monthUsage}/{monthlyLimit.toLocaleString()} 月
+          <span className="text-muted-foreground/35">·</span>
+          <span className="text-foreground/60 font-mono tabular-nums">
+            {monthUsage}/{monthlyLimit.toLocaleString()} <span className="text-muted-foreground/50">月</span>
           </span>
         </div>
         {dailyPercent >= 60 && (
           <button
             onClick={onUpgrade}
-            className="text-[9px] text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 font-medium transition-colors"
+            className="text-[9px] text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-200 font-bold uppercase tracking-wider transition-colors"
           >
             アップグレード
           </button>
         )}
       </div>
-      <div className="h-1 rounded-full bg-black/[0.04] dark:bg-white/[0.06] overflow-hidden">
+      <div className="h-1.5 bg-black/[0.06] dark:bg-white/[0.08] border border-foreground/15 overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+          className={`h-full transition-all duration-500 ${barColor}`}
           style={{ width: `${Math.min(100, dailyPercent)}%` }}
         />
       </div>

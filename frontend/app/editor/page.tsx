@@ -81,15 +81,22 @@ export default function EditorPage() {
 
   // 数式編集コンテキストが変わってもガイドパネルを自動切替しない
 
-  // Left review panel: open when editing a heavy block, or when AI surfaces LaTeX source
+  // Left review panel: opens for heavy block edit, AI LaTeX inspect, the LaTeX
+  // source viewer, or the global Cmd+K palette.
   const editingBlockId = useUIStore((s) => s.editingBlockId);
   const latexInspectSource = useUIStore((s) => s.latexInspectSource);
+  const latexSourceViewerOpen = useUIStore((s) => s.latexSourceViewerOpen);
+  const showGlobalPalette = useUIStore((s) => s.showGlobalPalette);
+  const openLatexSourceViewer = useUIStore((s) => s.openLatexSourceViewer);
+  const closeLeftPanel = useUIStore((s) => s.closeLeftPanel);
   const editingBlock = editingBlockId
     ? doc?.blocks.find((b) => b.id === editingBlockId) ?? null
     : null;
   const leftPanelActive =
     !isMobile && (
+      showGlobalPalette ||
       latexInspectSource !== null ||
+      latexSourceViewerOpen ||
       (editingBlock !== null && HEAVY_BLOCK_TYPES.has(editingBlock.content.type))
     );
 
@@ -233,9 +240,12 @@ export default function EditorPage() {
       <EditorHints />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* ── Left review panel — appears when editing a heavy block or inspecting LaTeX source ── */}
+        {/* ── Left review panel — heavy block edit / Cmd+K palette / LaTeX inspect / LaTeX source viewer ── */}
         {leftPanelActive && (
-          <div className="flex flex-shrink-0 sidebar-card my-3 ml-3 rounded-[22px] border-[3px] border-foreground/[0.16] dark:border-foreground/[0.12] bg-surface-2 dark:bg-surface-1 shadow-[0_18px_48px_-18px_rgba(0,0,0,0.22),0_4px_14px_-4px_rgba(0,0,0,0.10)] dark:shadow-[0_18px_48px_-18px_rgba(0,0,0,0.7),0_4px_14px_-4px_rgba(0,0,0,0.45)] overflow-hidden" style={{ width: 380 }}>
+          <div
+            className="flex flex-shrink-0 sidebar-card border-[3px] border-foreground/25 dark:border-foreground/20 bg-surface-2 dark:bg-surface-1 overflow-hidden"
+            style={{ width: "min(50%, 720px)", minWidth: 440 }}
+          >
             <LeftReviewPanel />
           </div>
         )}
@@ -253,8 +263,8 @@ export default function EditorPage() {
           />
         )}
 
-        {/* ── Sidebar (panel + activity bar) — floating card; hidden (display:none) when left panel is active to preserve chat streaming ── */}
-        <div className={`${leftPanelActive ? "hidden" : "flex"} flex-shrink-0 sidebar-card my-3 mr-3 rounded-[22px] border-[3px] border-foreground/[0.16] dark:border-foreground/[0.12] bg-surface-2 dark:bg-surface-1 shadow-[0_18px_48px_-18px_rgba(0,0,0,0.22),0_4px_14px_-4px_rgba(0,0,0,0.10)] dark:shadow-[0_18px_48px_-18px_rgba(0,0,0,0.7),0_4px_14px_-4px_rgba(0,0,0,0.45)] overflow-hidden`}>
+        {/* ── Sidebar (panel + activity bar) — square card; hidden (display:none) when left panel is active to preserve chat streaming ── */}
+        <div className={`${leftPanelActive ? "hidden" : "flex"} flex-shrink-0 sidebar-card border-[3px] border-foreground/25 dark:border-foreground/20 bg-surface-2 dark:bg-surface-1 overflow-hidden`}>
           {/* Panel content */}
           <div
             className="overflow-hidden flex flex-col panel-depth"
@@ -302,8 +312,8 @@ export default function EditorPage() {
           </div>
 
           {/* Activity bar — right edge of the floating card */}
-          <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l-2 border-foreground/[0.10] dark:border-foreground/[0.08] bg-surface-1/70 dark:bg-surface-0/80 shrink-0">
-          {/* Main tabs */}
+          <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l-[3px] border-foreground/15 bg-surface-1/70 dark:bg-surface-0/80 shrink-0">
+          {/* Main tabs — "latex" opens in the LEFT sidebar, others toggle the right panel */}
           {(["ai", "latex", "scoring"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Sparkles : tab === "scoring" ? ClipboardCheck : FileCode2;
             const color = tab === "ai" ? "text-indigo-500 dark:text-indigo-400" : tab === "scoring" ? "text-emerald-500 dark:text-emerald-400" : "text-slate-400";
@@ -313,9 +323,16 @@ export default function EditorPage() {
               : tab === "scoring"
               ? (isJa ? "採点" : "Scoring")
               : (isJa ? "LaTeXソース" : "LaTeX Source");
-            const isActive = sidebarOpen && activeTab === tab;
+            const isActive =
+              tab === "latex"
+                ? latexSourceViewerOpen
+                : sidebarOpen && activeTab === tab;
+            const handleClick =
+              tab === "latex"
+                ? () => { if (latexSourceViewerOpen) closeLeftPanel(); else openLatexSourceViewer(); }
+                : () => handleTabClick(tab);
             return (
-              <button key={tab} onClick={() => handleTabClick(tab)} title={label}
+              <button key={tab} onClick={handleClick} title={label}
                 className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
                   isActive ? `${color} bg-foreground/[0.05] ${tab === "ai" ? "active" : ""}` : "text-foreground/20 hover:text-foreground/50 hover:bg-foreground/[0.04]"
                 }`}

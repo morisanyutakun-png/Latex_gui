@@ -1554,8 +1554,11 @@ const PALETTE_CATEGORIES = [
   },
 ];
 
-function GlobalCommandPalette() {
-  const { t } = useI18n();
+/**
+ * Render-only command palette body. Renders inside the LeftReviewPanel.
+ * The fullscreen modal version is no longer used — palette content lives in the left sidebar.
+ */
+export function CommandPaletteContent() {
   const { showGlobalPalette, setGlobalPalette, selectedBlockId, selectBlock, setEditingBlock } = useUIStore();
   const { addBlock } = useDocumentStore();
   const [query, setQuery] = useState("");
@@ -1579,8 +1582,6 @@ function GlobalCommandPalette() {
   }, [showGlobalPalette]);
 
   const handleSelect = (type: BlockType) => {
-    setGlobalPalette(false);
-
     // 数式: paragraph を作って数式モードに入る
     if (type === "math") {
       const blocks = useDocumentStore.getState().document?.blocks ?? [];
@@ -1588,6 +1589,7 @@ function GlobalCommandPalette() {
         ? blocks.findIndex((b) => b.id === selectedBlockId) + 1
         : blocks.length;
       const newId = addBlock("paragraph", afterIdx);
+      setGlobalPalette(false);
       if (newId) {
         selectBlock(newId);
         setEditingBlock(newId);
@@ -1601,44 +1603,36 @@ function GlobalCommandPalette() {
       ? blocks.findIndex((b) => b.id === selectedBlockId) + 1
       : blocks.length;
     const newId = addBlock(type, afterIdx);
+    setGlobalPalette(false);
     if (newId) { selectBlock(newId); setEditingBlock(newId); }
   };
-
-  if (!showGlobalPalette) return null;
 
   // カテゴリ表示 or フラット検索
   const showCategories = !query;
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh] bg-black/30 backdrop-blur-[2px]"
-      onClick={() => setGlobalPalette(false)}
-    >
-      <div
-        className="w-[520px] bg-background border border-border/30 rounded-2xl shadow-[0_32px_80px_rgba(0,0,0,0.28)] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Search header */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border/15 bg-muted/20">
-          <Search className="h-4.5 w-4.5 text-muted-foreground/50 shrink-0" style={{ width: 18, height: 18 }} />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setIdx(0); }}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowDown") { e.preventDefault(); setIdx((i) => Math.min(i + 1, filtered.length - 1)); }
-              else if (e.key === "ArrowUp") { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
-              else if (e.key === "Enter") { e.preventDefault(); if (filtered[idx]) handleSelect(filtered[idx].type); }
-              else if (e.key === "Escape") { e.preventDefault(); setGlobalPalette(false); }
-            }}
-            placeholder="ブロックを検索…　リスト、数式、表、コード…"
-            className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground/35 font-medium"
-          />
-          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted border border-border/40 text-muted-foreground/50 shrink-0">Esc</kbd>
-        </div>
+    <div className="h-full flex flex-col bg-background">
+      {/* Search header */}
+      <div className="flex items-center gap-3 px-4 py-3.5 border-b-[3px] border-foreground/15 bg-muted/30 shrink-0">
+        <Search className="h-[18px] w-[18px] text-muted-foreground/60 shrink-0" />
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setIdx(0); }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") { e.preventDefault(); setIdx((i) => Math.min(i + 1, filtered.length - 1)); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
+            else if (e.key === "Enter") { e.preventDefault(); if (filtered[idx]) handleSelect(filtered[idx].type); }
+            else if (e.key === "Escape") { e.preventDefault(); setGlobalPalette(false); }
+          }}
+          placeholder="ブロックを検索…　リスト、数式、表、コード…"
+          className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground/40 font-medium"
+        />
+        <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted border border-border/40 text-muted-foreground/60 shrink-0">Esc</kbd>
+      </div>
 
-        {/* Content */}
-        <div className="max-h-[400px] overflow-y-auto">
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
           {showCategories ? (
             /* カテゴリ別グリッド表示 */
             <div className="p-3 space-y-4">
@@ -1716,13 +1710,12 @@ function GlobalCommandPalette() {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-4 py-2 border-t border-border/10 bg-muted/10 flex items-center gap-4 text-[10px] text-muted-foreground/40 font-mono">
-          <span><kbd className="px-1 rounded bg-muted border border-border/30">↑↓</kbd> 移動</span>
-          <span><kbd className="px-1 rounded bg-muted border border-border/30">↵</kbd> 挿入</span>
-          <span><kbd className="px-1 rounded bg-muted border border-border/30">Esc</kbd> 閉じる</span>
-          <span className="ml-auto opacity-60">;; でもインラインで開けます</span>
-        </div>
+      {/* Footer */}
+      <div className="px-4 py-2 border-t-[3px] border-foreground/15 bg-muted/20 flex items-center gap-4 text-[10px] text-muted-foreground/50 font-mono shrink-0">
+        <span><kbd className="px-1 rounded bg-muted border border-border/30">↑↓</kbd> 移動</span>
+        <span><kbd className="px-1 rounded bg-muted border border-border/30">↵</kbd> 挿入</span>
+        <span><kbd className="px-1 rounded bg-muted border border-border/30">Esc</kbd> 閉じる</span>
+        <span className="ml-auto opacity-60">;; でもインラインで開けます</span>
       </div>
     </div>
   );
@@ -1814,7 +1807,6 @@ export function DocumentEditor({ editMode = false }: { editMode?: boolean }) {
   return (
     <EditModeContext.Provider value={editMode}>
     <>
-    <GlobalCommandPalette />
     {/* Canvas */}
     <div
       ref={canvasRef}
