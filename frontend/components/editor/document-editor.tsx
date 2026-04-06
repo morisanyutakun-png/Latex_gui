@@ -1463,26 +1463,31 @@ function LaTeXPreview({ code, caption }: { code: string; caption?: string }) {
   }
 
   return (
-    <div className="relative bg-white dark:bg-zinc-950 rounded-md border border-border/20 overflow-hidden">
+    <div className="relative bg-white dark:bg-zinc-950 rounded-md border border-border/30 overflow-hidden min-h-[64px]">
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 z-10">
           <Loader2 className="h-4 w-4 animate-spin text-fuchsia-500" />
         </div>
       )}
       {svg ? (
+        // SVG は自然サイズで中央配置。max-width は 100% で抑えるが、強制ストレッチ
+        // (h-auto) はしない — 中身が小さい場合に縦に間延びしないようにする。
         <div
-          className="flex items-center justify-center p-4 [&>svg]:max-w-full [&>svg]:h-auto"
+          className="flex items-center justify-center p-4 [&>svg]:max-w-full [&>svg]:max-h-[480px] [&>svg]:h-auto [&>svg]:w-auto"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       ) : error ? (
-        <div className="py-4 px-3 text-center space-y-1">
-          <p className="text-[10px] text-amber-500">{error}</p>
-          <button
-            onClick={() => fetchPreview(code)}
-            className="text-[10px] text-fuchsia-500 hover:underline"
-          >
-            再試行
-          </button>
+        <div className="py-3 px-3 flex items-start gap-2 bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-amber-400">
+          <FileCode className="h-3.5 w-3.5 mt-0.5 text-amber-600 shrink-0" />
+          <div className="flex-1 min-w-0 space-y-1">
+            <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug break-words">{error}</p>
+            <button
+              onClick={() => fetchPreview(code)}
+              className="text-[11px] font-medium text-fuchsia-600 dark:text-fuchsia-400 hover:underline"
+            >
+              再試行
+            </button>
+          </div>
         </div>
       ) : !loading ? (
         <div className="flex items-center justify-center py-6 text-muted-foreground/30">
