@@ -262,7 +262,51 @@ def _trim_block_code_for_preview(code: str) -> str:
     return trimmed.strip() or code  # 全部消えてしまったら原文を返す
 
 
-_PREVIEW_WRAP_VERSION = "v4"  # _wrap_block_latex のロジック変更時にバンプ → 古いキャッシュを無効化
+def _fix_display_math_in_tcolorbox_options(code: str) -> str:
+    r"""tcolorbox の [...] オプション引数内に \[...\] が含まれると
+    'LaTeX Error: Something's wrong--perhaps a miss' が発生する。
+    オプション引数内では display math は使えないため \[...\] を \(...\) に置換する。
+
+    アルゴリズム: 文字列を走査して \begin{tcolorbox}[ の直後から
+    ブレース深さを追跡しながら対応する ] を探し、その範囲だけ置換する。
+    ネストした波括弧 (title={...}) は正しく追跡するため誤置換しない。
+    """
+    out: list[str] = []
+    i = 0
+    n = len(code)
+    marker = "\\begin{tcolorbox}["
+
+    while i < n:
+        idx = code.find(marker, i)
+        if idx == -1:
+            out.append(code[i:])
+            break
+        # marker 前をそのまま追加
+        out.append(code[i : idx + len(marker)])
+        j = idx + len(marker)
+        opt_start = j
+        brace_depth = 0
+        # ブレース深さを追いながら対応する ] を探す
+        while j < n:
+            c = code[j]
+            if c == "{":
+                brace_depth += 1
+            elif c == "}" and brace_depth > 0:
+                brace_depth -= 1
+            elif c == "]" and brace_depth == 0:
+                break
+            j += 1
+        # オプション範囲内の \[ と \] を \( と \) に置換
+        opts = code[opt_start:j]
+        opts = opts.replace("\\[", "\\(").replace("\\]", "\\)")
+        out.append(opts)
+        out.append("]" if j < n else "")
+        i = j + 1
+
+    return "".join(out)
+
+
+_PREVIEW_WRAP_VERSION = "v5"  # _wrap_block_latex のロジック変更時にバンプ → 古いキャッシュを無効化
 
 
 # -file-line-error フラグによるエラー行プレフィックス: `/path/to/file.tex:NN: `
@@ -416,6 +460,8 @@ def _wrap_block_latex(
             "\\setlength{\\textwidth}{160mm}",
             "\\setlength{\\linewidth}{160mm}",
             "\\usepackage[most]{tcolorbox}",            # 全ライブラリ (skins/breakable 含む)
+            # standalone ではページ分割不要 — breakable が shipout フックと衝突する既知問題を回避
+            "\\tcbset{breakable=false}",
             "\\usepackage{amsmath,amssymb}",
             "\\usepackage{xcolor}",
             "\\usepackage{multicol}",
@@ -425,8 +471,10 @@ def _wrap_block_latex(
             "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,"
             "decorations.markings,automata,fit,patterns,backgrounds}",
         ]
+        # tcolorbox オプション内の \[...\] を \(...\) に変換 (display math はオプション引数不可)
+        sanitized_code = _fix_display_math_in_tcolorbox_options(code)
         # 単体プレビューでブロック先頭・末尾の余白指定を取り除く
-        body = _trim_block_code_for_preview(code)
+        body = _trim_block_code_for_preview(sanitized_code)
     else:
         # 図形系ブロック: varwidth でコンテンツに合わせてサイズ自動調整
         preamble_lines = [

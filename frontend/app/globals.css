@@ -858,10 +858,18 @@ html {
 
 /* ── Chat panel background ── */
 .chat-aurora-panel {
-  background: #f5f4f0;
+  background: rgba(255, 253, 245, 0.98);
 }
 .dark .chat-aurora-panel {
-  background: #111110;
+  background: #100e03;
+}
+
+/* ── Chat header / footer bar — LP準拠のクリームアンバー ── */
+.chat-panel-bar {
+  background: rgba(255, 251, 235, 0.85);
+}
+.dark .chat-panel-bar {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* ── Message list scroll area ── */

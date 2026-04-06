@@ -372,7 +372,7 @@ export default function EditorPage() {
                 {isActive && <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full ${ind} shadow-[0_0_8px_-1px_currentColor] transition-all duration-300`} />}
                 <Icon className={`h-[17px] w-[17px] transition-transform duration-200 ${isActive ? "scale-110" : ""}`} />
                 {tab === "ai" && isChatLoading && (
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-indigo-400 animate-pulse ring-2 ring-surface-0/80" />
+                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-500 animate-pulse ring-2 ring-surface-0/80" />
                 )}
               </button>
             );

@@ -19,7 +19,7 @@ export function InputArea({
   const hasInput = input.trim().length > 0;
 
   return (
-    <div className="px-3 pb-3 pt-2 shrink-0 border-t border-black/[0.05] dark:border-white/[0.05] bg-white/60 dark:bg-white/[0.02] backdrop-blur-sm">
+    <div className="px-3 pb-3 pt-2 shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm">
       <div className="chat-input-aurora rounded-2xl overflow-hidden">
         <div className="flex items-end gap-1.5 px-3 py-2.5">
           {/* Textarea */}

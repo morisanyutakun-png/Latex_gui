@@ -543,7 +543,7 @@ export function AIChatPanel() {
   return (
     <div className="flex flex-col h-full chat-aurora-panel">
       {/* Header — LP-matching clean style */}
-      <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0 bg-white/80 dark:bg-white/[0.03] backdrop-blur-sm">
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-black/[0.08] dark:border-white/[0.06] shrink-0 chat-panel-bar dark:bg-white/[0.03] backdrop-blur-sm">
         <div className="h-7 w-7 rounded-lg chat-avatar-ai-static flex items-center justify-center shrink-0">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
