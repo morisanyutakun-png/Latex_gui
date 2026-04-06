@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
-  Sparkles, Trash2, KeyRound, ScanLine, PenLine, Calculator, TableProperties, Bug,
+  Sparkles, Trash2, KeyRound, PenLine, Calculator, TableProperties, Bug,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
@@ -608,20 +608,6 @@ export function AIChatPanel() {
                 何でもお気軽にどうぞ。
               </p>
             </div>
-
-            {/* OMR upload card */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="group w-full flex items-center gap-3 px-3.5 py-3 rounded-xl chat-suggestion-card text-left"
-            >
-              <div className="h-10 w-10 rounded-xl bg-emerald-50/80 dark:bg-emerald-500/12 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 transition-colors border border-emerald-400/40 dark:border-emerald-400/30">
-                <ScanLine className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-foreground/85">画像・PDFから読み取り</p>
-                <p className="text-[11px] text-muted-foreground/60 mt-0.5">アップロードして自動変換</p>
-              </div>
-            </button>
 
             {/* Suggestion cards */}
             <div className="grid grid-cols-2 gap-2 w-full">

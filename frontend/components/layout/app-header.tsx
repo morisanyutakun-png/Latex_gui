@@ -287,15 +287,17 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
       {/* Tools */}
       <div className="flex items-center gap-1">
-        {/* OMR — 画像/PDF→LaTeX変換 */}
+        {/* OMR — 画像/PDF読み取り（メイン CTA） */}
         <input ref={omrFileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={handleOMRFromToolbar} />
         <button
           onClick={() => omrFileRef.current?.click()}
           disabled={isGenerating}
-          className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[13px] font-medium border border-emerald-300/40 dark:border-emerald-700/40 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/80 dark:hover:bg-emerald-950/40 hover:border-emerald-400/60 dark:hover:border-emerald-600/50 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97] shrink-0"
+          className="group relative flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm hover:shadow-[0_0_10px_rgba(16,185,129,0.35)] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.97] shrink-0 overflow-hidden"
           title={isJa ? "画像やPDFをAIが読み取り、自動でドキュメントに変換します" : "AI reads images/PDFs and converts them to document blocks"}
         >
-          <ScanLine className="h-3.5 w-3.5" />
+          {/* subtle shimmer */}
+          <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 pointer-events-none" />
+          <ScanLine className="h-3.5 w-3.5 shrink-0" />
           <span className="hidden sm:inline">
             {isJa ? "読み取り" : "Scan"}
           </span>

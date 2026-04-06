@@ -244,13 +244,13 @@ export function EditToolbar() {
 
       <Sep />
 
-      {/* 画像・PDF読み取り (OMR) */}
+      {/* 画像・PDF読み取り (OMR) — 強調CTA */}
       <button
         onClick={() => useUIStore.getState().triggerOMR()}
-        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium text-emerald-700/70 dark:text-emerald-400/70 bg-emerald-50/60 dark:bg-emerald-500/8 border border-emerald-400/30 hover:text-emerald-800 dark:hover:text-emerald-300 hover:bg-emerald-100/80 dark:hover:bg-emerald-500/15 hover:border-emerald-400/50 transition-colors shrink-0"
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm hover:shadow-[0_0_8px_rgba(16,185,129,0.30)] transition-all duration-150 active:scale-[0.97] shrink-0"
         title="画像・PDFを読み取り (OMR)"
       >
-        <ScanLine className="h-3 w-3" />
+        <ScanLine className="h-3 w-3 shrink-0" />
         <span className="hidden sm:inline">読み取り</span>
       </button>
 
