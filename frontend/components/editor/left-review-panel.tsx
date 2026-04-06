@@ -135,10 +135,9 @@ export function LeftReviewPanel() {
           Icon={Command}
           iconAccent="text-indigo-500"
           label="ブロック挿入"
-          context="Cmd+K パレット"
+          context="Cmd+K"
           onClose={closeLeftPanel}
         />
-        <SectionLabel>ブロックタイプを選択</SectionLabel>
         <div className="flex-1 min-h-0 overflow-hidden">
           <CommandPaletteContent />
         </div>
