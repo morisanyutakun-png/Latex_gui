@@ -6,7 +6,6 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES, createBlock, DESIGN_PRESETS, DesignPreset } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
-import { JapaneseMathInput, type JapaneseMathInputHandle } from "./math-japanese-input";
 import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor, BlockEditorToolbar } from "./engineering-editors";
 import { parseInlineText, parseJapanesemath, highlightMathTokens, type MathTokenKind } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
@@ -160,20 +159,10 @@ function BlockWrapper({
           className="relative"
           onClick={(e) => {
             e.stopPropagation();
-            if (editMode) {
-              setEditingBlock(block.id);
-              const t = block.content.type;
-              const guideMap: Record<string, string> = { heading: "heading", list: "list", table: "table", code: "code", math: "math" };
-              setActiveGuideContext((guideMap[t] || "general") as import("@/store/ui-store").GuideContext);
-            }
-            else selectBlock(block.id);
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            // ダブルクリックで常に編集モードに入る
+            // 常に即時編集（editMode の有無に関係なく直接編集開始）
             setEditingBlock(block.id);
             const t = block.content.type;
-            const guideMap: Record<string, string> = { heading: "heading", list: "list", table: "table", code: "code", math: "math" };
+            const guideMap: Record<string, string> = { heading: "heading", list: "list", table: "table", code: "code" };
             setActiveGuideContext((guideMap[t] || "general") as import("@/store/ui-store").GuideContext);
           }}
         >
@@ -386,9 +375,17 @@ function RenderedInlineText({ text, style }: { text: string; style?: React.CSSPr
     <>
       {segments.map((seg, i) =>
         seg.type === "math" && seg.latex ? (
-          <span key={i} className="inline-block mx-0.5 align-middle">
-            <MathRenderer latex={seg.latex} displayMode={false} />
-          </span>
+          seg.displayMode ? (
+            // $$...$$ — display math: 中央揃えブロック
+            <div key={i} className="flex justify-center my-2 w-full">
+              <MathRenderer latex={seg.latex} displayMode={true} />
+            </div>
+          ) : (
+            // $...$ — inline math
+            <span key={i} className="inline-block mx-0.5 align-middle">
+              <MathRenderer latex={seg.latex} displayMode={false} />
+            </span>
+          )
         ) : (
           <span key={i}>{seg.content}</span>
         )
@@ -865,9 +862,6 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
             >
               <span className={`shrink-0 text-[10px] font-medium ${item.color}`}>{item.name}</span>
               <span className="text-muted-foreground text-[10px]">{item.description}</span>
-              {item.type === "math" && (
-                <span className="ml-auto shrink-0 px-1.5 py-0.5 rounded text-[8px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300">{isJa ? "モード" : "mode"}</span>
-              )}
             </button>
           ))}
         </div>
@@ -876,73 +870,7 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   );
 }
 
-function MathBlockEditor({ block }: { block: Block }) {
-  const { locale } = useI18n();
-  const isJa = locale === "ja";
-  const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const { editingBlockId, setMathEditing, selectBlock, setEditingBlock } = useUIStore();
-  const content = block.content as Extract<Block["content"], { type: "math" }>;
-  const isEditing = editingBlockId === block.id;
-  const mathInputRef = useRef<JapaneseMathInputHandle>(null);
-
-  // 数式ブロック編集中は数式モード
-  useEffect(() => {
-    setMathEditing(isEditing);
-    return () => { if (isEditing) setMathEditing(false); };
-  }, [isEditing, setMathEditing]);
-
-  // 矢印キーなどで isEditing になった時に自動フォーカス
-  useEffect(() => {
-    if (isEditing) {
-      requestAnimationFrame(() => mathInputRef.current?.focus());
-    }
-  }, [isEditing]);
-
-  const handleApply = useCallback((latex: string, sourceText: string) => {
-    updateContent(block.id, { latex, sourceText });
-  }, [block.id, updateContent]);
-
-  const handleNavigateOut = useCallback((dir: "prev" | "next") => {
-    const blocks = useDocumentStore.getState().document?.blocks ?? [];
-    const idx = blocks.findIndex((b) => b.id === block.id);
-    if (dir === "prev" && idx > 0) {
-      _nextFocusHint = "end";
-      selectBlock(blocks[idx - 1].id);
-      setEditingBlock(blocks[idx - 1].id);
-    } else if (dir === "next" && idx < blocks.length - 1) {
-      _nextFocusHint = "start";
-      selectBlock(blocks[idx + 1].id);
-      setEditingBlock(blocks[idx + 1].id);
-    }
-  }, [block.id, selectBlock, setEditingBlock]);
-
-  return (
-    <div className="space-y-0">
-      {/* 数式レンダリング（既存ドキュメント後方互換） */}
-      {content.latex ? (
-        <div className="latex-display-math">
-          <MathRenderer latex={content.latex} displayMode={content.displayMode} />
-        </div>
-      ) : !isEditing ? (
-        <div className="py-2 text-center text-muted-foreground/30 text-xs select-none">
-          {isJa ? "クリックして数式を入力" : "Click to enter math"}
-        </div>
-      ) : null}
-
-      {/* 編集中: 最小限の入力欄のみ */}
-      {isEditing && (
-        <div className={`border rounded-lg p-2 bg-background/80 ${content.latex ? "border-t-0 rounded-t-none" : ""}`} onClick={(e) => e.stopPropagation()}>
-          <JapaneseMathInput
-            ref={mathInputRef}
-            onApply={handleApply}
-            initialSourceText={content.sourceText || ""}
-            onNavigateOut={handleNavigateOut}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
+// MathBlockEditor は廃止 — math ブロックは normalizeAIBlock で paragraph に変換済み
 
 function ListItemEditor({ item, index, blockId, content }: {
   item: string; index: number; blockId: string;
@@ -1526,7 +1454,7 @@ function BlockEditor({ block }: { block: Block }) {
   switch (block.content.type) {
     case "heading":   return <HeadingBlockEditor block={block} />;
     case "paragraph": return <ParagraphBlockEditor block={block} />;
-    case "math":      return <MathBlockEditor block={block} />;
+    case "math":      return <ParagraphBlockEditor block={block} />;  // 旧 math ブロック → paragraph エディタで編集
     case "list":      return <ListBlockEditor block={block} />;
     case "table":     return <TableBlockEditor block={block} />;
     case "image":     return <ImageBlockEditor block={block} />;

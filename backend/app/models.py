@@ -28,6 +28,8 @@ class ParagraphContent(CamelModel):
     text: str = ""
 
 
+# MathContent は廃止 — paragraph 内の $$...$$ で代替
+# 後方互換のため型定義のみ残す（バックエンドでの受信時に ParagraphContent に変換される）
 class MathContent(CamelModel):
     type: Literal["math"] = "math"
     latex: str = ""

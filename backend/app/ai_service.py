@@ -65,7 +65,7 @@ AGENT_TOOLS = {
                     },
                     "block_type": {
                         "type": "string",
-                        "description": "Filter by block type: heading, paragraph, math, list, table, image, code, quote, circuit, diagram, chemistry, chart, divider.",
+                        "description": "Filter by block type: heading, paragraph, list, table, image, code, quote, circuit, diagram, chemistry, chart, divider.",
                     },
                 },
             },
@@ -77,7 +77,8 @@ AGENT_TOOLS = {
                 "Each op in 'ops' is applied in order. Available operations: "
                 "add_block, update_block, delete_block, reorder, update_design, update_advanced. "
                 "Use update_advanced to add custom \\usepackage, \\newcommand, or preamble code. "
-                "Prefer heading/paragraph/math/list/table blocks for content. "
+                "Prefer heading/paragraph/list/table blocks for content. "
+                "For math: inline → $...$ inside paragraph text; display math → paragraph with $$...$$ (e.g. {\"type\":\"paragraph\",\"text\":\"$$\\\\frac{a}{b}$$\"}). "
                 "Use 'latex' type only for TikZ graphics or multi-column layouts that other blocks cannot express."
             ),
             "parameters": {
@@ -101,9 +102,10 @@ AGENT_TOOLS = {
                                     "type": "object",
                                     "description": (
                                         "(add_block) Block: {id, content: {type, ...}, style: {...}}. "
-                                        "Block types: heading, paragraph, math, list, table, image, divider, code, quote, circuit, diagram, chemistry, chart, latex. "
+                                        "Block types: heading, paragraph, list, table, image, divider, code, quote, circuit, diagram, chemistry, chart, latex. "
                                         "The 'latex' type is for TikZ graphics or multi-column layouts only. "
-                                        "For math problems use paragraph+math blocks. Do NOT use latex type for tcolorbox or decorative boxes."
+                                        "For math: inline → $...$ in paragraph.text; display → paragraph with $$...$$ e.g. {\"type\":\"paragraph\",\"text\":\"$$E=mc^2$$\"}. "
+                                        "Do NOT use 'math' block type (abolished). Do NOT use latex type for tcolorbox or decorative boxes."
                                     ),
                                 },
                                 "blockId": {
@@ -280,7 +282,7 @@ Claude Code や OpenAI Codex のように、**ユーザーの指示に対して�
 
 ### 数式
 - インライン数式: テキスト中に `$...$` で囲む（例: `$x^2 + 1$`）
-- 独立数式: math ブロック (displayMode: true) を使用
+- 独立数式: paragraph ブロックに $$...$$ で囲む（例: `{"type":"paragraph","text":"$$\\frac{a}{b}$$"}`）
 - 分数は `\\frac{}{}`、添字は `_{}`、上付きは `^{}`
 
 ### 問題用紙の標準構成
@@ -291,7 +293,7 @@ Claude Code や OpenAI Codex のように、**ユーザーの指示に対して�
 5. 各問題セクション:
    - heading(level=2): 「第1問」「問1」等
    - paragraph: 問題文（インライン数式含む）
-   - list(numbered) or math: 小問・数式
+   - list(numbered): 小問リスト、または paragraph with $$...$$ で独立数式
 6. 解答欄が必要なら空行やvspaceで確保
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -303,7 +305,7 @@ Claude Code や OpenAI Codex のように、**ユーザーの指示に対して�
 |---|---|---|
 | heading | 見出し | text, level (1-3) |
 | paragraph | 本文 | text（インライン数式 $...$ 可） |
-| math | 独立数式 | latex, displayMode (true/false) |
+| ~~math~~ | **廃止** — paragraph の $$...$$ を使う | — |
 | list | 箇条書き | style ("bullet"/"numbered"), items[] |
 | table | 表 | headers[], rows[][] |
 | divider | 区切り線 | style ("solid"/"dashed"/"dotted") |
@@ -930,14 +932,16 @@ def _fix_block_content(block: dict) -> None:
 
 def _fix_content_fields(content: dict) -> None:
     btype = content.get("type")
+    # math ブロックは廃止 — paragraph に変換
     if btype == "math":
-        if "displayMode" not in content:
-            content["displayMode"] = True
-        latex = content.get("latex", "")
-        if latex.startswith("$$") and latex.endswith("$$"):
-            content["latex"] = latex[2:-2].strip()
-        elif latex.startswith("$") and latex.endswith("$") and not latex.startswith("$$"):
-            content["latex"] = latex[1:-1].strip()
+        latex = content.get("latex", "").strip()
+        if latex.startswith("$$") and latex.endswith("$$"): latex = latex[2:-2].strip()
+        elif latex.startswith("$") and latex.endswith("$"): latex = latex[1:-1].strip()
+        is_display = content.get("displayMode", True)
+        content.clear()
+        content["type"] = "paragraph"
+        content["text"] = f"$${latex}$$" if is_display else f"${latex}$"
+        btype = "paragraph"
     if btype == "list" and "style" not in content:
         content["style"] = "bullet"
     if btype == "heading" and "level" not in content:

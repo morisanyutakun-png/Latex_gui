@@ -2344,22 +2344,28 @@ export interface InlineSegment {
   content: string;
   raw?: string;
   latex?: string;
+  /** true = display math（$$...$$、中央揃えブロック） */
+  displayMode?: boolean;
 }
 
 /**
- * 段落テキスト中の $...$ インライン数式を検出・変換
- * \[...\] と \(...\) デリミタも事前に $...$ に統一する
+ * 段落テキスト中の数式を検出・変換
+ * - $$...$$ → displayMode: true (中央揃えブロック)
+ * - $...$   → displayMode: false (インライン)
+ * - \[...\] と \(...\) デリミタも事前に $...$ に統一する
  */
 export function parseInlineText(text: string): InlineSegment[] {
   if (!text) return [{ type: "text", content: "" }];
 
   // Normalize LaTeX delimiters before parsing
   text = text
-    .replace(/\\\[(.+?)\\\]/gs, (_, m) => `$${m.trim()}$`)
-    .replace(/\\\((.+?)\\\)/gs, (_, m) => `$${m.trim()}$`);
+    .replace(/\\\[(.+?)\\\]/gs, (_, m) => `$$${m.trim()}$$`)  // \[...\] → $$...$$
+    .replace(/\\\((.+?)\\\)/gs, (_, m) => `$${m.trim()}$`);   // \(...\) → $...$
 
   const segments: InlineSegment[] = [];
-  const regex = /\$([^$]+)\$/g;
+  // $$...$$ を $...$ より先にマッチ（greedy 問題回避）
+  // group 1 = display ($$...$$), group 2 = inline ($...$)
+  const regex = /\$\$([^$]+)\$\$|\$([^$]+)\$/g;
   let lastIndex = 0;
   let match;
 
@@ -2367,9 +2373,17 @@ export function parseInlineText(text: string): InlineSegment[] {
     if (match.index > lastIndex) {
       segments.push({ type: "text", content: text.slice(lastIndex, match.index) });
     }
-    const raw = match[1];
-    const latex = parseJapanesemath(raw);
-    segments.push({ type: "math", content: latex, raw, latex });
+    if (match[1] !== undefined) {
+      // $$...$$ — display math
+      const raw = match[1];
+      const latex = parseJapanesemath(raw);
+      segments.push({ type: "math", content: latex, raw, latex, displayMode: true });
+    } else {
+      // $...$ — inline math
+      const raw = match[2];
+      const latex = parseJapanesemath(raw);
+      segments.push({ type: "math", content: latex, raw, latex, displayMode: false });
+    }
     lastIndex = match.index + match[0].length;
   }
 

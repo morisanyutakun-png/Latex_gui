@@ -37,30 +37,32 @@ structured document blocks that can be imported into the editor.
 
 ## ★★ Math classification — FOLLOW STRICTLY ★★
 
-You MUST decide between two cases for every formula. Do NOT default to inline.
+ALL math goes into paragraph blocks. There is NO separate "math" block type.
+You MUST decide between two forms for every formula:
 
-### Case A — DISPLAY math → separate math block (displayMode: true)
-Create a SEPARATE math block when ANY of these visual cues are present:
+### Form A — DISPLAY math → $$...$$ in a DEDICATED paragraph block
+Use $$...$$ (double dollar signs) and create a SEPARATE paragraph block when ANY of these apply:
 - The formula sits on its OWN LINE, separated from surrounding text by blank lines or line breaks
 - The formula is HORIZONTALLY CENTERED on its own line
 - The formula is INDENTED away from the body text
 - The formula has an EQUATION NUMBER like (1), (2.3), [式1] on the right edge
 - The formula is BOXED, FRAMED, or has a colored background
 - The formula is LARGER than the body text font (e.g. tall fractions, big integrals, summations with limits)
-- The formula contains \\sum, \\int, \\prod, \\lim, \\frac with multi-line arguments, matrices, cases — these are almost always display
+- The formula contains \\sum, \\int, \\prod, \\lim, \\frac with multi-line arguments, matrices, cases
 - Multi-line derivations / aligned equations
-- The formula introduces an important result that the surrounding text refers to (例: "次式が成り立つ:" の直後)
+- The formula introduces an important result (例: "次式が成り立つ:" の直後)
 
-### Case B — INLINE math → embed as $...$ inside the paragraph text
-Use inline ONLY when the formula:
+Example: {"type": "paragraph", "text": "$$\\\\int_0^\\\\infty e^{-x}\\\\,dx = 1$$"}
+
+### Form B — INLINE math → $...$ inside the paragraph text
+Use $...$ (single dollar signs) when the formula:
 - Appears in the MIDDLE of a sentence with text on BOTH sides on the SAME line
 - Is a SHORT symbol or expression (variable name, simple ratio, single function call)
-- Examples: 速度 $v$, 質量 $m$, 関数 $f(x)$, 比 $a/b$, 角度 $\\theta$
+- Examples: 速度 $v$, 質量 $m$, 関数 $f(x)$, 比 $a/b$, 角度 $\\theta$, $\\therefore x = 2$
 
 ### Default rule
-If you are uncertain → choose DISPLAY math (separate block). It is far better to over-split
-into display blocks than to cram everything inline. Inline math should be the EXCEPTION,
-reserved for short symbols woven into prose.
+If you are uncertain → choose DISPLAY math ($$...$$, separate block). Over-splitting into
+display blocks is far better than cramming everything inline. Inline $...$ is the EXCEPTION.
 
 ## ★★ Line breaks and paragraph structure ★★
 - PRESERVE paragraph breaks visible in the source. Do NOT merge separate paragraphs into one.
@@ -91,8 +93,8 @@ Each block in ops must have this structure:
 
 Block types and their content fields:
 - heading: {"type": "heading", "text": "...", "level": 1}
-- paragraph: {"type": "paragraph", "text": "文章中の数式は $f(x) = x^2$ のように $...$ で囲む"}
-- math: {"type": "math", "latex": "\\\\int_0^\\\\infty e^{-x}\\\\,dx = 1", "displayMode": true}
+- paragraph: {"type": "paragraph", "text": "文章中の数式は $f(x) = x^2$ のように $...$ で囲む。独立した数式は $$\\\\frac{a}{b}$$ のように $$$$ で囲む"}
+  ★ NOTE: "math" block type is ABOLISHED. Use paragraph with $...$ or $$...$$ instead.
 - list: {"type": "list", "style": "numbered", "items": ["item1", "item2"]}
 - table: {"type": "table", "headers": ["列1", "列2"], "rows": [["A", "B"]]}
 - latex: {"type": "latex", "code": "\\\\begin{figure}[h]\\n\\\\centering\\n% TODO: \\\\includegraphics{...}\\n\\\\caption{図の説明}\\n\\\\end{figure}"}
@@ -376,17 +378,88 @@ _INLINE_MATH_RE = re.compile(r"\$([^$\n]+?)\$")
 _DISPLAY_ENV_RE = re.compile(r"\\\[(.+?)\\\]", re.DOTALL)
 _PAREN_INLINE_RE = re.compile(r"\\\((.+?)\\\)", re.DOTALL)
 
+# 既存の $...$ / $$...$$ ブロックを保護するためのパターン
+_MATH_BLOCK_RE = re.compile(r"\$\$[\s\S]*?\$\$|\$[^$\n]+?\$")
+
+
+def _wrap_bare_latex_runs(segment: str) -> str:
+    """$...$ 外の区間で \\LaTeXコマンド を含む ASCII run を $...$ で囲む。
+    日本語（非ASCII）文字をセパレータとして使い、\\command を含む ASCII 部分だけをラップする。
+    """
+    if "\\" not in segment:
+        return segment
+
+    result = []
+    i = 0
+    n = len(segment)
+
+    while i < n:
+        c = segment[i]
+
+        # ASCII文字のrun（潜在的な数式区間）
+        if ord(c) < 128:
+            run_start = i
+            has_cmd = False
+            while i < n and ord(segment[i]) < 128:
+                if segment[i] == "\\" and i + 1 < n and segment[i + 1].isalpha():
+                    has_cmd = True
+                i += 1
+            run = segment[run_start:i]
+            if has_cmd:
+                # \command を含む → $...$ で囲む（前後の空白は外に出す）
+                stripped = run.strip()
+                leading = run[: len(run) - len(run.lstrip())]
+                trailing = run[len(run.rstrip()):]
+                result.append(leading)
+                if stripped:
+                    result.append(f"${stripped}$")
+                result.append(trailing)
+            else:
+                result.append(run)
+
+        # 非ASCII（日本語・全角記号など）: そのまま出力
+        else:
+            result.append(c)
+            i += 1
+
+    return "".join(result)
+
+
+def _fix_bare_latex_in_text(text: str) -> str:
+    """段落テキスト中で $...$ の外に出てしまった \\LaTeXコマンド を $...$ で囲む。
+    既存の $...$ / $$...$$ ブロックは保護する。
+    """
+    if "\\" not in text:
+        return text
+
+    result = []
+    pos = 0
+
+    for m in _MATH_BLOCK_RE.finditer(text):
+        # math ブロックの前の非math部分を処理
+        before = text[pos:m.start()]
+        result.append(_wrap_bare_latex_runs(before))
+        # math ブロック自体は保護してそのまま追加
+        result.append(m.group())
+        pos = m.end()
+
+    # 末尾の残りを処理
+    result.append(_wrap_bare_latex_runs(text[pos:]))
+    return "".join(result)
+
 
 def _normalize_math_delimiters(text: str) -> str:
-    """LaTeX デリミタを統一する。
+    """LaTeX デリミタを統一し、bare な \\command を $...$ で囲む。
     \\[...\\] → $$...$$ (display)
     \\(...\\) → $...$ (inline)
-    これにより remark-math / rehype-katex と parseInlineText の両方が正しく処理できる。
+    \\therefore などの生コマンド → $\\therefore$ (inline math)
     """
     # \[...\] → $$...$$
     text = _DISPLAY_ENV_RE.sub(lambda m: f"$${m.group(1).strip()}$$", text)
     # \(...\) → $...$
     text = _PAREN_INLINE_RE.sub(lambda m: f"${m.group(1).strip()}$", text)
+    # bare \LaTeX コマンドを $...$ で囲む
+    text = _fix_bare_latex_in_text(text)
     return text
 
 
@@ -407,10 +480,10 @@ def _looks_like_display_math(latex: str) -> bool:
 
 
 def _promote_display_math_in_paragraph(content: dict) -> list[dict]:
-    """段落テキストを走査して、独立した数式を display math ブロックに昇格させる。
+    """段落テキストを走査して、display 級の数式を $$...$$ で囲んだ独立 paragraph に昇格させる。
 
+    math ブロックタイプは廃止 — 全て paragraph + $$...$$ / $...$ で表現する。
     返り値: 新しい content オブジェクトのリスト (1個以上)。
-    昇格対象がなければ元の content を 1 要素のリストで返す。
     """
     if not isinstance(content, dict) or content.get("type") != "paragraph":
         return [content]
@@ -420,21 +493,25 @@ def _promote_display_math_in_paragraph(content: dict) -> list[dict]:
     if not text or "$" not in text:
         return [content]
 
+    # $$...$$ はすでに display として扱われているのでそのまま通す
+    # $...$ のみを対象に display 昇格を検討
     matches = list(_INLINE_MATH_RE.finditer(text))
     if not matches:
         return [content]
 
-    # 段落全体が "$...$" 1個だけ (周囲の文字が空白だけ) → 確実に display
-    stripped = text.strip()
+    # 段落全体が "$...$" 1個だけ (周囲の文字が空白だけ) → display paragraph に昇格
     if len(matches) == 1:
         m = matches[0]
         before = text[:m.start()].strip()
         after = text[m.end():].strip()
         if not before and not after:
-            # 段落 = 数式1個 → math block (display)
-            return [{"type": "math", "latex": m.group(1).strip(), "displayMode": True}]
+            latex = m.group(1).strip()
+            # paragraph の text を $$...$$ に変換（display math）
+            return [{"type": "paragraph", "text": f"$${latex}$$"}]
 
     # 段落内に display 級の数式が混じっている → 段落を分割
+    # display 数式 → 独立した paragraph with $$...$$
+    # inline 数式 → 前後のテキストと同じ paragraph に残す
     result: list[dict] = []
     cursor = 0
     buffer = ""
@@ -449,11 +526,11 @@ def _promote_display_math_in_paragraph(content: dict) -> list[dict]:
     for m in matches:
         latex = m.group(1).strip()
         if _looks_like_display_math(latex):
-            # 直前のテキストを段落として確定
+            # 直前のテキストを paragraph として確定
             buffer += text[cursor:m.start()]
             flush_text()
-            # display math ブロックとして追加
-            result.append({"type": "math", "latex": latex, "displayMode": True})
+            # display math → 独立した paragraph with $$...$$
+            result.append({"type": "paragraph", "text": f"$${latex}$$"})
             cursor = m.end()
         # それ以外は そのまま buffer に流し込む（後で一括コピー）
 

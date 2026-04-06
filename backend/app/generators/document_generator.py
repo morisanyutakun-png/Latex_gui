@@ -821,21 +821,30 @@ def _render_paragraph(c: ParagraphContent, style) -> str:
 
 
 def _render_paragraph_inline_math(raw: str) -> str:
-    """Convert paragraph text with $...$ inline math to LaTeX.
-    Text parts are escaped normally, math parts are kept as-is (already LaTeX)."""
-    parts = re.split(r'(\$[^$]+\$)', raw)
+    """Convert paragraph text with $...$ / $$...$$ math to LaTeX.
+    - $$...$$ → \\[...\\] (display math, centered)
+    - $...$   → $...$ (inline math, unchanged)
+    - Text parts are escaped normally.
+    """
+    # $$...$$ を先にマッチ ($...$ より前に処理)
+    parts = re.split(r'(\$\$[^$]+\$\$|\$[^$]+\$)', raw)
     result = []
     for part in parts:
-        if part.startswith('$') and part.endswith('$') and len(part) > 2:
-            # Math segment — keep the $...$ as-is (frontend already converts to LaTeX)
+        if part.startswith('$$') and part.endswith('$$') and len(part) > 4:
+            # Display math $$...$$ → \[...\]
+            inner = part[2:-2].strip()
+            result.append(f"\\[\n{inner}\n\\]")
+        elif part.startswith('$') and part.endswith('$') and len(part) > 2:
+            # Inline math $...$ → keep as-is
             result.append(part)
         else:
-            # Text segment — apply normal LaTeX escaping and paragraph handling
+            # Text segment — apply normal LaTeX escaping
             result.append(text_to_latex_paragraphs(part))
     return ''.join(result)
 
 
-def _render_math(c: MathContent) -> str:
+def _render_math(c: "MathContent") -> str:  # type: ignore[name-defined]
+    """旧 math ブロック描画（後方互換 — 新規ドキュメントでは使われない）"""
     if not c.latex.strip():
         return ""
     latex = c.latex.strip()

@@ -92,18 +92,21 @@ function normalizeAIBlock(raw: Block): Block {
     content = { ...defaults, ...content } as BlockContent;
   }
 
-  // math ブロック: latex の $$ ラッパー除去
+  // math ブロック → paragraph に変換（旧フォーマット後方互換）
+  // $$...$$ = display math, $...$ = inline math として paragraph.text に変換する
   if (btype === "math") {
-    const mc = content as unknown as { type: "math"; latex: string; displayMode: boolean };
-    if (typeof mc.latex === "string") {
-      let latex = mc.latex;
-      if (latex.startsWith("$$") && latex.endsWith("$$")) latex = latex.slice(2, -2).trim();
-      else if (latex.startsWith("$") && latex.endsWith("$") && !latex.startsWith("$$")) latex = latex.slice(1, -1).trim();
-      (content as unknown as Record<string, unknown>).latex = latex;
-    }
-    if (mc.displayMode === undefined) {
-      (content as unknown as Record<string, unknown>).displayMode = true;
-    }
+    const mc = content as unknown as { type: "math"; latex: string; displayMode?: boolean };
+    let latex = (typeof mc.latex === "string" ? mc.latex : "").trim();
+    // すでに $...$ で囲まれていたら外す
+    if (latex.startsWith("$$") && latex.endsWith("$$")) latex = latex.slice(2, -2).trim();
+    else if (latex.startsWith("$") && latex.endsWith("$")) latex = latex.slice(1, -1).trim();
+    // displayMode のデフォルトは true（段落として独立した数式）
+    const isDisplay = mc.displayMode !== false;
+    content = {
+      type: "paragraph",
+      text: isDisplay ? `$$${latex}$$` : `$${latex}$`,
+    };
+    btype = "paragraph";
   }
 
   return { id, content: content as BlockContent, style };

@@ -482,8 +482,8 @@ export interface BlockTypeInfo {
 
 export const BLOCK_TYPES: BlockTypeInfo[] = [
   { type: "heading",   name: "見出し",     description: "セクション見出し",     color: "text-blue-500" },
-  { type: "paragraph", name: "テキスト",   description: "本文テキスト",         color: "text-slate-500" },
-  { type: "math",      name: "数式",       description: "インライン数式を挿入",   color: "text-violet-500", packages: ["amsmath", "amssymb", "mathtools"] },
+  { type: "paragraph", name: "テキスト",   description: "本文テキスト（$...$ でインライン数式、$$...$$ で独立数式）", color: "text-slate-500" },
+  // math ブロックは廃止 — paragraph 内の $$...$$ で代替
   { type: "list",      name: "リスト",     description: "箇条書き・番号リスト", color: "text-emerald-500", packages: ["enumitem"] },
   { type: "table",     name: "表",         description: "表組みデータ",         color: "text-orange-500", packages: ["booktabs"] },
   { type: "image",     name: "画像",       description: "画像を挿入",           color: "text-pink-500", packages: ["graphicx"] },
@@ -507,7 +507,7 @@ export function createBlock(type: BlockType, overrides?: Partial<BlockStyle>): B
   const contentMap: Record<BlockType, () => BlockContent> = {
     heading:   () => ({ type: "heading", text: "", level: 2 }),
     paragraph: () => ({ type: "paragraph", text: "" }),
-    math:      () => ({ type: "math", latex: "", displayMode: true }),
+    math:      () => ({ type: "paragraph", text: "$$$$" }),  // 廃止 → paragraph にフォールバック
     list:      () => ({ type: "list", style: "bullet", items: [""] }),
     table:     () => ({ type: "table", headers: ["列 1", "列 2", "列 3"], rows: [["", "", ""]] }),
     image:     () => ({ type: "image", url: "", caption: "" }),
