@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
+import "katex/contrib/mhchem";
 
 interface MathRendererProps {
   latex: string;

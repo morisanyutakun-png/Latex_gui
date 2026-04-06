@@ -234,6 +234,10 @@ export function AIChatPanel() {
 
             case "tool_result": {
               setCurrentTool(null);
+              // If AI fetched the LaTeX source, surface it in the LeftReviewPanel
+              if (event.name === "get_latex_source" && typeof (event.result as { source?: unknown })?.source === "string") {
+                useUIStore.getState().openLatexInspect((event.result as { source: string }).source);
+              }
               // Update the last tool_call step with result info
               let lastToolIdx = -1;
               for (let j = accumulatedSteps.length - 1; j >= 0; j--) {

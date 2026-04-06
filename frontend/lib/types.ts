@@ -21,6 +21,18 @@ export type BlockType =
   | "chart"
   | "latex";
 
+/**
+ * Block types whose editing UI is "heavy" (preset grids, multi-input forms)
+ * and should pop out into the LeftReviewPanel rather than expand inline on the paper.
+ */
+export const HEAVY_BLOCK_TYPES: ReadonlySet<BlockType> = new Set<BlockType>([
+  "chemistry",
+  "chart",
+  "circuit",
+  "diagram",
+  "latex",
+]);
+
 // ──── Content Models (Discriminated Union) ────
 
 export interface HeadingContent {

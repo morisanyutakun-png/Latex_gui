@@ -24,6 +24,8 @@ import { Terminal, Sparkles, FileCode2, Globe, FileText, X, BookOpen, Sigma, Cli
 import { useI18n } from "@/lib/i18n";
 import { EditorHints } from "@/components/layout/editor-hints";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
+import { LeftReviewPanel } from "@/components/editor/left-review-panel";
+import { HEAVY_BLOCK_TYPES } from "@/lib/types";
 
 type SidebarTab = "ai" | "advanced" | "latex" | "guide" | "math" | "scoring";
 
@@ -78,6 +80,18 @@ export default function EditorPage() {
   const pendingChatMessage = useUIStore((s) => s.pendingChatMessage);
 
   // 数式編集コンテキストが変わってもガイドパネルを自動切替しない
+
+  // Left review panel: open when editing a heavy block, or when AI surfaces LaTeX source
+  const editingBlockId = useUIStore((s) => s.editingBlockId);
+  const latexInspectSource = useUIStore((s) => s.latexInspectSource);
+  const editingBlock = editingBlockId
+    ? doc?.blocks.find((b) => b.id === editingBlockId) ?? null
+    : null;
+  const leftPanelActive =
+    !isMobile && (
+      latexInspectSource !== null ||
+      (editingBlock !== null && HEAVY_BLOCK_TYPES.has(editingBlock.content.type))
+    );
 
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
@@ -219,21 +233,28 @@ export default function EditorPage() {
       <EditorHints />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* ── Left review panel — appears when editing a heavy block or inspecting LaTeX source ── */}
+        {leftPanelActive && (
+          <div className="flex flex-shrink-0 sidebar-card my-3 ml-3 rounded-[22px] border-[3px] border-foreground/[0.16] dark:border-foreground/[0.12] bg-surface-2 dark:bg-surface-1 shadow-[0_18px_48px_-18px_rgba(0,0,0,0.22),0_4px_14px_-4px_rgba(0,0,0,0.10)] dark:shadow-[0_18px_48px_-18px_rgba(0,0,0,0.7),0_4px_14px_-4px_rgba(0,0,0,0.45)] overflow-hidden" style={{ width: 380 }}>
+            <LeftReviewPanel />
+          </div>
+        )}
+
         {/* ── Document editor — always editable ── */}
         <div className="flex-1 overflow-auto min-w-0">
           <DocumentEditor editMode={true} />
         </div>
 
         {/* ── Resize handle ── */}
-        {sidebarOpen && (
+        {sidebarOpen && !leftPanelActive && (
           <div
             className={`resize-handle ${isDragging ? "is-dragging" : ""}`}
             onMouseDown={handleMouseDown}
           />
         )}
 
-        {/* ── Sidebar (panel + activity bar) — floating card ── */}
-        <div className="flex flex-shrink-0 sidebar-card my-3 mr-3 rounded-[22px] border-[3px] border-foreground/[0.16] dark:border-foreground/[0.12] bg-surface-2 dark:bg-surface-1 shadow-[0_18px_48px_-18px_rgba(0,0,0,0.22),0_4px_14px_-4px_rgba(0,0,0,0.10)] dark:shadow-[0_18px_48px_-18px_rgba(0,0,0,0.7),0_4px_14px_-4px_rgba(0,0,0,0.45)] overflow-hidden">
+        {/* ── Sidebar (panel + activity bar) — floating card; hidden (display:none) when left panel is active to preserve chat streaming ── */}
+        <div className={`${leftPanelActive ? "hidden" : "flex"} flex-shrink-0 sidebar-card my-3 mr-3 rounded-[22px] border-[3px] border-foreground/[0.16] dark:border-foreground/[0.12] bg-surface-2 dark:bg-surface-1 shadow-[0_18px_48px_-18px_rgba(0,0,0,0.22),0_4px_14px_-4px_rgba(0,0,0,0.10)] dark:shadow-[0_18px_48px_-18px_rgba(0,0,0,0.7),0_4px_14px_-4px_rgba(0,0,0,0.45)] overflow-hidden`}>
           {/* Panel content */}
           <div
             className="overflow-hidden flex flex-col panel-depth"

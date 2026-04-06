@@ -57,7 +57,7 @@ function PresetCard({ name, description, active, onClick, accent }: {
 
 // ──── Shared: Block Editor Toolbar (確定ボタン + キーボード操作) ────
 
-function BlockEditorToolbar({ blockId, accentClass }: { blockId: string; accentClass: string }) {
+export function BlockEditorToolbar({ blockId, accentClass }: { blockId: string; accentClass: string }) {
   const selectBlock = useUIStore((s) => s.selectBlock);
   const addBlock = useDocumentStore((s) => s.addBlock);
   const blocks = useDocumentStore((s) => s.document?.blocks ?? []);
@@ -313,45 +313,7 @@ function ComponentPalette({ onInsert }: { onInsert: (snippet: string) => void })
 // ──── Circuit Editor ────
 
 export function CircuitBlockEditor({ block }: { block: Block }) {
-  const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "circuit" }>;
-  const isEditing = editingBlockId === block.id;
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("すべて");
-  const [showPalette, setShowPalette] = useState(false);
-
-  // Filter presets by category and search
-  const filteredPresets = useMemo(() => {
-    let results = CIRCUIT_PRESETS;
-
-    // Category filter
-    if (selectedCategory !== "すべて") {
-      results = results.filter((p) => p.category === selectedCategory);
-    }
-
-    // Search filter — matches name, description, tags
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      results = results.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)) ||
-          p.id.toLowerCase().includes(q)
-      );
-    }
-
-    return results;
-  }, [selectedCategory, searchQuery]);
-
-  const activePreset = CIRCUIT_PRESETS.find((p) => p.id === content.preset);
-
-  const handleInsertSnippet = (snippet: string) => {
-    const current = content.code || "";
-    const newCode = current ? `${current}\n${snippet}` : snippet;
-    updateContent(block.id, { code: newCode });
-  };
 
   return (
     <div className="space-y-2">
@@ -363,7 +325,6 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
       >
         {content.code ? (
           <div className="w-full">
-            {/* SVG Preview — rendered by backend */}
             <BlockSVGPreview code={content.code} blockType="circuit" />
             {content.caption && (
               <p className="text-[10px] text-muted-foreground text-center py-1">{content.caption}</p>
@@ -376,128 +337,160 @@ export function CircuitBlockEditor({ block }: { block: Block }) {
           </span>
         )}
       </div>
+    </div>
+  );
+}
 
-      {isEditing && (
-        <div className="space-y-3 border rounded-xl p-3 bg-background shadow-sm">
-          {/* Caption */}
-          <Input
-            value={content.caption || ""}
-            onChange={(e) => updateContent(block.id, { caption: e.target.value })}
-            placeholder="キャプション（図のタイトル）"
-            className="h-8 text-xs"
-          />
+export function CircuitBlockControls({ block }: { block: Block }) {
+  const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const content = block.content as Extract<Block["content"], { type: "circuit" }>;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("すべて");
+  const [showPalette, setShowPalette] = useState(false);
 
-          {/* Search + Category filter */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="回路を検索... (例: オペアンプ, フィルタ, MOSFET)"
-                  className="h-8 text-xs pl-7 pr-7"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-              <span className="text-[9px] text-muted-foreground whitespace-nowrap">
-                {filteredPresets.length}件
-              </span>
-            </div>
+  const filteredPresets = useMemo(() => {
+    let results = CIRCUIT_PRESETS;
+    if (selectedCategory !== "すべて") {
+      results = results.filter((p) => p.category === selectedCategory);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      results = results.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.tags.some((t) => t.toLowerCase().includes(q)) ||
+          p.id.toLowerCase().includes(q)
+      );
+    }
+    return results;
+  }, [selectedCategory, searchQuery]);
 
-            {/* Category pills */}
-            <div className="flex gap-1 flex-wrap">
-              {CIRCUIT_CATEGORIES.map((cat) => {
-                const count =
-                  cat === "すべて"
-                    ? CIRCUIT_PRESETS.length
-                    : CIRCUIT_PRESETS.filter((p) => p.category === cat).length;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-2 py-0.5 text-[9px] rounded-full transition-all ${
-                      selectedCategory === cat
-                        ? "bg-cyan-500 text-white font-semibold"
-                        : "bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:bg-cyan-100 dark:hover:bg-cyan-900/30"
-                    }`}
-                  >
-                    {cat}
-                    <span className="ml-0.5 opacity-60">({count})</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+  const handleInsertSnippet = (snippet: string) => {
+    const current = content.code || "";
+    const newCode = current ? `${current}\n${snippet}` : snippet;
+    updateContent(block.id, { code: newCode });
+  };
 
-          {/* Preset Grid with scroll */}
-          <ScrollArea className="max-h-64">
-            <div className="grid grid-cols-2 gap-2 pr-2">
-              {filteredPresets.length > 0 ? (
-                filteredPresets.map((preset) => (
-                  <CircuitPresetCard
-                    key={preset.id}
-                    preset={preset}
-                    active={content.preset === preset.id}
-                    onClick={() =>
-                      updateContent(block.id, {
-                        code: preset.code,
-                        preset: preset.id,
-                      })
-                    }
-                  />
-                ))
-              ) : (
-                <div className="col-span-2 text-center py-6 text-muted-foreground/50 text-xs">
-                  <Search className="h-5 w-5 mx-auto mb-1 opacity-50" />
-                  該当する回路が見つかりません
-                </div>
-              )}
-            </div>
-          </ScrollArea>
+  return (
+    <div className="space-y-3 border rounded-xl p-3 bg-background shadow-sm">
+      {/* Caption */}
+      <Input
+        value={content.caption || ""}
+        onChange={(e) => updateContent(block.id, { caption: e.target.value })}
+        placeholder="キャプション（図のタイトル）"
+        className="h-8 text-xs"
+      />
 
-          {/* Component Palette */}
-          <details className="group" open={showPalette}>
-            <summary
-              onClick={(e) => { e.preventDefault(); setShowPalette(!showPalette); }}
-              className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none"
-            >
-              <ChevronRight className={`h-3 w-3 transition-transform ${showPalette ? "rotate-90" : ""}`} />
-              <Puzzle className="h-3 w-3" />
-              部品パレット（コードに追記）
-            </summary>
-            {showPalette && (
-              <div className="mt-2">
-                <ComponentPalette onInsert={handleInsertSnippet} />
-              </div>
-            )}
-          </details>
-
-          {/* Code editor */}
-          <details className="group">
-            <summary className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none">
-              <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-              <Code2 className="h-3 w-3" />
-              コードを直接編集（上級者向け）
-            </summary>
-            <textarea
-              value={content.code}
-              onChange={(e) => updateContent(block.id, { code: e.target.value })}
-              placeholder="circuitikz コードを入力..."
-              className="mt-2 w-full font-mono text-xs p-2 h-36 rounded-lg border border-cyan-200 dark:border-cyan-800 focus:ring-cyan-400 bg-slate-50 dark:bg-slate-900 resize-y"
+      {/* Search + Category filter */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="回路を検索... (例: オペアンプ, フィルタ, MOSFET)"
+              className="h-8 text-xs pl-7 pr-7"
             />
-          </details>
-
-          <BlockEditorToolbar blockId={block.id} accentClass="bg-cyan-600" />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+            {filteredPresets.length}件
+          </span>
         </div>
-      )}
+
+        {/* Category pills */}
+        <div className="flex gap-1 flex-wrap">
+          {CIRCUIT_CATEGORIES.map((cat) => {
+            const count =
+              cat === "すべて"
+                ? CIRCUIT_PRESETS.length
+                : CIRCUIT_PRESETS.filter((p) => p.category === cat).length;
+            return (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-2 py-0.5 text-[9px] rounded-full transition-all ${
+                  selectedCategory === cat
+                    ? "bg-cyan-500 text-white font-semibold"
+                    : "bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:bg-cyan-100 dark:hover:bg-cyan-900/30"
+                }`}
+              >
+                {cat}
+                <span className="ml-0.5 opacity-60">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Preset Grid with scroll */}
+      <ScrollArea className="max-h-64">
+        <div className="grid grid-cols-2 gap-2 pr-2">
+          {filteredPresets.length > 0 ? (
+            filteredPresets.map((preset) => (
+              <CircuitPresetCard
+                key={preset.id}
+                preset={preset}
+                active={content.preset === preset.id}
+                onClick={() =>
+                  updateContent(block.id, {
+                    code: preset.code,
+                    preset: preset.id,
+                  })
+                }
+              />
+            ))
+          ) : (
+            <div className="col-span-2 text-center py-6 text-muted-foreground/50 text-xs">
+              <Search className="h-5 w-5 mx-auto mb-1 opacity-50" />
+              該当する回路が見つかりません
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Component Palette */}
+      <details className="group" open={showPalette}>
+        <summary
+          onClick={(e) => { e.preventDefault(); setShowPalette(!showPalette); }}
+          className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none"
+        >
+          <ChevronRight className={`h-3 w-3 transition-transform ${showPalette ? "rotate-90" : ""}`} />
+          <Puzzle className="h-3 w-3" />
+          部品パレット（コードに追記）
+        </summary>
+        {showPalette && (
+          <div className="mt-2">
+            <ComponentPalette onInsert={handleInsertSnippet} />
+          </div>
+        )}
+      </details>
+
+      {/* Code editor */}
+      <details className="group">
+        <summary className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none">
+          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+          <Code2 className="h-3 w-3" />
+          コードを直接編集（上級者向け）
+        </summary>
+        <textarea
+          value={content.code}
+          onChange={(e) => updateContent(block.id, { code: e.target.value })}
+          placeholder="circuitikz コードを入力..."
+          className="mt-2 w-full font-mono text-xs p-2 h-36 rounded-lg border border-cyan-200 dark:border-cyan-800 focus:ring-cyan-400 bg-slate-50 dark:bg-slate-900 resize-y"
+        />
+      </details>
+
+      <BlockEditorToolbar blockId={block.id} accentClass="bg-cyan-600" />
     </div>
   );
 }
@@ -546,20 +539,11 @@ function CircuitPresetCard({ preset, active, onClick }: {
 // ──── Diagram Editor ────
 
 export function DiagramBlockEditor({ block }: { block: Block }) {
-  const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "diagram" }>;
-  const isEditing = editingBlockId === block.id;
-
-  const filteredPresets = content.diagramType === "custom"
-    ? DIAGRAM_PRESETS
-    : DIAGRAM_PRESETS.filter((p) => p.diagramType === content.diagramType || content.diagramType === "flowchart");
-
-  const displayPresets = filteredPresets.length > 0 ? filteredPresets : DIAGRAM_PRESETS;
 
   return (
     <div className="space-y-2">
-      {/* Preview */}
+      {/* Preview only */}
       <div className={`flex flex-col items-center rounded-lg ${!content.code ? "py-4 px-4 bg-indigo-50/50 dark:bg-indigo-950/20" : "bg-white dark:bg-card"}`}>
         {content.code ? (
           <div className="w-full space-y-2">
@@ -581,78 +565,88 @@ export function DiagramBlockEditor({ block }: { block: Block }) {
           </span>
         )}
       </div>
+    </div>
+  );
+}
 
-      {isEditing && (
-        <div className="space-y-3 border rounded-xl p-3 bg-background shadow-sm">
-          {/* Type selector + Caption */}
-          <div className="flex items-center gap-2">
-            <Select
-              value={content.diagramType}
-              onValueChange={(v) => updateContent(block.id, { diagramType: v as "flowchart" | "sequence" | "block" | "state" | "tree" | "agent" | "custom" })}
-            >
-              <SelectTrigger className="h-8 text-xs w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="flowchart">フローチャート</SelectItem>
-                <SelectItem value="block">ブロック図</SelectItem>
-                <SelectItem value="state">状態遷移図</SelectItem>
-                <SelectItem value="tree">ツリー図</SelectItem>
-                <SelectItem value="sequence">シーケンス図</SelectItem>
-                <SelectItem value="agent">AIエージェント</SelectItem>
-                <SelectItem value="custom">カスタム</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={content.caption || ""}
-              onChange={(e) => updateContent(block.id, { caption: e.target.value })}
-              placeholder="キャプション（図のタイトル）"
-              className="h-8 text-xs flex-1"
+export function DiagramBlockControls({ block }: { block: Block }) {
+  const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const content = block.content as Extract<Block["content"], { type: "diagram" }>;
+
+  const filteredPresets = content.diagramType === "custom"
+    ? DIAGRAM_PRESETS
+    : DIAGRAM_PRESETS.filter((p) => p.diagramType === content.diagramType || content.diagramType === "flowchart");
+  const displayPresets = filteredPresets.length > 0 ? filteredPresets : DIAGRAM_PRESETS;
+
+  return (
+    <div className="space-y-3 border rounded-xl p-3 bg-background shadow-sm">
+      {/* Type selector + Caption */}
+      <div className="flex items-center gap-2">
+        <Select
+          value={content.diagramType}
+          onValueChange={(v) => updateContent(block.id, { diagramType: v as "flowchart" | "sequence" | "block" | "state" | "tree" | "agent" | "custom" })}
+        >
+          <SelectTrigger className="h-8 text-xs w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="flowchart">フローチャート</SelectItem>
+            <SelectItem value="block">ブロック図</SelectItem>
+            <SelectItem value="state">状態遷移図</SelectItem>
+            <SelectItem value="tree">ツリー図</SelectItem>
+            <SelectItem value="sequence">シーケンス図</SelectItem>
+            <SelectItem value="agent">AIエージェント</SelectItem>
+            <SelectItem value="custom">カスタム</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          value={content.caption || ""}
+          onChange={(e) => updateContent(block.id, { caption: e.target.value })}
+          placeholder="キャプション（図のタイトル）"
+          className="h-8 text-xs flex-1"
+        />
+      </div>
+
+      {/* Preset Grid */}
+      <div>
+        <p className="text-[10px] font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+          <Sparkles className="h-3 w-3 text-indigo-500" />
+          テンプレートから選択
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {displayPresets.map((preset) => (
+            <PresetCard
+              key={preset.id}
+              name={preset.name}
+              description={preset.description}
+              active={content.preset === preset.id}
+              accent="indigo"
+              onClick={() => updateContent(block.id, {
+                code: preset.code,
+                diagramType: preset.diagramType as "flowchart" | "sequence" | "block" | "state" | "tree" | "agent" | "custom",
+                preset: preset.id,
+              })}
             />
-          </div>
-
-          {/* Preset Grid */}
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-indigo-500" />
-              テンプレートから選択
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {displayPresets.map((preset) => (
-                <PresetCard
-                  key={preset.id}
-                  name={preset.name}
-                  description={preset.description}
-                  active={content.preset === preset.id}
-                  accent="indigo"
-                  onClick={() => updateContent(block.id, {
-                    code: preset.code,
-                    diagramType: preset.diagramType as "flowchart" | "sequence" | "block" | "state" | "tree" | "agent" | "custom",
-                    preset: preset.id,
-                  })}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Code editor (collapsed) */}
-          <details className="group">
-            <summary className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none">
-              <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-              <Code2 className="h-3 w-3" />
-              コードを直接編集（上級者向け）
-            </summary>
-            <textarea
-              value={content.code}
-              onChange={(e) => updateContent(block.id, { code: e.target.value })}
-              placeholder="TikZコードを入力..."
-              className="mt-2 w-full font-mono text-xs p-2 h-28 rounded-lg border border-indigo-200 dark:border-indigo-800 focus:ring-indigo-400 bg-slate-50 dark:bg-slate-900 resize-y"
-            />
-          </details>
-
-          <BlockEditorToolbar blockId={block.id} accentClass="bg-indigo-600" />
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* Code editor (collapsed) */}
+      <details className="group">
+        <summary className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none">
+          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+          <Code2 className="h-3 w-3" />
+          コードを直接編集（上級者向け）
+        </summary>
+        <textarea
+          value={content.code}
+          onChange={(e) => updateContent(block.id, { code: e.target.value })}
+          placeholder="TikZコードを入力..."
+          className="mt-2 w-full font-mono text-xs p-2 h-28 rounded-lg border border-indigo-200 dark:border-indigo-800 focus:ring-indigo-400 bg-slate-50 dark:bg-slate-900 resize-y"
+        />
+      </details>
+
+      <BlockEditorToolbar blockId={block.id} accentClass="bg-indigo-600" />
     </div>
   );
 }
@@ -660,14 +654,11 @@ export function DiagramBlockEditor({ block }: { block: Block }) {
 // ──── Chemistry Editor ────
 
 export function ChemistryBlockEditor({ block }: { block: Block }) {
-  const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "chemistry" }>;
-  const isEditing = editingBlockId === block.id;
 
   return (
     <div className="space-y-2">
-      {/* Preview */}
+      {/* Preview only — editing form lives in LeftReviewPanel */}
       <div className={`flex justify-center py-3 px-4 rounded-lg ${!content.formula ? "bg-lime-50/50 dark:bg-lime-950/20" : ""}`}>
         {content.formula ? (
           <MathRenderer latex={`\\ce{${content.formula}}`} displayMode={content.displayMode} />
@@ -678,71 +669,76 @@ export function ChemistryBlockEditor({ block }: { block: Block }) {
           </span>
         )}
       </div>
+    </div>
+  );
+}
 
-      {isEditing && (
-        <div className="space-y-3 border rounded-xl p-3 bg-background shadow-sm">
-          {/* Caption */}
-          <Input
-            value={content.caption || ""}
-            onChange={(e) => updateContent(block.id, { caption: e.target.value })}
-            placeholder="キャプション（任意）"
-            className="h-8 text-xs"
-          />
+export function ChemistryBlockControls({ block }: { block: Block }) {
+  const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const content = block.content as Extract<Block["content"], { type: "chemistry" }>;
 
-          {/* Preset Grid */}
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-lime-500" />
-              よく使う化学反応式
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {CHEMISTRY_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  onClick={() => updateContent(block.id, { formula: preset.formula })}
-                  className={`flex flex-col items-start p-3 rounded-xl border-2 transition-all text-left ${
-                    content.formula === preset.formula
-                      ? "border-lime-400 bg-lime-50 dark:bg-lime-950/20 shadow-sm"
-                      : "border-border/50 hover:border-lime-300 hover:shadow-sm"
-                  }`}
-                >
-                  <span className="text-xs font-semibold mb-0.5">{preset.name}</span>
-                  <span className="text-[9px] text-muted-foreground">{preset.description}</span>
-                  <span className="text-[9px] font-mono text-lime-600 dark:text-lime-400 mt-1">{preset.formula}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+  return (
+    <div className="space-y-3 border rounded-xl p-3 bg-background shadow-sm">
+      {/* Caption */}
+      <Input
+        value={content.caption || ""}
+        onChange={(e) => updateContent(block.id, { caption: e.target.value })}
+        placeholder="キャプション（任意）"
+        className="h-8 text-xs"
+      />
 
-          {/* Direct input */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
-              <FlaskConical className="h-3 w-3 text-lime-500" />
-              直接入力
-            </p>
-            <Input
-              value={content.formula}
-              onChange={(e) => updateContent(block.id, { formula: e.target.value })}
-              placeholder="例: 2H2 + O2 -> 2H2O"
-              className="font-mono text-sm h-9 rounded-lg border-lime-200 dark:border-lime-800 focus-visible:ring-lime-400"
-            />
-            {/* Quick-insert symbols */}
-            <div className="flex gap-1 flex-wrap">
-              {["->", "<=>", "^{2+}", "_{(aq)}", "->[触媒]", "v", "^"].map((sym) => (
-                <button
-                  key={sym}
-                  onClick={() => updateContent(block.id, { formula: content.formula + " " + sym + " " })}
-                  className="px-2 py-1 text-[10px] font-mono rounded-lg bg-lime-100 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300 hover:bg-lime-200 transition-colors"
-                >
-                  {sym}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <BlockEditorToolbar blockId={block.id} accentClass="bg-lime-600" />
+      {/* Preset Grid */}
+      <div>
+        <p className="text-[10px] font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+          <Sparkles className="h-3 w-3 text-lime-500" />
+          よく使う化学反応式
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {CHEMISTRY_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              onClick={() => updateContent(block.id, { formula: preset.formula })}
+              className={`flex flex-col items-start p-3 rounded-xl border-2 transition-all text-left ${
+                content.formula === preset.formula
+                  ? "border-lime-400 bg-lime-50 dark:bg-lime-950/20 shadow-sm"
+                  : "border-border/50 hover:border-lime-300 hover:shadow-sm"
+              }`}
+            >
+              <span className="text-xs font-semibold mb-0.5">{preset.name}</span>
+              <span className="text-[9px] text-muted-foreground">{preset.description}</span>
+              <span className="text-[9px] font-mono text-lime-600 dark:text-lime-400 mt-1">{preset.formula}</span>
+            </button>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* Direct input */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+          <FlaskConical className="h-3 w-3 text-lime-500" />
+          直接入力
+        </p>
+        <Input
+          value={content.formula}
+          onChange={(e) => updateContent(block.id, { formula: e.target.value })}
+          placeholder="例: 2H2 + O2 -> 2H2O"
+          className="font-mono text-sm h-9 rounded-lg border-lime-200 dark:border-lime-800 focus-visible:ring-lime-400"
+        />
+        {/* Quick-insert symbols */}
+        <div className="flex gap-1 flex-wrap">
+          {["->", "<=>", "^{2+}", "_{(aq)}", "->[触媒]", "v", "^"].map((sym) => (
+            <button
+              key={sym}
+              onClick={() => updateContent(block.id, { formula: content.formula + " " + sym + " " })}
+              className="px-2 py-1 text-[10px] font-mono rounded-lg bg-lime-100 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300 hover:bg-lime-200 transition-colors"
+            >
+              {sym}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <BlockEditorToolbar blockId={block.id} accentClass="bg-lime-600" />
     </div>
   );
 }
@@ -750,10 +746,7 @@ export function ChemistryBlockEditor({ block }: { block: Block }) {
 // ──── Chart Editor ────
 
 export function ChartBlockEditor({ block }: { block: Block }) {
-  const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const { editingBlockId } = useUIStore();
   const content = block.content as Extract<Block["content"], { type: "chart" }>;
-  const isEditing = editingBlockId === block.id;
 
   return (
     <div className="space-y-2">
@@ -778,75 +771,80 @@ export function ChartBlockEditor({ block }: { block: Block }) {
           </span>
         )}
       </div>
+    </div>
+  );
+}
 
-      {isEditing && (
-        <div className="space-y-3 border rounded-xl p-3 bg-background shadow-sm">
-          {/* Type + Caption */}
-          <div className="flex items-center gap-2">
-            <Select
-              value={content.chartType}
-              onValueChange={(v) => updateContent(block.id, { chartType: v as "line" | "bar" | "scatter" | "histogram" })}
-            >
-              <SelectTrigger className="h-8 text-xs w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="line">折れ線</SelectItem>
-                <SelectItem value="bar">棒グラフ</SelectItem>
-                <SelectItem value="scatter">散布図</SelectItem>
-                <SelectItem value="histogram">ヒストグラム</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={content.caption || ""}
-              onChange={(e) => updateContent(block.id, { caption: e.target.value })}
-              placeholder="キャプション（図のタイトル）"
-              className="h-8 text-xs flex-1"
+export function ChartBlockControls({ block }: { block: Block }) {
+  const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const content = block.content as Extract<Block["content"], { type: "chart" }>;
+
+  return (
+    <div className="space-y-3 border rounded-xl p-3 bg-background shadow-sm">
+      {/* Type + Caption */}
+      <div className="flex items-center gap-2">
+        <Select
+          value={content.chartType}
+          onValueChange={(v) => updateContent(block.id, { chartType: v as "line" | "bar" | "scatter" | "histogram" })}
+        >
+          <SelectTrigger className="h-8 text-xs w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="line">折れ線</SelectItem>
+            <SelectItem value="bar">棒グラフ</SelectItem>
+            <SelectItem value="scatter">散布図</SelectItem>
+            <SelectItem value="histogram">ヒストグラム</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          value={content.caption || ""}
+          onChange={(e) => updateContent(block.id, { caption: e.target.value })}
+          placeholder="キャプション（図のタイトル）"
+          className="h-8 text-xs flex-1"
+        />
+      </div>
+
+      {/* Preset Grid */}
+      <div>
+        <p className="text-[10px] font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+          <Sparkles className="h-3 w-3 text-rose-500" />
+          テンプレートから選択
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {CHART_PRESETS.map((preset) => (
+            <PresetCard
+              key={preset.id}
+              name={preset.name}
+              description={preset.description}
+              active={content.preset === preset.id}
+              accent="rose"
+              onClick={() => updateContent(block.id, {
+                code: preset.code,
+                chartType: preset.chartType as "line" | "bar" | "scatter" | "histogram",
+                preset: preset.id,
+              })}
             />
-          </div>
-
-          {/* Preset Grid */}
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-rose-500" />
-              テンプレートから選択
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {CHART_PRESETS.map((preset) => (
-                <PresetCard
-                  key={preset.id}
-                  name={preset.name}
-                  description={preset.description}
-                  active={content.preset === preset.id}
-                  accent="rose"
-                  onClick={() => updateContent(block.id, {
-                    code: preset.code,
-                    chartType: preset.chartType as "line" | "bar" | "scatter" | "histogram",
-                    preset: preset.id,
-                  })}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Code editor (collapsed) */}
-          <details className="group">
-            <summary className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none">
-              <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-              <Code2 className="h-3 w-3" />
-              コードを直接編集（上級者向け）
-            </summary>
-            <textarea
-              value={content.code}
-              onChange={(e) => updateContent(block.id, { code: e.target.value })}
-              placeholder="pgfplots コードを入力..."
-              className="mt-2 w-full font-mono text-xs p-2 h-28 rounded-lg border border-rose-200 dark:border-rose-800 focus:ring-rose-400 bg-slate-50 dark:bg-slate-900 resize-y"
-            />
-          </details>
-
-          <BlockEditorToolbar blockId={block.id} accentClass="bg-rose-600" />
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* Code editor (collapsed) */}
+      <details className="group">
+        <summary className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors select-none">
+          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+          <Code2 className="h-3 w-3" />
+          コードを直接編集（上級者向け）
+        </summary>
+        <textarea
+          value={content.code}
+          onChange={(e) => updateContent(block.id, { code: e.target.value })}
+          placeholder="pgfplots コードを入力..."
+          className="mt-2 w-full font-mono text-xs p-2 h-28 rounded-lg border border-rose-200 dark:border-rose-800 focus:ring-rose-400 bg-slate-50 dark:bg-slate-900 resize-y"
+        />
+      </details>
+
+      <BlockEditorToolbar blockId={block.id} accentClass="bg-rose-600" />
     </div>
   );
 }

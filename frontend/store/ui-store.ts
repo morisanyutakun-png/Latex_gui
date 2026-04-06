@@ -47,6 +47,9 @@ interface UIState {
   omrProcessing: boolean;
   omrProgress: string;
 
+  // Left review panel — pops out heavy block editors and AI LaTeX inspect
+  latexInspectSource: string | null;
+
   selectBlock: (id: string | null) => void;
   setEditingBlock: (id: string | null) => void;
   setMathEditing: (v: boolean) => void;
@@ -80,6 +83,10 @@ interface UIState {
   setOMRBlocks: (blocks: Block[]) => void;
   setOMRProcessing: (v: boolean) => void;
   setOMRProgress: (msg: string) => void;
+
+  // Left review panel actions
+  openLatexInspect: (src: string) => void;
+  closeLeftPanel: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -105,6 +112,7 @@ export const useUIStore = create<UIState>((set) => ({
   omrExtractedBlocks: [],
   omrProcessing: false,
   omrProgress: "",
+  latexInspectSource: null,
 
   selectBlock: (id) => set(
     id === null
@@ -153,4 +161,7 @@ export const useUIStore = create<UIState>((set) => ({
   setOMRBlocks: (blocks) => set({ omrExtractedBlocks: blocks }),
   setOMRProcessing: (v) => set({ omrProcessing: v }),
   setOMRProgress: (msg) => set({ omrProgress: msg }),
+
+  openLatexInspect: (src) => set({ latexInspectSource: src, editingBlockId: null }),
+  closeLeftPanel: () => set({ latexInspectSource: null, editingBlockId: null }),
 }));

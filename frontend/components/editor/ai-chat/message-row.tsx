@@ -35,7 +35,7 @@ export function MessageRow({
               <span className="text-[10px] text-muted-foreground/35 ml-auto tabular-nums">{formatRelativeTime(msg.timestamp)}</span>
             )}
           </div>
-          <div className="chat-error-bubble rounded-2xl rounded-tl-sm px-3.5 py-2.5">
+          <div className="chat-error-bubble rounded-md px-4 py-3.5">
             <p className="text-[13px] text-red-600/90 dark:text-red-400 leading-relaxed">{msg.content}</p>
             {msg.requestId && (
               <button
@@ -104,13 +104,13 @@ export function MessageRow({
 
         {/* Message bubble */}
         {isUser ? (
-          <div className="chat-msg-user rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[86%]">
+          <div className="chat-msg-user rounded-md px-4 py-3.5 max-w-[86%]">
             <span className="text-[13.5px] leading-relaxed text-white/95 whitespace-pre-wrap font-[450]">{msg.content}</span>
           </div>
         ) : (
           <div className="max-w-full w-full">
             {msg.isStreaming && !msg.content ? null : (
-              <div className="chat-msg-ai rounded-2xl rounded-tl-sm px-4 py-3">
+              <div className="chat-msg-ai rounded-md px-4 py-4">
                 <div className="text-[13.5px] leading-[1.75] text-foreground/88 chat-markdown">
                   <ChatMarkdown content={msg.content} />
                   {msg.isStreaming && <span className="stream-cursor" />}

@@ -7,7 +7,7 @@ import { useUIStore } from "@/store/ui-store";
 import { Block, BlockType, BLOCK_TYPES, createBlock, DESIGN_PRESETS, DesignPreset } from "@/lib/types";
 import { MathRenderer } from "./math-editor";
 import { JapaneseMathInput, type JapaneseMathInputHandle } from "./math-japanese-input";
-import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor } from "./engineering-editors";
+import { CircuitBlockEditor, DiagramBlockEditor, ChemistryBlockEditor, ChartBlockEditor, BlockEditorToolbar } from "./engineering-editors";
 import { parseInlineText, parseJapanesemath, highlightMathTokens, type MathTokenKind } from "@/lib/math-japanese";
 import { Input } from "@/components/ui/input";
 import {
@@ -1243,52 +1243,67 @@ function _latexToPlainText(code: string): string {
 function LaTeXBlockEditor({ block }: { block: Block }) {
   const { locale } = useI18n();
   const isJa = locale !== "en";
-  const updateContent = useDocumentStore((s) => s.updateBlockContent);
-  const deleteBlock = useDocumentStore((s) => s.deleteBlock);
-  const { editingBlockId, setEditingBlock } = useUIStore();
+  const setEditingBlock = useUIStore((s) => s.setEditingBlock);
   const content = block.content as Extract<Block["content"], { type: "latex" }>;
-  const isEditing = editingBlockId === block.id;
   const editMode = React.useContext(EditModeContext);
 
-  // 3つのモード: "visual" (ビジュアル編集), "code" (コード編集), "preview" (プレビュー表示)
-  const [mode, setMode] = React.useState<"visual" | "code" | "preview">("preview");
+  return (
+    <div className="rounded-md overflow-hidden">
+      {/* Preview only — full editor lives in LeftReviewPanel */}
+      <div
+        className="cursor-pointer group relative"
+        onClick={() => {
+          if (editMode) setEditingBlock(block.id);
+        }}
+      >
+        <LaTeXPreview code={content.code} caption={content.caption} />
+        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); }}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300 border border-fuchsia-500/20 hover:bg-fuchsia-500/20 transition-colors"
+          >
+            <Type className="h-3 w-3" />
+            {isJa ? "編集" : "Edit"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  // ビジュアル編集用: プレーンテキストに変換
+export function LaTeXBlockControls({ block }: { block: Block }) {
+  const { locale } = useI18n();
+  const isJa = locale !== "en";
+  const updateContent = useDocumentStore((s) => s.updateBlockContent);
+  const deleteBlock = useDocumentStore((s) => s.deleteBlock);
+  const content = block.content as Extract<Block["content"], { type: "latex" }>;
+
+  // 2モード: visual (プレーンテキスト) / code (生LaTeX). デフォルトはvisual。
+  const [mode, setMode] = React.useState<"visual" | "code">("visual");
+
   const plainText = React.useMemo(() => _latexToPlainText(content.code), [content.code]);
 
-  // ビジュアルモードでのテキスト編集
   const handleVisualChange = React.useCallback((newText: string) => {
-    // プレーンテキストが編集された場合、LaTeXコード内のテキスト部分を更新
-    // 構造を保持しつつテキスト内容のみ置換
     const segments = _extractLatexSegments(content.code);
     const textSegments = segments.filter(s => s.type === "text");
 
     if (textSegments.length === 0) {
-      // テキストセグメントがない場合はコード全体を置換
       updateContent(block.id, { code: newText });
       return;
     }
 
-    // 新しいテキストを元のLaTeXコードに反映
-    // シンプルなアプローチ: テキスト部分を新しいテキストで丸ごと置換
     let newCode = content.code;
     const oldPlain = _latexToPlainText(content.code);
     if (oldPlain !== newText) {
-      // テキスト部分だけを更新（構造コマンドは保持）
       const newLines = newText.split("\n");
-
-      // テキストが完全に削除された場合
       if (!newText.trim()) {
         updateContent(block.id, { code: "" });
         return;
       }
-
-      // テキストセグメントの内容を新テキストで更新
       let textIdx = 0;
       for (const seg of textSegments) {
         const segText = seg.value.trim();
         if (segText && textIdx < newLines.length) {
-          // マッチするテキスト行を見つけて置換
           const replacement = newLines.find(l => l.trim().includes(segText.slice(0, 10))) || seg.value;
           if (replacement !== seg.value) {
             newCode = newCode.slice(0, seg.start) + replacement + newCode.slice(seg.end);
@@ -1302,19 +1317,8 @@ function LaTeXBlockEditor({ block }: { block: Block }) {
     }
   }, [content.code, block.id, updateContent]);
 
-  // 編集状態に入ったときにビジュアルモードを設定
-  React.useEffect(() => {
-    if (isEditing && mode === "preview") {
-      setMode("visual");
-    }
-    if (!isEditing) {
-      setMode("preview");
-    }
-  }, [isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize for visual/code textarea
   React.useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -1322,58 +1326,52 @@ function LaTeXBlockEditor({ block }: { block: Block }) {
     }
   }, [content.code, plainText, mode]);
 
-  // Auto-focus
   React.useEffect(() => {
-    if (isEditing && textareaRef.current) {
+    if (textareaRef.current) {
       requestAnimationFrame(() => textareaRef.current?.focus());
     }
-  }, [isEditing, mode]);
+  }, [mode]);
 
   return (
     <div className="rounded-md overflow-hidden">
-      {/* ── ツールバー（編集時に表示） ── */}
-      {isEditing && (
-        <div className="flex items-center justify-between px-2 py-1 bg-fuchsia-100/50 dark:bg-fuchsia-900/20 border border-fuchsia-300/30 dark:border-fuchsia-700/30 border-b-0 rounded-t-md">
-          <div className="flex items-center gap-1.5">
-            <FileCode className="h-3 w-3 text-fuchsia-500/70" />
-            <span className="text-[10px] font-mono font-semibold text-fuchsia-600/70 dark:text-fuchsia-400/60 uppercase tracking-wider">LaTeX</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {/* ビジュアル編集 / コード編集の切替 */}
-            <button
-              onClick={() => setMode("visual")}
-              className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                mode === "visual"
-                  ? "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300 font-medium"
-                  : "text-fuchsia-500/50 hover:text-fuchsia-500 hover:bg-fuchsia-500/10"
-              }`}
-            >
-              {isJa ? "テキスト編集" : "Visual"}
-            </button>
-            <button
-              onClick={() => setMode("code")}
-              className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                mode === "code"
-                  ? "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300 font-medium"
-                  : "text-fuchsia-500/50 hover:text-fuchsia-500 hover:bg-fuchsia-500/10"
-              }`}
-            >
-              {isJa ? "LaTeXコード" : "Code"}
-            </button>
-            <div className="w-px h-3 bg-fuchsia-300/30 mx-1" />
-            <button
-              onClick={() => { deleteBlock(block.id); }}
-              className="text-[10px] px-1.5 py-0.5 rounded text-red-400/60 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-              title={isJa ? "このブロックを削除" : "Delete block"}
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
+      <div className="flex items-center justify-between px-2 py-1 bg-fuchsia-100/50 dark:bg-fuchsia-900/20 border border-fuchsia-300/30 dark:border-fuchsia-700/30 border-b-0 rounded-t-md">
+        <div className="flex items-center gap-1.5">
+          <FileCode className="h-3 w-3 text-fuchsia-500/70" />
+          <span className="text-[10px] font-mono font-semibold text-fuchsia-600/70 dark:text-fuchsia-400/60 uppercase tracking-wider">LaTeX</span>
         </div>
-      )}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setMode("visual")}
+            className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+              mode === "visual"
+                ? "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300 font-medium"
+                : "text-fuchsia-500/50 hover:text-fuchsia-500 hover:bg-fuchsia-500/10"
+            }`}
+          >
+            {isJa ? "テキスト編集" : "Visual"}
+          </button>
+          <button
+            onClick={() => setMode("code")}
+            className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+              mode === "code"
+                ? "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300 font-medium"
+                : "text-fuchsia-500/50 hover:text-fuchsia-500 hover:bg-fuchsia-500/10"
+            }`}
+          >
+            {isJa ? "LaTeXコード" : "Code"}
+          </button>
+          <div className="w-px h-3 bg-fuchsia-300/30 mx-1" />
+          <button
+            onClick={() => { deleteBlock(block.id); }}
+            className="text-[10px] px-1.5 py-0.5 rounded text-red-400/60 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+            title={isJa ? "このブロックを削除" : "Delete block"}
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
 
-      {mode === "visual" && isEditing ? (
-        /* ── ビジュアル編集モード: プレーンテキストとして編集 ── */
+      {mode === "visual" ? (
         <div className="border border-fuchsia-300/30 dark:border-fuchsia-700/30 border-t-0">
           <textarea
             ref={textareaRef}
@@ -1384,8 +1382,7 @@ function LaTeXBlockEditor({ block }: { block: Block }) {
             rows={1}
           />
         </div>
-      ) : mode === "code" && isEditing ? (
-        /* ── コード編集モード: 生のLaTeXコード ── */
+      ) : (
         <div className="border border-fuchsia-300/30 dark:border-fuchsia-700/30 bg-fuchsia-50/20 dark:bg-fuchsia-950/10 border-t-0">
           <textarea
             ref={textareaRef}
@@ -1397,36 +1394,11 @@ function LaTeXBlockEditor({ block }: { block: Block }) {
             rows={6}
           />
         </div>
-      ) : (
-        /* ── プレビューモード: SVGレンダリング表示 ── */
-        <div
-          className="cursor-pointer group relative"
-          onClick={() => {
-            if (editMode) {
-              setEditingBlock(block.id);
-            }
-          }}
-        >
-          <LaTeXPreview code={content.code} caption={content.caption} />
-          {/* ホバー時にクイックアクションボタンを表示 */}
-          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-            <button
-              onClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); setMode("visual"); }}
-              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300 border border-fuchsia-500/20 hover:bg-fuchsia-500/20 transition-colors"
-            >
-              <Type className="h-3 w-3" />
-              {isJa ? "編集" : "Edit"}
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setEditingBlock(block.id); setMode("code"); }}
-              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300 border border-fuchsia-500/20 hover:bg-fuchsia-500/20 transition-colors"
-            >
-              <FileCode className="h-3 w-3" />
-              {isJa ? "コード" : "Code"}
-            </button>
-          </div>
-        </div>
       )}
+
+      <div className="px-2 pt-2">
+        <BlockEditorToolbar blockId={block.id} accentClass="bg-fuchsia-600" />
+      </div>
     </div>
   );
 }

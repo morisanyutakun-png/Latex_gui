@@ -111,6 +111,43 @@ OMR_PDF_SYSTEM_PROMPT = OMR_SYSTEM_PROMPT + """
 - Do NOT repeat headings or titles if they appear identically on multiple pages.
 """
 
+OMR_HANDWRITING_PROMPT = OMR_SYSTEM_PROMPT + """
+
+## ★★ Handwriting recognition mode ★★
+The image likely contains HANDWRITTEN content (notebook, whiteboard, exam, lecture notes).
+Apply these extra rules:
+
+### Character disambiguation
+- Distinguish carefully: 0/O/Q, 1/l/I/|, 2/Z, 5/S, 6/G, 9/q, u/v, n/h, t/+, x/×, ・/.
+- 日本語の場合: 「シ/ツ」「ソ/ン」「ロ/口」「カ/力」「タ/夕」を文脈で判断
+- If a stroke is ambiguous, choose the option that makes the **mathematical or linguistic context** consistent
+- 日本語の手書き文字は崩れやすいので、前後の文脈から最も自然な単語を選ぶ
+
+### Math symbols (handwritten)
+- Greek letters are often messy: α/a, β/B, ε/E, θ/0, π/n, σ/o, μ/u — judge by context
+- Sub/superscripts: handwritten 添え字 are often small and floating; carefully detect $x_i$, $a^2$, $a_n^2$
+- $\\sum$, $\\int$, $\\prod$ may be drawn loosely; recognize their loops and limits (上下の式)
+- Fractions: a horizontal line with text above/below = $\\frac{...}{...}$
+- Square roots: the radical sign $\\sqrt{}$ may have a long horizontal extension over the radicand
+- Vector arrows: $\\vec{a}$, $\\overrightarrow{AB}$ — detect arrows above letters
+- Equals signs may be drawn at slight angles — still recognize as =
+
+### Layout (handwritten)
+- Handwritten lines may be SLANTED or NOT perfectly horizontal — group by visual proximity
+- A formula CENTERED on its own line, even if hand-drawn, is DISPLAY math (per the rules above)
+- 行の終わりが詰まっていることが多い — 改行は文の意味の切れ目で判断
+- Strikethroughs / crossed-out content → SKIP it (do not include)
+- Margin notes / arrows pointing to corrections → apply the correction, ignore the arrow
+
+### Confidence
+- If a region is genuinely illegible, output what you can read + " (要確認)" suffix
+- Never invent content — if you cannot read a word, write "□" or "(判読不能)"
+- 自信がない数式は LaTeX に書き起こした上で末尾に "(要確認)" を付ける
+
+You will likely be asked to extract a notebook page, whiteboard photo, or exam answer.
+Be patient and read carefully — handwriting often rewards a second look at curves and tails.
+"""
+
 OMR_TEXT_ONLY_PROMPT = OMR_SYSTEM_PROMPT + """
 
 ## Text-only PDF instructions
@@ -593,6 +630,55 @@ async def analyze_image(
     return result
 
 
+async def _detect_handwriting(client, data_url: str) -> bool:
+    """画像が手書きかどうかを軽量モデルで判定する (1リクエスト, 数トークン)。
+
+    失敗時は False を返す (=活字扱い)。
+    """
+    import asyncio
+    try:
+        def _call():
+            return client.chat.completions.create(
+                model=MODEL_VISION,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": data_url, "detail": "low"}},
+                            {"type": "text", "text": (
+                                "この画像の主要な内容は手書き(handwritten)ですか、それとも活字(printed/typeset)ですか? "
+                                "手書きノート・板書・試験答案・走り書きであれば 'handwritten' のみ返してください。"
+                                "印刷物・PDF・スクリーンショットであれば 'printed' のみ返してください。"
+                                "1単語のみで答えてください。"
+                            )},
+                        ],
+                    }
+                ],
+                temperature=0,
+                max_tokens=8,
+            )
+        resp = await asyncio.to_thread(_call)
+        ans = (resp.choices[0].message.content or "").strip().lower()
+        return "hand" in ans  # handwritten / handwriting
+    except Exception as e:
+        logger.warning("handwriting detection failed: %s", e)
+        return False
+
+
+def _hint_forces_handwriting(hint: str) -> bool | None:
+    """ヒント文字列に明示的なモード指定があればそれを優先。
+    None=自動判定, True=手書き強制, False=活字強制
+    """
+    if not hint:
+        return None
+    h = hint.lower()
+    if "handwriting" in h or "handwritten" in h or "手書き" in hint:
+        return True
+    if "printed" in h or "typeset" in h or "活字" in hint or "印刷" in hint:
+        return False
+    return None
+
+
 async def analyze_image_stream(
     image_bytes: bytes,
     media_type: str,
@@ -612,6 +698,22 @@ async def analyze_image_stream(
     client = get_client()
     data_url = _image_to_data_url(image_bytes, media_type)
 
+    # ── 手書き判定 (ヒント優先 / 自動判定フォールバック) ──
+    forced = _hint_forces_handwriting(hint)
+    if forced is True:
+        is_handwriting = True
+    elif forced is False:
+        is_handwriting = False
+    else:
+        yield _sse({"type": "progress", "phase": "detecting", "message": "手書き / 活字を判定中..."})
+        is_handwriting = await _detect_handwriting(client, data_url)
+
+    if is_handwriting:
+        yield _sse({"type": "progress", "phase": "mode", "message": "手書きモードで読み取ります"})
+        system_prompt = OMR_HANDWRITING_PROMPT
+    else:
+        system_prompt = OMR_SYSTEM_PROMPT
+
     prompt_text = (
         f"この画像からドキュメント構造を抽出してください。{hint}"
         if hint
@@ -619,7 +721,7 @@ async def analyze_image_stream(
     )
 
     messages = [
-        {"role": "system", "content": OMR_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {
             "role": "user",
             "content": [
@@ -719,6 +821,21 @@ async def _analyze_pdf_stream(
 
     page_label = f"{page_count}ページのPDF" if page_count > 1 else "1ページのPDF"
 
+    # ── 手書きPDF判定 (画像があり、かつ抽出テキストがほぼ空の時に判定する) ──
+    forced = _hint_forces_handwriting(hint)
+    is_handwriting = False
+    if forced is True:
+        is_handwriting = True
+    elif forced is False:
+        is_handwriting = False
+    elif has_images and not has_text:
+        # スキャン/写真PDF — 1ページ目で手書き判定
+        yield _sse({"type": "progress", "phase": "detecting", "message": "手書き / 活字を判定中..."})
+        first_data_url = _image_to_data_url(images[0][0], images[0][1])
+        is_handwriting = await _detect_handwriting(client, first_data_url)
+        if is_handwriting:
+            yield _sse({"type": "progress", "phase": "mode", "message": "手書きモードで読み取ります"})
+
     # Build the optimal message based on what we extracted
     if has_images and has_text:
         # Best case: text + images
@@ -733,7 +850,7 @@ async def _analyze_pdf_stream(
                     "message": f"AIが{page_count}ページの画像を解析中..."})
         messages = _build_pdf_messages_images_only(
             images, page_count, page_label, hint)
-        system_prompt = OMR_PDF_SYSTEM_PROMPT
+        system_prompt = OMR_HANDWRITING_PROMPT if is_handwriting else OMR_PDF_SYSTEM_PROMPT
     else:
         # Text only (no images available)
         yield _sse({"type": "progress", "phase": "ai_processing",

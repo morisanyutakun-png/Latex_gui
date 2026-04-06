@@ -78,12 +78,15 @@ export function useKeyboardShortcuts() {
         setGlobalPalette(true);
         return;
       }
-      // Escape: exit editing but keep block selected; if not editing, deselect
+      // Escape priority: latex-inspect → editing → deselect
       if (e.key === "Escape") {
-        if (editingBlockId) {
-          uiStore.getState().setEditingBlock(null);
+        const ui = uiStore.getState();
+        if (ui.latexInspectSource !== null) {
+          ui.closeLeftPanel();
+        } else if (editingBlockId) {
+          ui.setEditingBlock(null);
         } else {
-          uiStore.getState().selectBlock(null);
+          ui.selectBlock(null);
         }
         return;
       }
