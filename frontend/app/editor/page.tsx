@@ -296,7 +296,7 @@ export default function EditorPage() {
         )}
 
         {/* ── Sidebar (panel + activity bar) — square card; hidden (display:none) when left panel is active to preserve chat streaming ── */}
-        <div className={`${leftPanelActive ? "hidden" : "flex"} flex-shrink-0 sidebar-card border-[3px] border-foreground/25 dark:border-foreground/20 bg-surface-2 dark:bg-surface-1 overflow-hidden`}>
+        <div className={`${leftPanelActive ? "hidden" : "flex"} flex-shrink-0 sidebar-card bg-[#f9f9f8] dark:bg-[#111110] overflow-hidden shadow-[-1px_0_0_0_hsl(var(--border)/0.4)]`}>
           {/* Panel content */}
           <div
             className="overflow-hidden flex flex-col panel-depth"
@@ -344,7 +344,7 @@ export default function EditorPage() {
           </div>
 
           {/* Activity bar — right edge of the floating card */}
-          <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l-[3px] border-foreground/15 bg-surface-1/70 dark:bg-surface-0/80 shrink-0">
+          <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l border-foreground/[0.05] bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
           {/* Main tabs — "latex" opens in the LEFT sidebar, others toggle the right panel */}
           {(["ai", "latex", "scoring"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Sparkles : tab === "scoring" ? ClipboardCheck : FileCode2;

@@ -15,7 +15,7 @@ import {
   Bold, Italic, Underline,
   AlignLeft, AlignCenter, AlignRight,
   Sigma, List as ListIcon, ListOrdered, Command,
-  PenLine, Sparkles,
+  PenLine, Sparkles, ScanLine,
 } from "lucide-react";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
@@ -240,6 +240,18 @@ export function EditToolbar() {
       >
         <Command className="h-3 w-3" />
         <span className="font-mono">K</span>
+      </button>
+
+      <Sep />
+
+      {/* 画像・PDF読み取り (OMR) */}
+      <button
+        onClick={() => useUIStore.getState().triggerOMR()}
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium text-emerald-700/70 dark:text-emerald-400/70 bg-emerald-50/60 dark:bg-emerald-500/8 border border-emerald-400/30 hover:text-emerald-800 dark:hover:text-emerald-300 hover:bg-emerald-100/80 dark:hover:bg-emerald-500/15 hover:border-emerald-400/50 transition-colors shrink-0"
+        title="画像・PDFを読み取り (OMR)"
+      >
+        <ScanLine className="h-3 w-3" />
+        <span className="hidden sm:inline">読み取り</span>
       </button>
 
       <Sep />

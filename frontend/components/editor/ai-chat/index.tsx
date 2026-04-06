@@ -50,6 +50,13 @@ export function AIChatPanel() {
 
   useEffect(() => { initFromStorage(); }, [initFromStorage]);
 
+  // OMRトリガーをUIStoreに登録 → チャット外のボタンから呼び出せるようにする
+  useEffect(() => {
+    const { setOMRTrigger } = useUIStore.getState();
+    setOMRTrigger(() => fileInputRef.current?.click());
+    return () => setOMRTrigger(null);
+  }, []);
+
   // Restore chat history from localStorage on mount
   useEffect(() => {
     try {
@@ -234,10 +241,6 @@ export function AIChatPanel() {
 
             case "tool_result": {
               setCurrentTool(null);
-              // If AI fetched the LaTeX source, surface it in the LeftReviewPanel
-              if (event.name === "get_latex_source" && typeof (event.result as { source?: unknown })?.source === "string") {
-                useUIStore.getState().openLatexInspect((event.result as { source: string }).source);
-              }
               // Update the last tool_call step with result info
               let lastToolIdx = -1;
               for (let j = accumulatedSteps.length - 1; j >= 0; j--) {
@@ -539,23 +542,22 @@ export function AIChatPanel() {
 
   return (
     <div className="flex flex-col h-full chat-aurora-panel">
-      {/* Header — soft border, gentle hierarchy */}
-      <div className="chat-header-aurora flex items-center gap-3 px-4 py-3 border-b border-amber-500/15 dark:border-amber-500/12 shrink-0">
-        <div className="h-9 w-9 rounded-xl chat-avatar-ai-static flex items-center justify-center shrink-0">
-          <Sparkles className="h-4 w-4 text-white" />
+      {/* Header — LP-matching clean style */}
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-black/[0.06] dark:border-white/[0.06] shrink-0 bg-white/80 dark:bg-white/[0.03] backdrop-blur-sm">
+        <div className="h-7 w-7 rounded-lg chat-avatar-ai-static flex items-center justify-center shrink-0">
+          <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-extrabold text-gradient-ai truncate leading-tight tracking-tight">Eddivom AI</p>
-          <p className="text-[10px] text-amber-700/70 dark:text-amber-400/60 leading-tight mt-0.5 font-semibold tracking-wider uppercase">LaTeX Assistant</p>
-        </div>
-        <div className="flex items-center gap-1">
+        <span className="flex-1 text-[13.5px] font-bold text-foreground/85 tracking-tight truncate">EddivomAI</span>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Active indicator */}
+          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.55)]" title="オンライン" />
           {chatMessages.length > 0 && (
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v2"); } catch { /**/ } }}
-              className="h-8 w-8 rounded-lg flex items-center justify-center text-foreground/40 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/15 transition-all duration-150"
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-foreground/25 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/15 transition-all duration-150"
               title={t("chat.clear")}
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
@@ -589,7 +591,7 @@ export function AIChatPanel() {
       )}
 
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 min-h-0 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4 min-h-0 scrollbar-thin">
         {chatMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-6 py-6 px-1 select-none">
             {/* Aurora orb */}
@@ -662,6 +664,15 @@ export function AIChatPanel() {
         <div ref={bottomRef} />
       </div>
 
+      {/* 隠しファイル入力 — チャット外ボタン (ツールバー) からも trigger される */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+        className="hidden"
+        onChange={handleOMRUpload}
+      />
+
       {/* Input area */}
       <InputArea
         input={input}
@@ -671,8 +682,6 @@ export function AIChatPanel() {
         isChatLoading={isChatLoading}
         agentMode={true}
         textareaRef={textareaRef}
-        fileInputRef={fileInputRef}
-        onOMRUpload={handleOMRUpload}
       />
     </div>
   );

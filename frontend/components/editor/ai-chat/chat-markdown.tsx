@@ -4,6 +4,13 @@ import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
+/** \[...\] → $$...$$ and \(...\) → $...$ so remark-math can parse them */
+function preprocessMath(content: string): string {
+  return content
+    .replace(/\\\[(.+?)\\\]/gs, (_, m) => `$$${m.trim()}$$`)
+    .replace(/\\\((.+?)\\\)/gs, (_, m) => `$${m.trim()}$`);
+}
+
 export function ChatMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
@@ -64,7 +71,7 @@ export function ChatMarkdown({ content }: { content: string }) {
         hr: () => <hr className="my-3 border-black/[0.06] dark:border-white/[0.06]" />,
       }}
     >
-      {content}
+      {preprocessMath(content)}
     </ReactMarkdown>
   );
 }

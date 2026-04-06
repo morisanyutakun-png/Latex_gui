@@ -85,6 +85,10 @@ interface UIState {
   setOMRBlocks: (blocks: Block[]) => void;
   setOMRProcessing: (v: boolean) => void;
   setOMRProgress: (msg: string) => void;
+  // チャット外からOMRファイル選択を呼び出すためのトリガー
+  omrTriggerFn: (() => void) | null;
+  setOMRTrigger: (fn: (() => void) | null) => void;
+  triggerOMR: () => void;
 
   // Left review panel actions
   openLatexInspect: (src: string) => void;
@@ -165,6 +169,9 @@ export const useUIStore = create<UIState>((set) => ({
   setOMRBlocks: (blocks) => set({ omrExtractedBlocks: blocks }),
   setOMRProcessing: (v) => set({ omrProcessing: v }),
   setOMRProgress: (msg) => set({ omrProgress: msg }),
+  omrTriggerFn: null,
+  setOMRTrigger: (fn) => set({ omrTriggerFn: fn }),
+  triggerOMR: () => { const fn = useUIStore.getState().omrTriggerFn; if (fn) fn(); },
 
   openLatexInspect: (src) => set({
     latexInspectSource: src,

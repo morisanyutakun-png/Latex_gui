@@ -2348,9 +2348,15 @@ export interface InlineSegment {
 
 /**
  * 段落テキスト中の $...$ インライン数式を検出・変換
+ * \[...\] と \(...\) デリミタも事前に $...$ に統一する
  */
 export function parseInlineText(text: string): InlineSegment[] {
   if (!text) return [{ type: "text", content: "" }];
+
+  // Normalize LaTeX delimiters before parsing
+  text = text
+    .replace(/\\\[(.+?)\\\]/gs, (_, m) => `$${m.trim()}$`)
+    .replace(/\\\((.+?)\\\)/gs, (_, m) => `$${m.trim()}$`);
 
   const segments: InlineSegment[] = [];
   const regex = /\$([^$]+)\$/g;

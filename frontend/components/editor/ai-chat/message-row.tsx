@@ -3,7 +3,7 @@ import { ChatMessage } from "@/lib/types";
 import {
   Sparkles, ThumbsUp, ThumbsDown,
   AlertCircle, RotateCcw, ChevronDown,
-  CheckCircle2, FileEdit, User,
+  CheckCircle2,
 } from "lucide-react";
 import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
@@ -65,56 +65,44 @@ export function MessageRow({
   }
 
   return (
-    <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
-      {/* Avatar */}
-      {isUser ? (
-        <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-sm"
-             style={{ background: "linear-gradient(135deg, #92400e 0%, #b45309 50%, #d97706 100%)", boxShadow: "0 2px 8px rgba(180,83,9,0.28), inset 0 1px 0 rgba(255,255,255,0.15)" }}>
-          <User className="h-4 w-4 text-amber-50" />
-        </div>
-      ) : (
-        <div className="h-8 w-8 rounded-xl chat-avatar-ai-static flex items-center justify-center shrink-0 mt-0.5">
-          <Sparkles className="h-4 w-4 text-white" />
+    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
+      {/* Avatar — AI only; user has no avatar (LP style) */}
+      {!isUser && (
+        <div className="h-7 w-7 rounded-lg chat-avatar-ai-static flex items-center justify-center shrink-0 mt-0.5">
+          <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
       )}
 
       {/* Content */}
       <div className={`flex-1 min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}>
-        {/* Name + meta row */}
-        <div className={`flex items-center gap-2 mb-1.5 ${isUser ? "flex-row-reverse" : ""}`}>
-          <span className={`text-[12px] font-semibold tracking-wide uppercase ${
-            isUser ? "text-amber-700/70 dark:text-amber-500/70" : "text-foreground/55"
-          }`}>
-            {isUser ? "You" : "Eddivom AI"}
-          </span>
-          {!isUser && msg.isStreaming && (
-            <span className="flex items-center gap-1.5 text-[11px] text-amber-600/80 dark:text-amber-400/80 font-medium">
-              <span className="thinking-dot-ripple">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
+        {/* AI meta row (streaming indicator / timing) */}
+        {!isUser && (
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11.5px] font-semibold text-foreground/50 tracking-tight">EddivomAI</span>
+            {msg.isStreaming && (
+              <span className="flex items-center gap-1 text-[11px] text-amber-600/70 dark:text-amber-400/70 font-medium">
+                <span className="thinking-dot-ripple">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
+                </span>
+                生成中
               </span>
-              生成中
-            </span>
-          )}
-          {!isUser && msg.duration != null && !msg.isStreaming && (
-            <span className="text-[10px] text-muted-foreground/35 tabular-nums">{formatDuration(msg.duration)}</span>
-          )}
-          {msg.timestamp && (
-            <span className={`text-[10px] text-muted-foreground/35 tabular-nums ${isUser ? "mr-auto" : "ml-auto"}`}>
-              {formatRelativeTime(msg.timestamp)}
-            </span>
-          )}
-        </div>
+            )}
+            {msg.duration != null && !msg.isStreaming && (
+              <span className="text-[10px] text-muted-foreground/30 tabular-nums">{formatDuration(msg.duration)}</span>
+            )}
+          </div>
+        )}
 
         {/* Message bubble */}
         {isUser ? (
-          <div className="chat-msg-user rounded-2xl rounded-tr-md px-4 py-3.5 max-w-[86%]">
-            <span className="text-[14px] leading-relaxed text-white whitespace-pre-wrap font-medium">{msg.content}</span>
+          <div className="chat-msg-user rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[88%]">
+            <span className="text-[13.5px] leading-relaxed text-white whitespace-pre-wrap font-medium">{msg.content}</span>
           </div>
         ) : (
           <div className="max-w-full w-full">
             {msg.isStreaming && !msg.content ? null : (
-              <div className="chat-msg-ai rounded-2xl rounded-tl-md px-4 py-4">
-                <div className="text-[13.5px] leading-[1.75] text-foreground/88 chat-markdown">
+              <div className="chat-msg-ai rounded-2xl rounded-tl-sm px-4 py-3.5">
+                <div className="text-[13.5px] leading-[1.75] text-foreground/85 chat-markdown">
                   <ChatMarkdown content={msg.content} />
                   {msg.isStreaming && <span className="stream-cursor" />}
                 </div>
@@ -123,30 +111,27 @@ export function MessageRow({
           </div>
         )}
 
-        {/* Patch applied card */}
+        {/* Patch applied — compact pill (LP style) */}
         {!isUser && msg.patches && msg.patches.ops && msg.patches.ops.length > 0 && (
-          <div className="mt-2.5 chat-patch-card rounded-xl overflow-hidden w-full">
-            <div className="flex items-center gap-2 px-3.5 py-2">
-              <div className="h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <span className="text-[12px] text-emerald-700 dark:text-emerald-300 font-medium flex-1">
+          <>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-500/20 shadow-sm">
+              <CheckCircle2 className="h-3 w-3 shrink-0" />
+              <span>
                 {(() => {
                   const ops = msg.patches!.ops;
                   const added = ops.filter(o => o.op === "add_block").length;
                   const updated = ops.filter(o => o.op === "update_block").length;
                   const deleted = ops.filter(o => o.op === "delete_block").length;
                   const parts: string[] = [];
-                  if (added) parts.push(`${added}ブロック追加`);
+                  if (added) parts.push(`${added}件追加`);
                   if (updated) parts.push(`${updated}件更新`);
                   if (deleted) parts.push(`${deleted}件削除`);
-                  return `文書に適用 — ${parts.join(" · ") || `${ops.length}件の操作`}`;
+                  return `反映済み${parts.length ? " — " + parts.join(" · ") : ""}`;
                 })()}
               </span>
-              <FileEdit className="h-3.5 w-3.5 text-emerald-400/70 shrink-0" />
             </div>
             <DiffViewer patches={msg.patches!} />
-          </div>
+          </>
         )}
 
         {/* Action timeline */}

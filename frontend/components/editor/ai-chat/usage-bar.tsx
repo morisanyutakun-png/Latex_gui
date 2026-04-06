@@ -13,31 +13,31 @@ export function UsageBar({
     : "bg-amber-500";
 
   return (
-    <div className="mx-4 mt-2.5 mb-1 shrink-0">
-      <div className="flex items-center justify-between text-[10px] mb-1.5">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wider shadow-sm text-white"
-                style={{ background: "linear-gradient(135deg, #b45309 0%, #d97706 100%)", boxShadow: "0 1px 4px rgba(180,83,9,0.30)" }}>
+    <div className="mx-3.5 mt-2 mb-0.5 shrink-0">
+      <div className="flex items-center justify-between text-[9.5px] mb-1">
+        <div className="flex items-center gap-1.5">
+          <span className="px-1.5 py-px rounded-full font-bold text-[8.5px] uppercase tracking-wider text-white"
+                style={{ background: "linear-gradient(135deg, #b45309 0%, #d97706 100%)" }}>
             {planName}
           </span>
-          <span className="text-foreground/65 font-mono tabular-nums">
-            {todayUsage}/{dailyLimit} <span className="text-muted-foreground/45">本日</span>
+          <span className="text-foreground/45 font-mono tabular-nums">
+            {todayUsage}/{dailyLimit}
           </span>
-          <span className="text-muted-foreground/30">·</span>
-          <span className="text-foreground/55 font-mono tabular-nums">
-            {monthUsage}/{monthlyLimit.toLocaleString()} <span className="text-muted-foreground/45">月</span>
+          <span className="text-muted-foreground/25">·</span>
+          <span className="text-foreground/35 font-mono tabular-nums">
+            {monthUsage}/{monthlyLimit.toLocaleString()}
           </span>
         </div>
         {dailyPercent >= 60 && (
           <button
             onClick={onUpgrade}
-            className="text-[9px] text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 font-bold uppercase tracking-wider transition-colors"
+            className="text-[8.5px] text-amber-600/70 dark:text-amber-400/60 hover:text-amber-800 dark:hover:text-amber-200 font-semibold uppercase tracking-wider transition-colors"
           >
-            アップグレード
+            UP
           </button>
         )}
       </div>
-      <div className="h-1 rounded-full bg-black/[0.06] dark:bg-white/[0.07] overflow-hidden">
+      <div className="h-[3px] rounded-full bg-black/[0.05] dark:bg-white/[0.06] overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${barColor}`}
           style={{ width: `${Math.min(100, dailyPercent)}%` }}

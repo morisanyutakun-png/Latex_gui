@@ -262,7 +262,43 @@ def _trim_block_code_for_preview(code: str) -> str:
     return trimmed.strip() or code  # 全部消えてしまったら原文を返す
 
 
-_PREVIEW_WRAP_VERSION = "v3"  # _wrap_block_latex のロジック変更時にバンプ → 古いキャッシュを無効化
+_PREVIEW_WRAP_VERSION = "v4"  # _wrap_block_latex のロジック変更時にバンプ → 古いキャッシュを無効化
+
+
+def _parse_preview_error(log: str) -> str:
+    """LaTeXログからプレビュー向けエラーメッセージを生成。
+    ! 行がない場合も fatal/error キーワードでフォールバック検索する。"""
+    log_lower = log.lower()
+
+    error_lines = [l.strip() for l in log.split("\n") if l.strip().startswith("!")]
+    error_detail = error_lines[0] if error_lines else ""
+
+    if not error_detail:
+        for line in log.split("\n"):
+            s = line.strip()
+            if ("fatal" in s.lower() or "error" in s.lower()) and 10 < len(s) < 200:
+                error_detail = s
+                break
+
+    if "undefined control sequence" in log_lower:
+        return f"未定義のコマンドがあります。({error_detail})"
+    if "missing $ inserted" in log_lower:
+        return "数式記号の処理でエラーが発生しました。"
+    if "luatexja" in log_lower and "not found" in log_lower:
+        return "luatexjaパッケージが見つかりません。TeX Live を確認してください。"
+    if "fontspec error" in log_lower or ("fontspec" in log_lower and "not found" in log_lower):
+        return f"フォントの読み込みに問題があります。({error_detail})"
+    if "emergency stop" in log_lower:
+        return f"重大なエラーが発生しました。({error_detail})"
+    if "file not found" in log_lower:
+        return f"必要なファイルが見つかりません。({error_detail})"
+    if error_detail:
+        return f"LaTeX compilation error: {error_detail}"
+
+    # 最終フォールバック: ログ末尾の意味のある行を返す
+    meaningful = [l.strip() for l in log.split("\n") if l.strip() and not l.startswith("(")]
+    tail = "; ".join(meaningful[-4:])[:300]
+    return f"LaTeX compilation error: {tail}" if tail else "LaTeX compilation error: Unknown compilation error"
 
 
 def _get_cache_key(code: str, block_type: str, extra: str = "") -> str:
@@ -338,68 +374,74 @@ def _wrap_block_latex(
     custom_commands: list[str] | None = None,
 ) -> str:
     """Wrap block code in a minimal standalone LaTeX document."""
-    # Common preamble
-    preamble_lines = [
-        "\\documentclass[border=5pt,varwidth]{standalone}",
-        "\\usepackage{tikz}",
-    ]
 
-    if block_type == "circuit":
-        preamble_lines.append("\\usepackage{circuitikz}")
-        preamble_lines.append(
-            "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,"
-            "decorations.markings,automata,fit}"
-        )
-        body = (
-            "\\begin{circuitikz}[american]\n"
-            f"{code}\n"
-            "\\end{circuitikz}"
-        )
-    elif block_type == "diagram":
-        preamble_lines.append(
-            "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,"
-            "decorations.markings,automata,fit}"
-        )
-        body = (
-            "\\begin{tikzpicture}\n"
-            f"{code}\n"
-            "\\end{tikzpicture}"
-        )
-    elif block_type == "chart":
-        preamble_lines.append("\\usepackage{pgfplots}")
-        preamble_lines.append("\\pgfplotsset{compat=1.18}")
-        body = (
-            "\\begin{tikzpicture}\n"
-            "\\begin{axis}[grid=major]\n"
-            f"{code}\n"
-            "\\end{axis}\n"
-            "\\end{tikzpicture}"
-        )
-    elif block_type == "latex":
-        # 生LaTeXブロック — よく使われるパッケージを事前ロード
-        preamble_lines.extend([
+    if block_type == "latex":
+        # 生LaTeXブロック専用: varwidth を使わず固定テキスト幅で立ち上げる。
+        # varwidth + tcolorbox は幅計算が競合してコンパイル失敗する既知の問題がある。
+        # luatexja-preset を最初にロードしてフォント環境を確立してから
+        # tcolorbox[most]（全ライブラリ込み）をロードする順序が必須。
+        preamble_lines = [
+            "\\documentclass[border=4mm]{standalone}",  # varwidth なし
+            "\\usepackage{luatexja}",
+            "\\usepackage[haranoaji]{luatexja-preset}",
+            # tcolorbox が \textwidth を参照できるよう A4 相当の幅を明示設定
+            "\\setlength{\\textwidth}{160mm}",
+            "\\setlength{\\linewidth}{160mm}",
+            "\\usepackage[most]{tcolorbox}",            # 全ライブラリ (skins/breakable 含む)
             "\\usepackage{amsmath,amssymb}",
-            "\\usepackage{tcolorbox}",
             "\\usepackage{xcolor}",
             "\\usepackage{multicol}",
             "\\usepackage{booktabs}",
             "\\usepackage{enumitem}",
-            "\\usepackage{luatexja}",
-            "\\usepackage[haranoaji]{luatexja-preset}",
-        ])
-        # latex ブロックでは tikz/pgfplots が混入することが多い → ライブラリも先読み
-        preamble_lines.append(
+            "\\usepackage{tikz}",
             "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,"
-            "decorations.markings,automata,fit,patterns,backgrounds}"
-        )
+            "decorations.markings,automata,fit,patterns,backgrounds}",
+        ]
         # 単体プレビューでブロック先頭・末尾の余白指定を取り除く
         body = _trim_block_code_for_preview(code)
     else:
-        body = code
+        # 図形系ブロック: varwidth でコンテンツに合わせてサイズ自動調整
+        preamble_lines = [
+            "\\documentclass[border=5pt,varwidth]{standalone}",
+            "\\usepackage{tikz}",
+        ]
+        if block_type == "circuit":
+            preamble_lines.append("\\usepackage{circuitikz}")
+            preamble_lines.append(
+                "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,"
+                "decorations.markings,automata,fit}"
+            )
+            body = (
+                "\\begin{circuitikz}[american]\n"
+                f"{code}\n"
+                "\\end{circuitikz}"
+            )
+        elif block_type == "diagram":
+            preamble_lines.append(
+                "\\usetikzlibrary{shapes,arrows.meta,positioning,calc,"
+                "decorations.markings,automata,fit}"
+            )
+            body = (
+                "\\begin{tikzpicture}\n"
+                f"{code}\n"
+                "\\end{tikzpicture}"
+            )
+        elif block_type == "chart":
+            preamble_lines.append("\\usepackage{pgfplots}")
+            preamble_lines.append("\\pgfplotsset{compat=1.18}")
+            body = (
+                "\\begin{tikzpicture}\n"
+                "\\begin{axis}[grid=major]\n"
+                f"{code}\n"
+                "\\end{axis}\n"
+                "\\end{tikzpicture}"
+            )
+        else:
+            body = code
 
     # 上級者モードのカスタムプリアンブル / マクロ定義を追記
     # → 文書全体コンパイルと同じ環境でブロック単体プレビューを実行できる
-    # ただし standalone+varwidth に持ち込むと害になる宣言 (\geometry, \pagestyle,
+    # ただし standalone に持ち込むと害になる宣言 (\geometry, \pagestyle,
     # \hypersetup, titlesec 等) は黙って取り除く
     if custom_preamble and custom_preamble.strip():
         sanitized = _sanitize_preamble_for_preview(custom_preamble)
@@ -452,10 +494,9 @@ def _compile_to_svg(latex_source: str) -> str:
 
         if result.returncode != 0 or not pdf_path.exists():
             log = result.stdout + "\n" + result.stderr
-            error_lines = [l for l in log.split("\n") if l.startswith("!")]
-            error_msg = "; ".join(error_lines[:3]) if error_lines else "Unknown compilation error"
+            error_msg = _parse_preview_error(log)
             logger.error(f"Preview compilation failed: {error_msg}")
-            raise RuntimeError(f"LaTeX compilation error: {error_msg}")
+            raise RuntimeError(error_msg)
 
         # Step 2: PDF → SVG (dvisvgm 優先 — --no-fonts でブラウザ非依存)
         # dvisvgm は全テキストをSVGパスに変換するため、CJKフォント問題が発生しない

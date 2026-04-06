@@ -372,6 +372,23 @@ _DISPLAY_MATH_HINTS = (
 # $...$ をスキャンして (start, end, latex) を返す
 _INLINE_MATH_RE = re.compile(r"\$([^$\n]+?)\$")
 
+# \[...\] (display) と \(...\) (inline) デリミタにもマッチ
+_DISPLAY_ENV_RE = re.compile(r"\\\[(.+?)\\\]", re.DOTALL)
+_PAREN_INLINE_RE = re.compile(r"\\\((.+?)\\\)", re.DOTALL)
+
+
+def _normalize_math_delimiters(text: str) -> str:
+    """LaTeX デリミタを統一する。
+    \\[...\\] → $$...$$ (display)
+    \\(...\\) → $...$ (inline)
+    これにより remark-math / rehype-katex と parseInlineText の両方が正しく処理できる。
+    """
+    # \[...\] → $$...$$
+    text = _DISPLAY_ENV_RE.sub(lambda m: f"$${m.group(1).strip()}$$", text)
+    # \(...\) → $...$
+    text = _PAREN_INLINE_RE.sub(lambda m: f"${m.group(1).strip()}$", text)
+    return text
+
 
 def _looks_like_display_math(latex: str) -> bool:
     """このLaTeXは display math に昇格すべきか?"""
@@ -399,6 +416,7 @@ def _promote_display_math_in_paragraph(content: dict) -> list[dict]:
         return [content]
 
     text = content.get("text") or ""
+    text = _normalize_math_delimiters(text)
     if not text or "$" not in text:
         return [content]
 
