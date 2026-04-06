@@ -168,21 +168,11 @@ export function LeftReviewPanel() {
   }
 
   if (latexSourceViewerOpen) {
+    // The LaTeXSourceViewer's own toolbar already serves as the panel header,
+    // so we skip the outer PanelHeader to avoid the duplicate "LaTeXソース" title.
     return (
       <div className="h-full flex flex-col min-w-0">
-        <PanelHeader
-          Icon={FileCode2}
-          label="LaTeX ソース"
-          accent={{
-            text: "text-slate-700 dark:text-slate-300",
-            bg: "bg-slate-100/80 dark:bg-slate-900/50",
-            bar: "bg-slate-500",
-          }}
-          onClose={closeLeftPanel}
-        />
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-          <LaTeXSourceViewer />
-        </div>
+        <LaTeXSourceViewer onClose={closeLeftPanel} />
       </div>
     );
   }

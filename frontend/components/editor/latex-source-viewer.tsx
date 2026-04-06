@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
   RefreshCw, Copy, Check, AlertCircle, Loader2,
-  Edit3, Eye, Download, FileCode2,
+  Edit3, Eye, Download, FileCode2, X,
 } from "lucide-react";
 import { useDocumentStore } from "@/store/document-store";
 import { previewLatex, compileRawLatex } from "@/lib/api";
@@ -23,7 +23,7 @@ function HighlightedSource({ source }: { source: string }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function LaTeXSourceViewer() {
+export function LaTeXSourceViewer({ onClose }: { onClose?: () => void } = {}) {
   const document = useDocumentStore((s) => s.document);
   const [source, setSource] = useState<string | null>(null);
   const [editedSource, setEditedSource] = useState<string>("");
@@ -97,12 +97,13 @@ export function LaTeXSourceViewer() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b-2 border-slate-300 dark:border-slate-700 shrink-0 gap-2 bg-slate-50 dark:bg-slate-900/40">
-        <div className="flex items-center gap-1.5">
-          <FileCode2 className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            LaTeXソース
+      {/* Toolbar — also serves as the panel header when used inside LeftReviewPanel */}
+      <div className="relative flex items-center justify-between px-4 h-11 border-b-[3px] border-foreground/15 shrink-0 gap-2 bg-slate-100/80 dark:bg-slate-900/50">
+        <div className="absolute left-0 top-0 h-full w-[3px] bg-slate-500" />
+        <div className="flex items-center gap-2">
+          <FileCode2 className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-[0.18em]">
+            LaTeX ソース
           </span>
           {editMode && (
             <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white border-2 border-amber-700 dark:border-amber-300">EDIT</span>
@@ -143,6 +144,15 @@ export function LaTeXSourceViewer() {
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
             更新
           </Button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="h-7 w-7 ml-1 flex items-center justify-center text-foreground/30 hover:text-foreground/80 hover:bg-foreground/[0.08] border-2 border-transparent hover:border-foreground/20 transition-all"
+              title="閉じる"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 

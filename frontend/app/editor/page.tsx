@@ -92,13 +92,20 @@ export default function EditorPage() {
   const editingBlock = editingBlockId
     ? doc?.blocks.find((b) => b.id === editingBlockId) ?? null
     : null;
+  const isHeavyBlockEdit = editingBlock !== null && HEAVY_BLOCK_TYPES.has(editingBlock.content.type);
   const leftPanelActive =
     !isMobile && (
       showGlobalPalette ||
       latexInspectSource !== null ||
       latexSourceViewerOpen ||
-      (editingBlock !== null && HEAVY_BLOCK_TYPES.has(editingBlock.content.type))
+      isHeavyBlockEdit
     );
+  // Wide (1:1 ratio) only for heavy block editing where preset grids need space.
+  // Other modes (palette, latex source, latex inspect) use a narrower panel so the paper stays visible.
+  const leftPanelWidth = isHeavyBlockEdit
+    ? "min(50%, 720px)"
+    : "min(38%, 540px)";
+  const leftPanelMinWidth = isHeavyBlockEdit ? 440 : 380;
 
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
@@ -244,7 +251,7 @@ export default function EditorPage() {
         {leftPanelActive && (
           <div
             className="flex flex-shrink-0 sidebar-card border-[3px] border-foreground/25 dark:border-foreground/20 bg-surface-2 dark:bg-surface-1 overflow-hidden"
-            style={{ width: "min(50%, 720px)", minWidth: 440 }}
+            style={{ width: leftPanelWidth, minWidth: leftPanelMinWidth }}
           >
             <LeftReviewPanel />
           </div>
