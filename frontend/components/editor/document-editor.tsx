@@ -92,29 +92,18 @@ function BlockInsertLine({ index }: { index: number }) {
   };
 
   return (
-    <div className="group/insert relative h-0 hover:h-2 -my-px flex items-center justify-center z-10 transition-[height] duration-100">
+    <div className="group/insert relative h-0 hover:h-4 -my-px flex items-center justify-center z-10 transition-[height] duration-100">
       {/* Hover line */}
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-primary/0 group-hover/insert:bg-primary/20 transition-colors" />
-      {/* Buttons */}
-      <div className="opacity-0 group-hover/insert:opacity-100 transition-opacity flex items-center gap-1 bg-background rounded-full shadow-sm border px-1 py-0.5">
-        <button
-          onClick={handleAddParagraph}
-          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-          title="段落を追加"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="5" y1="2" x2="5" y2="8"/><line x1="2" y1="5" x2="8" y2="5"/></svg>
-          テキスト
-        </button>
-        <div className="w-px h-3 bg-border/50" />
-        <button
-          onClick={handleOpenPalette}
-          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-          title="ブロックを挿入 (⌘K)"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="5" y1="2" x2="5" y2="8"/><line x1="2" y1="5" x2="8" y2="5"/></svg>
-          その他
-        </button>
-      </div>
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-primary/0 group-hover/insert:bg-primary/15 transition-colors" />
+      {/* Single + button — Word-like insert */}
+      <button
+        onClick={handleAddParagraph}
+        onContextMenu={(e) => { e.preventDefault(); handleOpenPalette(e as unknown as React.MouseEvent); }}
+        className="opacity-0 group-hover/insert:opacity-100 transition-opacity h-4 w-4 rounded-full bg-background border border-border/60 shadow-sm flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
+        title="クリック: 段落を追加 / 右クリック: ブロックを挿入"
+      >
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.8"><line x1="4" y1="1" x2="4" y2="7"/><line x1="1" y1="4" x2="7" y2="4"/></svg>
+      </button>
     </div>
   );
 }
@@ -411,6 +400,8 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   // ── 数式変換モード ──
   const [mathMode, setMathMode] = useState(false);
   const [mathAnchor, setMathAnchor] = useState(0);
+  // display math モード（$$...$$ の段落をクリック時 true → 確定時 $$...$$ に戻す）
+  const [displayMathMode, setDisplayMathMode] = useState(false);
   // IME変換中フラグ（日本語入力中の誤変換防止）
   const [imeComposing, setImeComposing] = useState(false);
   // IME確定直後フラグ — Enter での改行を防止するためのガード
@@ -455,7 +446,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
     if (raw.trim()) {
       const latex = parseJapanesemath(raw);
       const before = content.text.slice(0, mathAnchor);
-      const newText = before + "$" + latex + "$";
+      // display math モード（$$...$$段落）では $$...$$ で囲み直す
+      const wrap = displayMathMode && before === "" ? `$$${latex}$$` : `$${latex}$`;
+      const newText = before + wrap;
       updateContent(block.id, { text: newText });
       setTimeout(() => {
         if (textareaRef.current) {
@@ -467,8 +460,9 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       }, 0);
     }
     setMathMode(false);
+    setDisplayMathMode(false);
     setMathEditing(false);
-  }, [content.text, mathAnchor, block.id, updateContent, setMathEditing]);
+  }, [content.text, mathAnchor, displayMathMode, block.id, updateContent, setMathEditing]);
 
   const handleSelectPaletteItem = useCallback((type: BlockType) => {
     setShowPalette(false);
@@ -505,8 +499,31 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
   }, [content.text]);
 
   // Auto-focus — isEditing変更時にtextareaにフォーカスを当てる
+  // 純粋な display math ($$...$$ のみ) の段落は自動的に数式モードで開く
   useEffect(() => {
     if (isEditing) {
+      // 純粋な display math 段落の自動数式モード
+      const displayMathMatch = content.text.match(/^\$\$([^$]*)\$\$$/);
+      if (displayMathMatch && !mathMode) {
+        // $$...$$ を剥がして中身だけにし、数式モードで編集開始
+        const inner = displayMathMatch[1];
+        updateContent(block.id, { text: inner });
+        // state 更新後に数式モード開始（anchor=0 = 先頭から数式）
+        setTimeout(() => {
+          setMathMode(true);
+          setDisplayMathMode(true);
+          setMathAnchor(0);
+          setMathEditing(true);
+          setMathCursorPos(inner.length);
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = inner.length;
+            textareaRef.current.selectionEnd = inner.length;
+            textareaRef.current.focus();
+          }
+        }, 0);
+        return;
+      }
+
       const tryFocus = () => {
         if (textareaRef.current && window.document.activeElement !== textareaRef.current) {
           textareaRef.current.focus();
@@ -581,8 +598,11 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       if (e.key === "Escape") {
         e.preventDefault();
         const before = content.text.slice(0, mathAnchor);
-        updateContent(block.id, { text: before });
+        // display math モードのキャンセル: 空の $$...$$ を残す
+        const restoreText = displayMathMode && before === "" ? "$$$$" : before;
+        updateContent(block.id, { text: restoreText });
         setMathMode(false);
+        setDisplayMathMode(false);
         setMathEditing(false);
         setTimeout(() => {
           if (textareaRef.current) {
