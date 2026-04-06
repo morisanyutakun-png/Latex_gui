@@ -350,6 +350,22 @@ def get_compile_args(base_cmd: str, output_dir: str, tex_path: str) -> list[str]
     ]
 
 
+def get_preview_compile_args(base_cmd: str, output_dir: str, tex_path: str) -> list[str]:
+    """
+    プレビュー専用のコンパイル引数。
+    -file-line-error を除いて ! 形式のエラーログを維持し、
+    テンポラリパスがエラーメッセージに露出しないようにする。
+    """
+    return [
+        base_cmd,
+        "--no-shell-escape",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "-output-directory", output_dir,
+        tex_path,
+    ]
+
+
 def validate_input_size(blocks: list, max_blocks: int = 5000, max_total_chars: int = 5_000_000) -> Optional[str]:
     """入力サイズの制限チェック"""
     if len(blocks) > max_blocks:

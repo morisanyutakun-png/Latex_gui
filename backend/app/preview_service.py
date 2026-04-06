@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path
 
 from .tex_env import TEX_ENV, LUALATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD
-from .security import sanitize_code_field, SecurityViolation, get_compile_args
+from .security import sanitize_code_field, SecurityViolation, get_preview_compile_args
 from .cache_service import get_cached_svg, store_cached_svg
 from .audit import log_compile_event, log_security_event, AuditEvent
 
@@ -265,21 +265,45 @@ def _trim_block_code_for_preview(code: str) -> str:
 _PREVIEW_WRAP_VERSION = "v4"  # _wrap_block_latex のロジック変更時にバンプ → 古いキャッシュを無効化
 
 
+# -file-line-error フラグによるエラー行プレフィックス: `/path/to/file.tex:NN: `
+_FILE_LINE_PREFIX = re.compile(r'^(?:[^\s:]+\.tex|/[^\s]+\.tex):\d+:\s*')
+
+
+def _strip_file_line_prefix(s: str) -> str:
+    """filepath:line: プレフィックスを取り除いてエラー本文だけ返す。"""
+    return _FILE_LINE_PREFIX.sub("", s).strip()
+
+
 def _parse_preview_error(log: str) -> str:
     """LaTeXログからプレビュー向けエラーメッセージを生成。
-    ! 行がない場合も fatal/error キーワードでフォールバック検索する。"""
+
+    -file-line-error フォーマット (path:line: error) と
+    従来の ! 形式の両方に対応し、テンポラリパスはユーザーに見せない。
+    """
     log_lower = log.lower()
 
-    error_lines = [l.strip() for l in log.split("\n") if l.strip().startswith("!")]
-    error_detail = error_lines[0] if error_lines else ""
+    # -file-line-error 形式と ! 形式の両方を収集し、パスを除去してエラー本文だけ取得
+    errors: list[str] = []
+    for line in log.split("\n"):
+        s = line.strip()
+        if s.startswith("!"):
+            errors.append(s[1:].strip())
+        elif _FILE_LINE_PREFIX.match(s):
+            errors.append(_strip_file_line_prefix(s))
 
+    error_detail = errors[0] if errors else ""
+
+    # どちらの形式でも取れなかった場合のフォールバック
     if not error_detail:
         for line in log.split("\n"):
             s = line.strip()
             if ("fatal" in s.lower() or "error" in s.lower()) and 10 < len(s) < 200:
-                error_detail = s
+                error_detail = _strip_file_line_prefix(s)
                 break
 
+    # 既知エラーパターンへの日本語マッピング
+    if "something's wrong" in log_lower or "perhaps a miss" in log_lower:
+        return "数式環境の構造に問題があります（\\[ \\] の対応や tcolorbox 内での使い方を確認してください）"
     if "undefined control sequence" in log_lower:
         return f"未定義のコマンドがあります。({error_detail})"
     if "missing $ inserted" in log_lower:
@@ -292,13 +316,17 @@ def _parse_preview_error(log: str) -> str:
         return f"重大なエラーが発生しました。({error_detail})"
     if "file not found" in log_lower:
         return f"必要なファイルが見つかりません。({error_detail})"
+    if "package not found" in log_lower or "no file" in log_lower:
+        return f"パッケージが見つかりません。({error_detail})"
+    if "runaway argument" in log_lower:
+        return f"引数の構造に問題があります（波括弧の対応を確認してください）。({error_detail})"
     if error_detail:
-        return f"LaTeX compilation error: {error_detail}"
+        return f"コンパイルエラー: {error_detail}"
 
     # 最終フォールバック: ログ末尾の意味のある行を返す
     meaningful = [l.strip() for l in log.split("\n") if l.strip() and not l.startswith("(")]
     tail = "; ".join(meaningful[-4:])[:300]
-    return f"LaTeX compilation error: {tail}" if tail else "LaTeX compilation error: Unknown compilation error"
+    return f"コンパイルエラー: {tail}" if tail else "コンパイルエラー: 原因不明"
 
 
 def _get_cache_key(code: str, block_type: str, extra: str = "") -> str:
@@ -474,7 +502,7 @@ def _compile_to_svg(latex_source: str) -> str:
 
         # Step 1: Compile LaTeX → PDF (lualatex)
         try:
-            cmd_args = get_compile_args(
+            cmd_args = get_preview_compile_args(
                 LUALATEX_CMD,
                 str(tmpdir),
                 str(tex_path),
