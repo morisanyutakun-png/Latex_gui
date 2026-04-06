@@ -115,12 +115,20 @@ export async function healthCheck(): Promise<boolean> {
 export async function previewBlockSVG(
   code: string,
   blockType: string,
-  caption: string = ""
+  caption: string = "",
+  customPreamble: string = "",
+  customCommands: string[] = []
 ): Promise<string> {
   const res = await fetch(`${API_BASE}/api/preview-block`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, block_type: blockType, caption }),
+    body: JSON.stringify({
+      code,
+      block_type: blockType,
+      caption,
+      customPreamble,
+      customCommands,
+    }),
     signal: AbortSignal.timeout(20000),
   });
   if (!res.ok) {

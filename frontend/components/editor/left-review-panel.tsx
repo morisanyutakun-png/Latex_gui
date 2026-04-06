@@ -2,7 +2,7 @@
 
 import React from "react";
 import {
-  X, FileCode2, FlaskConical, BarChart3, GitBranch, Zap, Code2, Command,
+  X, FileCode2, FlaskConical, BarChart3, GitBranch, Zap, Code2, Command, Check,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
@@ -33,6 +33,80 @@ const HEAVY_BLOCK_ICON: Record<string, React.ComponentType<{ className?: string 
   latex: Code2,
 };
 
+const HEAVY_BLOCK_ACCENT: Record<string, string> = {
+  chemistry: "text-lime-600 dark:text-lime-400",
+  chart: "text-rose-600 dark:text-rose-400",
+  circuit: "text-cyan-600 dark:text-cyan-400",
+  diagram: "text-indigo-600 dark:text-indigo-400",
+  latex: "text-fuchsia-600 dark:text-fuchsia-400",
+};
+
+/**
+ * Refined OMR-style header for the LeftReviewPanel.
+ * Neutral background, subtle border, mode icon + label on the left,
+ * optional context info, action buttons + close X on the right.
+ */
+function PanelHeader({
+  Icon,
+  iconAccent,
+  label,
+  context,
+  onClose,
+  rightAction,
+}: {
+  Icon: React.ComponentType<{ className?: string }>;
+  iconAccent: string;
+  label: string;
+  context?: string;
+  onClose: () => void;
+  rightAction?: React.ReactNode;
+}) {
+  return (
+    <div className="h-12 border-b border-border/40 bg-background/95 backdrop-blur flex items-center justify-between px-4 shrink-0">
+      <div className="flex items-center gap-3 min-w-0">
+        <Icon className={`h-4 w-4 shrink-0 ${iconAccent}`} />
+        <span className="text-sm font-medium text-foreground/90 truncate">{label}</span>
+        {context && (
+          <span className="text-xs text-muted-foreground truncate max-w-[200px]">{context}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {rightAction}
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          title="閉じる"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * OMR-style section label — subtle bar that delineates content areas
+ * inside the body (matches the "入力ファイル" / "抽出結果" labels in OMRSplitView).
+ */
+function SectionLabel({
+  children,
+  meta,
+}: {
+  children: React.ReactNode;
+  meta?: React.ReactNode;
+}) {
+  return (
+    <div className="px-3 py-2 border-b border-border/20 bg-muted/30 flex items-center justify-between shrink-0">
+      <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
+        {children}
+      </span>
+      {meta && (
+        <span className="text-[10px] text-muted-foreground">{meta}</span>
+      )}
+    </div>
+  );
+}
+
 function HighlightedSource({ source }: { source: string }) {
   const tokens = tokenize(source);
   return (
@@ -44,36 +118,6 @@ function HighlightedSource({ source }: { source: string }) {
   );
 }
 
-/**
- * Reusable header bar for the LeftReviewPanel.
- * Square corners, thick border to match the squared design language.
- */
-function PanelHeader({
-  Icon, label, accent, onClose,
-}: {
-  Icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  accent: { text: string; bg: string; bar: string };
-  onClose: () => void;
-}) {
-  return (
-    <div className={`relative flex items-center px-4 h-11 border-b-[3px] border-foreground/15 shrink-0 select-none ${accent.bg}`}>
-      <div className={`absolute left-0 top-0 h-full w-[3px] ${accent.bar}`} />
-      <Icon className={`h-4 w-4 ${accent.text} mr-2`} />
-      <span className={`text-[11px] font-bold uppercase tracking-[0.18em] flex-1 ${accent.text}`}>
-        {label}
-      </span>
-      <button
-        onClick={onClose}
-        className="h-7 w-7 flex items-center justify-center rounded-none text-foreground/30 hover:text-foreground/80 hover:bg-foreground/[0.08] border-2 border-transparent hover:border-foreground/15 transition-all"
-        title="閉じる"
-      >
-        <X className="h-4 w-4" />
-      </button>
-    </div>
-  );
-}
-
 export function LeftReviewPanel() {
   const editingBlockId = useUIStore((s) => s.editingBlockId);
   const latexInspectSource = useUIStore((s) => s.latexInspectSource);
@@ -82,25 +126,19 @@ export function LeftReviewPanel() {
   const closeLeftPanel = useUIStore((s) => s.closeLeftPanel);
   const blocks = useDocumentStore((s) => s.document?.blocks ?? []);
 
-  // Priority order:
-  // 1. command-palette (user just pressed Cmd+K)
-  // 2. block-edit (user is editing a heavy block)
-  // 3. latex-inspect (AI surfaced a LaTeX source via tool call)
-  // 4. latex-source (user opened the LaTeX source viewer from the activity bar)
+  // Priority: command-palette → block-edit → latex-inspect → latex-source
 
   if (showGlobalPalette) {
     return (
-      <div className="h-full flex flex-col min-w-0">
+      <div className="h-full flex flex-col min-w-0 bg-background">
         <PanelHeader
           Icon={Command}
+          iconAccent="text-indigo-500"
           label="ブロック挿入"
-          accent={{
-            text: "text-indigo-700 dark:text-indigo-300",
-            bg: "bg-indigo-50/60 dark:bg-indigo-950/30",
-            bar: "bg-indigo-500",
-          }}
+          context="Cmd+K パレット"
           onClose={closeLeftPanel}
         />
+        <SectionLabel>ブロックタイプを選択</SectionLabel>
         <div className="flex-1 min-h-0 overflow-hidden">
           <CommandPaletteContent />
         </div>
@@ -114,25 +152,35 @@ export function LeftReviewPanel() {
       const blockType = block.content.type;
       const Icon = HEAVY_BLOCK_ICON[blockType] || Code2;
       const label = HEAVY_BLOCK_LABEL[blockType] || blockType;
+      const accent = HEAVY_BLOCK_ACCENT[blockType] || "text-amber-500";
 
       return (
-        <div className="h-full flex flex-col min-w-0">
+        <div className="h-full flex flex-col min-w-0 bg-background">
           <PanelHeader
             Icon={Icon}
-            label={`ブロック編集 — ${label}`}
-            accent={{
-              text: "text-amber-700 dark:text-amber-300",
-              bg: "bg-amber-50/60 dark:bg-amber-950/30",
-              bar: "bg-amber-500",
-            }}
+            iconAccent={accent}
+            label="ブロック編集"
+            context={label}
             onClose={closeLeftPanel}
+            rightAction={
+              <button
+                onClick={closeLeftPanel}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+              >
+                <Check className="h-3.5 w-3.5" />
+                確定
+              </button>
+            }
           />
-          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-4 py-4">
-            {blockType === "chemistry" && <ChemistryBlockControls block={block} />}
-            {blockType === "chart" && <ChartBlockControls block={block} />}
-            {blockType === "circuit" && <CircuitBlockControls block={block} />}
-            {blockType === "diagram" && <DiagramBlockControls block={block} />}
-            {blockType === "latex" && <LaTeXBlockControls block={block} />}
+          <SectionLabel meta={`ID: ${block.id.slice(0, 8)}`}>プロパティ</SectionLabel>
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+            <div className="max-w-[640px] mx-auto p-4">
+              {blockType === "chemistry" && <ChemistryBlockControls block={block} />}
+              {blockType === "chart" && <ChartBlockControls block={block} />}
+              {blockType === "circuit" && <CircuitBlockControls block={block} />}
+              {blockType === "diagram" && <DiagramBlockControls block={block} />}
+              {blockType === "latex" && <LaTeXBlockControls block={block} />}
+            </div>
           </div>
         </div>
       );
@@ -140,38 +188,37 @@ export function LeftReviewPanel() {
   }
 
   if (latexInspectSource !== null) {
+    const lineCount = latexInspectSource.split("\n").length;
     return (
-      <div className="h-full flex flex-col min-w-0">
+      <div className="h-full flex flex-col min-w-0 bg-background">
         <PanelHeader
           Icon={FileCode2}
-          label="LaTeX ソース確認 (AI)"
-          accent={{
-            text: "text-violet-700 dark:text-violet-300",
-            bg: "bg-violet-50/60 dark:bg-violet-950/30",
-            bar: "bg-violet-500",
-          }}
+          iconAccent="text-violet-500"
+          label="LaTeX ソース"
+          context="AI 参照結果"
           onClose={closeLeftPanel}
+          rightAction={
+            <button
+              onClick={closeLeftPanel}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors shadow-sm"
+            >
+              <Check className="h-3.5 w-3.5" />
+              確定
+            </button>
+          }
         />
-        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin bg-background">
+        <SectionLabel meta={`${lineCount} 行`}>コード</SectionLabel>
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
           <HighlightedSource source={latexInspectSource} />
-        </div>
-        <div className="shrink-0 border-t-[3px] border-foreground/15 px-4 py-3 bg-muted/30">
-          <button
-            onClick={closeLeftPanel}
-            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider text-white bg-violet-600 hover:bg-violet-700 border-2 border-violet-700 transition-colors"
-          >
-            確定
-          </button>
         </div>
       </div>
     );
   }
 
   if (latexSourceViewerOpen) {
-    // The LaTeXSourceViewer's own toolbar already serves as the panel header,
-    // so we skip the outer PanelHeader to avoid the duplicate "LaTeXソース" title.
+    // LaTeXSourceViewer's own toolbar serves as the panel header (with close X built in).
     return (
-      <div className="h-full flex flex-col min-w-0">
+      <div className="h-full flex flex-col min-w-0 bg-background">
         <LaTeXSourceViewer onClose={closeLeftPanel} />
       </div>
     );

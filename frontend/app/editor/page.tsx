@@ -250,7 +250,7 @@ export default function EditorPage() {
         {/* ── Left review panel — heavy block edit / Cmd+K palette / LaTeX inspect / LaTeX source viewer ── */}
         {leftPanelActive && (
           <div
-            className="flex flex-shrink-0 sidebar-card border-[3px] border-foreground/25 dark:border-foreground/20 bg-surface-2 dark:bg-surface-1 overflow-hidden"
+            className="flex flex-shrink-0 border-r border-border/40 bg-background overflow-hidden"
             style={{ width: leftPanelWidth, minWidth: leftPanelMinWidth }}
           >
             <LeftReviewPanel />

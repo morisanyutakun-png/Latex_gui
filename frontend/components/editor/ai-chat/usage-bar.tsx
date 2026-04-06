@@ -16,7 +16,7 @@ export function UsageBar({
     <div className="mx-4 mt-2.5 shrink-0">
       <div className="flex items-center justify-between text-[10px] mb-1.5">
         <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 bg-violet-600 text-white border-2 border-violet-700 dark:border-violet-400 font-bold text-[9px] uppercase tracking-wider">
+          <span className="px-2 py-0.5 rounded-full bg-violet-600/95 text-white border border-violet-500/40 dark:border-violet-400/30 font-bold text-[9px] uppercase tracking-wider shadow-sm">
             {planName}
           </span>
           <span className="text-foreground/70 font-mono tabular-nums">
@@ -36,9 +36,9 @@ export function UsageBar({
           </button>
         )}
       </div>
-      <div className="h-1.5 bg-black/[0.06] dark:bg-white/[0.08] border border-foreground/15 overflow-hidden">
+      <div className="h-1.5 rounded-full bg-black/[0.06] dark:bg-white/[0.08] overflow-hidden">
         <div
-          className={`h-full transition-all duration-500 ${barColor}`}
+          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
           style={{ width: `${Math.min(100, dailyPercent)}%` }}
         />
       </div>

@@ -26,41 +26,64 @@ _svg_cache: dict[str, str] = {}
 MAX_CACHE = 128
 
 
-def _get_cache_key(code: str, block_type: str) -> str:
-    """Generate a cache key from code + type."""
-    return hashlib.md5(f"{block_type}:{code}".encode()).hexdigest()
+def _get_cache_key(code: str, block_type: str, extra: str = "") -> str:
+    """Generate a cache key from code + type (+ optional extra context)."""
+    return hashlib.md5(f"{block_type}:{extra}:{code}".encode()).hexdigest()
 
 
-def preview_block_svg(code: str, block_type: str, caption: str = "") -> str:
+def preview_block_svg(
+    code: str,
+    block_type: str,
+    caption: str = "",
+    custom_preamble: str = "",
+    custom_commands: list[str] | None = None,
+) -> str:
     """
     Compile a LaTeX block to SVG for preview.
     Returns SVG string or raises an exception on failure.
+
+    custom_preamble / custom_commands are injected into the standalone
+    preamble for `latex` blocks so that previews respect any \\newcommand
+    or \\usepackage defined in the document's advanced hooks.
     """
     if not code.strip():
         return ""
 
+    # 上級者モードのプリアンブルが指定されている場合のみ、コードフィールドの
+    # セキュリティ検査を緩める (preamble 側で別途検証する)
+    advanced_mode = bool(custom_preamble.strip()) or bool(custom_commands)
+
     # セキュリティ検査
     try:
-        sanitize_code_field(code, block_type)
+        sanitize_code_field(code, block_type, advanced_mode=advanced_mode)
     except SecurityViolation as e:
         log_security_event(e.violations, block_type=block_type, action="blocked")
         raise RuntimeError(f"セキュリティポリシー違反: {e.message}")
 
-    # ディスクベースキャッシュチェック
-    cached = get_cached_svg(code, block_type)
+    # キャッシュキーは preamble/commands もハッシュに含める
+    extra = ""
+    if custom_preamble or custom_commands:
+        extra = hashlib.md5(
+            (custom_preamble + "|" + "\n".join(custom_commands or [])).encode()
+        ).hexdigest()
+
+    # ディスクベースキャッシュチェック (preamble 込み)
+    cached = get_cached_svg(code, block_type + ":" + extra if extra else block_type)
     if cached:
         return cached
 
     # インメモリキャッシュチェック (後方互換)
-    cache_key = _get_cache_key(code, block_type)
+    cache_key = _get_cache_key(code, block_type, extra)
     if cache_key in _svg_cache:
         return _svg_cache[cache_key]
 
-    latex_source = _wrap_block_latex(code, block_type)
+    latex_source = _wrap_block_latex(
+        code, block_type, custom_preamble=custom_preamble, custom_commands=custom_commands
+    )
     svg = _compile_to_svg(latex_source)
 
     # ディスク + インメモリ両方にキャッシュ
-    store_cached_svg(code, block_type, svg)
+    store_cached_svg(code, block_type + ":" + extra if extra else block_type, svg)
     if len(_svg_cache) >= MAX_CACHE:
         oldest = next(iter(_svg_cache))
         del _svg_cache[oldest]
@@ -69,7 +92,12 @@ def preview_block_svg(code: str, block_type: str, caption: str = "") -> str:
     return svg
 
 
-def _wrap_block_latex(code: str, block_type: str) -> str:
+def _wrap_block_latex(
+    code: str,
+    block_type: str,
+    custom_preamble: str = "",
+    custom_commands: list[str] | None = None,
+) -> str:
     """Wrap block code in a minimal standalone LaTeX document."""
     # Common preamble
     preamble_lines = [
@@ -123,6 +151,15 @@ def _wrap_block_latex(code: str, block_type: str) -> str:
         body = code
     else:
         body = code
+
+    # 上級者モードのカスタムプリアンブル / マクロ定義を追記
+    # → 文書全体コンパイルと同じ環境でブロック単体プレビューを実行できる
+    if custom_preamble and custom_preamble.strip():
+        preamble_lines.append(custom_preamble.strip())
+    if custom_commands:
+        for cmd in custom_commands:
+            if isinstance(cmd, str) and cmd.strip():
+                preamble_lines.append(cmd.strip())
 
     preamble = "\n".join(preamble_lines)
     return f"{preamble}\n\\begin{{document}}\n{body}\n\\end{{document}}"

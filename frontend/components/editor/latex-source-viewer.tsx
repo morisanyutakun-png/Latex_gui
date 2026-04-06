@@ -96,17 +96,14 @@ export function LaTeXSourceViewer({ onClose }: { onClose?: () => void } = {}) {
   const currentSource = editMode ? editedSource : source;
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Toolbar — also serves as the panel header when used inside LeftReviewPanel */}
-      <div className="relative flex items-center justify-between px-4 h-11 border-b-[3px] border-foreground/15 shrink-0 gap-2 bg-slate-100/80 dark:bg-slate-900/50">
-        <div className="absolute left-0 top-0 h-full w-[3px] bg-slate-500" />
-        <div className="flex items-center gap-2">
-          <FileCode2 className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-[0.18em]">
-            LaTeX ソース
-          </span>
+    <div className="flex flex-col h-full bg-background">
+      {/* Toolbar — also serves as the panel header when used inside LeftReviewPanel (OMR-style) */}
+      <div className="h-12 border-b border-border/40 bg-background/95 backdrop-blur flex items-center justify-between px-4 shrink-0 gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <FileCode2 className="h-4 w-4 text-slate-500 shrink-0" />
+          <span className="text-sm font-medium text-foreground/90">LaTeX ソース</span>
           {editMode && (
-            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white border-2 border-amber-700 dark:border-amber-300">EDIT</span>
+            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">編集モード</span>
           )}
         </div>
         <div className="flex items-center gap-1 flex-wrap justify-end">
@@ -147,7 +144,7 @@ export function LaTeXSourceViewer({ onClose }: { onClose?: () => void } = {}) {
           {onClose && (
             <button
               onClick={onClose}
-              className="h-7 w-7 ml-1 flex items-center justify-center text-foreground/30 hover:text-foreground/80 hover:bg-foreground/[0.08] border-2 border-transparent hover:border-foreground/20 transition-all"
+              className="p-1.5 ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               title="閉じる"
             >
               <X className="h-4 w-4" />

@@ -1407,8 +1407,16 @@ function LaTeXPreview({ code, caption }: { code: string; caption?: string }) {
   const [svg, setSvg] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const lastCodeRef = React.useRef("");
+  const lastKeyRef = React.useRef("");
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 文書全体の advanced プリアンブルを取得 — latex ブロックの単体プレビューも
+  // 文書全体コンパイルと同じ環境で動かすために必須。
+  // (これがないと、AI が update_advanced で追加した \newcommand を使うブロックが
+  //  必ず "Unknown compilation error" になる)
+  const advanced = useDocumentStore((s) => s.document?.advanced);
+  const customPreamble = advanced?.enabled ? advanced.customPreamble || "" : "";
+  const customCommands = advanced?.enabled ? advanced.customCommands || [] : [];
 
   const fetchPreview = React.useCallback(async (c: string) => {
     if (!c.trim()) { setSvg(null); return; }
@@ -1416,7 +1424,13 @@ function LaTeXPreview({ code, caption }: { code: string; caption?: string }) {
     setError(null);
     try {
       const { previewBlockSVG } = await import("@/lib/api");
-      const result = await previewBlockSVG(c, "latex", caption || "");
+      const result = await previewBlockSVG(
+        c,
+        "latex",
+        caption || "",
+        customPreamble,
+        customCommands,
+      );
       setSvg(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "プレビュー取得に失敗");
@@ -1424,18 +1438,20 @@ function LaTeXPreview({ code, caption }: { code: string; caption?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [caption]);
+  }, [caption, customPreamble, customCommands]);
 
   React.useEffect(() => {
-    if (code === lastCodeRef.current) return;
-    const isInitial = lastCodeRef.current === "";
-    lastCodeRef.current = code;
+    // プリアンブル/マクロが変わった場合も再フェッチする
+    const key = code + "\u0000" + customPreamble + "\u0000" + customCommands.join("\u0001");
+    if (key === lastKeyRef.current) return;
+    const isInitial = lastKeyRef.current === "";
+    lastKeyRef.current = key;
     if (timerRef.current) clearTimeout(timerRef.current);
     // 初回マウント時は即座にプレビュー取得、以降は1秒デバウンス
     const delay = isInitial ? 100 : 1000;
     timerRef.current = setTimeout(() => fetchPreview(code), delay);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [code, fetchPreview]);
+  }, [code, customPreamble, customCommands, fetchPreview]);
 
   if (!code.trim()) {
     return (

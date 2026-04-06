@@ -539,9 +539,9 @@ export function AIChatPanel() {
 
   return (
     <div className="flex flex-col h-full chat-aurora-panel">
-      {/* Header — squared, thick bottom border, stronger hierarchy */}
-      <div className="chat-header-aurora flex items-center gap-3 px-4 py-3 border-b-[3px] border-amber-600/30 dark:border-amber-500/25 shrink-0">
-        <div className="h-9 w-9 chat-avatar-ai-static flex items-center justify-center shrink-0 border-2 border-amber-700/30 dark:border-amber-400/30">
+      {/* Header — soft border, gentle hierarchy */}
+      <div className="chat-header-aurora flex items-center gap-3 px-4 py-3 border-b border-amber-500/15 dark:border-amber-500/12 shrink-0">
+        <div className="h-9 w-9 rounded-xl chat-avatar-ai-static flex items-center justify-center shrink-0">
           <Sparkles className="h-4 w-4 text-white" />
         </div>
         <div className="flex-1 min-w-0">
@@ -552,7 +552,7 @@ export function AIChatPanel() {
           {chatMessages.length > 0 && (
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v2"); } catch { /**/ } }}
-              className="h-8 w-8 flex items-center justify-center text-foreground/40 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/15 border-2 border-transparent hover:border-rose-500/30 transition-all duration-150"
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-foreground/40 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/15 transition-all duration-150"
               title={t("chat.clear")}
             >
               <Trash2 className="h-4 w-4" />
@@ -574,7 +574,7 @@ export function AIChatPanel() {
 
       {/* API Key banner */}
       {apiKeyMissing && (
-        <div className="mx-3 mt-2 shrink-0 border-2 border-amber-500/60 dark:border-amber-500/45 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-1.5">
+        <div className="mx-3 mt-2 shrink-0 rounded-xl border border-amber-400/50 dark:border-amber-500/35 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-1.5">
           <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-semibold">
             <KeyRound className="h-3.5 w-3.5 shrink-0" />
             API キーが未設定です
@@ -592,9 +592,9 @@ export function AIChatPanel() {
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 min-h-0 scrollbar-thin">
         {chatMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-6 py-6 px-1 select-none">
-            {/* Aurora orb — squared, bordered */}
+            {/* Aurora orb */}
             <div className="relative flex items-center justify-center">
-              <div className="h-16 w-16 chat-empty-orb flex items-center justify-center border-[3px] border-amber-700/40 dark:border-amber-400/40">
+              <div className="h-16 w-16 rounded-2xl chat-empty-orb flex items-center justify-center">
                 <Sparkles className="h-8 w-8 text-white" />
               </div>
             </div>
@@ -610,9 +610,9 @@ export function AIChatPanel() {
             {/* OMR upload card */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="group w-full flex items-center gap-3 px-3.5 py-3 chat-suggestion-card text-left"
+              className="group w-full flex items-center gap-3 px-3.5 py-3 rounded-xl chat-suggestion-card text-left"
             >
-              <div className="h-10 w-10 bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center shrink-0 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-500/25 transition-colors border-2 border-emerald-600/40 dark:border-emerald-400/40">
+              <div className="h-10 w-10 rounded-xl bg-emerald-50/80 dark:bg-emerald-500/12 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 transition-colors border border-emerald-400/40 dark:border-emerald-400/30">
                 <ScanLine className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
               </div>
               <div className="flex-1 min-w-0">
@@ -632,7 +632,7 @@ export function AIChatPanel() {
                 <button
                   key={text}
                   onClick={() => { setInput(text); textareaRef.current?.focus(); }}
-                  className="chat-suggestion-card flex items-start gap-2 text-left text-[12px] px-3 py-2.5 text-foreground/75 leading-snug font-medium"
+                  className="chat-suggestion-card flex items-start gap-2 text-left text-[12px] px-3 py-2.5 rounded-xl text-foreground/75 leading-snug font-medium"
                 >
                   <Icon className="h-4 w-4 mt-0.5 shrink-0 text-amber-700 dark:text-amber-400" />
                   <span>{text}</span>

@@ -295,11 +295,20 @@ async def preview_latex(doc: DocumentModel):
 
 
 from pydantic import BaseModel as _BM
+from pydantic import Field as _Field
+from pydantic import ConfigDict as _ConfigDict
+from pydantic.alias_generators import to_camel as _to_camel
 
 class PreviewBlockRequest(_BM):
+    # camelCase JSON (customPreamble) ↔ snake_case Python (custom_preamble)
+    model_config = _ConfigDict(populate_by_name=True, alias_generator=_to_camel)
     code: str
-    block_type: str  # circuit, diagram, chart
+    block_type: str  # circuit, diagram, chart, latex
     caption: str = ""
+    # 上級者モードのプリアンブル/マクロ定義 — latex ブロックの単体プレビューが
+    # 文書全体と同じ環境でコンパイルできるようにフロントから渡す
+    custom_preamble: str = ""
+    custom_commands: list[str] = _Field(default_factory=list)
 
 
 @app.post("/api/preview-block")
@@ -310,8 +319,23 @@ async def preview_block(req: PreviewBlockRequest):
             "success": False,
             "message": "コードが空です",
         })
+    # 受け取ったプリアンブルはサニタイズ
+    if req.custom_preamble and req.custom_preamble.strip():
+        from .security import validate_custom_preamble
+        violations = validate_custom_preamble(req.custom_preamble)
+        if violations:
+            raise HTTPException(status_code=400, detail={
+                "success": False,
+                "message": "プリアンブル検証エラー: " + "; ".join(violations[:3]),
+            })
     try:
-        svg = preview_block_svg(req.code, req.block_type, req.caption)
+        svg = preview_block_svg(
+            req.code,
+            req.block_type,
+            req.caption,
+            custom_preamble=req.custom_preamble,
+            custom_commands=req.custom_commands,
+        )
         return {"success": True, "svg": svg}
     except RuntimeError as e:
         logger.error(f"Preview generation failed: {e}")
