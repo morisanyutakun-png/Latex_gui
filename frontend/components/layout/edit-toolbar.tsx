@@ -45,8 +45,8 @@ function Btn({
   disabled?: boolean; children: React.ReactNode; mathMode?: boolean;
 }) {
   const activeClass = mathMode
-    ? "bg-violet-500/15 text-violet-600 dark:text-violet-400"
-    : "bg-sky-500/15 text-sky-600 dark:text-sky-400";
+    ? "bg-violet-500/12 text-violet-600 dark:text-violet-300"
+    : "bg-foreground/[0.08] text-foreground/85";
   return (
     <button
       onClick={onClick}
@@ -83,21 +83,21 @@ export function EditToolbar() {
   const headingContent = block?.content.type === "heading" ? (block.content as { level: number }) : null;
   const listContent   = block?.content.type === "list"    ? (block.content as { style: string })  : null;
 
-  // テーマカラー
+  // テーマカラー — LP と整合した中間グレー基調
   const theme = isMathEditing
     ? {
-        bg: "bg-[rgba(245,243,255,0.82)] dark:bg-[rgba(18,12,30,0.88)]",
-        badge: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-300/35 dark:border-violet-700/30",
-        badgeGlow: "bg-violet-400",
-        selectBorder: "border-violet-200/50 dark:border-violet-800/30 focus:border-violet-400/50",
-        hint: "text-violet-400/60",
+        bg: "bg-background/72 backdrop-blur-md",
+        badge: "bg-violet-500/10 text-violet-600 dark:text-violet-300 border border-violet-500/20",
+        badgeGlow: "bg-violet-500",
+        selectBorder: "border-foreground/[0.10] focus:border-violet-500/50",
+        hint: "text-violet-500/60",
       }
     : {
-        bg: "bg-[rgba(245,244,255,0.82)] dark:bg-[rgba(10,9,20,0.88)]",
-        badge: "bg-indigo-500/8 text-indigo-600 dark:text-indigo-400 border border-indigo-300/30 dark:border-indigo-700/25",
-        badgeGlow: "bg-indigo-400",
-        selectBorder: "border-indigo-200/40 dark:border-indigo-800/25 focus:border-indigo-400/50",
-        hint: "text-indigo-400/55",
+        bg: "bg-background/72 backdrop-blur-md",
+        badge: "bg-foreground/[0.05] text-foreground/75 border border-foreground/[0.10]",
+        badgeGlow: "bg-foreground/40",
+        selectBorder: "border-foreground/[0.10] focus:border-foreground/30",
+        hint: "text-foreground/45",
       };
 
   return (

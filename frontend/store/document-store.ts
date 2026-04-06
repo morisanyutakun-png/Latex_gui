@@ -21,7 +21,29 @@ const CONTENT_DEFAULTS: Record<string, () => BlockContent> = {
   diagram:   () => ({ type: "diagram", code: "", diagramType: "flowchart", caption: "" }),
   chemistry: () => ({ type: "chemistry", formula: "", displayMode: true }),
   chart:     () => ({ type: "chart", chartType: "line" as const, code: "", caption: "" }),
+  latex:     () => ({ type: "latex", code: "", caption: "" }),
 };
+
+/**
+ * 段落/見出し本文に AI が混入させがちな「レイアウト系の生 LaTeX コマンド」を検出。
+ * これらは段落テキストとして表示されてもコンパイルされず、生文字列として残ってしまうため
+ * latex ブロックに振り分ける必要がある。
+ */
+const RAW_LATEX_COMMAND_RE =
+  /\\(?:vspace|hspace|vfill|hfill|newpage|clearpage|pagebreak|noindent|indent|par|bigskip|medskip|smallskip|linebreak|nolinebreak|hrule|vrule|rule|baselineskip|parskip|setlength|addtolength|begin|end|centering|raggedright|raggedleft|columnbreak|allowbreak|hphantom|vphantom|phantom)\b/;
+
+/**
+ * テキスト全体が「ほぼ生 LaTeX」かどうか判定。
+ *  - 1個でも上記コマンドを含み、かつ
+ *  - $...$ で囲まれていない箇所にコマンドがある
+ * 場合に true。
+ */
+function isRawLatexText(text: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  // $...$ の中身を取り除いた残りでコマンドを探す
+  const stripped = text.replace(/\$[^$]*\$/g, "");
+  return RAW_LATEX_COMMAND_RE.test(stripped);
+}
 
 function normalizeAIBlock(raw: Block): Block {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,7 +73,18 @@ function normalizeAIBlock(raw: Block): Block {
     }
   }
 
-  const btype = (content as { type: string }).type;
+  let btype = (content as { type: string }).type;
+
+  // ── 救済: paragraph / quote / heading に生 LaTeX を入れられた場合は latex ブロックに変換 ──
+  // 例) AI が paragraph.text に "\vspace{1.5cm}" だけを入れてくるケース
+  if ((btype === "paragraph" || btype === "quote" || btype === "heading")) {
+    const c = content as { type: string; text?: string };
+    if (typeof c.text === "string" && isRawLatexText(c.text)) {
+      content = { type: "latex", code: c.text.trim(), caption: "" };
+      btype = "latex";
+    }
+  }
+
   const defaults = CONTENT_DEFAULTS[btype]?.();
 
   if (defaults) {

@@ -645,28 +645,11 @@ html {
   box-shadow: none;
 }
 
-/* ── Editor / Chat divider — gradient accent border ── */
-.sidebar-edge {
+/* ── Sidebar floating card ── */
+.sidebar-card {
+  /* Card frame is composed via Tailwind utilities on the element itself
+     (border, shadow, rounded). This class is a stable hook for future tweaks. */
   position: relative;
-}
-.sidebar-edge::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(0, 0, 0, 0.10) 15%,
-    rgba(0, 0, 0, 0.14) 50%,
-    rgba(0, 0, 0, 0.10) 85%,
-    transparent 100%
-  );
-  box-shadow: none;
-  z-index: 1;
-  pointer-events: none;
 }
 
 /* ── AI Chat panel — premium enhancements ── */
@@ -839,17 +822,18 @@ html {
 }
 
 /* ── App header — Eddivom branded frosted glass ── */
+/* Editor header — neutral glass to match LP nav */
 .editor-header {
-  background: rgba(248, 247, 255, 0.88);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.10);
+  background: hsl(var(--background) / 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid hsl(var(--foreground) / 0.06);
 }
 .dark .editor-header {
-  background: rgba(7, 6, 16, 0.90);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.12);
+  background: hsl(var(--background) / 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid hsl(var(--foreground) / 0.06);
 }
 
 /* ── Edit toolbar — frosted glass ── */

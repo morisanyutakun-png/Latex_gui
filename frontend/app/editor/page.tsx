@@ -232,8 +232,8 @@ export default function EditorPage() {
           />
         )}
 
-        {/* ── Sidebar (panel + activity bar) ── */}
-        <div className="flex flex-shrink-0 sidebar-edge bg-surface-2 dark:bg-surface-1">
+        {/* ── Sidebar (panel + activity bar) — floating card ── */}
+        <div className="flex flex-shrink-0 sidebar-card my-3 mr-3 rounded-[22px] border-[3px] border-foreground/[0.16] dark:border-foreground/[0.12] bg-surface-2 dark:bg-surface-1 shadow-[0_18px_48px_-18px_rgba(0,0,0,0.22),0_4px_14px_-4px_rgba(0,0,0,0.10)] dark:shadow-[0_18px_48px_-18px_rgba(0,0,0,0.7),0_4px_14px_-4px_rgba(0,0,0,0.45)] overflow-hidden">
           {/* Panel content */}
           <div
             className="overflow-hidden flex flex-col panel-depth"
@@ -280,8 +280,8 @@ export default function EditorPage() {
             )}
           </div>
 
-          {/* Activity bar — right edge */}
-          <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l border-foreground/[0.04] bg-surface-1/60 dark:bg-surface-0/70 shrink-0">
+          {/* Activity bar — right edge of the floating card */}
+          <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l-2 border-foreground/[0.10] dark:border-foreground/[0.08] bg-surface-1/70 dark:bg-surface-0/80 shrink-0">
           {/* Main tabs */}
           {(["ai", "latex", "scoring"] as SidebarTab[]).map((tab) => {
             const Icon = tab === "ai" ? Sparkles : tab === "scoring" ? ClipboardCheck : FileCode2;

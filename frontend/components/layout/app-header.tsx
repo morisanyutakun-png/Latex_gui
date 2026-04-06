@@ -202,19 +202,19 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       className="editor-header relative flex items-center gap-2 px-3 h-12 sticky top-0 z-40 shrink-0"
     >
 
-      {/* Logo + Back */}
+      {/* Logo + Back — matches LP nav */}
       <button
         onClick={() => router.push("/")}
-        className="flex items-center gap-2 group shrink-0 mr-0.5"
+        className="flex items-center gap-3 group shrink-0 mr-0.5"
         title={t("header.home")}
       >
-        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-700 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md shadow-violet-500/20 group-hover:shadow-violet-500/40 group-hover:scale-105 transition-all">
+        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/25 group-hover:shadow-violet-500/40 transition-all">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
             <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
             <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
           </svg>
         </div>
-        <span className="text-sm font-semibold text-foreground/50 group-hover:text-foreground/70 transition-colors tracking-tight hidden sm:inline">Eddivom</span>
+        <span className="text-[15px] font-bold tracking-tight text-foreground/80 group-hover:text-foreground transition-colors hidden sm:inline">Eddivom</span>
       </button>
 
       <div className="w-px h-5 bg-border/40 mx-0.5 shrink-0" />
@@ -249,16 +249,16 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         </button>
       </div>
 
-      {/* Center — AI status */}
+      {/* Center — AI status (LP-aligned: blue→violet gradient) */}
       <div className="flex-1 flex items-center justify-center min-w-0 px-2">
         {isAIActive && isChatLoading ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-violet-500/12 to-indigo-500/12 text-violet-500 dark:text-violet-300 text-xs font-medium animate-pulse border border-violet-500/10 shadow-sm">
-            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500/[0.10] to-violet-500/[0.10] text-foreground/70 text-xs font-medium border border-violet-500/[0.18] shadow-sm">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-500" />
             <span>{isJa ? "AIが考え中…" : "AI thinking…"}</span>
           </div>
         ) : lastAIAction && indicatorVisible ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/8 dark:bg-violet-950/40 text-violet-600 dark:text-violet-300 text-xs font-medium animate-in fade-in duration-300 max-w-sm overflow-hidden shadow-sm">
-            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/70 text-xs font-medium animate-in fade-in duration-300 max-w-sm overflow-hidden shadow-sm">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-500" />
             <span className="truncate">{lastAIAction.description}</span>
             <OpCountIcons counts={lastAIAction.opCounts} />
           </div>
@@ -316,11 +316,11 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         <UserMenu />
       </div>
 
-      {/* PDF export — prominent button */}
+      {/* PDF export — matches LP "Get started" CTA */}
       <button
         onClick={handleGeneratePDF}
         disabled={isGenerating}
-        className="flex items-center gap-2 h-8 px-5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[13px] font-semibold shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-violet-500 hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97] ml-1 shrink-0"
+        className="flex items-center gap-2 h-8 px-5 rounded-full bg-foreground text-background text-[13px] font-semibold shadow-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97] ml-1 shrink-0"
       >
         {isGenerating ? (
           <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>{isJa ? "生成中…" : "Generating…"}</span></>
