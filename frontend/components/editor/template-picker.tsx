@@ -196,7 +196,8 @@ function TemplateCard({ tpl, isJa, selected, onSelect }: TemplateCardProps) {
   const name = isJa ? tpl.name : tpl.nameEn;
   const desc = isJa ? tpl.description : tpl.descriptionEn;
   const tag = isJa ? tpl.tag : tpl.tagEn;
-  const highlights = isJa ? tpl.highlights : tpl.highlightsEn;
+  const contents = isJa ? tpl.contents : tpl.contentsEn;
+  const includesLabel = isJa ? "出力に含まれるもの" : "What you get";
 
   return (
     <button
@@ -226,19 +227,29 @@ function TemplateCard({ tpl, isJa, selected, onSelect }: TemplateCardProps) {
       {/* Body */}
       <div className="p-3">
         <div className="text-[13px] font-bold text-foreground leading-tight">{name}</div>
-        <div className="text-[11px] text-muted-foreground/80 mt-1 leading-snug line-clamp-2">
+        <div className="text-[11px] text-muted-foreground/80 mt-1 leading-snug">
           {desc}
         </div>
 
-        {highlights && highlights.length > 0 && (
-          <ul className="mt-2 space-y-0.5">
-            {highlights.slice(0, 4).map((h, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-[10px] text-muted-foreground/65">
-                <span className="text-foreground/30 mt-px shrink-0">·</span>
-                <span className="leading-snug">{h}</span>
-              </li>
-            ))}
-          </ul>
+        {contents && contents.length > 0 && (
+          <div className="mt-2.5 pt-2 border-t border-border/40">
+            <div className="text-[8.5px] font-bold uppercase tracking-wider text-foreground/45 mb-1">
+              {includesLabel}
+            </div>
+            <ul className="space-y-0.5">
+              {contents.slice(0, 6).map((c, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-[10.5px] text-foreground/65">
+                  <span className="text-foreground/25 mt-px shrink-0">▸</span>
+                  <span className="leading-snug">{c}</span>
+                </li>
+              ))}
+              {contents.length > 6 && (
+                <li className="text-[9.5px] text-muted-foreground/50 italic pl-3">
+                  {isJa ? `+ さらに ${contents.length - 6} 項目` : `+ ${contents.length - 6} more`}
+                </li>
+              )}
+            </ul>
+          </div>
         )}
       </div>
     </button>
