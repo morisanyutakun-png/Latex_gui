@@ -87,49 +87,6 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
     [latex, onChange]
   );
 
-  // 見出し編集
-  const handleHeadingCommit = useCallback(
-    (segment: Segment, newTitle: string) => {
-      if (newTitle === segment.body) return;
-      const snippet = serializeSegment(segment, newTitle, latex);
-      applyRangeEdit(segment.range, snippet);
-    },
-    [applyRangeEdit, latex]
-  );
-
-  // 段落・item 編集 (DOM walker でシリアライズ)
-  const handleParagraphCommit = useCallback(
-    (segment: Segment, el: HTMLElement) => {
-      const newBody = serializeContentEditableDOM(el);
-      const trimmed = newBody.trim();
-      const original = segment.body.trim();
-      if (trimmed === original) return;
-
-      if (segment.kind === "item") {
-        // item は \item の本体 (bodyStart..bodyEnd) のみ置換
-        const bodyStart = Number(segment.meta?.bodyStart);
-        const bodyEnd = Number(segment.meta?.bodyEnd);
-        if (Number.isFinite(bodyStart) && Number.isFinite(bodyEnd)) {
-          applyRangeEdit({ start: bodyStart, end: bodyEnd }, newBody);
-          return;
-        }
-      }
-      applyRangeEdit(segment.range, newBody);
-    },
-    [applyRangeEdit]
-  );
-
-  // displayMath ブロックの編集確定
-  const handleDisplayMathCommit = useCallback(
-    (segment: Segment, newBody: string) => {
-      const trimmed = newBody.trim();
-      if (trimmed === segment.body.trim()) return;
-      const snippet = serializeSegment(segment, trimmed, latex);
-      applyRangeEdit(segment.range, snippet);
-    },
-    [applyRangeEdit, latex]
-  );
-
   // 表示対象となるセグメント (preamble / documentEnd / hidden raw を除外)
   const visibleSegments = segments.filter((seg) => {
     if (seg.kind === "preamble" || seg.kind === "documentEnd") return false;
@@ -168,9 +125,8 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
               <SegmentRenderer
                 key={`${idx}-${seg.kind}`}
                 segment={seg}
-                onHeadingCommit={(title) => handleHeadingCommit(seg, title)}
-                onParagraphCommit={(el) => handleParagraphCommit(seg, el)}
-                onDisplayMathCommit={(body) => handleDisplayMathCommit(seg, body)}
+                latex={latex}
+                applyRangeEdit={applyRangeEdit}
               />
             ))}
             <TrailingEditableParagraph
@@ -191,18 +147,40 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
 
 interface SegmentRendererProps {
   segment: Segment;
-  onHeadingCommit: (newTitle: string) => void;
-  onParagraphCommit: (el: HTMLElement) => void;
-  onDisplayMathCommit: (newBody: string) => void;
+  latex: string;
+  applyRangeEdit: (range: Range, snippet: string) => void;
 }
 
-function SegmentRenderer({
-  segment,
-  onHeadingCommit,
-  onParagraphCommit,
-  onDisplayMathCommit,
-}: SegmentRendererProps) {
+function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProps) {
   if (segment.meta?.hidden === "true") return null;
+
+  // セグメントごとに commit ハンドラを構築 (再帰描画でも同じハンドラ生成ロジックを共有)
+  const onHeadingCommit = (newTitle: string) => {
+    if (newTitle === segment.body) return;
+    const snippet = serializeSegment(segment, newTitle, latex);
+    applyRangeEdit(segment.range, snippet);
+  };
+
+  const onParagraphCommit = (el: HTMLElement) => {
+    const newBody = serializeContentEditableDOM(el);
+    if (newBody.trim() === segment.body.trim()) return;
+    if (segment.kind === "item") {
+      const bodyStart = Number(segment.meta?.bodyStart);
+      const bodyEnd = Number(segment.meta?.bodyEnd);
+      if (Number.isFinite(bodyStart) && Number.isFinite(bodyEnd)) {
+        applyRangeEdit({ start: bodyStart, end: bodyEnd }, newBody);
+        return;
+      }
+    }
+    applyRangeEdit(segment.range, newBody);
+  };
+
+  const onDisplayMathCommit = (newBody: string) => {
+    const trimmed = newBody.trim();
+    if (trimmed === segment.body.trim()) return;
+    const snippet = serializeSegment(segment, trimmed, latex);
+    applyRangeEdit(segment.range, snippet);
+  };
 
   switch (segment.kind) {
     case "preamble":
@@ -256,14 +234,78 @@ function SegmentRenderer({
               : "list-decimal list-outside pl-6 space-y-1.5 my-3 marker:text-muted-foreground/60"
           }
         >
+          {(segment.children ?? []).map((child, idx) => {
+            // item の commit は親 list の onParagraphCommit ではなく
+            // child segment 自身の range で行う必要がある (closure 注意)
+            const onItemCommit = (el: HTMLElement) => {
+              const newBody = serializeContentEditableDOM(el);
+              if (newBody.trim() === child.body.trim()) return;
+              const bodyStart = Number(child.meta?.bodyStart);
+              const bodyEnd = Number(child.meta?.bodyEnd);
+              if (Number.isFinite(bodyStart) && Number.isFinite(bodyEnd)) {
+                applyRangeEdit({ start: bodyStart, end: bodyEnd }, newBody);
+                return;
+              }
+              applyRangeEdit(child.range, newBody);
+            };
+            return (
+              <EditableItem
+                key={`${idx}-item`}
+                segment={child}
+                onCommit={onItemCommit}
+              />
+            );
+          })}
+        </ListTag>
+      );
+    }
+
+    case "daimon": {
+      // 大問ボックス: タイトル帯 (編集可) + 子セグメントを再帰レンダリング
+      const titleStart = Number(segment.meta?.titleStart);
+      const titleEnd = Number(segment.meta?.titleEnd);
+      const hasTitleRange = Number.isFinite(titleStart) && titleStart >= 0 && Number.isFinite(titleEnd);
+      const onDaimonTitleCommit = (newTitle: string) => {
+        if (!hasTitleRange) return;
+        if (newTitle === segment.body) return;
+        applyRangeEdit({ start: titleStart, end: titleEnd }, newTitle);
+      };
+      return (
+        <div className="my-6 rounded-md overflow-hidden border border-[#1e3a8a]/40 bg-[#1e3a8a]/[0.025] dark:border-[#93c5fd]/30 dark:bg-[#1e3a8a]/15 shadow-[0_1px_0_rgba(30,58,138,0.08)]">
+          {hasTitleRange && (
+            <EditableHeading
+              tag="h3"
+              initialText={segment.body}
+              onCommit={onDaimonTitleCommit}
+              className="bg-[#1e3a8a] text-white px-4 py-2 text-[15px] font-bold tracking-wide m-0 rounded-none border-0"
+            />
+          )}
+          <div className="px-5 py-4 space-y-2">
+            {(segment.children ?? []).map((child, idx) => (
+              <SegmentRenderer
+                key={`${idx}-${child.kind}`}
+                segment={child}
+                latex={latex}
+                applyRangeEdit={applyRangeEdit}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    case "center": {
+      return (
+        <div className="daimon-center my-4 flex flex-col items-center text-center [&>*]:max-w-full [&_p]:text-center [&_h2]:text-center [&_h3]:text-center [&_h4]:text-center">
           {(segment.children ?? []).map((child, idx) => (
-            <EditableItem
-              key={`${idx}-item`}
+            <SegmentRenderer
+              key={`${idx}-${child.kind}`}
               segment={child}
-              onCommit={onParagraphCommit}
+              latex={latex}
+              applyRangeEdit={applyRangeEdit}
             />
           ))}
-        </ListTag>
+        </div>
       );
     }
 

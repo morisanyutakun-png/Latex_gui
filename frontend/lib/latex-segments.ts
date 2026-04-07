@@ -28,6 +28,8 @@ export type SegmentKind =
   | "itemize"
   | "enumerate"
   | "item"
+  | "daimon"      // \begin{daimon}{title}...\end{daimon} (テンプレ独自・大問ボックス)
+  | "center"      // \begin{center}...\end{center} (中身を再帰展開して中央寄せ)
   | "raw"
   | "documentEnd"; // \end{document} 以降の trailing 部分 (非表示)
 
@@ -595,6 +597,84 @@ function parseBody(src: string, start: number, end: number): Segment[] {
             i = envEnd;
             continue;
           }
+          // daimon (テンプレ独自・大問ボックス)
+          //   \begin{daimon}[opt]{title}...\end{daimon}
+          //   or \begin{daimon}{title}...\end{daimon}
+          if (envName === "daimon") {
+            const beginLen = `\\begin{daimon}`.length;
+            const endLen = `\\end{daimon}`.length;
+            let cursor = i + beginLen;
+            // 任意 [opt] を読み飛ばす (中身は触らない)
+            let optStart = -1;
+            let optEnd = -1;
+            if (src[cursor] === "[") {
+              let depth = 0;
+              let j = cursor;
+              while (j < envEnd) {
+                if (src[j] === "\\" && j + 1 < envEnd) { j += 2; continue; }
+                if (src[j] === "[") depth++;
+                else if (src[j] === "]") {
+                  depth--;
+                  if (depth === 0) { optStart = cursor; optEnd = j + 1; cursor = j + 1; break; }
+                }
+                j++;
+              }
+            }
+            // 必須 {title}
+            let titleStart = -1;
+            let titleEnd = -1;
+            if (src[cursor] === "{") {
+              const close = findMatchingBrace(src, cursor, envEnd);
+              if (close !== -1) {
+                titleStart = cursor + 1;
+                titleEnd = close;
+                cursor = close + 1;
+              }
+            }
+            const innerStart = cursor;
+            const innerEnd = envEnd - endLen;
+            const children = parseBody(src, innerStart, innerEnd);
+            segments.push({
+              id: nextId("seg"),
+              kind: "daimon",
+              range: { start: i, end: envEnd },
+              body: titleStart !== -1 ? src.slice(titleStart, titleEnd) : "",
+              children,
+              meta: {
+                envName: "daimon",
+                titleStart: String(titleStart),
+                titleEnd: String(titleEnd),
+                optStart: String(optStart),
+                optEnd: String(optEnd),
+                innerStart: String(innerStart),
+                innerEnd: String(innerEnd),
+              },
+            });
+            i = envEnd;
+            continue;
+          }
+          // center (中身を再帰的にパース)
+          if (envName === "center") {
+            const beginLen = `\\begin{center}`.length;
+            const endLen = `\\end{center}`.length;
+            const innerStart = i + beginLen;
+            const innerEnd = envEnd - endLen;
+            const children = parseBody(src, innerStart, innerEnd);
+            segments.push({
+              id: nextId("seg"),
+              kind: "center",
+              range: { start: i, end: envEnd },
+              body: src.slice(innerStart, innerEnd),
+              children,
+              meta: {
+                envName: "center",
+                innerStart: String(innerStart),
+                innerEnd: String(innerEnd),
+              },
+            });
+            i = envEnd;
+            continue;
+          }
           // raw 環境 (table/figure/tabular/...)
           segments.push({
             id: nextId("seg"),
@@ -801,6 +881,11 @@ export function serializeSegment(segment: Segment, newBody: string, originalSrc:
     case "documentEnd":
       // paragraph/item は外部で inline 単位で書き換えるか、body 全体を文字列として置換する想定
       return newBody;
+    case "daimon":
+    case "center":
+      // daimon/center は子セグメントを通じて編集する。
+      // 直接 body を置換することはないので、original を返す。
+      return original;
     default:
       return original;
   }
