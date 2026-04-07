@@ -1244,6 +1244,59 @@ html {
   box-shadow: 0 0 0 3px rgba(190, 242, 100, 0.18);
 }
 
+/* 自然言語数式チップ ─ アンバー (日本語/英語で書いて、Cmd+M または blur で
+   parseJapanesemath により LaTeX に変換される一時バッファ) */
+.math-chip.math-chip-nl {
+  border-color: #d9770680;             /* amber-600 半透明 */
+  background: rgba(245, 158, 11, 0.10); /* amber-500 / 10% */
+  color: #92400e;                       /* amber-800 */
+  caret-color: #92400e;
+  font-family: inherit;                 /* 日本語が読みやすいよう本文と同じフォント */
+  font-size: 0.95em;
+}
+.math-chip.math-chip-nl::before {
+  content: "あ";
+  display: inline-block;
+  font-size: 0.65em;
+  padding: 0 4px;
+  margin-right: 4px;
+  border-radius: 3px;
+  background: rgba(245, 158, 11, 0.25);
+  color: #92400e;
+  vertical-align: middle;
+  font-weight: 700;
+  letter-spacing: 0;
+  user-select: none;
+}
+.math-chip.math-chip-nl:hover {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: #d97706b0;
+}
+.math-chip.math-chip-nl:focus {
+  background: rgba(245, 158, 11, 0.20);
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.20);
+}
+.dark .math-chip.math-chip-nl {
+  border-color: rgba(252, 211, 77, 0.50);
+  background: rgba(252, 211, 77, 0.10);
+  color: #fde68a;
+  caret-color: #fde68a;
+}
+.dark .math-chip.math-chip-nl::before {
+  background: rgba(252, 211, 77, 0.20);
+  color: #fde68a;
+}
+.dark .math-chip.math-chip-nl:hover {
+  background: rgba(252, 211, 77, 0.16);
+  border-color: rgba(252, 211, 77, 0.65);
+}
+.dark .math-chip.math-chip-nl:focus {
+  background: rgba(252, 211, 77, 0.22);
+  border-color: rgba(252, 211, 77, 0.90);
+  box-shadow: 0 0 0 3px rgba(252, 211, 77, 0.20);
+}
+
 /* 表示数式ブロック ─ 緑の大きめテキストボックス */
 .display-math-block {
   display: block;

@@ -9,6 +9,7 @@ import {
   type Inline,
   type Range,
 } from "@/lib/latex-segments";
+import { parseJapanesemath } from "@/lib/math-japanese";
 import { useI18n } from "@/lib/i18n";
 // useUIStore is intentionally not imported — VisualEditor never reveals LaTeX source.
 
@@ -476,7 +477,22 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
 
 // ─────────────────────────────────────
 // 数式チップの挿入 / exit (Cmd/Ctrl+M ハンドラ)
+//
+//   Cmd+M       — LaTeX 用 math chip (緑) を挿入 / 中なら exit
+//   Cmd+Shift+M — 自然言語 (日本語) 用 math chip (アンバー) を挿入
+//                 中で Cmd+M を押すと parseJapanesemath で変換され、緑チップになる
 // ─────────────────────────────────────
+
+function findEnclosingChip(node: Node | null): HTMLElement | null {
+  while (node) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      if (el.dataset && el.dataset.mathChip === "1") return el;
+    }
+    node = node.parentNode;
+  }
+  return null;
+}
 
 function handleMathToggleKeyDown(e: React.KeyboardEvent<HTMLElement>) {
   // Cmd+M (Mac) / Ctrl+M (Win/Linux) で math chip を挿入 or 終了
@@ -488,22 +504,24 @@ function handleMathToggleKeyDown(e: React.KeyboardEvent<HTMLElement>) {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
 
+  const isNlMode = e.shiftKey;
+
   // 現在のカーソル位置の祖先に math-chip があるか
-  let node: Node | null = sel.anchorNode;
-  let chip: HTMLElement | null = null;
-  while (node) {
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      if (el.dataset && el.dataset.mathChip === "1") {
-        chip = el;
-        break;
-      }
-    }
-    node = node.parentNode;
-  }
+  const chip = findEnclosingChip(sel.anchorNode);
 
   if (chip) {
-    // chip 内 → 外に出る (chip の直後にカーソルを移動)
+    // chip 内で押された
+    if (chip.dataset.nlMath === "1") {
+      // 自然言語チップ → parseJapanesemath で LaTeX に変換 → 緑チップに格上げ
+      const raw = (chip.textContent || "").replace(/\u200B/g, "").trim();
+      if (raw) {
+        const converted = parseJapanesemath(raw);
+        chip.textContent = converted || raw;
+      }
+      delete chip.dataset.nlMath;
+      chip.className = "math-chip";
+    }
+    // chip の直後にカーソルを移動 (exit)
     const range = window.document.createRange();
     range.setStartAfter(chip);
     range.collapse(true);
@@ -512,15 +530,20 @@ function handleMathToggleKeyDown(e: React.KeyboardEvent<HTMLElement>) {
     return;
   }
 
-  // chip 外 → 新しい空の math chip を挿入 (選択範囲があればそれをラップ)
+  // chip 外 → 新しい空の math chip を挿入
   const range = sel.getRangeAt(0);
   const selectedText = sel.toString();
   const span = window.document.createElement("span");
   span.dataset.mathChip = "1";
   span.dataset.wrapper = "dollar";
   span.contentEditable = "true";
-  span.className = "math-chip";
   span.textContent = selectedText || "\u200B";
+  if (isNlMode) {
+    span.dataset.nlMath = "1";
+    span.className = "math-chip math-chip-nl";
+  } else {
+    span.className = "math-chip";
+  }
   range.deleteContents();
   range.insertNode(span);
 
@@ -662,8 +685,13 @@ export function serializeContentEditableDOM(el: HTMLElement): string {
 
     if (child.dataset.mathChip === "1") {
       // ライブの textContent を読む (ユーザーが chip 内で編集した可能性)
-      const body = (child.textContent || "").replace(/\u200B/g, "");
+      let body = (child.textContent || "").replace(/\u200B/g, "");
       if (!body.trim()) continue; // 空 chip は出力しない (誤って $$ になるのを避ける)
+      // 自然言語チップは parseJapanesemath で LaTeX に変換してから出力
+      if (child.dataset.nlMath === "1") {
+        const converted = parseJapanesemath(body.trim());
+        if (converted) body = converted;
+      }
       const wrapper = child.dataset.wrapper || "dollar";
       if (wrapper === "paren") result += `\\(${body}\\)`;
       else result += `$${body}$`;
