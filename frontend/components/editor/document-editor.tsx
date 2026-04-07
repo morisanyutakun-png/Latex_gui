@@ -1593,10 +1593,10 @@ export function CommandPaletteContent() {
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
-      {/* 検索バー — コンパクト */}
-      <div className="px-2.5 pt-2 pb-1.5 shrink-0 border-b border-border/20">
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-muted/40 border border-border/30 focus-within:border-primary/35 focus-within:bg-background transition-colors">
-          <Search className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+      {/* 検索バー */}
+      <div className="px-4 pt-3 pb-2.5 shrink-0 border-b border-border/20">
+        <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-muted/40 border border-border/30 focus-within:border-primary/35 focus-within:bg-background transition-colors">
+          <Search className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
           <input
             ref={inputRef}
             value={query}
@@ -1608,28 +1608,27 @@ export function CommandPaletteContent() {
               else if (e.key === "Escape") { e.preventDefault(); setGlobalPalette(false); }
             }}
             placeholder="ブロックを検索…"
-            className="flex-1 bg-transparent border-none outline-none text-[12px] placeholder:text-muted-foreground/35 min-w-0"
+            className="flex-1 bg-transparent border-none outline-none text-[13px] placeholder:text-muted-foreground/35 min-w-0"
           />
-          <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-background border border-border/40 text-muted-foreground/40 shrink-0">Esc</kbd>
+          <kbd className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-background border border-border/40 text-muted-foreground/40 shrink-0">Esc</kbd>
         </div>
       </div>
 
-      {/* コンテンツ */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-2.5 py-2">
+      {/* コンテンツ — 3列カードグリッドで空白なし */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
         {showCategories ? (
-          /* カテゴリ別グリッド */
-          <div className="space-y-2">
+          <div className="space-y-4">
             {PALETTE_CATEGORIES.map((cat) => {
               const items = cat.types.map((t) => BLOCK_TYPES.find((b) => b.type === t)!).filter(Boolean);
               return (
                 <div key={cat.label}>
                   {/* カテゴリラベル */}
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`text-[8.5px] font-bold uppercase tracking-[0.13em] ${cat.color}`}>{cat.label}</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-[9px] font-bold uppercase tracking-[0.15em] ${cat.color}`}>{cat.label}</span>
                     <div className="flex-1 h-px bg-border/25" />
                   </div>
-                  {/* 2カラムグリッド */}
-                  <div className="grid grid-cols-2 gap-1">
+                  {/* 3列カードグリッド */}
+                  <div className="grid grid-cols-3 gap-2">
                     {items.map((info) => {
                       const Icon = BLOCK_ICONS[info.type];
                       const flatIdx = filtered.findIndex((b) => b.type === info.type);
@@ -1639,22 +1638,22 @@ export function CommandPaletteContent() {
                           key={info.type}
                           onClick={() => handleSelect(info.type)}
                           onMouseEnter={() => setIdx(flatIdx)}
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded-md border text-left transition-all duration-100 ${
+                          className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-center transition-all duration-100 ${
                             isSelected
                               ? "border-primary/30 bg-primary/8 shadow-sm"
-                              : "border-transparent hover:border-border/35 hover:bg-muted/35"
+                              : "border-border/20 bg-muted/20 hover:border-border/40 hover:bg-muted/40 hover:shadow-sm"
                           }`}
                         >
-                          <div className={`h-6 w-6 rounded flex items-center justify-center shrink-0 transition-colors ${
-                            isSelected ? "bg-primary/12" : "bg-muted/60"
+                          <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
+                            isSelected ? "bg-primary/12" : "bg-background shadow-sm border border-border/20"
                           }`}>
-                            <Icon className={`h-3.5 w-3.5 ${info.color}`} />
+                            <Icon className={`h-4.5 w-4.5 ${info.color}`} style={{ width: "18px", height: "18px" }} />
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-[11px] font-semibold leading-none truncate ${
+                          <div className="min-w-0 w-full">
+                            <p className={`text-[11.5px] font-semibold leading-none truncate ${
                               isSelected ? "text-primary" : "text-foreground/80"
                             }`}>{info.name}</p>
-                            <p className="text-[9px] text-muted-foreground/40 mt-[2px] leading-tight truncate">{info.description}</p>
+                            <p className="text-[9px] text-muted-foreground/40 mt-1 leading-tight line-clamp-2">{info.description}</p>
                           </div>
                         </button>
                       );
@@ -1663,76 +1662,82 @@ export function CommandPaletteContent() {
                 </div>
               );
             })}
+
+            {/* LaTeXソース — ツールカード */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">ツール</span>
+                <div className="flex-1 h-px bg-border/25" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => { setGlobalPalette(false); openLatexSourceViewer(); }}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl border border-border/20 bg-muted/20 hover:border-border/40 hover:bg-muted/40 hover:shadow-sm text-center transition-all duration-100"
+                >
+                  <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-background shadow-sm border border-border/20">
+                    <FileCode className="h-[18px] w-[18px] text-fuchsia-500" />
+                  </div>
+                  <div className="min-w-0 w-full">
+                    <p className="text-[11.5px] font-semibold leading-none text-foreground/80">LaTeX ソース</p>
+                    <p className="text-[9px] text-muted-foreground/40 mt-1 leading-tight">生成コードを表示</p>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           /* 検索結果フラットリスト */
           <>
             {filtered.length === 0 ? (
-              <div className="flex flex-col items-center py-8 gap-2">
-                <Search className="h-4 w-4 text-muted-foreground/20" />
+              <div className="flex flex-col items-center py-12 gap-2">
+                <Search className="h-5 w-5 text-muted-foreground/20" />
                 <p className="text-[11px] text-muted-foreground/40">「{query}」に一致するブロックはありません</p>
               </div>
-            ) : filtered.map((info, i) => {
-              const Icon = BLOCK_ICONS[info.type];
-              const isSelected = i === idx;
-              return (
-                <button
-                  key={info.type}
-                  onClick={() => handleSelect(info.type)}
-                  onMouseEnter={() => setIdx(i)}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left transition-all duration-100 ${
-                    isSelected ? "bg-primary/8 border border-primary/20" : "border border-transparent hover:bg-muted/30"
-                  }`}
-                >
-                  <div className={`h-6 w-6 rounded flex items-center justify-center shrink-0 border transition-colors ${
-                    isSelected ? "bg-primary/12 border-primary/20" : "bg-muted/40 border-border/25"
-                  }`}>
-                    <Icon className={`h-3.5 w-3.5 ${info.color}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-[12px] font-semibold leading-none ${isSelected ? "text-primary" : "text-foreground/80"}`}>{info.name}</p>
-                    <p className="text-[10px] text-muted-foreground/45 mt-0.5 truncate">{info.description}</p>
-                  </div>
-                  {isSelected && (
-                    <kbd className="text-[9px] px-1 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary/60 font-mono shrink-0">↵</kbd>
-                  )}
-                </button>
-              );
-            })}
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {filtered.map((info, i) => {
+                  const Icon = BLOCK_ICONS[info.type];
+                  const isSelected = i === idx;
+                  return (
+                    <button
+                      key={info.type}
+                      onClick={() => handleSelect(info.type)}
+                      onMouseEnter={() => setIdx(i)}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-center transition-all duration-100 ${
+                        isSelected
+                          ? "border-primary/30 bg-primary/8 shadow-sm"
+                          : "border-border/20 bg-muted/20 hover:border-border/40 hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
+                        isSelected ? "bg-primary/12" : "bg-background shadow-sm border border-border/20"
+                      }`}>
+                        <Icon className={`h-[18px] w-[18px] ${info.color}`} />
+                      </div>
+                      <div className="min-w-0 w-full">
+                        <p className={`text-[11.5px] font-semibold leading-none truncate ${isSelected ? "text-primary" : "text-foreground/80"}`}>{info.name}</p>
+                        <p className="text-[9px] text-muted-foreground/45 mt-1 truncate">{info.description}</p>
+                      </div>
+                      {isSelected && (
+                        <kbd className="text-[8px] px-1 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary/60 font-mono">↵</kbd>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </div>
 
-      {/* LaTeXソース — ツールアクション */}
-      {!query && (
-        <div className="px-2.5 pt-1 pb-1.5 shrink-0 border-t border-border/20">
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-[8.5px] font-bold uppercase tracking-[0.13em] text-slate-400">ツール</span>
-            <div className="flex-1 h-px bg-border/25" />
-          </div>
-          <button
-            onClick={() => { setGlobalPalette(false); openLatexSourceViewer(); }}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent hover:border-border/35 hover:bg-muted/35 text-left transition-all duration-100"
-          >
-            <div className="h-6 w-6 rounded flex items-center justify-center shrink-0 bg-muted/60">
-              <FileCode className="h-3.5 w-3.5 text-fuchsia-500" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold leading-none text-foreground/80">LaTeX ソース</p>
-              <p className="text-[9px] text-muted-foreground/40 mt-[2px] leading-tight">生成されたLaTeXコードを表示</p>
-            </div>
-          </button>
-        </div>
-      )}
-
       {/* フッター — キーボードヒント */}
-      <div className="px-2.5 py-1.5 border-t border-border/20 bg-muted/5 shrink-0">
-        <div className="flex items-center gap-2.5 text-[9px] text-muted-foreground/35 font-mono">
+      <div className="px-4 py-2 border-t border-border/20 bg-muted/5 shrink-0">
+        <div className="flex items-center gap-3 text-[9px] text-muted-foreground/35 font-mono">
           <span className="flex items-center gap-1">
-            <kbd className="px-1 rounded bg-muted/60 border border-border/30">↑↓</kbd>移動
+            <kbd className="px-1.5 rounded bg-muted/60 border border-border/30">↑↓</kbd>移動
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="px-1 rounded bg-muted/60 border border-border/30">↵</kbd>挿入
+            <kbd className="px-1.5 rounded bg-muted/60 border border-border/30">↵</kbd>挿入
           </span>
           <span className="ml-auto font-sans text-[8.5px] opacity-50">;; でも開く</span>
         </div>
