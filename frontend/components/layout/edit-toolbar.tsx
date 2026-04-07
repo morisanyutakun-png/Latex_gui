@@ -9,15 +9,15 @@ import { useState, useRef, useEffect } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
 import { generatePDF } from "@/lib/api";
-import { TEMPLATES, createFromTemplate } from "@/lib/templates";
+import { createFromTemplate } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
+import { TemplatePicker } from "@/components/editor/template-picker";
 import {
   Download,
   ScanLine,
   FileText,
   Loader2,
   ChevronDown,
-  Check,
   Sliders,
   Eye,
   Braces,
@@ -35,8 +35,7 @@ function Sep() {
 }
 
 export function EditToolbar() {
-  const { t, locale } = useI18n();
-  const isJa = locale === "ja";
+  const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
   const setDocument = useDocumentStore((s) => s.setDocument);
   const { paperSize, setPaperSize } = useUIStore();
@@ -82,11 +81,10 @@ export function EditToolbar() {
 
       <Sep />
 
-      {/* ── テンプレート選択 (リッチなポップオーバー) ── */}
+      {/* ── テンプレート選択 (カテゴリ別カードグリッド) ── */}
       <TemplatePicker
         currentId={document?.template ?? "blank"}
         onSelect={handleTemplateChange}
-        isJa={isJa}
         label={t("edit.toolbar.template.label")}
       />
 
@@ -149,116 +147,6 @@ export function EditToolbar() {
           ))}
         </select>
       </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────
-// TemplatePicker — リッチなポップオーバー (アイコン + 名前 + タグ + 説明)
-// ─────────────────────────────────────
-
-interface TemplatePickerProps {
-  currentId: string;
-  onSelect: (id: string) => void;
-  isJa: boolean;
-  label: string;
-}
-
-function TemplatePicker({ currentId, onSelect, isJa, label }: TemplatePickerProps) {
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const current = TEMPLATES.find((tpl) => tpl.id === currentId) ?? TEMPLATES[0];
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("mousedown", onClick);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onClick);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  return (
-    <div ref={wrapperRef} className="relative shrink-0">
-      <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">
-          {label}
-        </span>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.10] bg-white/70 dark:bg-white/5 text-[11px] text-foreground/85 hover:bg-white dark:hover:bg-white/10 transition-colors"
-        >
-          <span className="text-[13px] leading-none">{current.icon}</span>
-          <span className="font-medium">{isJa ? current.name : current.nameEn}</span>
-          {(isJa ? current.tag : current.tagEn) && (
-            <span className="text-[9px] px-1 py-0.5 rounded bg-foreground/[0.06] text-foreground/55 font-mono uppercase tracking-wider">
-              {isJa ? current.tag : current.tagEn}
-            </span>
-          )}
-          <ChevronDown className={`h-3 w-3 text-foreground/40 transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
-      </div>
-
-      {open && (
-        <div className="absolute left-0 top-full mt-1.5 w-[360px] z-50 rounded-xl border border-border/60 bg-popover shadow-2xl shadow-foreground/10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-          <div className="px-3 py-2 border-b border-border/40 bg-muted/30">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              {label}
-            </div>
-          </div>
-          <div className="max-h-[60vh] overflow-y-auto py-1">
-            {TEMPLATES.map((tpl) => {
-              const isSelected = tpl.id === currentId;
-              const name = isJa ? tpl.name : tpl.nameEn;
-              const desc = isJa ? tpl.description : tpl.descriptionEn;
-              const tag = isJa ? tpl.tag : tpl.tagEn;
-              return (
-                <button
-                  key={tpl.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(tpl.id);
-                    setOpen(false);
-                  }}
-                  className={`w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-foreground/[0.04] transition-colors ${
-                    isSelected ? "bg-foreground/[0.05]" : ""
-                  }`}
-                >
-                  <div className="shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-[18px] bg-foreground/[0.05] border border-foreground/[0.06]">
-                    {tpl.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[12px] font-semibold text-foreground/90 truncate">{name}</span>
-                      {tag && (
-                        <span className="text-[8.5px] px-1.5 py-0.5 rounded bg-foreground/[0.06] text-foreground/55 font-mono uppercase tracking-wider shrink-0">
-                          {tag}
-                        </span>
-                      )}
-                      {isSelected && (
-                        <Check className="h-3 w-3 text-emerald-500 ml-auto shrink-0" />
-                      )}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground/75 mt-0.5 leading-snug">
-                      {desc}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
