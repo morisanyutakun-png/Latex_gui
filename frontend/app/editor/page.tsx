@@ -28,7 +28,6 @@ export default function EditorPage() {
   useAutosave();
 
   const { locale, setLocale, t } = useI18n();
-  const isJa = locale !== "en";
   const isChatLoading = useUIStore((s) => s.isChatLoading);
   const isMobile = useIsMobile();
 
@@ -96,7 +95,7 @@ export default function EditorPage() {
 
   const panelMeta: Record<SidebarTab, { label: string; bg: string; textColor: string; indicator: string }> = {
     ai:      { label: "EddivomAI", bg: "bg-amber-950/5 dark:bg-amber-950/15", textColor: "text-amber-500/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-amber-500/70 to-amber-400/30" },
-    scoring: { label: isJa ? "採点" : "Scoring", bg: "bg-emerald-950/8 dark:bg-emerald-950/15", textColor: "text-emerald-400/80", indicator: "bg-gradient-to-b from-emerald-500/60 to-emerald-400/20" },
+    scoring: { label: t("side.scoring.label"), bg: "bg-emerald-950/8 dark:bg-emerald-950/15", textColor: "text-emerald-400/80", indicator: "bg-gradient-to-b from-emerald-500/60 to-emerald-400/20" },
   };
 
   /* ══════════ MOBILE ══════════ */
@@ -223,7 +222,7 @@ export default function EditorPage() {
             {(() => {
               const isActive = sidebarOpen && activeTab === "ai";
               return (
-                <button onClick={() => handleTabClick("ai")} title={isJa ? "AIアシスタント" : "AI Assistant"}
+                <button onClick={() => handleTabClick("ai")} title={t("side.tooltip.ai")}
                   className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
                     isActive ? "" : "text-foreground/25 hover:text-amber-500/80 hover:bg-amber-50/50 dark:hover:bg-amber-500/10 rounded-lg mx-0.5"
                   }`}
@@ -247,7 +246,7 @@ export default function EditorPage() {
             {(() => {
               const isActive = sidebarOpen && activeTab === "scoring";
               return (
-                <button onClick={() => handleTabClick("scoring")} title={isJa ? "採点" : "Scoring"}
+                <button onClick={() => handleTabClick("scoring")} title={t("side.tooltip.scoring")}
                   className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
                     isActive ? "text-emerald-500 dark:text-emerald-400 bg-foreground/[0.05]" : "text-foreground/20 hover:text-foreground/50 hover:bg-foreground/[0.04]"
                   }`}
@@ -262,7 +261,7 @@ export default function EditorPage() {
 
             <button
               onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
-              title={locale === "ja" ? "Switch to English" : "日本語に切り替え"}
+              title={locale === "ja" ? t("side.tooltip.lang.toEn") : t("side.tooltip.lang.toJa")}
               className="h-9 w-full flex flex-col items-center justify-center gap-0.5 rounded-lg mx-0.5 text-foreground/15 hover:text-foreground/40 hover:bg-foreground/[0.04] transition-all duration-200"
             >
               <Globe className="h-3.5 w-3.5" />

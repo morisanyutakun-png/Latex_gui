@@ -5,6 +5,7 @@ import {
   Search, Wrench, Code2, BookOpen, Hammer,
 } from "lucide-react";
 import { formatDuration } from "./utils";
+import { useI18n } from "@/lib/i18n";
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
   read_latex: BookOpen,
@@ -18,14 +19,15 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   get_latex_source: Code2,
 };
 
-const stepConfig = {
-  thinking:    { icon: Brain,         bg: "bg-violet-100/50 dark:bg-violet-500/08", color: "text-violet-400/70",             dot: "bg-violet-400/60",  label: "思考"      },
-  tool_call:   { icon: Terminal,      bg: "bg-indigo-100/60 dark:bg-indigo-500/10", color: "text-indigo-500 dark:text-indigo-400", dot: "bg-indigo-400",  label: "実行"      },
-  tool_result: { icon: CheckCircle,   bg: "bg-emerald-100/60 dark:bg-emerald-500/10", color: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-400", label: "完了"    },
-  error:       { icon: AlertCircle,   bg: "bg-red-100/60 dark:bg-red-500/10",       color: "text-red-500",                  dot: "bg-red-400",    label: "エラー"  },
+const stepStyle = {
+  thinking:    { icon: Brain,         bg: "bg-violet-100/50 dark:bg-violet-500/08", color: "text-violet-400/70",             dot: "bg-violet-400/60",  labelKey: "timeline.label.thinking" },
+  tool_call:   { icon: Terminal,      bg: "bg-indigo-100/60 dark:bg-indigo-500/10", color: "text-indigo-500 dark:text-indigo-400", dot: "bg-indigo-400",  labelKey: "timeline.label.exec"     },
+  tool_result: { icon: CheckCircle,   bg: "bg-emerald-100/60 dark:bg-emerald-500/10", color: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-400", labelKey: "timeline.label.done"    },
+  error:       { icon: AlertCircle,   bg: "bg-red-100/60 dark:bg-red-500/10",       color: "text-red-500",                  dot: "bg-red-400",    labelKey: "timeline.label.error"   },
 } as const;
 
 export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
+  const { t } = useI18n();
   const hasToolCalls = steps?.some(s => s.type === "tool_call") ?? false;
   const [expanded, setExpanded] = React.useState(hasToolCalls);
   if (!steps || steps.length === 0) return null;
@@ -36,10 +38,10 @@ export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
   const errors = steps.filter(s => s.type === "error").length;
 
   const summaryParts: string[] = [];
-  if (thinkingSteps) summaryParts.push(`${thinkingSteps}思考`);
-  if (toolCalls) summaryParts.push(`${toolCalls}ツール`);
-  if (errors) summaryParts.push(`${errors}エラー`);
-  const summary = summaryParts.join(" · ") || `${steps.length}ステップ`;
+  if (thinkingSteps) summaryParts.push(`${thinkingSteps} ${t("timeline.thinking")}`);
+  if (toolCalls) summaryParts.push(`${toolCalls} ${t("timeline.tools")}`);
+  if (errors) summaryParts.push(`${errors} ${t("timeline.errors")}`);
+  const summary = summaryParts.join(" · ") || `${steps.length} ${t("timeline.steps")}`;
 
   const toolsUsed = [...new Set(steps.filter(s => s.tool).map(s => s.tool!))];
 
@@ -80,7 +82,7 @@ export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
       {expanded && (
         <div className="ml-2 mt-1 pl-3 border-l-2 chat-timeline-border space-y-0">
           {steps.map((step, i) => {
-            const baseConfig = stepConfig[step.type] || stepConfig.thinking;
+            const baseConfig = stepStyle[step.type] || stepStyle.thinking;
             const Icon = step.tool ? (TOOL_ICONS[step.tool] || baseConfig.icon) : baseConfig.icon;
 
             return (
@@ -96,7 +98,7 @@ export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
                     <span className={`text-[11px] font-medium ${baseConfig.color}`}>
-                      {step.tool || baseConfig.label}
+                      {step.tool || t(baseConfig.labelKey)}
                     </span>
                     {step.duration != null && step.duration > 0 && (
                       <span className="text-[10px] text-muted-foreground/25 tabular-nums">{formatDuration(step.duration)}</span>

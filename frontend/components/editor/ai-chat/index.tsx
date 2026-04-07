@@ -113,7 +113,7 @@ export function AIChatPanel() {
         return `[${label}] "${summary}..."`;
       });
     if (feedbacks.length === 0) return "";
-    return `\n\n[ユーザーフィードバック]\n${feedbacks.join("\n")}\n上記を参考に応答を改善してください。`;
+    return `\n\n[user feedback]\n${feedbacks.join("\n")}\nUse the above to improve future responses.`;
   };
 
   /**
@@ -122,11 +122,11 @@ export function AIChatPanel() {
   const applyLatex = useCallback((latex: string) => {
     try {
       applyAiLatex(latex);
-      setLastAIAction(buildLastAIAction(latex));
+      setLastAIAction(buildLastAIAction(latex, t));
     } catch (e) {
       console.error("[agent:apply-latex] Failed:", e);
     }
-  }, [applyAiLatex, setLastAIAction]);
+  }, [applyAiLatex, setLastAIAction, t]);
 
   const handleSend = async (overrideText?: string) => {
     const raw = typeof overrideText === "string" ? overrideText : input;
@@ -202,7 +202,7 @@ export function AIChatPanel() {
               setCurrentTool(event.name);
               const step: ThinkingStep = {
                 type: "tool_call",
-                text: `${event.name} を実行中...`,
+                text: `${event.name} ${t("chat.tool.executing")}...`,
                 tool: event.name,
               };
               accumulatedSteps.push(step);
@@ -220,7 +220,7 @@ export function AIChatPanel() {
                 }
               }
               if (lastToolIdx >= 0) {
-                const resultSummary = _summarizeToolResult(event.name, event.result);
+                const resultSummary = _summarizeToolResult(event.name, event.result, t);
                 accumulatedSteps[lastToolIdx] = {
                   ...accumulatedSteps[lastToolIdx],
                   text: `${event.name}: ${resultSummary}`,
@@ -350,17 +350,17 @@ export function AIChatPanel() {
 
         let errorDetail: string;
         if (hasContent) {
-          errorDetail = streamedContent || `LaTeXソースを更新しました。`;
+          errorDetail = streamedContent || t("chat.assistant.updated");
         } else if (streamDiag) {
           if (streamDiag.eventsReceived === 0) {
-            errorDetail = "バックエンドからの応答がありませんでした。サーバーが起動中か、接続に問題がある可能性があります。";
+            errorDetail = t("error.no_response");
           } else if (lastStreamError || streamDiag.errorMessage) {
             errorDetail = lastStreamError || streamDiag.errorMessage!;
           } else {
-            errorDetail = `ストリーミングが途中で終了しました（受信イベント: ${streamDiag.eventsReceived}件）。`;
+            errorDetail = `${t("error.stream.partial.prefix")} ${streamDiag.eventsReceived}${t("error.stream.partial.suffix")}`;
           }
         } else {
-          errorDetail = "ストリーミングが中断されました。ネットワーク接続を確認してください。";
+          errorDetail = t("error.stream.interrupted");
         }
 
         const thinkingSteps = accumulatedSteps.length > 0 ? [...accumulatedSteps] : undefined;
@@ -379,13 +379,13 @@ export function AIChatPanel() {
         chatLog.receive(requestId, duration, !hasContent);
       }
     } catch (e) {
-      let msg = e instanceof Error ? e.message : "エラーが発生しました。もう一度お試しください。";
+      let msg = e instanceof Error ? e.message : t("error.generic");
       if (msg.includes("Failed to fetch") || msg.includes("fetch")) {
-        msg = "サーバーへの接続に失敗しました。バックエンドが起動しているか確認してください。";
+        msg = t("error.fetch");
       } else if (msg.includes("AbortError") || msg.includes("abort")) {
-        msg = "リクエストがキャンセルされました。";
-      } else if (msg.includes("タイムアウト")) {
-        msg = "AIサービスの応答がタイムアウトしました。しばらく待ってから再試行してください。";
+        msg = t("error.aborted");
+      } else if (msg.includes("タイムアウト") || msg.includes("timeout") || msg.includes("Timeout")) {
+        msg = t("error.timeout");
       }
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
       chatLog.error(requestId, msg);
@@ -460,14 +460,14 @@ export function AIChatPanel() {
       addChatMessage({
         id: crypto.randomUUID(),
         role: "assistant",
-        content: result.description || "ファイルを解析しました。",
+        content: result.description || t("chat.file.applied"),
         latex: result.latex,
         requestId,
         timestamp: Date.now(),
         duration: Date.now() - startTime,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "ファイル解析中にエラーが発生しました。";
+      const msg = err instanceof Error ? err.message : t("error.file_analyze");
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
       chatLog.error(requestId, msg);
       addChatMessage({
@@ -487,7 +487,7 @@ export function AIChatPanel() {
         </div>
         <span className="flex-1 text-[13.5px] font-bold text-foreground/85 tracking-tight truncate">EddivomAI</span>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.55)]" title="オンライン" />
+          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.55)]" title={t("chat.online")} />
           {chatMessages.length > 0 && (
             <button
               onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v3"); } catch { /**/ } }}
@@ -514,13 +514,13 @@ export function AIChatPanel() {
         <div className="mx-3 mt-2 shrink-0 rounded-xl border border-amber-400/50 dark:border-amber-500/35 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-1.5">
           <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-semibold">
             <KeyRound className="h-3.5 w-3.5 shrink-0" />
-            API キーが未設定です
+            {t("chat.api_key.missing")}
           </div>
           <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-            <code className="font-mono bg-amber-100 dark:bg-amber-900/50 px-1 rounded">ANTHROPIC_API_KEY</code> をバックエンド (Koyeb) 環境変数に設定してください。
+            {t("chat.api_key.message")}
           </p>
           <button onClick={() => setApiKeyMissing(false)} className="text-xs text-amber-600 dark:text-amber-400 hover:underline">
-            閉じる
+            {t("chat.api_key.close")}
           </button>
         </div>
       )}
@@ -536,9 +536,8 @@ export function AIChatPanel() {
 
             <div className="text-center space-y-2">
               <p className="text-[15px] font-semibold text-foreground/80 tracking-tight">{t("chat.empty.title")}</p>
-              <p className="text-[12px] text-muted-foreground/50 leading-relaxed max-w-[200px]">
-                LaTeXソースの作成・編集・修正を<br />
-                何でもお気軽にどうぞ。
+              <p className="text-[12px] text-muted-foreground/50 leading-relaxed max-w-[200px] whitespace-pre-line">
+                {t("chat.empty.subtitle")}
               </p>
             </div>
 
@@ -603,24 +602,24 @@ export function AIChatPanel() {
   );
 }
 
-function _summarizeToolResult(name: string, result: Record<string, unknown>): string {
+function _summarizeToolResult(name: string, result: Record<string, unknown>, t: (key: string) => string): string {
   switch (name) {
     case "read_latex":
-      return `Read: ${result.latex_length || 0}文字のLaTeX`;
+      return `Read: ${result.latex_length || 0} ${t("chat.tool.read.suffix")}`;
     case "set_latex":
-      return `Write: ${(result.message as string) || "LaTeXを更新"}`;
+      return `Write: ${(result.message as string) || t("chat.tool.write.summary")}`;
     case "replace_in_latex": {
       if (result.error) return `Replace ✗: ${(result.message as string) || result.error}`;
-      return `Replace: ${(result.message as string) || "修正完了"}`;
+      return `Replace: ${(result.message as string) || t("chat.tool.replace.summary")}`;
     }
     case "compile_check": {
       const msg = result.message as string;
       if (result.success) {
         const pdfSize = result.pdf_size ? ` (PDF ${Math.round((result.pdf_size as number) / 1024)}KB)` : "";
-        return `Build ✓: ${msg || "コンパイル成功"}${pdfSize}`;
+        return `Build ✓: ${msg || t("chat.tool.compile.success")}${pdfSize}`;
       }
       const errors = result.issues as string[] | undefined;
-      const firstError = errors?.[0] || msg || "エラー";
+      const firstError = errors?.[0] || msg || t("chat.tool.compile.error");
       return `Build ✗: ${firstError.slice(0, 100)}`;
     }
     default:

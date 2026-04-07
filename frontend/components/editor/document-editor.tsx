@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { compileRawLatex } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { FileText, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 
 interface DocumentEditorProps {
@@ -17,6 +18,7 @@ interface DocumentEditorProps {
  * 右: 自動コンパイル PDF プレビュー（600ms デバウンス）
  */
 export function DocumentEditor(_props: DocumentEditorProps) {
+  const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
   const setLatex = useDocumentStore((s) => s.setLatex);
 
@@ -49,7 +51,7 @@ export function DocumentEditor(_props: DocumentEditorProps) {
       setCompileError(null);
     } catch (e) {
       if (seq !== compileSeqRef.current) return;
-      const msg = e instanceof Error ? e.message : "コンパイルエラー";
+      const msg = e instanceof Error ? e.message : t("doc.editor.compile_error");
       setCompileError(msg);
     } finally {
       if (seq === compileSeqRef.current) {
@@ -84,7 +86,7 @@ export function DocumentEditor(_props: DocumentEditorProps) {
   if (!document) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
-        ドキュメントが読み込まれていません
+        {t("doc.editor.no_document")}
       </div>
     );
   }
@@ -96,7 +98,7 @@ export function DocumentEditor(_props: DocumentEditorProps) {
         <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-1.5">
           <div className="flex items-center gap-2 text-xs font-medium text-foreground/70">
             <FileText className="h-3.5 w-3.5" />
-            LaTeX ソース
+            {t("doc.editor.source.label")}
           </div>
           <div className="text-[10px] font-mono text-muted-foreground">
             {latex.length.toLocaleString()} chars
@@ -107,7 +109,7 @@ export function DocumentEditor(_props: DocumentEditorProps) {
           onChange={(e) => setLatex(e.target.value)}
           spellCheck={false}
           className="flex-1 w-full resize-none border-0 bg-background px-4 py-3 font-mono text-[12.5px] leading-[1.55] text-foreground outline-none focus:ring-0"
-          placeholder={"\\documentclass{article}\n\\begin{document}\nこんにちは\n\\end{document}"}
+          placeholder={"\\documentclass{article}\n\\begin{document}\n...\n\\end{document}"}
         />
       </div>
 
@@ -116,19 +118,19 @@ export function DocumentEditor(_props: DocumentEditorProps) {
         <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-1.5">
           <div className="flex items-center gap-2 text-xs font-medium text-foreground/70">
             <FileText className="h-3.5 w-3.5" />
-            プレビュー
+            {t("doc.editor.preview.label")}
           </div>
           <div className="flex items-center gap-2">
             {compiling && (
               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                コンパイル中…
+                {t("doc.editor.compiling")}
               </span>
             )}
             <button
               onClick={handleManualCompile}
               className="rounded p-1 text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-              title="再コンパイル"
+              title={t("doc.editor.recompile")}
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
@@ -145,7 +147,7 @@ export function DocumentEditor(_props: DocumentEditorProps) {
                 onClick={handleManualCompile}
                 className="rounded-md bg-rose-500 px-3 py-1 text-xs font-medium text-white hover:bg-rose-600"
               >
-                再試行
+                {t("doc.editor.retry")}
               </button>
             </div>
           )}
@@ -157,7 +159,7 @@ export function DocumentEditor(_props: DocumentEditorProps) {
             />
           ) : !compileError && (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              {compiling ? "PDFを生成中…" : "LaTeXを入力するとプレビューが表示されます"}
+              {compiling ? t("doc.editor.pdf.generating") : t("doc.editor.empty_preview")}
             </div>
           )}
         </div>

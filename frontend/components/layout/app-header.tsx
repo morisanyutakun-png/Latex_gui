@@ -26,15 +26,13 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ isAIActive = false }: AppHeaderProps) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const router = useRouter();
   const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
   const { isGenerating, setGenerating, lastAIAction, isChatLoading } = useUIStore();
   const [indicatorVisible, setIndicatorVisible] = useState(false);
   const omrFileRef = useRef<HTMLInputElement>(null);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
-
-  const isJa = locale !== "en";
 
   useEffect(() => {
     if (!lastAIAction) return;
@@ -140,11 +138,11 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       setPdfFilename(defaultName);
       setShowSaveDialog(true);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "不明なエラー";
-      if (message.includes("接続できません") || message.includes("起動中")) {
+      const message = err instanceof Error ? err.message : t("header.pdf.error.unknown");
+      if (message.includes("接続できません") || message.includes("起動中") || message.includes("connect") || message.includes("starting")) {
         toast.error(message, { duration: 10000, description: t("toast.pdf.retry") });
       } else {
-        toast.error(`PDF生成失敗: ${message}`, { duration: 8000 });
+        toast.error(`${t("toast.pdf.fail")}: ${message}`, { duration: 8000 });
       }
     } finally {
       setGenerating(false);
@@ -195,7 +193,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         className={`h-8 px-2.5 text-sm font-medium bg-transparent border border-transparent hover:border-border/40 focus:border-primary/30 focus:bg-accent/30 focus:outline-none rounded-lg w-52 sm:w-64 transition-all placeholder:text-muted-foreground/20 ${
           isAIActive ? "text-foreground/80" : "text-foreground/70"
         }`}
-        placeholder={isJa ? "無題の教材" : "Untitled worksheet"}
+        placeholder={t("header.title.placeholder")}
       />
 
       {/* Undo / Redo */}
@@ -223,7 +221,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         {isAIActive && isChatLoading ? (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500/[0.10] to-violet-500/[0.10] text-foreground/70 text-xs font-medium border border-violet-500/[0.18] shadow-sm">
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-500" />
-            <span>{isJa ? "AIが考え中…" : "AI thinking…"}</span>
+            <span>{t("header.ai.thinking")}</span>
           </div>
         ) : lastAIAction && indicatorVisible ? (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/70 text-xs font-medium animate-in fade-in duration-300 max-w-sm overflow-hidden shadow-sm">
@@ -238,14 +236,14 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         <button
           onClick={handleSave}
           className="btn-icon h-8 w-8"
-          title={isJa ? "保存" : "Save"}
+          title={t("header.save.short")}
         >
           <Save className="h-4 w-4" />
         </button>
         <button
           onClick={handleExportJSON}
           className="btn-icon h-8 w-8"
-          title={isJa ? "JSON書き出し" : "Export JSON"}
+          title={t("header.export.json.short")}
         >
           <FileDown className="h-4 w-4" />
         </button>
@@ -261,13 +259,13 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
           onClick={() => omrFileRef.current?.click()}
           disabled={isGenerating}
           className="group relative flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm hover:shadow-[0_0_10px_rgba(16,185,129,0.35)] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.97] shrink-0 overflow-hidden"
-          title={isJa ? "画像やPDFをAIが読み取り、自動でドキュメントに変換します" : "AI reads images/PDFs and converts them to document blocks"}
+          title={t("header.scan.tooltip")}
         >
           {/* subtle shimmer */}
           <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 pointer-events-none" />
           <ScanLine className="h-3.5 w-3.5 shrink-0" />
           <span className="hidden sm:inline">
-            {isJa ? "読み取り" : "Scan"}
+            {t("header.scan.label")}
           </span>
         </button>
 
@@ -283,9 +281,9 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         className="flex items-center gap-2 h-8 px-5 rounded-full bg-foreground text-background text-[13px] font-semibold shadow-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97] ml-1 shrink-0"
       >
         {isGenerating ? (
-          <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>{isJa ? "生成中…" : "Generating…"}</span></>
+          <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>{t("header.pdf.generating")}</span></>
         ) : (
-          <><Printer className="h-3.5 w-3.5" /><span>{isJa ? "PDF出力" : "Export PDF"}</span></>
+          <><Printer className="h-3.5 w-3.5" /><span>{t("header.pdf.export")}</span></>
         )}
       </button>
 
@@ -297,9 +295,9 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
             style={{ boxShadow: "var(--shadow-float)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold">{isJa ? "PDFを保存" : "Save PDF"}</h3>
+            <h3 className="text-sm font-semibold">{t("header.pdf.dialog.title")}</h3>
             <div className="space-y-2">
-              <label className="text-xs text-muted-foreground font-medium">{isJa ? "ファイル名" : "Filename"}</label>
+              <label className="text-xs text-muted-foreground font-medium">{t("header.pdf.dialog.filename")}</label>
               <input
                 value={pdfFilename}
                 onChange={(e) => setPdfFilename(e.target.value)}
@@ -313,13 +311,13 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
                 onClick={() => { setShowSaveDialog(false); setPdfBlob(null); }}
                 className="px-4 py-2 text-xs rounded-lg border hover:bg-muted transition-all font-medium"
               >
-                {isJa ? "キャンセル" : "Cancel"}
+                {t("header.pdf.dialog.cancel")}
               </button>
               <button
                 onClick={handleSavePDF}
                 className="px-5 py-2 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-all font-semibold shadow-sm"
               >
-                {isJa ? "保存" : "Save"}
+                {t("header.pdf.dialog.save")}
               </button>
             </div>
           </div>

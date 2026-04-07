@@ -33,7 +33,7 @@ export function EditToolbar() {
 
   const handleTemplateChange = (id: string) => {
     if (!id) return;
-    if (document && document.latex.trim() && !confirm("現在のLaTeXソースを上書きしますか?")) {
+    if (document && document.latex.trim() && !confirm(t("edit.toolbar.template.confirm_overwrite"))) {
       return;
     }
     setDocument(createFromTemplate(id));
@@ -51,7 +51,7 @@ export function EditToolbar() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "PDF生成に失敗しました");
+      alert(e instanceof Error ? e.message : t("edit.toolbar.pdf.error"));
     } finally {
       setDownloading(false);
     }
@@ -62,14 +62,14 @@ export function EditToolbar() {
       {/* モードバッジ */}
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold mr-1 shrink-0 bg-foreground/[0.05] text-foreground/75 border border-foreground/[0.10]">
         <FileText className="h-3 w-3" />
-        <span>テンプレ駆動 LaTeX</span>
+        <span>{t("edit.toolbar.mode_badge")}</span>
       </div>
 
       <Sep />
 
       {/* テンプレート選択 */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">テンプレ</span>
+        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">{t("edit.toolbar.template.label")}</span>
         <select
           value={document?.template || "blank"}
           onChange={(e) => handleTemplateChange(e.target.value)}
@@ -91,10 +91,10 @@ export function EditToolbar() {
       <button
         onClick={() => useUIStore.getState().triggerOMR()}
         className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm transition-all duration-150 active:scale-[0.97] shrink-0"
-        title="画像・PDFを読み取り (OMR)"
+        title={t("edit.toolbar.scan.tooltip")}
       >
         <ScanLine className="h-3 w-3 shrink-0" />
-        <span className="hidden sm:inline">読み取り</span>
+        <span className="hidden sm:inline">{t("header.scan.label")}</span>
       </button>
 
       <Sep />
@@ -104,7 +104,7 @@ export function EditToolbar() {
         onClick={handleDownloadPDF}
         disabled={!document || downloading}
         className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white shadow-sm transition-all duration-150 active:scale-[0.97] shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-        title="PDFをダウンロード"
+        title={t("edit.toolbar.pdf.tooltip")}
       >
         {downloading ? (
           <Loader2 className="h-3 w-3 shrink-0 animate-spin" />

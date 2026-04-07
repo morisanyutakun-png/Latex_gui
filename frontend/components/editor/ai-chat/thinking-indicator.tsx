@@ -5,6 +5,7 @@ import {
   Search, Wrench, Eye, Hammer, BookOpen,
 } from "lucide-react";
 import { formatDuration } from "./utils";
+import { useI18n } from "@/lib/i18n";
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
   read_latex: BookOpen,
@@ -13,12 +14,15 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   compile_check: Hammer,
 };
 
-const TOOL_LABELS: Record<string, string> = {
-  read_latex: "LaTeXソースを読み込み中",
-  set_latex: "LaTeXソースを更新中",
-  replace_in_latex: "LaTeXを部分修正中",
-  compile_check: "コンパイルを検証中",
-};
+function getToolLabel(name: string, t: (k: string) => string): string {
+  switch (name) {
+    case "read_latex": return t("chat.tool.read.label");
+    case "set_latex": return t("chat.tool.write.label");
+    case "replace_in_latex": return t("chat.tool.replace.label");
+    case "compile_check": return t("chat.tool.compile.label");
+    default: return `${name} ${t("chat.tool.executing")}`;
+  }
+}
 
 export function ThinkingIndicator({
   userMessage,
@@ -29,12 +33,13 @@ export function ThinkingIndicator({
   liveSteps?: ThinkingStep[];
   currentTool?: string | null;
 }) {
+  const { t } = useI18n();
   const [elapsed, setElapsed] = React.useState(0);
   const logEndRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(t);
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(id);
   }, []);
 
   React.useEffect(() => {
@@ -44,10 +49,10 @@ export function ThinkingIndicator({
   const hasSteps = liveSteps && liveSteps.length > 0;
   const isLongWait = elapsed >= 15;
   const statusText = currentTool
-    ? TOOL_LABELS[currentTool] || `${currentTool} を実行中`
+    ? getToolLabel(currentTool, t)
     : hasSteps
-    ? "処理中..."
-    : "考えています...";
+    ? t("chat.thinking.processing")
+    : t("chat.thinking.thinking");
 
   return (
     <div className="flex gap-3">
@@ -123,7 +128,7 @@ export function ThinkingIndicator({
                   })()}
                 </div>
                 <span className="text-amber-600/70 dark:text-amber-400/70 animate-pulse">
-                  {TOOL_LABELS[currentTool] || currentTool}...
+                  {getToolLabel(currentTool, t)}...
                 </span>
               </div>
             )}
@@ -134,14 +139,14 @@ export function ThinkingIndicator({
                 <div className="h-5 w-5 rounded-md bg-amber-100/60 dark:bg-amber-500/10 flex items-center justify-center shrink-0">
                   <Brain className="h-3 w-3 text-amber-500/70 dark:text-amber-400/60 animate-pulse" />
                 </div>
-                <span className="text-muted-foreground/45">リクエストを分析中...</span>
+                <span className="text-muted-foreground/45">{t("chat.thinking.analyzing")}</span>
               </div>
             )}
 
             {isLongWait && (
               <div className="flex items-center gap-2 pt-0.5 text-[11px] text-amber-500/60 border-t border-amber-200/20 dark:border-amber-500/10">
                 <span className="h-1 w-1 rounded-full bg-amber-400 animate-pulse" />
-                API応答を待機中...
+                {t("chat.thinking.api_wait")}
               </div>
             )}
 

@@ -8,6 +8,7 @@ import {
 import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
 import { formatRelativeTime, formatDuration, formatTokens } from "./utils";
+import { useI18n } from "@/lib/i18n";
 
 export function MessageRow({
   msg, onFeedback, onRetryError,
@@ -16,6 +17,7 @@ export function MessageRow({
   onFeedback: (msgId: string, feedback: "good" | "bad") => void;
   onRetryError?: (msgId: string) => void;
 }) {
+  const { t, locale } = useI18n();
   const isUser = msg.role === "user";
   const [showErrorDetails, setShowErrorDetails] = React.useState(false);
 
@@ -31,7 +33,7 @@ export function MessageRow({
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-[12.5px] font-semibold text-foreground/70">Eddivom AI</span>
             {msg.timestamp && (
-              <span className="text-[10px] text-muted-foreground/35 ml-auto tabular-nums">{formatRelativeTime(msg.timestamp)}</span>
+              <span className="text-[10px] text-muted-foreground/35 ml-auto tabular-nums">{formatRelativeTime(msg.timestamp, t, locale)}</span>
             )}
           </div>
           <div className="chat-error-bubble rounded-2xl rounded-tl-md px-4 py-3.5">
@@ -42,7 +44,7 @@ export function MessageRow({
                 className="flex items-center gap-1 mt-1.5 text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
               >
                 <ChevronDown className={`h-2.5 w-2.5 transition-transform ${showErrorDetails ? "rotate-180" : ""}`} />
-                詳細
+                {t("chat.error.details")}
               </button>
             )}
             {showErrorDetails && msg.requestId && (
@@ -55,7 +57,7 @@ export function MessageRow({
               className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-[11px] font-medium text-muted-foreground/55 hover:text-foreground/75 hover:bg-muted/40 transition-all duration-150"
             >
               <RotateCcw className="h-3 w-3" />
-              リトライ
+              {t("chat.error.retry")}
             </button>
           )}
         </div>
@@ -83,7 +85,7 @@ export function MessageRow({
                 <span className="thinking-dot-ripple">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
                 </span>
-                生成中
+                {t("chat.streaming")}
               </span>
             )}
             {msg.duration != null && !msg.isStreaming && (
@@ -114,7 +116,7 @@ export function MessageRow({
         {!isUser && msg.latex && (
           <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-500/20 shadow-sm">
             <CheckCircle2 className="h-3 w-3 shrink-0" />
-            <span>反映済み — {msg.latex.length.toLocaleString()}文字のLaTeXソース</span>
+            <span>{t("chat.applied.label")} — {msg.latex.length.toLocaleString()} {t("chat.applied.suffix")}</span>
           </div>
         )}
 
@@ -128,7 +130,7 @@ export function MessageRow({
           <div className="flex items-center gap-0.5 mt-2">
             <button
               onClick={() => onFeedback(msg.id, "good")}
-              title="良い回答"
+              title={t("chat.feedback.good")}
               className={`p-1.5 rounded-full transition-all duration-150 ${
                 msg.feedback === "good"
                   ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/15 shadow-sm"
@@ -139,7 +141,7 @@ export function MessageRow({
             </button>
             <button
               onClick={() => onFeedback(msg.id, "bad")}
-              title="改善が必要"
+              title={t("chat.feedback.bad")}
               className={`p-1.5 rounded-full transition-all duration-150 ${
                 msg.feedback === "bad"
                   ? "text-rose-500 bg-rose-50 dark:bg-rose-500/15 shadow-sm"

@@ -14,8 +14,7 @@ const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
 ];
 
 export function StatusBar() {
-  const { locale } = useI18n();
-  const isJa = locale !== "en";
+  const { t } = useI18n();
   const latex = useDocumentStore((s) => s.document?.latex ?? "");
   const template = useDocumentStore((s) => s.document?.template ?? "blank");
   const { paperSize, setPaperSize } = useUIStore();
@@ -38,11 +37,11 @@ export function StatusBar() {
     <div className="status-bar-accent editor-statusbar flex items-center justify-between h-[22px] px-2 shrink-0 select-none text-foreground/50">
       <div className="flex items-center gap-0 text-[11px] font-mono">
         <span className="px-1.5 h-full flex items-center text-primary-foreground/90 bg-primary/80 text-[10px] font-semibold tracking-wide">
-          {latex.length.toLocaleString()} {isJa ? "文字" : "chars"}
+          {latex.length.toLocaleString()} {t("status.chars")}
         </span>
         <span className="breadcrumb-sep">·</span>
         <span className="px-1.5 text-foreground/40">
-          {lineCount} {isJa ? "行" : "lines"}
+          {lineCount} {t("status.lines")}
         </span>
         <span className="breadcrumb-sep">·</span>
         <span className="px-1.5 text-foreground/40">

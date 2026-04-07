@@ -8,8 +8,7 @@ import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
 
 export function ScoringPanel() {
-  const { locale } = useI18n();
-  const isJa = locale !== "en";
+  const { t } = useI18n();
 
   const [answerItems, setAnswerItems] = useState<AnswerKeyItem[]>([
     { questionId: "Q1", correctAnswer: "", points: 1, answerType: "choice" },
@@ -63,7 +62,7 @@ export function ScoringPanel() {
       const res = await scoreAnswers(key, studentAnswers);
       setResult(res);
     } catch {
-      toast.error(isJa ? "採点に失敗しました" : "Scoring failed");
+      toast.error(t("toast.scoring.fail"));
     } finally {
       setLoading(false);
     }
@@ -74,17 +73,17 @@ export function ScoringPanel() {
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/30 shrink-0">
         <ClipboardCheck className="h-4 w-4 text-emerald-500" />
-        <h3 className="text-sm font-semibold text-foreground/90">{isJa ? "採点" : "Scoring"}</h3>
+        <h3 className="text-sm font-semibold text-foreground/90">{t("scoring.title")}</h3>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {/* Answer Key Table */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-muted-foreground">{isJa ? "解答キー" : "Answer Key"}</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("scoring.answer_key")}</span>
             <button onClick={addItem} className="inline-flex items-center gap-1 text-[10px] text-emerald-500 hover:text-emerald-600 transition-colors">
               <Plus className="h-3 w-3" />
-              {isJa ? "追加" : "Add"}
+              {t("scoring.add")}
             </button>
           </div>
 
@@ -103,7 +102,7 @@ export function ScoringPanel() {
                   value={item.correctAnswer}
                   onChange={(e) => updateKey(idx, { correctAnswer: e.target.value })}
                   className="flex-1 h-7 px-2 text-[11px] rounded border border-border/40 bg-white/70 dark:bg-white/5"
-                  placeholder={isJa ? "正解" : "Answer"}
+                  placeholder={t("scoring.placeholder.correct")}
                 />
                 {/* Type */}
                 <select
@@ -111,9 +110,9 @@ export function ScoringPanel() {
                   onChange={(e) => updateKey(idx, { answerType: e.target.value as "choice" | "numeric" | "text" })}
                   className="h-7 px-1 text-[10px] rounded border border-border/40 bg-white/70 dark:bg-white/5"
                 >
-                  <option value="choice">{isJa ? "選択" : "Choice"}</option>
-                  <option value="numeric">{isJa ? "数値" : "Numeric"}</option>
-                  <option value="text">{isJa ? "記述" : "Text"}</option>
+                  <option value="choice">{t("scoring.type.choice")}</option>
+                  <option value="numeric">{t("scoring.type.numeric")}</option>
+                  <option value="text">{t("scoring.type.text")}</option>
                 </select>
                 {/* Points */}
                 <input
@@ -128,7 +127,7 @@ export function ScoringPanel() {
                   value={studentAnswers[idx]?.answer ?? ""}
                   onChange={(e) => updateStudentAnswer(idx, e.target.value)}
                   className="flex-1 h-7 px-2 text-[11px] rounded border border-border/40 bg-blue-50/50 dark:bg-blue-900/10"
-                  placeholder={isJa ? "生徒回答" : "Student"}
+                  placeholder={t("scoring.placeholder.student")}
                 />
                 {/* Delete */}
                 <button onClick={() => removeItem(idx)} className="h-7 w-7 flex items-center justify-center text-muted-foreground/40 hover:text-red-400 transition-colors">
@@ -145,7 +144,7 @@ export function ScoringPanel() {
           disabled={loading || answerItems.length === 0}
           className="w-full h-9 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors disabled:opacity-40"
         >
-          {loading ? (isJa ? "採点中..." : "Scoring...") : (isJa ? "採点する" : "Score")}
+          {loading ? t("scoring.button.scoring") : t("scoring.button.score")}
         </button>
 
         {/* Results */}
@@ -153,7 +152,7 @@ export function ScoringPanel() {
           <div className="space-y-3">
             {/* Score Summary */}
             <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-gradient-to-r from-emerald-50 to-sky-50 dark:from-emerald-950/30 dark:to-sky-950/30 border border-emerald-200/40 dark:border-emerald-800/30">
-              <span className="text-sm font-medium text-foreground/80">{isJa ? "得点" : "Score"}</span>
+              <span className="text-sm font-medium text-foreground/80">{t("scoring.score")}</span>
               <div className="text-right">
                 <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                   {result.totalScore}
@@ -177,7 +176,7 @@ export function ScoringPanel() {
                     {item.studentAnswer || "—"}
                   </span>
                   {!item.isCorrect && (
-                    <span className="text-muted-foreground/50 ml-auto">{isJa ? "正解" : "Ans"}: {item.correctAnswer}</span>
+                    <span className="text-muted-foreground/50 ml-auto">{t("scoring.answer.label")}: {item.correctAnswer}</span>
                   )}
                   <span className="text-muted-foreground/40 ml-auto font-mono">{item.pointsEarned}/{item.pointsPossible}</span>
                 </div>

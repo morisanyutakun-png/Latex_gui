@@ -3,8 +3,10 @@
 import { useSession, signIn, signOut } from "next-auth/react";
 import { LogIn, LogOut, User, CreditCard } from "lucide-react";
 import { usePlanStore } from "@/store/plan-store";
+import { useI18n } from "@/lib/i18n";
 
 export function UserMenu() {
+  const { t } = useI18n();
   const { data: session, status } = useSession();
   const currentPlan = usePlanStore((s) => s.currentPlan);
 
@@ -25,7 +27,7 @@ export function UserMenu() {
         className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-medium text-indigo-500 dark:text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/5 hover:border-indigo-500/30 transition-all duration-200"
       >
         <LogIn className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">ログイン</span>
+        <span className="hidden sm:inline">{t("user.menu.login")}</span>
       </button>
     );
   }
@@ -61,7 +63,7 @@ export function UserMenu() {
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/50 hover:text-indigo-500 hover:bg-indigo-500/5 transition-colors"
           >
             <CreditCard className="h-3.5 w-3.5" />
-            サブスクを管理
+            {t("user.menu.subscription")}
           </button>
         )}
         <button
@@ -69,7 +71,7 @@ export function UserMenu() {
           className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/50 hover:text-red-500 hover:bg-red-500/5 transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" />
-          ログアウト
+          {t("user.menu.logout")}
         </button>
       </div>
     </div>

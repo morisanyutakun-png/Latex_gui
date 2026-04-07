@@ -28,7 +28,7 @@ export function InputArea({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="EddivomAI に聞く..."
+            placeholder={t("chat.input.placeholder")}
             className="min-h-[24px] max-h-32 text-[13.5px] resize-none flex-1 bg-transparent border-none shadow-none p-0 focus-visible:ring-0 focus:outline-none outline-none placeholder:text-foreground/30 leading-relaxed"
             disabled={isChatLoading}
           />
@@ -43,7 +43,7 @@ export function InputArea({
                 ? "chat-send-btn text-white"
                 : "bg-black/[0.04] dark:bg-white/[0.05] text-foreground/20"
             }`}
-            title="送信 (Enter)"
+            title={t("chat.send")}
           >
             {isChatLoading
               ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -53,7 +53,7 @@ export function InputArea({
         </div>
       </div>
       <p className="text-center text-[10px] text-muted-foreground/25 mt-1.5 tracking-wider font-mono">
-        Enter 送信 · Shift+Enter 改行
+        {t("chat.input.hint")}
       </p>
     </div>
   );

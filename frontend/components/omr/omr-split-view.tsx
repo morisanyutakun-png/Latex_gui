@@ -10,8 +10,7 @@ import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
 
 export function OMRSplitView() {
-  const { locale } = useI18n();
-  const isJa = locale !== "en";
+  const { t } = useI18n();
 
   const omrMode = useUIStore((s) => s.omrMode);
   const sourceUrl = useUIStore((s) => s.omrSourceUrl);
@@ -32,7 +31,7 @@ export function OMRSplitView() {
     if (!doc) return;
     fileRef.current = file;
     setOMRProcessing(true);
-    setOMRProgress(isJa ? "ファイルを解析中..." : "Analyzing file...");
+    setOMRProgress(t("omr.analyzing"));
     setOMRLatex(null);
 
     try {
@@ -45,25 +44,25 @@ export function OMRSplitView() {
 
       if (result.latex) {
         setOMRLatex(result.latex);
-        setOMRProgress(isJa ? `${result.latex.length}文字のLaTeXを抽出しました` : `Extracted ${result.latex.length} chars`);
+        setOMRProgress(`${result.latex.length} ${t("omr.extracted.suffix")}`);
       } else {
-        setOMRProgress(isJa ? "LaTeXを抽出できませんでした" : "No LaTeX extracted");
+        setOMRProgress(t("omr.no_latex"));
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "OMR error";
-      setOMRProgress(`エラー: ${msg}`);
+      setOMRProgress(`${t("omr.error.prefix")}: ${msg}`);
     } finally {
       setOMRProcessing(false);
     }
-  }, [doc, isJa, setOMRLatex, setOMRProcessing, setOMRProgress]);
+  }, [doc, t, setOMRLatex, setOMRProcessing, setOMRProgress]);
 
   // 承認: 抽出されたLaTeXを文書に適用
   const handleApprove = useCallback(() => {
     if (!extractedLatex) return;
     applyAiLatex(extractedLatex);
-    toast.success(isJa ? `LaTeXソースを文書に適用しました` : `LaTeX applied`);
+    toast.success(t("omr.applied"));
     closeOMR();
-  }, [extractedLatex, applyAiLatex, closeOMR, isJa]);
+  }, [extractedLatex, applyAiLatex, closeOMR, t]);
 
   const handleRetry = useCallback(() => {
     if (fileRef.current) startAnalysis(fileRef.current);
@@ -81,7 +80,7 @@ export function OMRSplitView() {
           const file = new File([blob], sourceName, { type: blob.type });
           startAnalysis(file);
         })
-        .catch(() => setOMRProgress("ファイルの読み込みに失敗しました"));
+        .catch(() => setOMRProgress(t("omr.read_failed")));
     }
     return () => { initialized.current = false; };
   }, [omrMode, sourceUrl, sourceName, startAnalysis, setOMRProgress]);
@@ -95,7 +94,7 @@ export function OMRSplitView() {
       <div className="h-12 border-b border-border/40 bg-background/95 backdrop-blur flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
           <FileText className="h-4 w-4 text-emerald-500" />
-          <span className="text-sm font-medium">{isJa ? "読み取りモード" : "OMR Mode"}</span>
+          <span className="text-sm font-medium">{t("omr.title")}</span>
           {sourceName && <span className="text-xs text-muted-foreground truncate max-w-[200px]">{sourceName}</span>}
         </div>
         <div className="flex items-center gap-2">
@@ -110,7 +109,7 @@ export function OMRSplitView() {
             <button onClick={handleRetry}
               className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
               <RefreshCw className="h-3 w-3" />
-              {isJa ? "再スキャン" : "Re-scan"}
+              {t("omr.rescan")}
             </button>
           )}
 
@@ -118,7 +117,7 @@ export function OMRSplitView() {
             <button onClick={handleApprove}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm">
               <Check className="h-3.5 w-3.5" />
-              {isJa ? "承認して編集画面へ" : "Approve & Edit"}
+              {t("omr.approve")}
               <ArrowRight className="h-3 w-3" />
             </button>
           )}
@@ -135,7 +134,7 @@ export function OMRSplitView() {
         <div className="w-1/2 border-r border-border/30 bg-muted/20 flex flex-col">
           <div className="px-3 py-2 border-b border-border/20 bg-muted/30">
             <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-              {isJa ? "入力ファイル" : "Source File"}
+              {t("omr.source")}
             </span>
           </div>
           <div className="flex-1 overflow-auto flex items-center justify-center p-4">
@@ -147,7 +146,7 @@ export function OMRSplitView() {
                 <img src={sourceUrl} alt={sourceName || "Source"} className="max-w-full max-h-full object-contain rounded-md shadow-md" />
               )
             ) : (
-              <span className="text-muted-foreground text-sm">{isJa ? "ファイルなし" : "No file"}</span>
+              <span className="text-muted-foreground text-sm">{t("omr.no_file")}</span>
             )}
           </div>
         </div>
@@ -156,10 +155,10 @@ export function OMRSplitView() {
         <div className="w-1/2 bg-background flex flex-col">
           <div className="px-3 py-2 border-b border-border/20 bg-muted/30 flex items-center justify-between">
             <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-              {isJa ? "抽出LaTeX" : "Extracted LaTeX"}
+              {t("omr.extracted")}
             </span>
             {extractedLatex && (
-              <span className="text-[10px] text-muted-foreground">{extractedLatex.length.toLocaleString()} {isJa ? "文字" : "chars"}</span>
+              <span className="text-[10px] text-muted-foreground">{extractedLatex.length.toLocaleString()} {t("status.chars")}</span>
             )}
           </div>
           <div className="flex-1 overflow-auto p-0">
@@ -171,7 +170,7 @@ export function OMRSplitView() {
             ) : !extractedLatex ? (
               <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
                 <FileText className="h-8 w-8 opacity-30" />
-                <p className="text-sm">{progress || (isJa ? "解析結果がここに表示されます" : "Results appear here")}</p>
+                <p className="text-sm">{progress || t("omr.results.placeholder")}</p>
               </div>
             ) : (
               <pre className="text-[12px] font-mono leading-[1.55] text-foreground/85 px-4 py-3 whitespace-pre-wrap break-all">
