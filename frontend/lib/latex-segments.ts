@@ -338,6 +338,21 @@ const DISPLAY_MATH_ENVS = new Set([
   "displaymath", "multline", "multline*", "eqnarray", "eqnarray*",
 ]);
 
+/** 見出しパターン (より長い prefix を先にマッチさせるため、subsub → sub → section の順) */
+const HEADING_PATTERNS: ReadonlyArray<{
+  prefix: string;
+  kind: "section" | "subsection" | "subsubsection";
+  cmdLen: number;
+  starred: boolean;
+}> = [
+  { prefix: "\\subsubsection*{", kind: "subsubsection", cmdLen: "\\subsubsection*".length, starred: true },
+  { prefix: "\\subsubsection{",  kind: "subsubsection", cmdLen: "\\subsubsection".length,  starred: false },
+  { prefix: "\\subsection*{",    kind: "subsection",    cmdLen: "\\subsection*".length,    starred: true },
+  { prefix: "\\subsection{",     kind: "subsection",    cmdLen: "\\subsection".length,     starred: false },
+  { prefix: "\\section*{",       kind: "section",       cmdLen: "\\section*".length,       starred: true },
+  { prefix: "\\section{",        kind: "section",       cmdLen: "\\section".length,        starred: false },
+];
+
 /** 単独命令 ( \maketitle 等 ) の正規表現 */
 const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|newpage|clearpage|pagebreak|linebreak|hline|midrule|toprule|bottomrule|noindent|smallskip|medskip|bigskip)\b/;
 
@@ -366,23 +381,18 @@ function parseBody(src: string, start: number, end: number): Segment[] {
       continue;
     }
 
-    // 見出し
-    const headingMatch =
-      src.startsWith("\\subsubsection{", i) ? { tag: "subsubsection", kind: "subsubsection" as const }
-      : src.startsWith("\\subsection{", i) ? { tag: "subsection", kind: "subsection" as const }
-      : src.startsWith("\\section{", i) ? { tag: "section", kind: "section" as const }
-      : src.startsWith("\\paragraph{", i) ? { tag: "paragraph", kind: "raw" as const }
-      : null;
-    if (headingMatch && headingMatch.kind !== "raw") {
-      const cmdLen = headingMatch.tag.length + 1; // "\section"
-      const braceStart = i + cmdLen;
+    // 見出し (* 付き variant も対応。* 付き = 番号なし)
+    const headingHit = HEADING_PATTERNS.find((p) => src.startsWith(p.prefix, i));
+    if (headingHit) {
+      const braceStart = i + headingHit.cmdLen;
       const braceEnd = findMatchingBrace(src, braceStart, end);
       if (braceEnd !== -1) {
         segments.push({
           id: nextId("seg"),
-          kind: headingMatch.kind,
+          kind: headingHit.kind,
           range: { start: i, end: braceEnd + 1 },
           body: src.slice(braceStart + 1, braceEnd),
+          meta: headingHit.starred ? { starred: "true" } : undefined,
         });
         i = braceEnd + 1;
         continue;
@@ -503,8 +513,11 @@ function parseBody(src: string, start: number, end: number): Segment[] {
       // 構文の境界 (見出し / \begin / \[ / $$) に当たったら停止
       if (
         src.startsWith("\\section{", scan) ||
+        src.startsWith("\\section*{", scan) ||
         src.startsWith("\\subsection{", scan) ||
+        src.startsWith("\\subsection*{", scan) ||
         src.startsWith("\\subsubsection{", scan) ||
+        src.startsWith("\\subsubsection*{", scan) ||
         src.startsWith("\\paragraph{", scan) ||
         src.startsWith("\\begin{", scan) ||
         src.startsWith("\\[", scan) ||
@@ -602,13 +615,14 @@ export function parseLatexToSegments(latex: string): Segment[] {
 /** Segment の新 body から、その range に書き戻すべき LaTeX スニペットを生成。 */
 export function serializeSegment(segment: Segment, newBody: string, originalSrc: string): string {
   const original = originalSrc.slice(segment.range.start, segment.range.end);
+  const star = segment.meta?.starred === "true" ? "*" : "";
   switch (segment.kind) {
     case "section":
-      return `\\section{${newBody}}`;
+      return `\\section${star}{${newBody}}`;
     case "subsection":
-      return `\\subsection{${newBody}}`;
+      return `\\subsection${star}{${newBody}}`;
     case "subsubsection":
-      return `\\subsubsection{${newBody}}`;
+      return `\\subsubsection${star}{${newBody}}`;
     case "displayMath": {
       const wrapper = segment.meta?.wrapper;
       if (wrapper === "bracket") return `\\[\n${newBody}\n\\]`;

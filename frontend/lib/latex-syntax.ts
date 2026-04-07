@@ -1,22 +1,32 @@
 /**
- * LaTeX 用の軽量シンタックス・トークナイザ。
+ * LaTeX 用シンタックス・トークナイザ。
  * LatexCodeEditor (textarea オーバーレイ式の IDE 風ソースエディタ) で使う。
  *
  * 出力は (kind, text) の連続。text を順に連結すると元の文字列に一致する (ロスレス)。
- * 改行・空白は "text" / "math" / "comment" 等に含まれた状態で返るので、エディタ側は
- * そのまま <span> として書き出せばよい。
+ * コマンドは「種類」(sectioning / package / definition / textformat / mathop / command) に
+ * 分けて返すので、エディタ側で色を細かく塗り分けられる。
  */
 
 export type TokenKind =
+  // 構造系
   | "comment"
-  | "command"
   | "envname"
+  // コマンド (細分化)
+  | "cmd-section"   // \section, \subsection, \chapter, \paragraph 等
+  | "cmd-package"   // \documentclass, \usepackage, \RequirePackage 等
+  | "cmd-define"    // \newcommand, \def, \let, \newenvironment 等
+  | "cmd-format"    // \textbf, \textit, \emph, \textcolor, \underline 等
+  | "cmd-mathop"    // \frac, \sum, \int, \sin, \alpha, \mathbb 等 (代表的な数式コマンド)
+  | "cmd-ref"       // \label, \ref, \cite, \pageref, \eqref 等
+  | "command"       // 上記以外のコマンド
+  // リテラル
   | "math"
   | "brace"
   | "bracket"
   | "number"
-  | "special"
-  | "string"
+  | "dimension"     // 12pt, 2cm, 1.5em など (数値+単位)
+  | "special"       // & _ ^ ~ #
+  | "url"           // http(s)://...
   | "text";
 
 export interface Token {
@@ -25,11 +35,103 @@ export interface Token {
 }
 
 const SPECIAL_CHARS = new Set(["&", "_", "^", "~", "#"]);
-
-/** \begin{name} / \end{name} の name の中身に許される文字 */
 const ENV_NAME_RE = /^[a-zA-Z*]+$/;
 
-/** プレーンテキスト走査の停止文字 */
+// LaTeX dimension units
+const DIMENSION_UNITS = [
+  "pt", "mm", "cm", "em", "ex", "in", "bp", "pc", "dd", "cc", "sp", "mu",
+];
+
+// ── コマンド分類辞書 ──
+// 末尾 "*" は無視してマッチ (例: \section* → \section と同じ扱い)
+const SECTIONING_CMDS = new Set([
+  "section", "subsection", "subsubsection",
+  "chapter", "part", "paragraph", "subparagraph",
+  "title", "author", "date", "maketitle",
+]);
+
+const PACKAGE_CMDS = new Set([
+  "documentclass", "usepackage", "RequirePackage", "LoadClass",
+  "input", "include", "includegraphics", "includeonly",
+]);
+
+const DEFINE_CMDS = new Set([
+  "newcommand", "renewcommand", "providecommand",
+  "def", "let", "edef", "gdef", "xdef",
+  "newenvironment", "renewenvironment",
+  "newtheorem", "newcounter", "newlength", "setlength",
+  "newtcolorbox", "DeclareMathOperator", "DeclareRobustCommand",
+  "definecolor", "newcolumntype", "newif",
+]);
+
+const FORMAT_CMDS = new Set([
+  "textbf", "textit", "emph", "underline", "texttt", "textsc",
+  "textsf", "textrm", "textnormal", "textsl", "textup",
+  "textcolor", "color", "colorbox", "fcolorbox",
+  "tiny", "scriptsize", "footnotesize", "small", "normalsize",
+  "large", "Large", "LARGE", "huge", "Huge",
+  "bfseries", "itshape", "slshape", "scshape", "upshape", "rmfamily", "sffamily", "ttfamily",
+  "centering", "raggedright", "raggedleft", "noindent",
+]);
+
+const REF_CMDS = new Set([
+  "label", "ref", "pageref", "eqref", "autoref", "hyperref",
+  "cite", "citep", "citet", "bibliography", "bibliographystyle",
+  "footnote", "footnotemark", "footnotetext",
+]);
+
+// ── 代表的な数式コマンド (フル列挙はしない。よく使うものだけ) ──
+const MATHOP_CMDS = new Set([
+  // 分数・根号
+  "frac", "tfrac", "dfrac", "sqrt", "binom", "tbinom", "dbinom",
+  // 大演算子
+  "sum", "prod", "int", "iint", "iiint", "oint", "bigcup", "bigcap",
+  "bigvee", "bigwedge", "bigotimes", "bigoplus", "biguplus",
+  "lim", "limsup", "liminf", "max", "min", "sup", "inf",
+  // 三角関数 / 対数
+  "sin", "cos", "tan", "cot", "sec", "csc",
+  "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh",
+  "log", "ln", "lg", "exp",
+  // ギリシャ文字
+  "alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta",
+  "eta", "theta", "vartheta", "iota", "kappa", "lambda", "mu",
+  "nu", "xi", "pi", "varpi", "rho", "varrho", "sigma", "varsigma",
+  "tau", "upsilon", "phi", "varphi", "chi", "psi", "omega",
+  "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma", "Upsilon",
+  "Phi", "Psi", "Omega",
+  // 比較 / 論理
+  "leq", "geq", "neq", "approx", "equiv", "sim", "simeq", "cong",
+  "subset", "supset", "subseteq", "supseteq", "in", "notin", "ni",
+  "land", "lor", "lnot", "implies", "iff", "forall", "exists",
+  // 矢印
+  "to", "rightarrow", "leftarrow", "Rightarrow", "Leftarrow",
+  "leftrightarrow", "Leftrightarrow", "mapsto", "longmapsto",
+  // フォント / スタイル
+  "mathbb", "mathcal", "mathbf", "mathit", "mathrm", "mathsf", "mathtt", "mathfrak",
+  "boldsymbol", "bm", "vec", "hat", "tilde", "bar", "dot", "ddot",
+  "overline", "underline", "overbrace", "underbrace",
+  // 集合
+  "emptyset", "varnothing", "mathbb", "infty", "partial", "nabla",
+  // 区切り記号
+  "left", "right", "big", "Big", "bigg", "Bigg",
+  "langle", "rangle", "lceil", "rceil", "lfloor", "rfloor",
+  // その他
+  "cdot", "cdots", "ldots", "vdots", "ddots", "times", "div", "pm", "mp",
+  "circ", "ast", "star", "bullet", "oplus", "ominus", "otimes", "oslash",
+  "begin", "end", // begin/end は別パスで処理されるが念のため
+]);
+
+function commandCategory(name: string): TokenKind {
+  const base = name.replace(/\*+$/, ""); // \section* → section
+  if (SECTIONING_CMDS.has(base)) return "cmd-section";
+  if (PACKAGE_CMDS.has(base)) return "cmd-package";
+  if (DEFINE_CMDS.has(base)) return "cmd-define";
+  if (FORMAT_CMDS.has(base)) return "cmd-format";
+  if (REF_CMDS.has(base)) return "cmd-ref";
+  if (MATHOP_CMDS.has(base)) return "cmd-mathop";
+  return "command";
+}
+
 function isBoundary(ch: string): boolean {
   return (
     ch === "%" ||
@@ -51,7 +153,6 @@ export function tokenize(src: string): Token[] {
 
   const push = (kind: TokenKind, text: string) => {
     if (!text) return;
-    // 直前トークンと同種なら連結 (出力 span 数を減らす)
     const last = out[out.length - 1];
     if (last && last.kind === kind) {
       last.text += text;
@@ -63,11 +164,20 @@ export function tokenize(src: string): Token[] {
   while (i < len) {
     const ch = src[i];
 
-    // ── コメント: % … EOL (改行は含めない) ──
+    // ── コメント: % … EOL ──
     if (ch === "%") {
       let j = i;
       while (j < len && src[j] !== "\n") j++;
       push("comment", src.slice(i, j));
+      i = j;
+      continue;
+    }
+
+    // ── URL ハイパーリンク (http(s)://...) ──
+    if ((ch === "h" || ch === "H") && (src.startsWith("http://", i) || src.startsWith("https://", i))) {
+      let j = i;
+      while (j < len && !/\s|[}{)\]"']/.test(src[j])) j++;
+      push("url", src.slice(i, j));
       i = j;
       continue;
     }
@@ -88,18 +198,12 @@ export function tokenize(src: string): Token[] {
     // ── インライン数式: $ … $ ──
     if (ch === "$") {
       let j = i + 1;
-      let closed = false;
       while (j < len) {
         if (src[j] === "\\" && j + 1 < len) { j += 2; continue; }
-        if (src[j] === "$") { j++; closed = true; break; }
-        if (src[j] === "\n") {
-          // 改行を跨いだら未閉じとして打ち切り (見た目だけハイライト)
-          break;
-        }
+        if (src[j] === "$") { j++; break; }
+        if (src[j] === "\n") break;
         j++;
       }
-      // closed でも未閉じでも math として塗る (未閉じは少しダサくても許容)
-      void closed;
       push("math", src.slice(i, j));
       i = j;
       continue;
@@ -119,15 +223,13 @@ export function tokenize(src: string): Token[] {
       continue;
     }
 
-    // ── \begin{name} / \end{name} ── command + brace + envname の合成
+    // ── \begin{name} / \end{name} ──
     if (ch === "\\" && (src.startsWith("\\begin{", i) || src.startsWith("\\end{", i))) {
       const head = src.startsWith("\\begin{", i) ? "\\begin" : "\\end";
-      push("command", head);
+      push("cmd-define", head); // begin/end を define 色で目立たせる (構造の起点)
       i += head.length;
-      // '{'
       push("brace", "{");
       i += 1;
-      // name
       const close = src.indexOf("}", i);
       const nameEnd = close === -1 ? len : close;
       const name = src.slice(i, nameEnd);
@@ -149,11 +251,13 @@ export function tokenize(src: string): Token[] {
       let j = i + 1;
       if (j < len && /[a-zA-Z@]/.test(src[j])) {
         while (j < len && /[a-zA-Z@*]/.test(src[j])) j++;
+        const name = src.slice(i + 1, j);
+        push(commandCategory(name), src.slice(i, j));
       } else if (j < len) {
-        // 単発 (バックスラッシュ + 1 文字: \, \; \! \\ \% など)
+        // 単発 (バックスラッシュ + 1 文字)
         j += 1;
+        push("command", src.slice(i, j));
       }
-      push("command", src.slice(i, j));
       i = j;
       continue;
     }
@@ -179,19 +283,32 @@ export function tokenize(src: string): Token[] {
       continue;
     }
 
-    // ── 数値 ──
+    // ── 数値 (+ オプション dimension 単位) ──
     if (ch >= "0" && ch <= "9") {
       let j = i;
       while (j < len && ((src[j] >= "0" && src[j] <= "9") || src[j] === ".")) j++;
-      push("number", src.slice(i, j));
-      i = j;
+      // dimension 単位を look-ahead
+      let unitLen = 0;
+      for (const u of DIMENSION_UNITS) {
+        if (src.startsWith(u, j) && !/[a-zA-Z]/.test(src[j + u.length] ?? "")) {
+          unitLen = u.length;
+          break;
+        }
+      }
+      if (unitLen > 0) {
+        push("dimension", src.slice(i, j + unitLen));
+        i = j + unitLen;
+      } else {
+        push("number", src.slice(i, j));
+        i = j;
+      }
       continue;
     }
 
     // ── プレーンテキスト ──
     let j = i;
     while (j < len && !isBoundary(src[j])) j++;
-    if (j === i) j++; // セーフティ
+    if (j === i) j++;
     push("text", src.slice(i, j));
     i = j;
   }
@@ -212,16 +329,23 @@ function escapeHtml(s: string): string {
 }
 
 const KIND_CLASS: Record<TokenKind, string> = {
-  comment: "tk-comment",
-  command: "tk-command",
-  envname: "tk-envname",
-  math: "tk-math",
-  brace: "tk-brace",
-  bracket: "tk-bracket",
-  number: "tk-number",
-  special: "tk-special",
-  string: "tk-string",
-  text: "",
+  comment:      "tk-comment",
+  envname:      "tk-envname",
+  "cmd-section": "tk-cmd-section",
+  "cmd-package": "tk-cmd-package",
+  "cmd-define":  "tk-cmd-define",
+  "cmd-format":  "tk-cmd-format",
+  "cmd-mathop":  "tk-cmd-mathop",
+  "cmd-ref":     "tk-cmd-ref",
+  command:      "tk-command",
+  math:         "tk-math",
+  brace:        "tk-brace",
+  bracket:      "tk-bracket",
+  number:       "tk-number",
+  dimension:    "tk-dimension",
+  special:      "tk-special",
+  url:          "tk-url",
+  text:         "",
 };
 
 /** トークン列を <span class="tk-…"> 入りの HTML 文字列に変換する。 */

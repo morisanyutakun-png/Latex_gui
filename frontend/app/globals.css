@@ -1172,6 +1172,118 @@ html {
 }
 
 /* ══════════════════════════════════════════════════════════
+   VisualEditor: 編集可能ボックス
+   テキスト = グレー枠、数式 = 緑枠 (Word 風の直接編集)
+   ══════════════════════════════════════════════════════════ */
+
+/* 段落 / item の薄いグレー枠 ─ 編集領域がどこか分かるようにする */
+.editable-text-box {
+  border: 1px solid hsl(var(--foreground) / 0.06);
+  background: hsl(var(--foreground) / 0.012);
+  border-radius: 6px;
+  padding: 6px 12px;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+.editable-text-box:hover {
+  border-color: hsl(var(--foreground) / 0.12);
+  background: hsl(var(--foreground) / 0.02);
+}
+.editable-text-box:focus {
+  border-color: hsl(var(--foreground) / 0.22);
+  background: hsl(var(--foreground) / 0.025);
+  box-shadow: 0 0 0 3px hsl(var(--foreground) / 0.04);
+}
+
+/* item は li なので marker と揃えるため左 padding をやや小さく */
+.prose-text-item.editable-text-box {
+  padding: 4px 10px;
+  margin-left: -4px;
+}
+
+/* インライン数式チップ ─ 緑のミニ・テキストボックス */
+.math-chip {
+  display: inline-block;
+  vertical-align: baseline;
+  margin: 0 2px;
+  padding: 1px 6px;
+  border: 1px solid #65a30d80;          /* lime-600 半透明 */
+  background: rgba(132, 204, 22, 0.10); /* lime-500 / 10% */
+  border-radius: 5px;
+  color: #3f6212;                        /* lime-800 */
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 0.92em;
+  line-height: 1.4;
+  outline: none;
+  cursor: text;
+  white-space: pre;
+  caret-color: #3f6212;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.math-chip:hover {
+  background: rgba(132, 204, 22, 0.15);
+  border-color: #65a30db0;
+}
+.math-chip:focus {
+  background: rgba(132, 204, 22, 0.18);
+  border-color: #65a30d;
+  box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.18);
+}
+.dark .math-chip {
+  border-color: rgba(190, 242, 100, 0.45);
+  background: rgba(190, 242, 100, 0.10);
+  color: #d9f99d;                        /* lime-200 */
+  caret-color: #d9f99d;
+}
+.dark .math-chip:hover {
+  background: rgba(190, 242, 100, 0.16);
+  border-color: rgba(190, 242, 100, 0.6);
+}
+.dark .math-chip:focus {
+  background: rgba(190, 242, 100, 0.22);
+  border-color: rgba(190, 242, 100, 0.85);
+  box-shadow: 0 0 0 3px rgba(190, 242, 100, 0.18);
+}
+
+/* 表示数式ブロック ─ 緑の大きめテキストボックス */
+.display-math-block {
+  display: block;
+  padding: 12px 18px;
+  border: 1px solid #65a30d80;
+  background: rgba(132, 204, 22, 0.08);
+  border-radius: 8px;
+  color: #3f6212;
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  caret-color: #3f6212;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.display-math-block:hover {
+  background: rgba(132, 204, 22, 0.12);
+  border-color: #65a30db0;
+}
+.display-math-block:focus {
+  background: rgba(132, 204, 22, 0.14);
+  border-color: #65a30d;
+  box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.18);
+}
+.dark .display-math-block {
+  border-color: rgba(190, 242, 100, 0.45);
+  background: rgba(190, 242, 100, 0.08);
+  color: #d9f99d;
+  caret-color: #d9f99d;
+}
+.dark .display-math-block:hover {
+  background: rgba(190, 242, 100, 0.13);
+  border-color: rgba(190, 242, 100, 0.6);
+}
+.dark .display-math-block:focus {
+  background: rgba(190, 242, 100, 0.18);
+  border-color: rgba(190, 242, 100, 0.85);
+  box-shadow: 0 0 0 3px rgba(190, 242, 100, 0.18);
+}
+
+/* ══════════════════════════════════════════════════════════
    LatexCodeEditor — IDE 風 LaTeX ソースエディタ
    textarea (透明テキスト) を pre (色付き) にオーバーレイする方式
    ══════════════════════════════════════════════════════════ */
@@ -1296,66 +1408,152 @@ html {
   color: transparent;
 }
 
-/* ── トークン色 (ライトテーマ) ── */
+/* ══════════════════════════════════════════
+   トークン色 — ライトテーマ
+   コマンドはカテゴリで塗り分けて視認性を上げる
+   ══════════════════════════════════════════ */
 .latex-code-editor .tk-comment {
-  color: #6b7280;
+  color: #64748b;             /* slate-500 */
   font-style: italic;
 }
-.latex-code-editor .tk-command {
-  color: #7c3aed;     /* violet-600 */
+/* sectioning: \section, \chapter, \title 等 — 構造の根幹なので強く目立たせる */
+.latex-code-editor .tk-cmd-section {
+  color: #db2777;             /* pink-600 */
+  font-weight: 700;
+}
+/* package: \documentclass, \usepackage 等 — preamble の "import" 系 */
+.latex-code-editor .tk-cmd-package {
+  color: #b45309;             /* amber-700 */
+  font-weight: 700;
+}
+/* define: \newcommand, \def, \begin/\end 等 — 構造定義 */
+.latex-code-editor .tk-cmd-define {
+  color: #0e7490;             /* cyan-700 */
+  font-weight: 700;
+}
+/* format: \textbf, \emph, \textcolor 等 — 文字装飾 */
+.latex-code-editor .tk-cmd-format {
+  color: #7c3aed;             /* violet-600 */
   font-weight: 600;
 }
-.latex-code-editor .tk-envname {
-  color: #0e7490;     /* cyan-700 */
+/* mathop: \frac, \sum, \alpha 等 — 数式コマンド */
+.latex-code-editor .tk-cmd-mathop {
+  color: #15803d;             /* green-700 */
+  font-weight: 600;
+}
+/* ref: \label, \cite 等 — 参照系 */
+.latex-code-editor .tk-cmd-ref {
+  color: #2563eb;             /* blue-600 */
+  font-weight: 500;
+  font-style: italic;
+}
+/* generic command — 上記以外 */
+.latex-code-editor .tk-command {
+  color: #6366f1;             /* indigo-500 */
   font-weight: 500;
 }
+/* envname: \begin{itemize} の "itemize" */
+.latex-code-editor .tk-envname {
+  color: #c2410c;             /* orange-700 */
+  font-weight: 600;
+  font-style: italic;
+}
+/* math: $...$ / $$...$$ / \[ \] / \( \) — 数式全体 */
 .latex-code-editor .tk-math {
-  color: #65a30d;     /* lime-600 — 黄緑 */
-  background: rgba(132, 204, 22, 0.06);
+  color: #65a30d;             /* lime-600 */
+  background: rgba(132, 204, 22, 0.07);
   border-radius: 2px;
 }
 .latex-code-editor .tk-brace {
-  color: #b45309;     /* amber-700 */
+  color: #ca8a04;             /* yellow-600 */
+  font-weight: 500;
 }
 .latex-code-editor .tk-bracket {
-  color: #475569;     /* slate-600 */
+  color: #475569;             /* slate-600 */
 }
 .latex-code-editor .tk-special {
-  color: #be185d;     /* pink-700 */
-  font-weight: 600;
+  color: #be185d;             /* pink-700 */
+  font-weight: 700;
 }
 .latex-code-editor .tk-number {
-  color: #c2410c;     /* orange-700 */
+  color: #c2410c;             /* orange-700 */
+}
+.latex-code-editor .tk-dimension {
+  color: #a16207;             /* yellow-700 */
+  font-weight: 500;
+}
+.latex-code-editor .tk-url {
+  color: #0284c7;             /* sky-600 */
+  text-decoration: underline;
+  text-decoration-color: rgba(2, 132, 199, 0.4);
 }
 
-/* ── トークン色 (ダークテーマ) ── */
+/* ══════════════════════════════════════════
+   トークン色 — ダークテーマ (彩度を上げる)
+   ══════════════════════════════════════════ */
 .dark .latex-code-editor .tk-comment {
-  color: #6b7280;
+  color: #64748b;
+  font-style: italic;
+}
+.dark .latex-code-editor .tk-cmd-section {
+  color: #f472b6;             /* pink-400 */
+  font-weight: 700;
+}
+.dark .latex-code-editor .tk-cmd-package {
+  color: #fbbf24;             /* amber-400 */
+  font-weight: 700;
+}
+.dark .latex-code-editor .tk-cmd-define {
+  color: #67e8f9;             /* cyan-300 */
+  font-weight: 700;
+}
+.dark .latex-code-editor .tk-cmd-format {
+  color: #c4b5fd;             /* violet-300 */
+  font-weight: 600;
+}
+.dark .latex-code-editor .tk-cmd-mathop {
+  color: #86efac;             /* green-300 */
+  font-weight: 600;
+}
+.dark .latex-code-editor .tk-cmd-ref {
+  color: #93c5fd;             /* blue-300 */
+  font-weight: 500;
   font-style: italic;
 }
 .dark .latex-code-editor .tk-command {
-  color: #c4b5fd;     /* violet-300 */
-  font-weight: 600;
-}
-.dark .latex-code-editor .tk-envname {
-  color: #67e8f9;     /* cyan-300 */
+  color: #a5b4fc;             /* indigo-300 */
   font-weight: 500;
 }
+.dark .latex-code-editor .tk-envname {
+  color: #fdba74;             /* orange-300 */
+  font-weight: 600;
+  font-style: italic;
+}
 .dark .latex-code-editor .tk-math {
-  color: #bef264;     /* lime-300 — 黄緑 (ダークでより明るく) */
-  background: rgba(190, 242, 100, 0.07);
+  color: #bef264;             /* lime-300 */
+  background: rgba(190, 242, 100, 0.08);
   border-radius: 2px;
 }
 .dark .latex-code-editor .tk-brace {
-  color: #fcd34d;     /* amber-300 */
+  color: #fde047;             /* yellow-300 */
+  font-weight: 500;
 }
 .dark .latex-code-editor .tk-bracket {
-  color: #94a3b8;     /* slate-400 */
+  color: #94a3b8;             /* slate-400 */
 }
 .dark .latex-code-editor .tk-special {
-  color: #f9a8d4;     /* pink-300 */
-  font-weight: 600;
+  color: #f9a8d4;             /* pink-300 */
+  font-weight: 700;
 }
 .dark .latex-code-editor .tk-number {
-  color: #fdba74;     /* orange-300 */
+  color: #fdba74;             /* orange-300 */
+}
+.dark .latex-code-editor .tk-dimension {
+  color: #facc15;             /* yellow-400 */
+  font-weight: 500;
+}
+.dark .latex-code-editor .tk-url {
+  color: #38bdf8;             /* sky-400 */
+  text-decoration: underline;
+  text-decoration-color: rgba(56, 189, 248, 0.4);
 }
