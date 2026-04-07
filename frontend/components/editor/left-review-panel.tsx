@@ -173,7 +173,7 @@ export function LeftReviewPanel() {
           />
           <SectionLabel meta={`ID: ${block.id.slice(0, 8)}`}>プロパティ</SectionLabel>
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-            <div className="max-w-[640px] mx-auto p-4">
+            <div className="p-5 w-full">
               {blockType === "chemistry" && <ChemistryBlockControls block={block} />}
               {blockType === "chart" && <ChartBlockControls block={block} />}
               {blockType === "circuit" && <CircuitBlockControls block={block} />}

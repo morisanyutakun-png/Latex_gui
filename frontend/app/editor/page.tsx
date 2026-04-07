@@ -100,10 +100,8 @@ export default function EditorPage() {
       isHeavyBlockEdit
     );
   // 左パネル幅 — パレット・LaTeXソース・ブロック編集で一貫した1:1スプリット
-  const leftPanelWidth = isHeavyBlockEdit
-    ? "min(50%, 760px)"
-    : "min(50%, 720px)";
-  const leftPanelMinWidth = isHeavyBlockEdit ? 460 : 420;
+  const leftPanelWidth = "min(50%, 720px)";
+  const leftPanelMinWidth = 420;
 
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">

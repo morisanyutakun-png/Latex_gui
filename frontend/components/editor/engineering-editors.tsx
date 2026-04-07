@@ -231,7 +231,7 @@ function BlockSVGPreview({ code, blockType, className = "" }: {
       )}
       {svg ? (
         <div
-          className="flex items-center justify-center p-3 [&>svg]:max-w-full [&>svg]:max-h-48 [&>svg]:h-auto"
+          className="flex items-center justify-center p-3 [&>svg]:max-w-full [&>svg]:max-h-72 [&>svg]:h-auto"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       ) : error ? (
@@ -433,8 +433,8 @@ export function CircuitBlockControls({ block }: { block: Block }) {
       </div>
 
       {/* Preset Grid with scroll */}
-      <ScrollArea className="max-h-64">
-        <div className="grid grid-cols-2 gap-2 pr-2">
+      <ScrollArea className="max-h-96">
+        <div className="grid grid-cols-3 gap-2 pr-2">
           {filteredPresets.length > 0 ? (
             filteredPresets.map((preset) => (
               <CircuitPresetCard
@@ -613,7 +613,7 @@ export function DiagramBlockControls({ block }: { block: Block }) {
           <Sparkles className="h-3 w-3 text-indigo-500" />
           テンプレートから選択
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {displayPresets.map((preset) => (
             <PresetCard
               key={preset.id}
@@ -693,7 +693,7 @@ export function ChemistryBlockControls({ block }: { block: Block }) {
           <Sparkles className="h-3 w-3 text-lime-500" />
           よく使う化学反応式
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {CHEMISTRY_PRESETS.map((preset) => (
             <button
               key={preset.id}
@@ -811,7 +811,7 @@ export function ChartBlockControls({ block }: { block: Block }) {
           <Sparkles className="h-3 w-3 text-rose-500" />
           テンプレートから選択
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {CHART_PRESETS.map((preset) => (
             <PresetCard
               key={preset.id}
