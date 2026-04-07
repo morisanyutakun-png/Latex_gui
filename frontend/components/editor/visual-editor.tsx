@@ -8,6 +8,7 @@ import {
   parseLatexToSegments,
   replaceRange,
   serializeSegment,
+  extractInlines,
   type Segment,
   type Inline,
   type Range,
@@ -221,7 +222,7 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
       return <EditableDisplayMath initialBody={segment.body} onCommit={onDisplayMathCommit} />;
 
     case "paragraph":
-      return <EditableParagraph segment={segment} onCommit={onParagraphCommit} />;
+      return <EditableParagraph segment={segment} latex={latex} onCommit={onParagraphCommit} />;
 
     case "itemize":
     case "enumerate": {
@@ -252,6 +253,7 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
               <EditableItem
                 key={`${idx}-item`}
                 segment={child}
+                latex={latex}
                 onCommit={onItemCommit}
               />
             );
@@ -261,23 +263,35 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
     }
 
     case "daimon": {
-      // 大問ボックス: タイトル帯 (編集可) + 子セグメントを再帰レンダリング
+      // 大問ボックス: タイトル帯 (インライン編集可・\quad / \haiten 等を装飾表示)
+      // + 子セグメントを再帰レンダリング
       const titleStart = Number(segment.meta?.titleStart);
       const titleEnd = Number(segment.meta?.titleEnd);
       const hasTitleRange = Number.isFinite(titleStart) && titleStart >= 0 && Number.isFinite(titleEnd);
-      const onDaimonTitleCommit = (newTitle: string) => {
+      // タイトル range を疑似 paragraph segment として包み、ContentEditableBlock 経由で
+      // インライン (\quad → 空白 / \haiten → バッジ / $..$ → math chip) を描画する
+      const titleSegment: Segment | null = hasTitleRange ? {
+        id: segment.id + "-title",
+        kind: "paragraph",
+        range: { start: titleStart, end: titleEnd },
+        body: latex.slice(titleStart, titleEnd),
+        inlines: extractInlines(latex, titleStart, titleEnd),
+      } : null;
+      const onDaimonTitleCommit = (el: HTMLElement) => {
         if (!hasTitleRange) return;
-        if (newTitle === segment.body) return;
-        applyRangeEdit({ start: titleStart, end: titleEnd }, newTitle);
+        const newBody = serializeContentEditableDOM(el);
+        if (newBody.trim() === (titleSegment?.body ?? "").trim()) return;
+        applyRangeEdit({ start: titleStart, end: titleEnd }, newBody);
       };
       return (
         <div className="my-6 rounded-md overflow-hidden border border-[#1e3a8a]/40 bg-[#1e3a8a]/[0.025] dark:border-[#93c5fd]/30 dark:bg-[#1e3a8a]/15 shadow-[0_1px_0_rgba(30,58,138,0.08)]">
-          {hasTitleRange && (
-            <EditableHeading
-              tag="h3"
-              initialText={segment.body}
+          {titleSegment && (
+            <ContentEditableBlock
+              segment={titleSegment}
+              latex={latex}
               onCommit={onDaimonTitleCommit}
-              className="bg-[#1e3a8a] text-white px-4 py-2 text-[15px] font-bold tracking-wide m-0 rounded-none border-0"
+              tag="h3"
+              className="daimon-title bg-[#1e3a8a] text-white px-4 py-2 text-[15px] font-bold tracking-wide m-0 rounded-none border-0"
             />
           )}
           <div className="px-5 py-4 space-y-2">
@@ -385,13 +399,15 @@ function EditableHeading({ tag: Tag, initialText, className, onCommit }: Editabl
 
 interface EditableParagraphProps {
   segment: Segment;
+  latex: string;
   onCommit: (el: HTMLElement) => void;
 }
 
-function EditableParagraph({ segment, onCommit }: EditableParagraphProps) {
+function EditableParagraph({ segment, latex, onCommit }: EditableParagraphProps) {
   return (
     <ContentEditableBlock
       segment={segment}
+      latex={latex}
       onCommit={onCommit}
       tag="p"
       className="prose-text-block text-[15px] leading-[1.75] text-foreground/85 my-3"
@@ -401,13 +417,15 @@ function EditableParagraph({ segment, onCommit }: EditableParagraphProps) {
 
 interface EditableItemProps {
   segment: Segment;
+  latex: string;
   onCommit: (el: HTMLElement) => void;
 }
 
-function EditableItem({ segment, onCommit }: EditableItemProps) {
+function EditableItem({ segment, latex, onCommit }: EditableItemProps) {
   return (
     <ContentEditableBlock
       segment={segment}
+      latex={latex}
       onCommit={onCommit}
       tag="li"
       className="prose-text-item text-[15px] leading-[1.65] text-foreground/85"
@@ -415,10 +433,13 @@ function EditableItem({ segment, onCommit }: EditableItemProps) {
   );
 }
 
+type ContentEditableTag = "p" | "li" | "h2" | "h3" | "h4" | "div";
+
 interface ContentEditableBlockProps {
   segment: Segment;
+  latex: string;
   onCommit: (el: HTMLElement) => void;
-  tag: "p" | "li";
+  tag: ContentEditableTag;
   className?: string;
 }
 
@@ -429,12 +450,12 @@ interface ContentEditableBlockProps {
  * 数式は埋め込みの「緑チップ」(nested contentEditable) として表示され、
  * クリックで直接編集できる。Cmd/Ctrl+M でカーソル位置に空 chip を挿入 / chip 内なら exit。
  */
-function ContentEditableBlock({ segment, onCommit, tag: Tag, className }: ContentEditableBlockProps) {
+function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }: ContentEditableBlockProps) {
   const ref = useRef<HTMLElement | null>(null);
   const lastSerialized = useRef<string>(segment.body);
 
-  // inlines を初期 HTML として組み立てる
-  const initialHTML = useMemo(() => buildInlinesHTML(segment.inlines ?? []), [segment.inlines]);
+  // inlines を初期 HTML として組み立てる (バッジ等は元 LaTeX を data 属性として埋め込む)
+  const initialHTML = useMemo(() => buildInlinesHTML(segment.inlines ?? [], latex), [segment.inlines, latex]);
 
   // 外部 (ストア / テンプレ切替 / AI 編集) 由来でセグメント body が変わったら DOM を同期する。
   useEffect(() => {
@@ -454,9 +475,22 @@ function ContentEditableBlock({ segment, onCommit, tag: Tag, className }: Conten
 
   // math chip の focus/blur で edit/preview モードを切り替えるためのイベント委譲
   // (focusin/focusout はバブリング、focus/blur はバブリングしないので focusin/out を使う)
+  // また、KaTeX が描画する子要素は pointer-events: none で focus が降りないため
+  // mousedown を捕まえて明示的にチップへフォーカスを移す。
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const chip = findEnclosingChip(e.target as HTMLElement | null);
+      if (!chip) return;
+      // KaTeX 内部 (data-math-chip 直下の render span) をクリックしたケースで、
+      // ブラウザの自動 focus は contenteditable=false 子に阻まれるため自前で focus する。
+      e.preventDefault();
+      chipEnterEditMode(chip);
+      chip.focus();
+      // クリック位置に caret を置けると理想だが、edit モードへの切替で textContent が
+      // 入れ替わるので末尾に置く (chipEnterEditMode 側で末尾 caret になる)。
+    };
     const onFocusIn = (e: FocusEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
@@ -473,9 +507,11 @@ function ContentEditableBlock({ segment, onCommit, tag: Tag, className }: Conten
       if (nextFocus && chip.contains(nextFocus)) return;
       chipExitEditMode(chip);
     };
+    node.addEventListener("mousedown", onMouseDown);
     node.addEventListener("focusin", onFocusIn);
     node.addEventListener("focusout", onFocusOut);
     return () => {
+      node.removeEventListener("mousedown", onMouseDown);
       node.removeEventListener("focusin", onFocusIn);
       node.removeEventListener("focusout", onFocusOut);
     };
@@ -754,10 +790,17 @@ interface TrailingEditableParagraphProps {
 }
 
 function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: TrailingEditableParagraphProps) {
-  // math chip の focus / blur で edit/preview モードを切り替えるためのイベント委譲
+  // math chip の click / focus / blur で edit/preview モードを切り替えるためのイベント委譲
   useEffect(() => {
     const node = innerRef.current;
     if (!node) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const chip = findEnclosingChip(e.target as HTMLElement | null);
+      if (!chip) return;
+      e.preventDefault();
+      chipEnterEditMode(chip);
+      chip.focus();
+    };
     const onFocusIn = (e: FocusEvent) => {
       const chip = findEnclosingChip(e.target as HTMLElement | null);
       if (chip) chipEnterEditMode(chip);
@@ -769,9 +812,11 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
       if (next && chip.contains(next)) return;
       chipExitEditMode(chip);
     };
+    node.addEventListener("mousedown", onMouseDown);
     node.addEventListener("focusin", onFocusIn);
     node.addEventListener("focusout", onFocusOut);
     return () => {
+      node.removeEventListener("mousedown", onMouseDown);
       node.removeEventListener("focusin", onFocusIn);
       node.removeEventListener("focusout", onFocusOut);
     };
@@ -831,8 +876,9 @@ function buildMathChipHTML(source: string, wrapper: string, nl: boolean): string
   return `<span data-math-chip="1" data-wrapper="${wrapper}" data-source="${safeSource}"${nl ? ' data-nl-math="1"' : ""} contenteditable="true" class="${cls}">${inner}</span>`;
 }
 
-/** Inline 配列から contentEditable 用の初期 HTML を組み立てる */
-function buildInlinesHTML(inlines: Inline[]): string {
+/** Inline 配列から contentEditable 用の初期 HTML を組み立てる。
+ *  scoreBadge など「表示と原 LaTeX が異なる」種類は src から原文をそのまま data 属性に埋め込む。 */
+function buildInlinesHTML(inlines: Inline[], src: string): string {
   let html = "";
   for (const inline of inlines) {
     if (inline.kind === "text") {
@@ -845,6 +891,9 @@ function buildInlinesHTML(inlines: Inline[]): string {
       html += `<em>${escapeHtml(inline.body)}</em>`;
     } else if (inline.kind === "code") {
       html += `<code class="px-1 py-0.5 rounded bg-muted/60 text-[12px] font-mono">${escapeHtml(inline.body)}</code>`;
+    } else if (inline.kind === "scoreBadge") {
+      const orig = src.slice(inline.range.start, inline.range.end);
+      html += `<span class="haiten-badge" contenteditable="false" data-haiten-source="${escapeHtml(orig)}">${escapeHtml(inline.body)}</span>`;
     }
   }
   if (!html) html = "&#8203;"; // 空段落でもカレットを出すための ZWSP
@@ -862,6 +911,12 @@ export function serializeContentEditableDOM(el: HTMLElement): string {
     if (node.nodeType !== Node.ELEMENT_NODE) continue;
     const child = node as HTMLElement;
     const tag = child.tagName.toLowerCase();
+
+    // 装飾バッジ (\haiten{N} 等) は data-haiten-source に元 LaTeX を保存しているのでそのまま吐く
+    if (child.dataset.haitenSource) {
+      result += child.dataset.haitenSource;
+      continue;
+    }
 
     if (child.dataset.mathChip === "1") {
       // 編集中チップは textContent をライブで読む。プレビュー中チップは data-source を読む。

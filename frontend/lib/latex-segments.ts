@@ -38,7 +38,8 @@ export type InlineKind =
   | "inlineMath"
   | "bold"
   | "italic"
-  | "code";
+  | "code"
+  | "scoreBadge"; // \haiten{N} 等、表示は装飾バッジ・元 LaTeX は保存
 
 export interface Range {
   start: number;
@@ -157,6 +158,25 @@ const INLINE_DROP_CMDS = new Set([
   "selectfont", "par",
 ]);
 
+/** インライン中で「空白として描画する」引数なしコマンド。
+ *  消費して "\u00A0" (NBSP) を 1 つ挿入する。 */
+const INLINE_SPACE_CMDS = new Set([
+  "quad", "qquad",
+  "thinspace", "negthinspace",
+  "medspace", "negmedspace",
+  "thickspace", "negthickspace",
+  "enspace", "enskip", "space",
+]);
+
+/** バックスラッシュ + 1 文字 の空白系命令 (\,  \;  \:  \!  \  \/) — 値はそのまま空白扱い */
+const INLINE_SYMBOL_SPACE = new Set([",", ";", ":", "!", " ", "/"]);
+
+/** 表示は装飾バッジに変換するが、シリアライズ時は元 LaTeX を残す 1 引数命令。
+ *  例: \haiten{6} → 緑バッジ "[6点]"、保存時は \haiten{6}。 */
+const INLINE_BADGE_CMDS: Record<string, (arg: string) => string> = {
+  haiten: (arg) => `[${arg}点]`,
+};
+
 /** インライン中の 1 引数命令 → 中身だけ取り出す */
 const INLINE_UNWRAP_1: Record<string, "bold" | "italic" | "code" | "text"> = {
   textbf: "bold",
@@ -189,7 +209,7 @@ const INLINE_DROP_ARG_CMDS = new Set([
 ]);
 
 /** 段落テキスト [start, end) からインラインを抽出する。 */
-function extractInlines(src: string, start: number, end: number): Inline[] {
+export function extractInlines(src: string, start: number, end: number): Inline[] {
   const inlines: Inline[] = [];
   let cursor = start;
 
@@ -261,11 +281,71 @@ function extractInlines(src: string, start: number, end: number): Inline[] {
       }
     }
 
+    // バックスラッシュ + 記号 1 文字の空白系コマンド (\,  \;  \:  \!  \ )
+    // これらは readCmdName で letter を要求するため捕まえられない。
+    if (ch === "\\" && i + 1 < end && INLINE_SYMBOL_SPACE.has(src[i + 1])) {
+      pushText(cursor, i);
+      inlines.push({
+        id: nextId("inl"),
+        kind: "text",
+        range: { start: i, end: i + 2 },
+        body: "\u00A0",
+      });
+      cursor = i + 2;
+      i += 2;
+      continue;
+    }
+
     // \cmdname { ... } 系の処理
     if (ch === "\\") {
       const cmd = readCmdName(i);
       if (cmd) {
         const nameAfter = skipWS(cmd.nextPos);
+
+        // 0a) 空白系コマンド (\quad / \qquad / \thinspace 等) → 空白 1 個に置換
+        //     LaTeX 仕様で「letter コマンドの直後の単一スペース」は飲み込まれるため、
+        //     range にもそのスペースを含めて消費する。
+        if (INLINE_SPACE_CMDS.has(cmd.name)) {
+          let consumeEnd = cmd.nextPos;
+          if (src[consumeEnd] === " " || src[consumeEnd] === "\t") consumeEnd++;
+          pushText(cursor, i);
+          inlines.push({
+            id: nextId("inl"),
+            kind: "text",
+            range: { start: i, end: consumeEnd },
+            body: "\u00A0",
+          });
+          cursor = consumeEnd;
+          i = consumeEnd;
+          continue;
+        }
+
+        // 0b) 装飾バッジ命令 (\haiten{N} 等) → scoreBadge inline
+        if (INLINE_BADGE_CMDS[cmd.name] && src[nameAfter] === "{") {
+          const braceEnd = findMatchingBrace(src, nameAfter, end);
+          if (braceEnd !== -1) {
+            const arg = src.slice(nameAfter + 1, braceEnd);
+            const display = INLINE_BADGE_CMDS[cmd.name](arg);
+            pushText(cursor, i);
+            inlines.push({
+              id: nextId("inl"),
+              kind: "scoreBadge",
+              range: { start: i, end: braceEnd + 1 },
+              body: display,
+              // body は表示用、原形コマンドは別途必要
+              // (再構築は visual-editor 側で data 属性経由で復元)
+            });
+            // メタ情報を別途付与するため、最後の inline に直接書き込む
+            const last = inlines[inlines.length - 1];
+            // Inline には meta 欄が無いので、body の先頭にコマンド名と引数を埋めて持つ。
+            // 復元時は data 属性で渡す方が綺麗なので、ここでは body と range を保持し、
+            // 元コマンドは renderer 側で src[range.start..range.end] から抽出する。
+            void last;
+            cursor = braceEnd + 1;
+            i = braceEnd + 1;
+            continue;
+          }
+        }
 
         // 1) 完全に捨てる引数つきコマンド (\vspace{6mm}, \label{...} 等)
         if (INLINE_DROP_ARG_CMDS.has(cmd.name)) {

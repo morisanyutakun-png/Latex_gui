@@ -1200,36 +1200,51 @@ html {
   margin-left: -4px;
 }
 
-/* インライン数式チップ ─ 緑のミニ・テキストボックス
-   通常時は KaTeX レンダリングしたプレビュー、
-   focus すると edit モードに切り替わって生 LaTeX を編集できる */
+/* インライン数式チップ
+   プレビュー時は装飾なし (本物の数式組版に近い見た目)。
+   hover で薄いハイライト → クリック可能と分かる。
+   edit モードでのみソース表示と緑色背景を出す。 */
 .math-chip {
   display: inline-block;
   vertical-align: -0.15em;
-  margin: 0 2px;
-  padding: 1px 6px;
-  border: 1px solid #65a30d80;          /* lime-600 半透明 */
-  background: rgba(132, 204, 22, 0.08); /* lime-500 / 8% */
-  border-radius: 5px;
-  color: #3f6212;                        /* lime-800 */
-  font-size: 0.96em;
+  margin: 0 1px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 4px;
+  color: inherit;
+  font-size: 1em;
   line-height: 1.4;
   outline: none;
-  cursor: text;
-  caret-color: #3f6212;
+  cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
-/* edit モード = ソース表示 (monospace) */
+/* hover: ほんのり浮かせる (クリック可能であることのアフォーダンス) */
+.math-chip:hover {
+  background: rgba(132, 204, 22, 0.10);
+  border-color: rgba(132, 204, 22, 0.30);
+}
+/* edit モード = ソース表示 (monospace + 緑背景) */
 .math-chip[data-editing="1"] {
   font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
   font-size: 0.92em;
   white-space: pre;
   background: rgba(132, 204, 22, 0.16);
+  border-color: #65a30d;
+  color: #3f6212;
+  caret-color: #3f6212;
+  cursor: text;
+  padding: 1px 6px;
 }
-/* preview モードの中身 (KaTeX) はクリック透過させる */
+.math-chip[data-editing="1"]:focus {
+  box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.18);
+}
+/* preview モードの中身 (KaTeX) — KaTeX の自前 DOM はそのまま見せる。
+   pointer-events を auto にしておかないと chip 自体に focus が回らない場合があるが、
+   visual-editor 側で mousedown delegation により親 chip に focus を移すので
+   ここでは pointer-events 既定 (auto) のままで OK。 */
 .math-chip-render {
   display: inline-block;
-  pointer-events: none;
 }
 .math-chip-render .katex {
   font-size: 1em;
@@ -1240,31 +1255,48 @@ html {
   font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
   font-size: 0.92em;
   color: #b91c1c;
-  pointer-events: none;
 }
-.math-chip:hover {
-  background: rgba(132, 204, 22, 0.15);
-  border-color: #65a30db0;
+.dark .math-chip:hover {
+  background: rgba(190, 242, 100, 0.12);
+  border-color: rgba(190, 242, 100, 0.35);
 }
-.math-chip:focus {
-  background: rgba(132, 204, 22, 0.18);
-  border-color: #65a30d;
-  box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.18);
-}
-.dark .math-chip {
-  border-color: rgba(190, 242, 100, 0.45);
-  background: rgba(190, 242, 100, 0.10);
+.dark .math-chip[data-editing="1"] {
+  background: rgba(190, 242, 100, 0.18);
+  border-color: rgba(190, 242, 100, 0.85);
   color: #d9f99d;                        /* lime-200 */
   caret-color: #d9f99d;
 }
-.dark .math-chip:hover {
-  background: rgba(190, 242, 100, 0.16);
-  border-color: rgba(190, 242, 100, 0.6);
-}
-.dark .math-chip:focus {
-  background: rgba(190, 242, 100, 0.22);
-  border-color: rgba(190, 242, 100, 0.85);
+.dark .math-chip[data-editing="1"]:focus {
   box-shadow: 0 0 0 3px rgba(190, 242, 100, 0.18);
+}
+
+/* ── 配点バッジ (\haiten{N}) ── */
+.haiten-badge {
+  display: inline-block;
+  vertical-align: 0.05em;
+  margin: 0 2px 0 4px;
+  padding: 0 6px;
+  font-size: 0.78em;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #2563eb;                        /* cobalt blue */
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.30);
+  border-radius: 999px;
+  user-select: none;
+  cursor: default;
+  white-space: nowrap;
+}
+.dark .haiten-badge {
+  color: #93c5fd;
+  background: rgba(147, 197, 253, 0.10);
+  border-color: rgba(147, 197, 253, 0.35);
+}
+/* daimon title 帯の中ではバッジを白系で出す */
+.daimon-title .haiten-badge {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.45);
 }
 
 /* 自然言語数式チップ ─ アンバー (日本語/英語で書いて、Cmd+M または blur で
