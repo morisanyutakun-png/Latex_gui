@@ -141,6 +141,51 @@ function readEnvironmentName(src: string, atBackslash: number, end: number): str
 // インライン抽出
 // ─────────────────────────────────────
 
+/** インライン中で「無視して通り抜ける」コマンド (引数なし or サイズ系)
+ *  これらが現れたら、本文 (続くテキスト or グループ) はそのまま流し込む。 */
+const INLINE_DROP_CMDS = new Set([
+  // サイズ
+  "tiny", "scriptsize", "footnotesize", "small", "normalsize",
+  "large", "Large", "LARGE", "huge", "Huge",
+  // 字形
+  "bfseries", "itshape", "slshape", "scshape", "upshape",
+  "rmfamily", "sffamily", "ttfamily", "mdseries",
+  // 配置 / その他
+  "noindent", "centering", "raggedright", "raggedleft",
+  "selectfont", "par",
+]);
+
+/** インライン中の 1 引数命令 → 中身だけ取り出す */
+const INLINE_UNWRAP_1: Record<string, "bold" | "italic" | "code" | "text"> = {
+  textbf: "bold",
+  textit: "italic",
+  emph: "italic",
+  textsl: "italic",
+  texttt: "code",
+  textrm: "text",
+  textsf: "text",
+  textsc: "text",
+  textnormal: "text",
+  textup: "text",
+  underline: "text",
+  uline: "text",
+  mathrm: "text",
+};
+
+/** インライン中の 2 引数命令 → 第二引数だけ取り出す (\textcolor{red}{XYZ} の "XYZ") */
+const INLINE_UNWRAP_2_SECOND = new Set([
+  "textcolor", "colorbox", "fcolorbox", "fbox",
+]);
+
+/** インライン中で第一引数も第二引数も全部捨てる命令 */
+const INLINE_DROP_ARG_CMDS = new Set([
+  "vspace", "hspace", "vskip", "hskip",
+  "label", "ref", "pageref", "eqref", "cite",
+  "rule", "phantom", "vphantom", "hphantom",
+  "setcounter", "addtocounter", "stepcounter", "refstepcounter",
+  "fontsize", "color",
+]);
+
 /** 段落テキスト [start, end) からインラインを抽出する。 */
 function extractInlines(src: string, start: number, end: number): Inline[] {
   const inlines: Inline[] = [];
@@ -156,13 +201,27 @@ function extractInlines(src: string, start: number, end: number): Inline[] {
     });
   };
 
+  /** \cmdname を読む。バックスラッシュの位置から始まり、次の非英字位置を返す */
+  const readCmdName = (pos: number): { name: string; nextPos: number } | null => {
+    if (src[pos] !== "\\") return null;
+    let j = pos + 1;
+    if (j >= end || !/[a-zA-Z@]/.test(src[j])) return null;
+    while (j < end && /[a-zA-Z@*]/.test(src[j])) j++;
+    return { name: src.slice(pos + 1, j).replace(/\*$/, ""), nextPos: j };
+  };
+
+  /** 空白をスキップ */
+  const skipWS = (pos: number): number => {
+    while (pos < end && /[ \t]/.test(src[pos])) pos++;
+    return pos;
+  };
+
   let i = start;
   while (i < end) {
     const ch = src[i];
 
     // インライン数式 $...$  (ただし $$ は表示数式扱いなのでここに来ないはず)
     if (ch === "$" && src[i + 1] !== "$") {
-      // ペア検索
       let j = i + 1;
       while (j < end) {
         if (src[j] === "\\" && j + 1 < end) { j += 2; continue; }
@@ -200,58 +259,104 @@ function extractInlines(src: string, start: number, end: number): Inline[] {
       }
     }
 
-    // \textbf{...}
-    if (src.startsWith("\\textbf{", i)) {
-      const braceStart = i + "\\textbf".length;
-      const braceEnd = findMatchingBrace(src, braceStart, end);
-      if (braceEnd !== -1) {
-        pushText(cursor, i);
-        inlines.push({
-          id: nextId("inl"),
-          kind: "bold",
-          range: { start: i, end: braceEnd + 1 },
-          body: src.slice(braceStart + 1, braceEnd),
-        });
-        cursor = braceEnd + 1;
-        i = braceEnd + 1;
-        continue;
+    // \cmdname { ... } 系の処理
+    if (ch === "\\") {
+      const cmd = readCmdName(i);
+      if (cmd) {
+        const nameAfter = skipWS(cmd.nextPos);
+
+        // 1) 完全に捨てる引数つきコマンド (\vspace{6mm}, \label{...} 等)
+        if (INLINE_DROP_ARG_CMDS.has(cmd.name)) {
+          if (src[nameAfter] === "{") {
+            const braceEnd = findMatchingBrace(src, nameAfter, end);
+            if (braceEnd !== -1) {
+              // \rule{X}{Y} など 2 引数も食う
+              let endPos = braceEnd + 1;
+              const next2 = skipWS(endPos);
+              if (src[next2] === "{") {
+                const second = findMatchingBrace(src, next2, end);
+                if (second !== -1) endPos = second + 1;
+              }
+              pushText(cursor, i);
+              cursor = endPos;
+              i = endPos;
+              continue;
+            }
+          } else {
+            // 引数なしバリアント (\vfill 等)
+            pushText(cursor, i);
+            cursor = cmd.nextPos;
+            i = cmd.nextPos;
+            continue;
+          }
+        }
+
+        // 2) 引数なし命令 (\noindent / \large / \bfseries 等) → 単に消費
+        if (INLINE_DROP_CMDS.has(cmd.name)) {
+          pushText(cursor, i);
+          cursor = cmd.nextPos;
+          i = cmd.nextPos;
+          continue;
+        }
+
+        // 3) \textcolor{red}{TEXT} 系 → 第二引数だけ採用 (再帰的にインライン抽出)
+        if (INLINE_UNWRAP_2_SECOND.has(cmd.name) && src[nameAfter] === "{") {
+          const firstClose = findMatchingBrace(src, nameAfter, end);
+          if (firstClose !== -1) {
+            const second = skipWS(firstClose + 1);
+            if (src[second] === "{") {
+              const secondClose = findMatchingBrace(src, second, end);
+              if (secondClose !== -1) {
+                pushText(cursor, i);
+                // 内側を再帰的に展開
+                const inner = extractInlines(src, second + 1, secondClose);
+                inlines.push(...inner);
+                cursor = secondClose + 1;
+                i = secondClose + 1;
+                continue;
+              }
+            }
+          }
+        }
+
+        // 4) \textbf{...} \textit{...} \texttt{...} 等 1 引数 unwrap
+        const unwrapKind = INLINE_UNWRAP_1[cmd.name];
+        if (unwrapKind && src[nameAfter] === "{") {
+          const braceEnd = findMatchingBrace(src, nameAfter, end);
+          if (braceEnd !== -1) {
+            pushText(cursor, i);
+            if (unwrapKind === "text") {
+              // text は再帰展開
+              const inner = extractInlines(src, nameAfter + 1, braceEnd);
+              inlines.push(...inner);
+            } else {
+              // bold/italic/code: 中身を再帰展開して "可視テキスト" を取り出す
+              // (\textbf{\textcolor{red}{X}} → bold("X") として保持)
+              const inner = extractInlines(src, nameAfter + 1, braceEnd);
+              const visibleBody = inner.map((it) => it.kind === "inlineMath" ? `$${it.body}$` : it.body).join("");
+              inlines.push({
+                id: nextId("inl"),
+                kind: unwrapKind,
+                range: { start: i, end: braceEnd + 1 },
+                body: visibleBody,
+              });
+            }
+            cursor = braceEnd + 1;
+            i = braceEnd + 1;
+            continue;
+          }
+        }
       }
     }
 
-    // \textit{...} or \emph{...}
-    const italicMatch =
-      src.startsWith("\\textit{", i) ? "\\textit"
-      : src.startsWith("\\emph{", i) ? "\\emph"
-      : null;
-    if (italicMatch) {
-      const braceStart = i + italicMatch.length;
-      const braceEnd = findMatchingBrace(src, braceStart, end);
+    // 単独の { ... } グループ → 中身を再帰展開 (フォント切替などのスコープ)
+    // 例: {\bfseries\color{ctnavy} 数学} のようなフォント切替グループ
+    if (ch === "{") {
+      const braceEnd = findMatchingBrace(src, i, end);
       if (braceEnd !== -1) {
         pushText(cursor, i);
-        inlines.push({
-          id: nextId("inl"),
-          kind: "italic",
-          range: { start: i, end: braceEnd + 1 },
-          body: src.slice(braceStart + 1, braceEnd),
-        });
-        cursor = braceEnd + 1;
-        i = braceEnd + 1;
-        continue;
-      }
-    }
-
-    // \texttt{...}
-    if (src.startsWith("\\texttt{", i)) {
-      const braceStart = i + "\\texttt".length;
-      const braceEnd = findMatchingBrace(src, braceStart, end);
-      if (braceEnd !== -1) {
-        pushText(cursor, i);
-        inlines.push({
-          id: nextId("inl"),
-          kind: "code",
-          range: { start: i, end: braceEnd + 1 },
-          body: src.slice(braceStart + 1, braceEnd),
-        });
+        const inner = extractInlines(src, i + 1, braceEnd);
+        inlines.push(...inner);
         cursor = braceEnd + 1;
         i = braceEnd + 1;
         continue;
@@ -353,8 +458,23 @@ const HEADING_PATTERNS: ReadonlyArray<{
   { prefix: "\\section{",        kind: "section",       cmdLen: "\\section".length,        starred: false },
 ];
 
-/** 単独命令 ( \maketitle 等 ) の正規表現 */
-const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|newpage|clearpage|pagebreak|linebreak|hline|midrule|toprule|bottomrule|noindent|smallskip|medskip|bigskip)\b/;
+/** 単独命令 ( \maketitle 等 ) の正規表現 — 引数なし */
+const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|newpage|clearpage|pagebreak|linebreak|hline|midrule|toprule|bottomrule|noindent|smallskip|medskip|bigskip|par|centering|raggedright|raggedleft|onehalfspacing|doublespacing|singlespacing|null|@empty)\b/;
+
+/** 1 つの引数 {…} を取って表示上は無視する命令 (vspace / hspace / setcounter / addtocounter 等)
+ *  さらに * 付き variant (\vspace*) も自動でマッチさせる。 */
+const ONE_ARG_HIDDEN_CMDS = new Set([
+  "vspace", "hspace", "vskip", "hskip", "vfill", "hfill",
+  "setcounter", "addtocounter", "stepcounter", "refstepcounter",
+  "label", "ref", "pageref", "eqref", "cite",
+  "input", "include", "thispagestyle", "pagestyle",
+  "rule", "phantom", "vphantom", "hphantom",
+]);
+
+/** 2 つの引数 {…}{…} を取って表示上は無視する命令 */
+const TWO_ARG_HIDDEN_CMDS = new Set([
+  "rule",
+]);
 
 function parseBody(src: string, start: number, end: number): Segment[] {
   const segments: Segment[] = [];
@@ -490,7 +610,7 @@ function parseBody(src: string, start: number, end: number): Segment[] {
     }
 
     // 単独命令 (\maketitle 等)
-    const remaining = src.slice(i, Math.min(i + 30, end));
+    const remaining = src.slice(i, Math.min(i + 40, end));
     const standaloneMatch = remaining.match(STANDALONE_CMD_RE);
     if (standaloneMatch) {
       const cmdEnd = i + standaloneMatch[0].length;
@@ -499,10 +619,42 @@ function parseBody(src: string, start: number, end: number): Segment[] {
         kind: "raw",
         range: { start: i, end: cmdEnd },
         body: src.slice(i, cmdEnd),
-        meta: { isStandalone: "true", cmd: standaloneMatch[1] },
+        meta: { isStandalone: "true", cmd: standaloneMatch[1], hidden: "true" },
       });
       i = cmdEnd;
       continue;
+    }
+
+    // 1〜2 引数の「表示上は無視する」命令 (\vspace{6mm} / \setcounter{x}{1} 等)
+    const hiddenCmdMatch = remaining.match(/^\\([a-zA-Z@]+)\*?\s*\{/);
+    if (hiddenCmdMatch) {
+      const cmdName = hiddenCmdMatch[1];
+      if (ONE_ARG_HIDDEN_CMDS.has(cmdName) || TWO_ARG_HIDDEN_CMDS.has(cmdName)) {
+        // 第一引数の終端を探す
+        const firstBraceIdx = i + hiddenCmdMatch[0].length - 1;
+        const firstClose = findMatchingBrace(src, firstBraceIdx, end);
+        if (firstClose !== -1) {
+          let cmdEnd = firstClose + 1;
+          // 第二引数があるならそれも消費
+          if (TWO_ARG_HIDDEN_CMDS.has(cmdName)) {
+            let j = cmdEnd;
+            while (j < end && (src[j] === " " || src[j] === "\t")) j++;
+            if (src[j] === "{") {
+              const secondClose = findMatchingBrace(src, j, end);
+              if (secondClose !== -1) cmdEnd = secondClose + 1;
+            }
+          }
+          segments.push({
+            id: nextId("seg"),
+            kind: "raw",
+            range: { start: i, end: cmdEnd },
+            body: src.slice(i, cmdEnd),
+            meta: { isStandalone: "true", cmd: cmdName, hidden: "true" },
+          });
+          i = cmdEnd;
+          continue;
+        }
+      }
     }
 
     // それ以外 → 段落として次の改行2つまで読む (ただし、上記の構文に当たったら停止)
@@ -510,7 +662,7 @@ function parseBody(src: string, start: number, end: number): Segment[] {
     let paraEnd = end;
     let scan = i;
     while (scan < end) {
-      // 構文の境界 (見出し / \begin / \[ / $$) に当たったら停止
+      // 構文の境界 (見出し / \begin / \[ / $$ / 各種非表示コマンド) に当たったら停止
       if (
         src.startsWith("\\section{", scan) ||
         src.startsWith("\\section*{", scan) ||
@@ -521,14 +673,23 @@ function parseBody(src: string, start: number, end: number): Segment[] {
         src.startsWith("\\paragraph{", scan) ||
         src.startsWith("\\begin{", scan) ||
         src.startsWith("\\[", scan) ||
-        src.startsWith("$$", scan) ||
-        src.startsWith("\\maketitle", scan) ||
-        src.startsWith("\\tableofcontents", scan) ||
-        src.startsWith("\\newpage", scan) ||
-        src.startsWith("\\clearpage", scan)
+        src.startsWith("$$", scan)
       ) {
         paraEnd = scan;
         break;
+      }
+      // 単独命令 / 1引数命令を見つけたらそこで段落を打ち切る (scan が paraStart より進んでいるときのみ)
+      if (src[scan] === "\\" && scan > paraStart) {
+        const tail = src.slice(scan, Math.min(scan + 40, end));
+        if (STANDALONE_CMD_RE.test(tail)) {
+          paraEnd = scan;
+          break;
+        }
+        const m = tail.match(/^\\([a-zA-Z@]+)\*?\s*\{/);
+        if (m && (ONE_ARG_HIDDEN_CMDS.has(m[1]) || TWO_ARG_HIDDEN_CMDS.has(m[1]))) {
+          paraEnd = scan;
+          break;
+        }
       }
       // \n\n で段落終端
       if (src[scan] === "\n") {

@@ -6,6 +6,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
 import { generatePDF } from "@/lib/api";
@@ -179,14 +180,39 @@ function ViewToolsMenu({
   pdfDesc,
 }: ViewToolsMenuProps) {
   const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
+  // open 時にトリガー位置を計算 (viewport 座標。position: fixed で配置するので)
+  useEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const update = () => {
+      const rect = trigger.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open]);
+
+  // 外側クリック / Esc で閉じる
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -202,8 +228,9 @@ function ViewToolsMenu({
   const anyActive = showSourcePanel || showPdfPanel;
 
   return (
-    <div ref={wrapperRef} className="relative shrink-0">
+    <div className="relative shrink-0">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] ${
@@ -218,8 +245,12 @@ function ViewToolsMenu({
         <ChevronDown className={`h-3 w-3 text-foreground/40 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-[280px] z-50 rounded-xl border border-border/60 bg-popover shadow-2xl shadow-foreground/10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed w-[280px] rounded-xl border border-border/60 bg-popover shadow-2xl shadow-foreground/20 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150"
+          style={{ top: pos.top, right: pos.right, zIndex: 9999 }}
+        >
           <div className="px-3 py-2 border-b border-border/40 bg-muted/30">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               {label}
@@ -247,7 +278,8 @@ function ViewToolsMenu({
               }}
             />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

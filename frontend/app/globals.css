@@ -1200,24 +1200,47 @@ html {
   margin-left: -4px;
 }
 
-/* インライン数式チップ ─ 緑のミニ・テキストボックス */
+/* インライン数式チップ ─ 緑のミニ・テキストボックス
+   通常時は KaTeX レンダリングしたプレビュー、
+   focus すると edit モードに切り替わって生 LaTeX を編集できる */
 .math-chip {
   display: inline-block;
-  vertical-align: baseline;
+  vertical-align: -0.15em;
   margin: 0 2px;
   padding: 1px 6px;
   border: 1px solid #65a30d80;          /* lime-600 半透明 */
-  background: rgba(132, 204, 22, 0.10); /* lime-500 / 10% */
+  background: rgba(132, 204, 22, 0.08); /* lime-500 / 8% */
   border-radius: 5px;
   color: #3f6212;                        /* lime-800 */
-  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
-  font-size: 0.92em;
+  font-size: 0.96em;
   line-height: 1.4;
   outline: none;
   cursor: text;
-  white-space: pre;
   caret-color: #3f6212;
   transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+/* edit モード = ソース表示 (monospace) */
+.math-chip[data-editing="1"] {
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 0.92em;
+  white-space: pre;
+  background: rgba(132, 204, 22, 0.16);
+}
+/* preview モードの中身 (KaTeX) はクリック透過させる */
+.math-chip-render {
+  display: inline-block;
+  pointer-events: none;
+}
+.math-chip-render .katex {
+  font-size: 1em;
+}
+/* render に失敗したフォールバック */
+.math-chip-fallback {
+  display: inline-block;
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 0.92em;
+  color: #b91c1c;
+  pointer-events: none;
 }
 .math-chip:hover {
   background: rgba(132, 204, 22, 0.15);
@@ -1297,19 +1320,36 @@ html {
   box-shadow: 0 0 0 3px rgba(252, 211, 77, 0.20);
 }
 
-/* 表示数式ブロック ─ 緑の大きめテキストボックス */
+/* 表示数式ブロック ─ 緑の大きめテキストボックス
+   通常時は KaTeX レンダリング、focus すると edit モード */
 .display-math-block {
   display: block;
-  padding: 12px 18px;
+  padding: 14px 20px;
   border: 1px solid #65a30d80;
-  background: rgba(132, 204, 22, 0.08);
+  background: rgba(132, 204, 22, 0.06);
   border-radius: 8px;
   color: #3f6212;
-  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
+  text-align: center;
   caret-color: #3f6212;
   transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.display-math-block[data-editing="1"] {
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 14px;
+  text-align: left;
+  background: rgba(132, 204, 22, 0.12);
+}
+.display-math-render {
+  display: inline-block;
+  pointer-events: none;
+}
+.display-math-fallback {
+  display: inline-block;
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  color: #b91c1c;
+  pointer-events: none;
 }
 .display-math-block:hover {
   background: rgba(132, 204, 22, 0.12);

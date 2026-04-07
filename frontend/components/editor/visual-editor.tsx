@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
+import "katex/contrib/mhchem";
 import {
   parseLatexToSegments,
   replaceRange,
@@ -11,6 +14,22 @@ import {
 } from "@/lib/latex-segments";
 import { parseJapanesemath } from "@/lib/math-japanese";
 import { useI18n } from "@/lib/i18n";
+
+/** KaTeX で安全に HTML 文字列を生成 (失敗時はソースをそのまま返す) */
+function renderMathToHTML(latex: string, displayMode: boolean): string {
+  if (!latex.trim()) return "";
+  try {
+    return katex.renderToString(latex, {
+      throwOnError: false,
+      displayMode,
+      trust: true,
+      strict: "ignore",
+      output: "html",
+    });
+  } catch {
+    return "";
+  }
+}
 // useUIStore is intentionally not imported — VisualEditor never reveals LaTeX source.
 
 interface VisualEditorProps {
@@ -376,15 +395,12 @@ function ContentEditableBlock({ segment, onCommit, tag: Tag, className }: Conten
   const initialHTML = useMemo(() => buildInlinesHTML(segment.inlines ?? []), [segment.inlines]);
 
   // 外部 (ストア / テンプレ切替 / AI 編集) 由来でセグメント body が変わったら DOM を同期する。
-  // フォーカス中はユーザーの編集を壊さないため触らない。
-  // チェックは「現在の DOM をシリアライズ → segment.body と一致するか」で行う。
-  // 自分自身の編集の結果として再パースされた場合は一致するので no-op。
-  // 別所からの差し替えでは不一致になるので innerHTML を再構築する。
-  // (React がノードを再利用するケースでも確実に動く)
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
     if (typeof document !== "undefined" && document.activeElement === node) return;
+    // 子孫にフォーカスが入っている場合 (math chip 編集中) も触らない
+    if (typeof document !== "undefined" && node.contains(document.activeElement)) return;
     const currentSerialized = serializeContentEditableDOM(node);
     if (currentSerialized.trim() === segment.body.trim()) {
       lastSerialized.current = currentSerialized;
@@ -393,6 +409,35 @@ function ContentEditableBlock({ segment, onCommit, tag: Tag, className }: Conten
     node.innerHTML = initialHTML;
     lastSerialized.current = serializeContentEditableDOM(node);
   }, [initialHTML, segment.body]);
+
+  // math chip の focus/blur で edit/preview モードを切り替えるためのイベント委譲
+  // (focusin/focusout はバブリング、focus/blur はバブリングしないので focusin/out を使う)
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const onFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const chip = findEnclosingChip(target);
+      if (chip) chipEnterEditMode(chip);
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const chip = findEnclosingChip(target);
+      if (!chip) return;
+      // 次にフォーカスが行くノードが同じ chip 内なら何もしない
+      const nextFocus = e.relatedTarget as Node | null;
+      if (nextFocus && chip.contains(nextFocus)) return;
+      chipExitEditMode(chip);
+    };
+    node.addEventListener("focusin", onFocusIn);
+    node.addEventListener("focusout", onFocusOut);
+    return () => {
+      node.removeEventListener("focusin", onFocusIn);
+      node.removeEventListener("focusout", onFocusOut);
+    };
+  }, []);
 
   return (
     <Tag
@@ -411,6 +456,9 @@ function ContentEditableBlock({ segment, onCommit, tag: Tag, className }: Conten
       onKeyDown={handleMathToggleKeyDown}
       onBlur={(e) => {
         const el = e.currentTarget as HTMLElement;
+        // 子孫 (math chip) にフォーカスが移っただけなら commit しない
+        const next = e.relatedTarget as Node | null;
+        if (next && el.contains(next)) return;
         const newSerialized = serializeContentEditableDOM(el);
         if (newSerialized !== lastSerialized.current) {
           lastSerialized.current = newSerialized;
@@ -434,18 +482,44 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
   const ref = useRef<HTMLDivElement | null>(null);
   const lastWritten = useRef(initialBody);
 
-  // 外部更新の同期: DOM の現在 textContent と prop が違えば書き直す。
-  // ノード再利用 (テンプレ切替) でも確実に動く。
+  /** プレビューモードに戻す (KaTeX レンダリング) */
+  const renderPreview = (node: HTMLDivElement, source: string) => {
+    node.dataset.source = source;
+    delete node.dataset.editing;
+    if (!source.trim()) {
+      node.innerHTML = '<span class="display-math-fallback" contenteditable="false">&nbsp;</span>';
+      return;
+    }
+    const html = renderMathToHTML(source, true);
+    node.innerHTML = html
+      ? `<span class="display-math-render" contenteditable="false">${html}</span>`
+      : `<span class="display-math-fallback" contenteditable="false">${source.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] ?? c))}</span>`;
+  };
+
+  /** 編集モードに切替 (ソース文字列を表示) */
+  const enterEditMode = (node: HTMLDivElement) => {
+    if (node.dataset.editing === "1") return;
+    node.dataset.editing = "1";
+    node.textContent = node.dataset.source ?? "";
+    if (typeof window !== "undefined") {
+      const sel = window.getSelection();
+      if (sel) {
+        const range = window.document.createRange();
+        range.selectNodeContents(node);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+  };
+
+  // 外部更新 (テンプレ切替 / ストア反映) の同期
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
     if (typeof document !== "undefined" && document.activeElement === node) return;
-    const current = (node.textContent || "").replace(/\u200B/g, "");
-    if (current === initialBody) {
-      lastWritten.current = current;
-      return;
-    }
-    node.textContent = initialBody;
+    if ((node.dataset.source ?? "") === initialBody) return;
+    renderPreview(node, initialBody);
     lastWritten.current = initialBody;
   }, [initialBody]);
 
@@ -454,8 +528,8 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
       ref={(node: HTMLDivElement | null) => {
         ref.current = node;
         if (node && !node.dataset.initialized) {
-          node.textContent = initialBody;
           node.dataset.initialized = "1";
+          renderPreview(node, initialBody);
           lastWritten.current = initialBody;
         }
       }}
@@ -463,9 +537,11 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
       suppressContentEditableWarning
       spellCheck={false}
       className="display-math-block my-4 cursor-text outline-none whitespace-pre-wrap"
+      onFocus={(e) => enterEditMode(e.currentTarget)}
       onBlur={(e) => {
         const el = e.currentTarget as HTMLDivElement;
         const text = (el.textContent || "").replace(/\u200B/g, "");
+        renderPreview(el, text);
         if (text !== lastWritten.current) {
           lastWritten.current = text;
           onCommit(text);
@@ -476,12 +552,51 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
 }
 
 // ─────────────────────────────────────
-// 数式チップの挿入 / exit (Cmd/Ctrl+M ハンドラ)
-//
-//   Cmd+M       — LaTeX 用 math chip (緑) を挿入 / 中なら exit
-//   Cmd+Shift+M — 自然言語 (日本語) 用 math chip (アンバー) を挿入
-//                 中で Cmd+M を押すと parseJapanesemath で変換され、緑チップになる
+// 数式チップ — KaTeX プレビュー / 編集モードの切替
 // ─────────────────────────────────────
+
+/** チップを「編集モード」に切替 — プレビューを消してソース文字列を入れる */
+function chipEnterEditMode(chip: HTMLElement): void {
+  if (chip.dataset.editing === "1") return;
+  const source = chip.dataset.source ?? "";
+  chip.dataset.editing = "1";
+  // プレビューを破棄
+  chip.textContent = source;
+  // カーソルを末尾に移動
+  if (typeof window !== "undefined") {
+    const sel = window.getSelection();
+    if (sel) {
+      const range = window.document.createRange();
+      range.selectNodeContents(chip);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+}
+
+/** チップを「プレビューモード」に戻す — KaTeX で再レンダリング */
+function chipExitEditMode(chip: HTMLElement): void {
+  if (chip.dataset.editing !== "1") return;
+  let source = (chip.textContent || "").replace(/\u200B/g, "").trim();
+  // 自然言語チップなら parseJapanesemath をかけて LaTeX に変換 (緑チップに格上げ)
+  if (chip.dataset.nlMath === "1" && source) {
+    const converted = parseJapanesemath(source);
+    if (converted) source = converted;
+    delete chip.dataset.nlMath;
+    chip.classList.remove("math-chip-nl");
+  }
+  chip.dataset.source = source;
+  delete chip.dataset.editing;
+  if (!source) {
+    chip.innerHTML = '<span class="math-chip-fallback" contenteditable="false">&nbsp;</span>';
+    return;
+  }
+  const rendered = renderMathToHTML(source, false);
+  chip.innerHTML = rendered
+    ? `<span class="math-chip-render" contenteditable="false">${rendered}</span>`
+    : `<span class="math-chip-fallback" contenteditable="false">${source.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] ?? c))}</span>`;
+}
 
 function findEnclosingChip(node: Node | null): HTMLElement | null {
   while (node) {
@@ -505,23 +620,11 @@ function handleMathToggleKeyDown(e: React.KeyboardEvent<HTMLElement>) {
   if (!sel || sel.rangeCount === 0) return;
 
   const isNlMode = e.shiftKey;
-
-  // 現在のカーソル位置の祖先に math-chip があるか
   const chip = findEnclosingChip(sel.anchorNode);
 
   if (chip) {
-    // chip 内で押された
-    if (chip.dataset.nlMath === "1") {
-      // 自然言語チップ → parseJapanesemath で LaTeX に変換 → 緑チップに格上げ
-      const raw = (chip.textContent || "").replace(/\u200B/g, "").trim();
-      if (raw) {
-        const converted = parseJapanesemath(raw);
-        chip.textContent = converted || raw;
-      }
-      delete chip.dataset.nlMath;
-      chip.className = "math-chip";
-    }
-    // chip の直後にカーソルを移動 (exit)
+    // chip 内 → exit (プレビューに戻す & 直後にカーソル移動)
+    chipExitEditMode(chip);
     const range = window.document.createRange();
     range.setStartAfter(chip);
     range.collapse(true);
@@ -530,20 +633,18 @@ function handleMathToggleKeyDown(e: React.KeyboardEvent<HTMLElement>) {
     return;
   }
 
-  // chip 外 → 新しい空の math chip を挿入
+  // chip 外 → 新規挿入 (常に edit モードで)
   const range = sel.getRangeAt(0);
   const selectedText = sel.toString();
   const span = window.document.createElement("span");
   span.dataset.mathChip = "1";
   span.dataset.wrapper = "dollar";
+  span.dataset.source = selectedText;
+  span.dataset.editing = "1";
   span.contentEditable = "true";
   span.textContent = selectedText || "\u200B";
-  if (isNlMode) {
-    span.dataset.nlMath = "1";
-    span.className = "math-chip math-chip-nl";
-  } else {
-    span.className = "math-chip";
-  }
+  span.className = isNlMode ? "math-chip math-chip-nl" : "math-chip";
+  if (isNlMode) span.dataset.nlMath = "1";
   range.deleteContents();
   range.insertNode(span);
 
@@ -611,6 +712,29 @@ interface TrailingEditableParagraphProps {
 }
 
 function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: TrailingEditableParagraphProps) {
+  // math chip の focus / blur で edit/preview モードを切り替えるためのイベント委譲
+  useEffect(() => {
+    const node = innerRef.current;
+    if (!node) return;
+    const onFocusIn = (e: FocusEvent) => {
+      const chip = findEnclosingChip(e.target as HTMLElement | null);
+      if (chip) chipEnterEditMode(chip);
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      const chip = findEnclosingChip(e.target as HTMLElement | null);
+      if (!chip) return;
+      const next = e.relatedTarget as Node | null;
+      if (next && chip.contains(next)) return;
+      chipExitEditMode(chip);
+    };
+    node.addEventListener("focusin", onFocusIn);
+    node.addEventListener("focusout", onFocusOut);
+    return () => {
+      node.removeEventListener("focusin", onFocusIn);
+      node.removeEventListener("focusout", onFocusOut);
+    };
+  }, [innerRef]);
+
   return (
     <p
       ref={(node: HTMLParagraphElement | null) => {
@@ -624,7 +748,9 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
       onKeyDown={handleMathToggleKeyDown}
       onBlur={(e) => {
         const el = e.currentTarget as HTMLElement;
-        // chip も含めてシリアライズ (生 textContent ではなく serializer を使う)
+        // 子孫 (math chip) にフォーカスが移っただけなら commit しない
+        const next = e.relatedTarget as Node | null;
+        if (next && el.contains(next)) return;
         const text = serializeContentEditableDOM(el).replace(/\u200B/g, "").trim();
         if (text) {
           el.textContent = "";
@@ -648,6 +774,21 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/** math chip の初期 HTML を生成。
+ *  source が空 (新規挿入) なら edit モードでマウントされる前提でプレースホルダだけ。
+ *  そうでなければ KaTeX レンダリング結果をプレビューとして表示する (中身は contentEditable=false)。
+ *  チップ自体は contentEditable=true (React 外で focusin/focusout 時に edit/preview を切り替える)。 */
+function buildMathChipHTML(source: string, wrapper: string, nl: boolean): string {
+  const cls = nl ? "math-chip math-chip-nl" : "math-chip";
+  const safeSource = escapeHtml(source);
+  const rendered = nl ? "" : renderMathToHTML(source, false);
+  // プレビュー span は inner-render として描画。空 (=エラー or 空) ならソースをそのまま薄く出す。
+  const inner = rendered
+    ? `<span class="math-chip-render" contenteditable="false">${rendered}</span>`
+    : `<span class="math-chip-fallback" contenteditable="false">${safeSource || "&nbsp;"}</span>`;
+  return `<span data-math-chip="1" data-wrapper="${wrapper}" data-source="${safeSource}"${nl ? ' data-nl-math="1"' : ""} contenteditable="true" class="${cls}">${inner}</span>`;
+}
+
 /** Inline 配列から contentEditable 用の初期 HTML を組み立てる */
 function buildInlinesHTML(inlines: Inline[]): string {
   let html = "";
@@ -655,10 +796,7 @@ function buildInlinesHTML(inlines: Inline[]): string {
     if (inline.kind === "text") {
       html += escapeHtml(inline.body);
     } else if (inline.kind === "inlineMath") {
-      // 数式は緑のチップとして文中に直接編集可能なまま埋め込む。
-      // contenteditable="true" にして、その場で生 LaTeX を編集できるようにする。
-      // wrapper を data 属性で保持して、シリアライズ時に $...$ / \(...\) を復元する。
-      html += `<span data-math-chip="1" data-wrapper="dollar" contenteditable="true" class="math-chip">${escapeHtml(inline.body)}</span>`;
+      html += buildMathChipHTML(inline.body, "dollar", false);
     } else if (inline.kind === "bold") {
       html += `<strong>${escapeHtml(inline.body)}</strong>`;
     } else if (inline.kind === "italic") {
@@ -684,12 +822,18 @@ export function serializeContentEditableDOM(el: HTMLElement): string {
     const tag = child.tagName.toLowerCase();
 
     if (child.dataset.mathChip === "1") {
-      // ライブの textContent を読む (ユーザーが chip 内で編集した可能性)
-      let body = (child.textContent || "").replace(/\u200B/g, "");
-      if (!body.trim()) continue; // 空 chip は出力しない (誤って $$ になるのを避ける)
-      // 自然言語チップは parseJapanesemath で LaTeX に変換してから出力
+      // 編集中チップは textContent をライブで読む。プレビュー中チップは data-source を読む。
+      let body: string;
+      if (child.dataset.editing === "1") {
+        body = (child.textContent || "").replace(/\u200B/g, "");
+      } else {
+        body = child.dataset.source ?? "";
+      }
+      body = body.trim();
+      if (!body) continue;
+      // 自然言語チップは parseJapanesemath で LaTeX に変換
       if (child.dataset.nlMath === "1") {
-        const converted = parseJapanesemath(body.trim());
+        const converted = parseJapanesemath(body);
         if (converted) body = converted;
       }
       const wrapper = child.dataset.wrapper || "dollar";
