@@ -221,7 +221,7 @@ const ja = {
   "header.theme.toggle": "テーマ切替",
 
   // Edit toolbar (extended)
-  "edit.toolbar.mode_badge": "テンプレ駆動 LaTeX",
+  "edit.toolbar.mode_badge": "Eddivom",
   "edit.toolbar.template.label": "テンプレ",
   "edit.toolbar.template.confirm_overwrite": "現在のLaTeXソースを上書きしますか?",
   "edit.toolbar.scan.tooltip": "画像・PDFを読み取り (OMR)",
@@ -566,7 +566,7 @@ const en = {
   "header.theme.toggle": "Toggle theme",
 
   // Edit toolbar (extended)
-  "edit.toolbar.mode_badge": "Template-driven LaTeX",
+  "edit.toolbar.mode_badge": "Eddivom",
   "edit.toolbar.template.label": "Template",
   "edit.toolbar.template.confirm_overwrite": "Overwrite the current LaTeX source?",
   "edit.toolbar.scan.tooltip": "Scan image/PDF (OMR)",

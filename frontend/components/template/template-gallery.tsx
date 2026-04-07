@@ -750,9 +750,9 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
                 <span className="text-gray-400">(1)</span>
                 <M t="3x^2 + 5x - 2 = 0" />
               </p>
-              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
-                <p className="text-[10.5px] text-red-700 leading-relaxed">
-                  <M t="(3x-1)(x+2)=0 \quad \therefore\; x=\dfrac{1}{3},\; -2" />
+              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5 overflow-x-auto">
+                <p className="text-[10.5px] text-red-700 whitespace-nowrap">
+                  <M t="(3x-1)(x+2)=0,\ x=\tfrac13,-2" />
                 </p>
               </div>
             </div>
@@ -761,9 +761,9 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
                 <span className="text-gray-400">(2)</span>
                 <M t="\log_2 8 + \log_2 4" />
               </p>
-              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
-                <p className="text-[10.5px] text-red-700">
-                  <M t="= \log_2 32 = \mathbf{5}" />
+              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5 overflow-x-auto">
+                <p className="text-[10.5px] text-red-700 whitespace-nowrap">
+                  <M t="=\log_2 32=\mathbf{5}" />
                 </p>
               </div>
             </div>
@@ -775,24 +775,24 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
           </p>
           <div className="space-y-2.5">
             <div>
-              <p className="text-[11px] text-gray-600">
-                <span className="mr-2 text-gray-400">(1)</span>
-                {isJa ? "頂点の座標" : "Vertex"}
+              <p className="text-[11px] text-gray-600 flex items-baseline gap-1">
+                <span className="text-gray-400">(1)</span>
+                <span>{isJa ? "頂点の座標" : "Vertex"}</span>
               </p>
-              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
-                <p className="text-[10.5px] text-red-700">
-                  <M t="f(x)=(x-2)^2-1 \quad \therefore\;" /><strong>{isJa ? "頂点 (2, −1)" : "(2, −1)"}</strong>
+              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5 overflow-x-auto">
+                <p className="text-[10.5px] text-red-700 whitespace-nowrap">
+                  <M t="f(x)=(x-2)^2-1,\ \therefore\ (2,-1)" />
                 </p>
               </div>
             </div>
             <div>
-              <p className="text-[11px] text-gray-600">
-                <span className="mr-2 text-gray-400">(2)</span>
-                f(x) = 0
+              <p className="text-[11px] text-gray-600 flex items-baseline gap-1">
+                <span className="text-gray-400">(2)</span>
+                <M t="f(x)=0" />
               </p>
-              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5">
-                <p className="text-[10.5px] text-red-700">
-                  (x−1)(x−3) = 0　∴　<strong>x = 1, 3</strong>
+              <div className="ml-5 mt-1 bg-red-50/80 border-l-2 border-red-400 px-2.5 py-1.5 overflow-x-auto">
+                <p className="text-[10.5px] text-red-700 whitespace-nowrap">
+                  <M t="(x-1)(x-3)=0,\ \therefore\ x=1,3" />
                 </p>
               </div>
             </div>

@@ -8,7 +8,8 @@
  * ・各カードは TemplatePreview (実際の出力に近いミニチュア) を主役にする
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   TEMPLATES,
   TEMPLATE_CATEGORIES,
@@ -31,6 +32,11 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
   const [open, setOpen] = useState(false);
   const [activeCat, setActiveCat] = useState<TemplateCategory | "all">("all");
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  // ポップオーバーをツールバー (backdrop-blur で stacking context が固定される) の外に
+  // 描画するため createPortal + fixed positioning を使う。
+  const [pos, setPos] = useState<{ top: number; left: number; maxWidth: number } | null>(null);
 
   const current = TEMPLATES.find((tpl) => tpl.id === currentId) ?? TEMPLATES[0];
 
@@ -39,10 +45,41 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
     return TEMPLATES.filter((t) => t.category === activeCat);
   }, [activeCat]);
 
+  // open 中はトリガーの位置を追跡 (resize / scroll に追従)
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const desired = 920;
+      const margin = 16;
+      const maxWidth = Math.min(desired, window.innerWidth - margin * 2);
+      // トリガー左端を起点に左寄せ。右端がはみ出すなら左方向に押し戻す。
+      let left = rect.left;
+      if (left + maxWidth + margin > window.innerWidth) {
+        left = window.innerWidth - maxWidth - margin;
+      }
+      if (left < margin) left = margin;
+      setPos({ top: rect.bottom + 6, left, maxWidth });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open]);
+
+  // 外側クリック / Esc で閉じる (portal 経由でも triggerRef と popoverRef で判定)
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      if (wrapperRef.current && !wrapperRef.current.contains(target)) {
         setOpen(false);
       }
     };
@@ -68,6 +105,7 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
           {label}
         </span>
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen((v) => !v)}
           className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.10] bg-white/70 dark:bg-white/5 text-[11px] text-foreground/85 hover:bg-white dark:hover:bg-white/10 transition-colors"
@@ -85,9 +123,13 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
         </button>
       </div>
 
-      {/* ── Popover ── */}
-      {open && (
-        <div className="absolute left-0 top-full mt-1.5 w-[920px] max-w-[calc(100vw-2rem)] z-50 rounded-2xl border border-border/60 bg-popover shadow-2xl shadow-foreground/10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+      {/* ── Popover (portal でツールバーの stacking context 外に描画) ── */}
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed rounded-2xl border border-border/60 bg-popover shadow-2xl shadow-foreground/20 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150"
+          style={{ top: pos.top, left: pos.left, width: pos.maxWidth, zIndex: 9999 }}
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 bg-gradient-to-r from-muted/40 to-transparent">
             <div className="flex items-center gap-2">
@@ -139,7 +181,8 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
