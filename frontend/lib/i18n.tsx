@@ -227,8 +227,13 @@ const ja = {
   "edit.toolbar.scan.tooltip": "画像・PDFを読み取り (OMR)",
   "edit.toolbar.pdf.tooltip": "PDFをダウンロード",
   "edit.toolbar.pdf.error": "PDF生成に失敗しました",
-  "edit.toolbar.toggle.source": "LaTeXソースを表示/非表示",
-  "edit.toolbar.toggle.pdf": "PDFプレビューを表示/非表示",
+  "edit.toolbar.toggle.source": "ソースを表示/非表示",
+  "edit.toolbar.toggle.pdf": "印刷プレビューを表示/非表示",
+  "edit.toolbar.tools.label": "表示",
+  "edit.toolbar.tools.source": "ソース表示",
+  "edit.toolbar.tools.source.desc": "上級者向け。書類の元コードを左側に表示します。",
+  "edit.toolbar.tools.pdf": "印刷プレビュー",
+  "edit.toolbar.tools.pdf.desc": "PDFとして印刷したときの仕上がりを右側に表示します。",
 
   // Status bar (extended)
   "status.chars": "文字",
@@ -567,8 +572,13 @@ const en = {
   "edit.toolbar.scan.tooltip": "Scan image/PDF (OMR)",
   "edit.toolbar.pdf.tooltip": "Download PDF",
   "edit.toolbar.pdf.error": "PDF generation failed",
-  "edit.toolbar.toggle.source": "Show / hide LaTeX source",
-  "edit.toolbar.toggle.pdf": "Show / hide PDF preview",
+  "edit.toolbar.toggle.source": "Show / hide source",
+  "edit.toolbar.toggle.pdf": "Show / hide print preview",
+  "edit.toolbar.tools.label": "Views",
+  "edit.toolbar.tools.source": "Source view",
+  "edit.toolbar.tools.pdf": "Print preview",
+  "edit.toolbar.tools.source.desc": "Advanced. Shows the underlying document code on the left.",
+  "edit.toolbar.tools.pdf.desc": "Shows what the document will look like when printed as a PDF.",
 
   // Status bar (extended)
   "status.chars": "chars",

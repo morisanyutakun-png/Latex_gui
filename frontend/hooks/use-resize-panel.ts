@@ -7,6 +7,9 @@ interface UseResizePanelOptions {
   maxWidth?: number;
   defaultWidth?: number;
   storageKey?: string;
+  /** "right" = panel sits on the right of viewport (drag left = wider, default).
+   *  "left" = panel sits on the left of viewport (drag right = wider). */
+  side?: "left" | "right";
 }
 
 export function useResizePanel({
@@ -14,6 +17,7 @@ export function useResizePanel({
   maxWidth = 600,
   defaultWidth = 384,
   storageKey = "eddivom-sidebar-width",
+  side = "right",
 }: UseResizePanelOptions = {}) {
   const [width, setWidth] = useState(() => {
     if (typeof window === "undefined") return defaultWidth;
@@ -60,8 +64,10 @@ export function useResizePanel({
     const handleMouseMove = (e: MouseEvent) => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
-        // Sidebar is on the right, so dragging left = wider
-        const delta = startXRef.current - e.clientX;
+        // For right-side panel: drag left → wider. For left-side panel: drag right → wider.
+        const delta = side === "left"
+          ? e.clientX - startXRef.current
+          : startXRef.current - e.clientX;
         const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidthRef.current + delta));
         setWidth(newWidth);
       });
@@ -84,7 +90,7 @@ export function useResizePanel({
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
-  }, [isDragging, minWidth, maxWidth]);
+  }, [isDragging, minWidth, maxWidth, side]);
 
   return { width, isDragging, handleMouseDown, setWidth };
 }

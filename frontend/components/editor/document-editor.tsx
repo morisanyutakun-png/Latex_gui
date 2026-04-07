@@ -4,19 +4,21 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { compileRawLatex } from "@/lib/api";
+import { useResizePanel } from "@/hooks/use-resize-panel";
 import { useI18n } from "@/lib/i18n";
-import { FileText, Loader2, AlertTriangle, RefreshCw, Code2 } from "lucide-react";
+import { FileText, Loader2, AlertTriangle, RefreshCw, Code2, X } from "lucide-react";
 import { VisualEditor } from "./visual-editor";
 
 /**
  * DocumentEditor — メインの編集領域
  *
  * レイアウト:
- * ┌─ VisualEditor (常時表示) ─┬─ optional PDF iframe ─┬─ optional LaTeX textarea ─┐
- * │  contentEditable + KaTeX  │ (showPdfPanel)        │ (showSourcePanel)         │
- * └───────────────────────────┴───────────────────────┴───────────────────────────┘
+ * ┌─ optional Source ─┬─ VisualEditor (常時) ─┬─ optional PDF ─┐
+ * │ (showSourcePanel) │  contentEditable + KaTeX │ (showPdfPanel) │
+ * └───────────────────┴───────────────────────┴────────────────┘
  *
- * デフォルトは VisualEditor のみ。PDF / LaTeX ソースはツールバーから opt-in。
+ * デフォルトは VisualEditor のみ。両側パネルはツールバー (表示メニュー) から opt-in。
+ * 両側パネルは resize ハンドル付きで幅を自由に調整できる。
  */
 export function DocumentEditor() {
   const { t } = useI18n();
@@ -24,6 +26,24 @@ export function DocumentEditor() {
   const setLatex = useDocumentStore((s) => s.setLatex);
   const showSourcePanel = useUIStore((s) => s.showSourcePanel);
   const showPdfPanel = useUIStore((s) => s.showPdfPanel);
+  const setShowSourcePanel = useUIStore((s) => s.setShowSourcePanel);
+  const setShowPdfPanel = useUIStore((s) => s.setShowPdfPanel);
+
+  const sourcePanel = useResizePanel({
+    side: "left",
+    minWidth: 300,
+    maxWidth: 720,
+    defaultWidth: 420,
+    storageKey: "eddivom-source-panel-width",
+  });
+
+  const pdfPanel = useResizePanel({
+    side: "right",
+    minWidth: 320,
+    maxWidth: 800,
+    defaultWidth: 480,
+    storageKey: "eddivom-pdf-panel-width",
+  });
 
   const latex = document?.latex ?? "";
 
@@ -37,44 +57,81 @@ export function DocumentEditor() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
-      {/* ── LaTeX source panel (opt-in, 左) ── */}
+      {/* ── Source panel (opt-in, 左, リサイズ可) ── */}
       {showSourcePanel && (
-        <LatexSourcePanel latex={latex} onChange={setLatex} />
+        <>
+          <LatexSourcePanel
+            latex={latex}
+            onChange={setLatex}
+            width={sourcePanel.width}
+            onClose={() => setShowSourcePanel(false)}
+          />
+          <div
+            className={`resize-handle ${sourcePanel.isDragging ? "is-dragging" : ""}`}
+            onMouseDown={sourcePanel.handleMouseDown}
+          />
+        </>
       )}
 
-      {/* ── Visual editor (常時, 中央) ── */}
+      {/* ── Visual editor (常時, 中央, flex で残りを埋める) ── */}
       <div className="flex flex-1 min-w-0 flex-col">
         <VisualEditor latex={latex} onChange={setLatex} />
       </div>
 
-      {/* ── PDF preview panel (opt-in, 右) ── */}
+      {/* ── PDF preview panel (opt-in, 右, リサイズ可) ── */}
       {showPdfPanel && (
-        <PdfPreviewPanel latex={latex} title={document.metadata.title || "preview"} />
+        <>
+          <div
+            className={`resize-handle ${pdfPanel.isDragging ? "is-dragging" : ""}`}
+            onMouseDown={pdfPanel.handleMouseDown}
+          />
+          <PdfPreviewPanel
+            latex={latex}
+            title={document.metadata.title || "preview"}
+            width={pdfPanel.width}
+            onClose={() => setShowPdfPanel(false)}
+          />
+        </>
       )}
     </div>
   );
 }
 
 // ─────────────────────────────────────
-// LatexSourcePanel — オプションの LaTeX ソース表示/編集
+// LatexSourcePanel — 上級者向けのソースパネル (左側固定、リサイズ可)
 // ─────────────────────────────────────
 
 interface LatexSourcePanelProps {
   latex: string;
   onChange: (latex: string) => void;
+  width: number;
+  onClose: () => void;
 }
 
-function LatexSourcePanel({ latex, onChange }: LatexSourcePanelProps) {
+function LatexSourcePanel({ latex, onChange, width, onClose }: LatexSourcePanelProps) {
   const { t } = useI18n();
   return (
-    <div className="flex w-[420px] shrink-0 flex-col border-r border-border/40 bg-background">
+    <div
+      className="flex shrink-0 flex-col bg-background"
+      style={{ width }}
+    >
       <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-1.5 shrink-0">
         <div className="flex items-center gap-2 text-xs font-medium text-foreground/70">
           <Code2 className="h-3.5 w-3.5" />
           {t("doc.editor.source.label")}
         </div>
-        <div className="text-[10px] font-mono text-muted-foreground">
-          {latex.length.toLocaleString()} chars
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-muted-foreground">
+            {latex.length.toLocaleString()} chars
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+            title={t("panel.close")}
+          >
+            <X className="h-3 w-3" />
+          </button>
         </div>
       </div>
       <textarea
@@ -89,15 +146,17 @@ function LatexSourcePanel({ latex, onChange }: LatexSourcePanelProps) {
 }
 
 // ─────────────────────────────────────
-// PdfPreviewPanel — オプションのコンパイル済み PDF プレビュー
+// PdfPreviewPanel — オプションのコンパイル済み PDF プレビュー (右側、リサイズ可)
 // ─────────────────────────────────────
 
 interface PdfPreviewPanelProps {
   latex: string;
   title: string;
+  width: number;
+  onClose: () => void;
 }
 
-function PdfPreviewPanel({ latex, title }: PdfPreviewPanelProps) {
+function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps) {
   const { t } = useI18n();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
@@ -151,7 +210,10 @@ function PdfPreviewPanel({ latex, title }: PdfPreviewPanelProps) {
   const handleManualCompile = () => runCompile(latex);
 
   return (
-    <div className="flex flex-1 min-w-0 max-w-[50%] flex-col border-l border-border/40 bg-muted/10">
+    <div
+      className="flex shrink-0 flex-col bg-muted/10"
+      style={{ width }}
+    >
       <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-1.5 shrink-0">
         <div className="flex items-center gap-2 text-xs font-medium text-foreground/70">
           <FileText className="h-3.5 w-3.5" />
@@ -170,6 +232,14 @@ function PdfPreviewPanel({ latex, title }: PdfPreviewPanelProps) {
             title={t("doc.editor.recompile")}
           >
             <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+            title={t("panel.close")}
+          >
+            <X className="h-3 w-3" />
           </button>
         </div>
       </div>
@@ -191,7 +261,7 @@ function PdfPreviewPanel({ latex, title }: PdfPreviewPanelProps) {
         {previewUrl ? (
           <iframe
             src={previewUrl}
-            title="LaTeX preview"
+            title="Preview"
             className="h-full w-full border-0"
           />
         ) : !compileError && (

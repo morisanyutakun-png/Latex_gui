@@ -411,12 +411,10 @@ const COMMON_TEST_LATEX = JA_PREAMBLE + String.raw`
 `;
 
 // ──────────────────────────────────────────
-// Blank — 白紙
+// Blank — 白紙 (本文は完全に空。ユーザーは Word ライクに白紙の紙から書き始める)
 // ──────────────────────────────────────────
 const BLANK_LATEX = JA_PREAMBLE + String.raw`
 \begin{document}
-
-\section{}
 
 \end{document}
 `;
@@ -428,7 +426,12 @@ const BLANK_LATEX = JA_PREAMBLE + String.raw`
 export interface TemplateDefinition {
   id: string;
   name: string;
+  nameEn: string;
   description: string;
+  descriptionEn: string;
+  /** Short tag shown next to the name (e.g. "試験", "発表"). Localized via tag/tagEn. */
+  tag?: string;
+  tagEn?: string;
   gradient: string;
   accentColor: string;
   icon: string;
@@ -439,9 +442,27 @@ export interface TemplateDefinition {
 
 export const TEMPLATES: TemplateDefinition[] = [
   {
+    id: "blank",
+    name: "白紙",
+    nameEn: "Blank page",
+    description: "白紙の紙から自由に書き始める",
+    descriptionEn: "Start writing from a blank page",
+    tag: "白紙",
+    tagEn: "Blank",
+    gradient: "from-slate-400 via-gray-300 to-slate-300",
+    accentColor: "bg-slate-400",
+    icon: "📄",
+    documentClass: "article",
+    latex: BLANK_LATEX,
+  },
+  {
     id: "common-test",
     name: "共通テスト風",
+    nameEn: "National exam style",
     description: "大学入学共通テスト風の問題冊子。配色とブロック装飾付き",
+    descriptionEn: "Japanese national entrance exam style booklet with color blocks",
+    tag: "入試",
+    tagEn: "Exam",
     gradient: "from-blue-700 via-indigo-500 to-cyan-400",
     accentColor: "bg-indigo-600",
     icon: "📐",
@@ -451,7 +472,11 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "exam",
     name: "試験問題・テスト",
+    nameEn: "Quiz / test",
     description: "定期テスト・小テスト・確認テストに",
+    descriptionEn: "For periodic tests, quizzes, and review checks",
+    tag: "テスト",
+    tagEn: "Test",
     gradient: "from-rose-500 via-red-400 to-orange-400",
     accentColor: "bg-rose-500",
     icon: "📝",
@@ -461,7 +486,11 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "worksheet",
     name: "演習プリント",
+    nameEn: "Worksheet",
     description: "授業用の練習問題・ワークシートに",
+    descriptionEn: "Practice worksheets for classroom use",
+    tag: "授業",
+    tagEn: "Class",
     gradient: "from-teal-500 via-cyan-400 to-sky-400",
     accentColor: "bg-teal-500",
     icon: "📋",
@@ -471,7 +500,11 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "article",
     name: "レポート・論文",
+    nameEn: "Report / paper",
     description: "一般的なレポート・短い論文に。最もよく使われるクラス",
+    descriptionEn: "General reports and short papers — the most common class",
+    tag: "論文",
+    tagEn: "Paper",
     gradient: "from-blue-500 via-blue-400 to-cyan-400",
     accentColor: "bg-blue-500",
     icon: "📄",
@@ -481,17 +514,25 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "report",
     name: "技術報告書",
+    nameEn: "Technical report",
     description: "章立て構造の長い報告書・仕様書に",
+    descriptionEn: "Long technical reports and specifications with chapters",
+    tag: "報告書",
+    tagEn: "Report",
     gradient: "from-slate-500 via-gray-400 to-zinc-400",
     accentColor: "bg-slate-500",
-    icon: "📋",
+    icon: "📊",
     documentClass: "report",
     latex: REPORT_LATEX,
   },
   {
     id: "beamer",
     name: "プレゼンテーション",
+    nameEn: "Presentation",
     description: "学会発表・講義スライドの作成に",
+    descriptionEn: "Conference talks and lecture slides",
+    tag: "発表",
+    tagEn: "Slides",
     gradient: "from-violet-500 via-purple-400 to-fuchsia-400",
     accentColor: "bg-violet-500",
     icon: "🎬",
@@ -501,22 +542,16 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "letter",
     name: "手紙・通信文",
+    nameEn: "Letter",
     description: "フォーマルな手紙・案内状に",
+    descriptionEn: "Formal letters and announcements",
+    tag: "手紙",
+    tagEn: "Letter",
     gradient: "from-emerald-500 via-green-400 to-teal-400",
     accentColor: "bg-emerald-500",
     icon: "✉️",
     documentClass: "article",
     latex: LETTER_LATEX,
-  },
-  {
-    id: "blank",
-    name: "白紙",
-    description: "自由に始める白紙ドキュメント",
-    gradient: "from-slate-400 via-gray-300 to-slate-300",
-    accentColor: "bg-slate-400",
-    icon: "📝",
-    documentClass: "article",
-    latex: BLANK_LATEX,
   },
 ];
 

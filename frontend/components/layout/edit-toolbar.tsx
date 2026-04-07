@@ -1,17 +1,27 @@
 "use client";
 
 /**
- * EditToolbar — テンプレ選択・PDFダウンロード・OMR取り込みのみ。
- * raw LaTeX 駆動なので、文字装飾系のボタンは廃止。
+ * EditToolbar — テンプレ選択・PDF出力・OMR取り込み・補助パネル切替。
+ * raw LaTeX 駆動だが、ユーザーには LaTeX という単語を出さない。
  */
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
 import { generatePDF } from "@/lib/api";
 import { TEMPLATES, createFromTemplate } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
-import { Download, ScanLine, FileText, Loader2, Code2, FileImage } from "lucide-react";
+import {
+  Download,
+  ScanLine,
+  FileText,
+  Loader2,
+  ChevronDown,
+  Check,
+  Sliders,
+  Eye,
+  Braces,
+} from "lucide-react";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
   { value: "a4", label: "A4" },
@@ -25,7 +35,8 @@ function Sep() {
 }
 
 export function EditToolbar() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isJa = locale === "ja";
   const document = useDocumentStore((s) => s.document);
   const setDocument = useDocumentStore((s) => s.setDocument);
   const { paperSize, setPaperSize } = useUIStore();
@@ -71,50 +82,28 @@ export function EditToolbar() {
 
       <Sep />
 
-      {/* テンプレート選択 */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">{t("edit.toolbar.template.label")}</span>
-        <select
-          value={document?.template || "blank"}
-          onChange={(e) => handleTemplateChange(e.target.value)}
-          className="h-7 px-2 rounded-md border border-foreground/[0.10] bg-white/70 dark:bg-white/5 text-[11px] text-foreground/80 focus:outline-none cursor-pointer hover:bg-white dark:hover:bg-white/10 transition-colors"
-        >
-          {TEMPLATES.map((tpl) => (
-            <option key={tpl.id} value={tpl.id}>
-              {tpl.icon} {tpl.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* ── テンプレート選択 (リッチなポップオーバー) ── */}
+      <TemplatePicker
+        currentId={document?.template ?? "blank"}
+        onSelect={handleTemplateChange}
+        isJa={isJa}
+        label={t("edit.toolbar.template.label")}
+      />
 
       <div className="flex-1" />
 
-      {/* パネル表示トグル (デフォルトはどちらもOFF) */}
-      <button
-        onClick={togglePdfPanel}
-        className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] shrink-0 ${
-          showPdfPanel
-            ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300"
-            : "bg-transparent border-foreground/[0.10] text-foreground/55 hover:bg-foreground/[0.04] hover:text-foreground/80"
-        }`}
-        title={t("edit.toolbar.toggle.pdf")}
-      >
-        <FileImage className="h-3 w-3 shrink-0" />
-        <span className="hidden md:inline">PDF</span>
-      </button>
-
-      <button
-        onClick={toggleSourcePanel}
-        className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] shrink-0 ${
-          showSourcePanel
-            ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-300"
-            : "bg-transparent border-foreground/[0.10] text-foreground/55 hover:bg-foreground/[0.04] hover:text-foreground/80"
-        }`}
-        title={t("edit.toolbar.toggle.source")}
-      >
-        <Code2 className="h-3 w-3 shrink-0" />
-        <span className="hidden md:inline">LaTeX</span>
-      </button>
+      {/* ── 補助ビュー (オーバーフロー) ── */}
+      <ViewToolsMenu
+        showSourcePanel={showSourcePanel}
+        showPdfPanel={showPdfPanel}
+        onToggleSource={toggleSourcePanel}
+        onTogglePdf={togglePdfPanel}
+        label={t("edit.toolbar.tools.label")}
+        sourceLabel={t("edit.toolbar.tools.source")}
+        sourceDesc={t("edit.toolbar.tools.source.desc")}
+        pdfLabel={t("edit.toolbar.tools.pdf")}
+        pdfDesc={t("edit.toolbar.tools.pdf.desc")}
+      />
 
       <Sep />
 
@@ -161,5 +150,256 @@ export function EditToolbar() {
         </select>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────
+// TemplatePicker — リッチなポップオーバー (アイコン + 名前 + タグ + 説明)
+// ─────────────────────────────────────
+
+interface TemplatePickerProps {
+  currentId: string;
+  onSelect: (id: string) => void;
+  isJa: boolean;
+  label: string;
+}
+
+function TemplatePicker({ currentId, onSelect, isJa, label }: TemplatePickerProps) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const current = TEMPLATES.find((tpl) => tpl.id === currentId) ?? TEMPLATES[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapperRef} className="relative shrink-0">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">
+          {label}
+        </span>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.10] bg-white/70 dark:bg-white/5 text-[11px] text-foreground/85 hover:bg-white dark:hover:bg-white/10 transition-colors"
+        >
+          <span className="text-[13px] leading-none">{current.icon}</span>
+          <span className="font-medium">{isJa ? current.name : current.nameEn}</span>
+          {(isJa ? current.tag : current.tagEn) && (
+            <span className="text-[9px] px-1 py-0.5 rounded bg-foreground/[0.06] text-foreground/55 font-mono uppercase tracking-wider">
+              {isJa ? current.tag : current.tagEn}
+            </span>
+          )}
+          <ChevronDown className={`h-3 w-3 text-foreground/40 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1.5 w-[360px] z-50 rounded-xl border border-border/60 bg-popover shadow-2xl shadow-foreground/10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="px-3 py-2 border-b border-border/40 bg-muted/30">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              {label}
+            </div>
+          </div>
+          <div className="max-h-[60vh] overflow-y-auto py-1">
+            {TEMPLATES.map((tpl) => {
+              const isSelected = tpl.id === currentId;
+              const name = isJa ? tpl.name : tpl.nameEn;
+              const desc = isJa ? tpl.description : tpl.descriptionEn;
+              const tag = isJa ? tpl.tag : tpl.tagEn;
+              return (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(tpl.id);
+                    setOpen(false);
+                  }}
+                  className={`w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-foreground/[0.04] transition-colors ${
+                    isSelected ? "bg-foreground/[0.05]" : ""
+                  }`}
+                >
+                  <div className="shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-[18px] bg-foreground/[0.05] border border-foreground/[0.06]">
+                    {tpl.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[12px] font-semibold text-foreground/90 truncate">{name}</span>
+                      {tag && (
+                        <span className="text-[8.5px] px-1.5 py-0.5 rounded bg-foreground/[0.06] text-foreground/55 font-mono uppercase tracking-wider shrink-0">
+                          {tag}
+                        </span>
+                      )}
+                      {isSelected && (
+                        <Check className="h-3 w-3 text-emerald-500 ml-auto shrink-0" />
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground/75 mt-0.5 leading-snug">
+                      {desc}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────
+// ViewToolsMenu — 補助パネル切替 (LaTeX という単語を表に出さない)
+// ─────────────────────────────────────
+
+interface ViewToolsMenuProps {
+  showSourcePanel: boolean;
+  showPdfPanel: boolean;
+  onToggleSource: () => void;
+  onTogglePdf: () => void;
+  label: string;
+  sourceLabel: string;
+  sourceDesc: string;
+  pdfLabel: string;
+  pdfDesc: string;
+}
+
+function ViewToolsMenu({
+  showSourcePanel,
+  showPdfPanel,
+  onToggleSource,
+  onTogglePdf,
+  label,
+  sourceLabel,
+  sourceDesc,
+  pdfLabel,
+  pdfDesc,
+}: ViewToolsMenuProps) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const anyActive = showSourcePanel || showPdfPanel;
+
+  return (
+    <div ref={wrapperRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] ${
+          anyActive
+            ? "bg-foreground/[0.06] border-foreground/[0.18] text-foreground/85"
+            : "bg-transparent border-foreground/[0.10] text-foreground/55 hover:bg-foreground/[0.04] hover:text-foreground/80"
+        }`}
+        title={label}
+      >
+        <Sliders className="h-3 w-3 shrink-0" />
+        <span className="hidden md:inline">{label}</span>
+        <ChevronDown className={`h-3 w-3 text-foreground/40 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 w-[280px] z-50 rounded-xl border border-border/60 bg-popover shadow-2xl shadow-foreground/10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="px-3 py-2 border-b border-border/40 bg-muted/30">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              {label}
+            </div>
+          </div>
+          <div className="py-1">
+            <ToolToggleRow
+              icon={Eye}
+              label={pdfLabel}
+              desc={pdfDesc}
+              active={showPdfPanel}
+              onClick={() => {
+                onTogglePdf();
+                setOpen(false);
+              }}
+            />
+            <ToolToggleRow
+              icon={Braces}
+              label={sourceLabel}
+              desc={sourceDesc}
+              active={showSourcePanel}
+              onClick={() => {
+                onToggleSource();
+                setOpen(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ToolToggleRowProps {
+  icon: React.ElementType;
+  label: string;
+  desc: string;
+  active: boolean;
+  onClick: () => void;
+}
+
+function ToolToggleRow({ icon: Icon, label, desc, active, onClick }: ToolToggleRowProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-start gap-2.5 px-3 py-2.5 text-left hover:bg-foreground/[0.04] transition-colors"
+    >
+      <div className={`shrink-0 h-8 w-8 rounded-lg flex items-center justify-center border ${
+        active
+          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+          : "bg-foreground/[0.04] border-foreground/[0.08] text-foreground/55"
+      }`}>
+        <Icon className="h-3.5 w-3.5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] font-semibold text-foreground/90">{label}</span>
+          {active && (
+            <span className="text-[8.5px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono uppercase tracking-wider">
+              ON
+            </span>
+          )}
+        </div>
+        <div className="text-[10.5px] text-muted-foreground/70 mt-0.5 leading-snug">
+          {desc}
+        </div>
+      </div>
+    </button>
   );
 }

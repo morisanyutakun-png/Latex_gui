@@ -525,17 +525,15 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
             </div>
           </div>
 
-          {/* Activity Bar */}
+          {/* Activity Bar — 実エディタと同じ 2 項目 (AI / 採点) */}
           <div className="w-8 border-l border-foreground/[0.06] bg-foreground/[0.02] flex flex-col items-center py-2 gap-2">
             <div className="w-5 h-5 rounded flex items-center justify-center border-l-2 border-amber-500"
                  style={{ background: "rgba(245,158,11,0.10)" }}>
               <Sparkles className="h-3 w-3 text-amber-500" />
             </div>
-            {[Code2, PenLine, BookOpen].map((Icon, i) => (
-              <div key={i} className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground/25">
-                <Icon className="h-3 w-3" />
-              </div>
-            ))}
+            <div className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground/25">
+              <CheckSquare className="h-3 w-3" />
+            </div>
           </div>
         </div>
       </div>

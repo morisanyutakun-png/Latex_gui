@@ -957,11 +957,11 @@ html {
     0 1px 2px rgba(0, 0, 0, 0.03);
 }
 .chat-input-aurora:focus-within {
-  border-color: rgba(217, 119, 6, 0.55);
+  /* No glow / no purple ring. Caret-only feedback (the textarea itself blinks). */
+  border-color: rgba(217, 119, 6, 0.36);
   box-shadow:
-    0 0 0 3px rgba(245, 158, 11, 0.12),
-    0 2px 10px rgba(217, 119, 6, 0.14),
-    0 1px 3px rgba(0, 0, 0, 0.05);
+    0 1px 4px rgba(245, 158, 11, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.03);
 }
 .dark .chat-input-aurora {
   background: rgba(20, 15, 3, 0.92);

@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
+import "katex/contrib/mhchem";
 import {
   parseLatexToSegments,
   replaceRange,
@@ -12,8 +15,7 @@ import {
 import { MathRenderer } from "./math-editor";
 import { MathEditPopover } from "./math-edit-popover";
 import { useI18n } from "@/lib/i18n";
-import { Code2, Sigma } from "lucide-react";
-import { useUIStore } from "@/store/ui-store";
+// useUIStore is intentionally not imported — VisualEditor never reveals LaTeX source.
 
 interface VisualEditorProps {
   latex: string;
@@ -40,7 +42,6 @@ interface MathEditTarget {
  */
 export function VisualEditor({ latex, onChange }: VisualEditorProps) {
   const { t } = useI18n();
-  const setShowSourcePanel = useUIStore((s) => s.setShowSourcePanel);
   const segments = useMemo(() => parseLatexToSegments(latex), [latex]);
 
   const [mathTarget, setMathTarget] = useState<MathEditTarget | null>(null);
@@ -108,31 +109,32 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
     [mathTarget, applyRangeEdit]
   );
 
-  // ── レンダリング ──
-  if (segments.length === 0 || (segments.length === 1 && segments[0].kind === "preamble")) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground/60 px-8 text-center">
-        {t("doc.editor.visual.empty")}
-      </div>
-    );
-  }
+  // 表示対象となるセグメント (preamble / documentEnd / hidden raw を除外)
+  const visibleSegments = segments.filter((seg) => {
+    if (seg.kind === "preamble" || seg.kind === "documentEnd") return false;
+    if (seg.meta?.hidden === "true") return false;
+    return true;
+  });
+  const hasContent = visibleSegments.length > 0;
 
   return (
     <>
       <div className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin">
         <div className="mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
           <div className="px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)]">
-            {segments.map((seg, idx) => (
-              <SegmentRenderer
-                key={`${idx}-${seg.kind}`}
-                segment={seg}
-                latex={latex}
-                onHeadingCommit={(title) => handleHeadingCommit(seg, title)}
-                onParagraphCommit={(el) => handleParagraphCommit(seg, el)}
-                onOpenMath={setMathTarget}
-                onShowSource={() => setShowSourcePanel(true)}
-              />
-            ))}
+            {hasContent ? (
+              visibleSegments.map((seg, idx) => (
+                <SegmentRenderer
+                  key={`${idx}-${seg.kind}`}
+                  segment={seg}
+                  onHeadingCommit={(title) => handleHeadingCommit(seg, title)}
+                  onParagraphCommit={(el) => handleParagraphCommit(seg, el)}
+                  onOpenMath={setMathTarget}
+                />
+              ))
+            ) : (
+              <BlankPaperPlaceholder hint={t("doc.editor.visual.empty")} />
+            )}
           </div>
         </div>
       </div>
@@ -154,29 +156,22 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
 
 interface SegmentRendererProps {
   segment: Segment;
-  latex: string;
   onHeadingCommit: (newTitle: string) => void;
   onParagraphCommit: (el: HTMLElement) => void;
   onOpenMath: (target: MathEditTarget) => void;
-  onShowSource: () => void;
 }
 
 function SegmentRenderer({
   segment,
-  latex,
   onHeadingCommit,
   onParagraphCommit,
   onOpenMath,
-  onShowSource,
 }: SegmentRendererProps) {
-  const { t } = useI18n();
-
   if (segment.meta?.hidden === "true") return null;
 
   switch (segment.kind) {
     case "preamble":
-      // プリアンブルは Word ライクな白紙体験のため非表示。
-      // LaTeX を直接編集したいときはツールバーから LaTeX ソースパネルを開く。
+      // プリアンブルは完全に非表示。ユーザーは LaTeX を見ない。
       return null;
 
     case "section":
@@ -217,21 +212,21 @@ function SegmentRenderer({
         : wrapper === "env" ? `display-env:${segment.meta?.envName ?? "equation"}`
         : "display-bracket";
       return (
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => onOpenMath({ range: segment.range, body: segment.body, wrapper: wrapperKey })}
-          className="block w-full my-4 px-4 py-3 rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/15 hover:border-violet-400/60 hover:bg-violet-100/40 dark:hover:bg-violet-900/20 transition-colors group text-left"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onOpenMath({ range: segment.range, body: segment.body, wrapper: wrapperKey });
+            }
+          }}
+          className="my-5 px-2 py-2 rounded-md cursor-pointer hover:bg-foreground/[0.025] transition-colors flex justify-center overflow-x-auto"
+          title="クリックして数式を編集"
         >
-          <div className="flex items-center gap-1.5 mb-1">
-            <Sigma className="h-3 w-3 text-violet-500/60" />
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-violet-500/60 group-hover:text-violet-600">
-              数式 (クリックで編集)
-            </span>
-          </div>
-          <div className="flex justify-center overflow-x-auto">
-            <MathRenderer latex={segment.body} displayMode={true} />
-          </div>
-        </button>
+          <MathRenderer latex={segment.body} displayMode={true} />
+        </div>
       );
     }
 
@@ -268,9 +263,7 @@ function SegmentRenderer({
     }
 
     case "raw":
-      return (
-        <RawBadge segment={segment} onShowSource={onShowSource} hint={t("doc.editor.visual.raw_hint")} editLabel={t("doc.editor.visual.edit_in_source")} latex={latex} />
-      );
+      return <RawPlaceholder segment={segment} />;
 
     case "documentEnd":
       return null;
@@ -438,56 +431,54 @@ function ContentEditableBlock({ segment, onCommit, onOpenMath, tag: Tag, classNa
 }
 
 // ─────────────────────────────────────
-// PreambleBadge / RawBadge
+// RawPlaceholder — \maketitle / table / figure 等。
+// ユーザーには LaTeX を見せない。\maketitle 等は完全無視、
+// 環境系は「(表)」「(図)」のようなアイコンチップで表すだけ。
 // ─────────────────────────────────────
 
-interface RawBadgeProps {
-  segment: Segment;
-  hint: string;
-  editLabel: string;
-  onShowSource: () => void;
-  latex: string;
-}
+const ENV_LABEL_JA: Record<string, string> = {
+  table: "表",
+  tabular: "表",
+  figure: "図",
+  tikzpicture: "図",
+  verbatim: "コードブロック",
+  lstlisting: "コードブロック",
+  minted: "コードブロック",
+  abstract: "概要",
+  center: "中央寄せブロック",
+};
 
-function RawBadge({ segment, hint, editLabel, onShowSource }: RawBadgeProps) {
-  const isEnv = segment.meta?.isEnvironment === "true";
-  const envName = segment.meta?.envName;
+function RawPlaceholder({ segment }: { segment: Segment }) {
   const isStandalone = segment.meta?.isStandalone === "true";
-  const cmd = segment.meta?.cmd;
+  const isEnv = segment.meta?.isEnvironment === "true";
 
-  // \maketitle 等は小さなチップで
-  if (isStandalone) {
+  // \maketitle / \tableofcontents / \newpage 等は完全に非表示。
+  if (isStandalone) return null;
+
+  if (isEnv) {
+    const envName = segment.meta?.envName ?? "";
+    const label = ENV_LABEL_JA[envName] ?? envName;
     return (
-      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/40 border border-border/40 text-[10px] font-mono text-muted-foreground my-1">
-        <span className="opacity-60">\</span>
-        <span>{cmd}</span>
+      <div className="my-4 px-4 py-3 rounded-md border border-dashed border-foreground/15 bg-foreground/[0.015] flex items-center gap-2 text-foreground/45 italic text-[12.5px]">
+        <span className="text-[14px]">📎</span>
+        <span>{label}</span>
       </div>
     );
   }
 
-  // 環境系は preview + edit ボタン
+  // その他 (% コメント等) も完全非表示。
+  return null;
+}
+
+// ─────────────────────────────────────
+// BlankPaperPlaceholder — 本文ゼロのときに紙の上に薄く出すヒント
+// ─────────────────────────────────────
+
+function BlankPaperPlaceholder({ hint }: { hint: string }) {
   return (
-    <div className="my-3 rounded-lg border border-amber-300/40 dark:border-amber-700/30 bg-amber-50/30 dark:bg-amber-950/10 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-amber-300/30 bg-amber-100/40 dark:bg-amber-900/15">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-700/80 dark:text-amber-400/80">
-          <Code2 className="h-3 w-3" />
-          {isEnv ? `\\begin{${envName}}` : "raw"}
-        </div>
-        <button
-          type="button"
-          onClick={onShowSource}
-          className="text-[10px] px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 transition-colors"
-        >
-          {editLabel}
-        </button>
-      </div>
-      <pre className="px-3 py-2 text-[11px] font-mono text-foreground/55 overflow-x-auto whitespace-pre-wrap max-h-40">
-        {segment.body.length > 600 ? segment.body.slice(0, 600) + "\n..." : segment.body}
-      </pre>
-      <div className="px-3 py-1 text-[9px] text-muted-foreground/50 italic border-t border-amber-300/20">
-        {hint}
-      </div>
-    </div>
+    <p className="text-foreground/30 text-[15px] leading-[1.75] italic select-none">
+      {hint}
+    </p>
   );
 }
 
@@ -504,6 +495,21 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/** KaTeX で数式を HTML 文字列に変換 (失敗時は薄いプレースホルダ) */
+function renderMathToHTML(latex: string): string {
+  try {
+    return katex.renderToString(latex, {
+      throwOnError: false,
+      displayMode: false,
+      trust: true,
+      strict: "ignore",
+      output: "html",
+    });
+  } catch {
+    return `<span class="text-rose-500/70">数式エラー</span>`;
+  }
+}
+
 /** Inline 配列から contentEditable 用の初期 HTML を組み立てる */
 function buildInlinesHTML(inlines: Inline[]): string {
   let html = "";
@@ -511,11 +517,10 @@ function buildInlinesHTML(inlines: Inline[]): string {
     if (inline.kind === "text") {
       html += escapeHtml(inline.body);
     } else if (inline.kind === "inlineMath") {
-      // 数式はクライアント側で KaTeX レンダリング (placeholder span を入れて
-      // mount 後に MathRenderer で書き換える方が綺麗だが、v1 では innerText を使う)
-      // → ここでは KaTeX を直接 string でレンダリングできないので、
-      //    ASCII プレースホルダ + data 属性で持つ。クリックで popover が開く。
-      html += `<span data-inline-math="1" data-range-start="${inline.range.start}" data-range-end="${inline.range.end}" data-original-body="${escapeHtml(inline.body)}" data-wrapper="inline-dollar" contenteditable="false" class="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded bg-violet-100/60 dark:bg-violet-900/30 border border-violet-300/40 dark:border-violet-700/40 text-violet-700 dark:text-violet-300 text-[12px] font-mono cursor-pointer hover:bg-violet-200/60 dark:hover:bg-violet-800/40 select-none align-middle">$${escapeHtml(inline.body)}$</span>`;
+      // KaTeX でコンパイル済みとしてレンダリング。LaTeX ソースは表に出さない。
+      // クリック領域として data 属性付きの非編集 span でラップ。
+      const rendered = renderMathToHTML(inline.body);
+      html += `<span data-inline-math="1" data-range-start="${inline.range.start}" data-range-end="${inline.range.end}" data-original-body="${escapeHtml(inline.body)}" data-wrapper="inline-dollar" contenteditable="false" class="inline-block align-middle mx-0.5 px-1 rounded cursor-pointer hover:bg-foreground/[0.05] transition-colors select-none" title="クリックして数式を編集">${rendered}</span>`;
     } else if (inline.kind === "bold") {
       html += `<strong>${escapeHtml(inline.body)}</strong>`;
     } else if (inline.kind === "italic") {
