@@ -1,16 +1,12 @@
 """
-PDF生成サービス: LaTeX生成 → LuaLaTeX コンパイル → PDF返却 (v8 — 512MBメモリ最適化)
+PDF生成サービス: raw LaTeX → LuaLaTeX コンパイル → PDF返却
 
 方針:
+  - DocumentModel.latex を直接コンパイルする
   - エンジン: lualatex のみ (フォールバックなし)
   - 日本語: luatexja-preset[haranoaji]
   - shell-escape 原則禁止
-  - Docker ビルド時にフォントキャッシュ・パッケージDB を完全構築済み
-  - ランタイムは純粋なコンパイルのみ
-  - Koyeb Free (512MB) での動作を保証:
-    - 同時コンパイル=1 (同時に2プロセス走ると即OOM)
-    - コンパイル前後で積極的にGC
-    - RLIMIT_AS制限廃止 (LuaTeXの仮想メモリが大きいだけで実メモリは少ない)
+  - Koyeb Free (512MB) 同時コンパイル=1
 """
 import asyncio
 import gc
@@ -23,41 +19,34 @@ import time
 from pathlib import Path
 
 from .models import DocumentModel
-from .generators.document_generator import generate_document_latex
 from .tex_env import (
-    TEX_ENV, LUALATEX_CMD, LUALATEX_AVAILABLE,
-    wait_for_warmup, is_lualatex_cache_warm,
+    TEX_ENV, LUALATEX_CMD,
+    wait_for_warmup,
 )
 from .security import (
-    validate_document_security, validate_input_size,
-    SecurityViolation, get_compile_args,
+    validate_latex_security, validate_latex_size,
+    get_compile_args,
 )
 from .cache_service import (
     get_cached_pdf, store_cached_pdf,
-    get_cached_aux, store_aux_files,
 )
 from .audit import log_compile_event, log_security_event, AuditEvent
 
 logger = logging.getLogger(__name__)
 
-# ── 同時コンパイル制限 ──
-# Koyeb Free (512MB) では絶対に1。LuaLaTeX 1プロセスで300-400MB使う。
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "1"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-
-# コンパイルタイムアウト (秒) — ビルド時キャッシュ済みなので通常3-10秒で完了
 COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "300"))
 
 
 def _log_memory(label: str) -> None:
-    """現在のRSSメモリをログ出力 (デバッグ用)"""
     try:
         import resource
         import platform
         usage = resource.getrusage(resource.RUSAGE_SELF)
         maxrss = usage.ru_maxrss
         if platform.system() == "Linux":
-            maxrss *= 1024  # Linux: KB → bytes
+            maxrss *= 1024
         rss_mb = maxrss / (1024 * 1024)
         logger.info(f"[memory:{label}] RSS={rss_mb:.1f}MB")
     except Exception:
@@ -73,12 +62,12 @@ class PDFGenerationError(Exception):
 
 
 def generate_latex(doc: DocumentModel) -> str:
-    """DocumentModelからLaTeXソースを生成 (lualatex 固定)"""
-    return generate_document_latex(doc, engine="lualatex")
+    """DocumentModel から LaTeX ソースを取得（raw latex をそのまま返す）"""
+    return doc.latex or ""
 
 
 async def compile_pdf(doc: DocumentModel) -> bytes:
-    """LaTeX生成 → LuaLaTeX コンパイル → PDFバイト列"""
+    """raw LaTeX → LuaLaTeX コンパイル → PDFバイト列"""
     async with _compile_semaphore:
         return await asyncio.get_event_loop().run_in_executor(
             None, _compile_pdf_sync, doc
@@ -86,33 +75,18 @@ async def compile_pdf(doc: DocumentModel) -> bytes:
 
 
 def _compile_pdf_sync(doc: DocumentModel) -> bytes:
-    """同期版 PDF 生成 — LuaLaTeX 一本
-    
-    512MB環境でのメモリ管理:
-    - コンパイル前にGCでPython側のメモリを解放
-    - コンパイル後もGCでPDFバイト以外を解放
-    
-    セキュリティ:
-    - サンドボックスコンパイル (--no-shell-escape)
-    - 入力サイズ制限
-    - 危険コマンド検出
-    
-    キャッシュ:
-    - ドキュメントハッシュによるPDFキャッシュ
-    - .aux ファイル再利用による差分高速化
-    """
+    """同期版 PDF 生成 — LuaLaTeX 一本"""
     t0 = time.monotonic()
 
-    # ── セキュリティ検査 ──
-    advanced_mode = getattr(doc, 'advanced', None) and doc.advanced.enabled
-    
+    latex_source = doc.latex or ""
+
     # 入力サイズ制限
-    size_error = validate_input_size(doc.blocks)
+    size_error = validate_latex_size(latex_source)
     if size_error:
         raise PDFGenerationError(size_error)
-    
+
     # 危険コマンド検査
-    violations = validate_document_security(doc.blocks, advanced_mode=advanced_mode)
+    violations = validate_latex_security(latex_source)
     if violations:
         log_security_event(violations, action="blocked")
         raise PDFGenerationError(
@@ -120,7 +94,7 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
             detail=str(violations)
         )
 
-    # ── PDFキャッシュチェック ──
+    # PDFキャッシュチェック
     doc_dict = doc.model_dump(by_alias=False)
     cached_pdf = get_cached_pdf(doc_dict)
     if cached_pdf:
@@ -128,21 +102,17 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
         log_compile_event(
             AuditEvent.COMPILE_PDF,
             template=doc.template,
-            block_count=len(doc.blocks),
             compile_time_ms=elapsed * 1000,
             cache_hit=True,
             pdf_size=len(cached_pdf),
         )
         return cached_pdf
 
-    # GCでPython側のメモリを事前解放
     gc.collect()
     _log_memory("pre-compile")
 
-    # ウォームアップ待ち (コマンド確認のみなので即完了)
     wait_for_warmup(timeout=2.0)
 
-    # lualatex コマンド存在確認
     cmd_exists = bool(shutil.which(LUALATEX_CMD) or Path(LUALATEX_CMD).is_file())
     if not cmd_exists:
         raise PDFGenerationError(
@@ -154,25 +124,21 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     logger.info(f"[compile] lualatex (timeout={timeout}s)")
 
     try:
-        latex_source = generate_document_latex(doc, engine="lualatex")
         pdf = _compile_latex(latex_source, timeout=timeout)
         elapsed = time.monotonic() - t0
         logger.info(f"[compile] PDF generated with lualatex ({elapsed:.1f}s)")
         _log_memory("post-compile")
-        
-        # キャッシュに保存
+
         store_cached_pdf(doc_dict, pdf)
-        
-        # 監査ログ
+
         log_compile_event(
             AuditEvent.COMPILE_PDF,
             template=doc.template,
-            block_count=len(doc.blocks),
             compile_time_ms=elapsed * 1000,
             cache_hit=False,
             pdf_size=len(pdf),
         )
-        
+
         return pdf
     except PDFGenerationError:
         raise
@@ -180,7 +146,6 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
         log_compile_event(
             AuditEvent.COMPILE_PDF,
             template=doc.template,
-            block_count=len(doc.blocks),
             error=str(e),
         )
         raise PDFGenerationError(
@@ -230,7 +195,6 @@ def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
             log_output = result.stdout + "\n" + result.stderr
             logger.error(f"lualatex failed (exit={result.returncode}):\n{log_output[-3000:]}")
 
-            # OOM / signal kill 検出
             if result.returncode < 0:
                 import signal as _signal
                 try:
@@ -258,7 +222,7 @@ def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
 
 
 async def compile_raw_latex(latex_source: str) -> bytes:
-    """生のLaTeXソースをそのままコンパイルしてPDFバイト列を返す（LaTeXソースビューワ編集用）"""
+    """生のLaTeXソースをそのままコンパイルしてPDFバイト列を返す"""
     async with _compile_semaphore:
         return await asyncio.get_event_loop().run_in_executor(
             None, _compile_raw_latex_sync, latex_source
@@ -267,13 +231,15 @@ async def compile_raw_latex(latex_source: str) -> bytes:
 
 def _compile_raw_latex_sync(latex_source: str) -> bytes:
     """同期版: 生LaTeXソースをコンパイル"""
-    if len(latex_source) > 1_000_000:
-        raise PDFGenerationError("LaTeXソースが大きすぎます (上限: 1MB)")
-    # 危険なコマンドのみ簡易チェック
-    _DANGEROUS = ["\\write18", "\\immediate\\write18", "\\input{/", "\\include{/"]
-    for cmd in _DANGEROUS:
-        if cmd in latex_source:
-            raise PDFGenerationError(f"使用禁止のコマンドが含まれています: {cmd}")
+    size_error = validate_latex_size(latex_source)
+    if size_error:
+        raise PDFGenerationError(size_error)
+    violations = validate_latex_security(latex_source)
+    if violations:
+        raise PDFGenerationError(
+            f"セキュリティポリシー違反: {'; '.join(violations[:3])}",
+            detail=str(violations),
+        )
     gc.collect()
     timeout = COMPILE_TIMEOUT
     pdf = _compile_latex(latex_source, timeout=timeout)
@@ -285,7 +251,6 @@ def _parse_latex_error(log: str) -> str:
     """LaTeXログからユーザー向けエラーメッセージを推定"""
     log_lower = log.lower()
 
-    # Extract actual error lines (lines starting with !)
     error_lines = [l.strip() for l in log.split("\n") if l.strip().startswith("!")]
     error_detail = error_lines[0] if error_lines else ""
 

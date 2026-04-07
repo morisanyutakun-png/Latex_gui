@@ -130,7 +130,6 @@ def log_compile_event(
     event_type: str,
     *,
     template: Optional[str] = None,
-    block_count: int = 0,
     compile_time_ms: Optional[float] = None,
     cache_hit: bool = False,
     pdf_size: Optional[int] = None,
@@ -138,7 +137,6 @@ def log_compile_event(
 ):
     """コンパイルイベント用のショートカット"""
     details: dict[str, Any] = {
-        "block_count": block_count,
         "cache_hit": cache_hit,
     }
     if compile_time_ms is not None:

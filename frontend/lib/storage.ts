@@ -11,7 +11,13 @@ export function saveToLocalStorage(doc: DocumentModel): void {
 export function loadFromLocalStorage(): DocumentModel | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    // Reject legacy block-based documents — they cannot be migrated.
+    if (!data || typeof data !== "object" || typeof data.latex !== "string") {
+      return null;
+    }
+    return data as DocumentModel;
   } catch {
     return null;
   }
@@ -28,15 +34,14 @@ export function downloadAsJSON(doc: DocumentModel, filename: string): void {
 export async function loadFromJSONFile(file: File): Promise<DocumentModel> {
   const text = await file.text();
   const data = JSON.parse(text);
-  // 最低限の構造バリデーション
   if (
     !data ||
     typeof data !== "object" ||
-    !Array.isArray(data.blocks) ||
+    typeof data.latex !== "string" ||
     typeof data.settings !== "object" ||
     typeof data.metadata !== "object"
   ) {
-    throw new Error("無効なドキュメント形式です");
+    throw new Error("無効なドキュメント形式です（latex フィールドが必要）");
   }
   return data as DocumentModel;
 }

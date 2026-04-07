@@ -1021,7 +1021,7 @@ export function TemplateGallery() {
     } catch {
       // 認証未設定 or エラー → そのまま続行
     }
-    const doc = createDefaultDocument("blank", []);
+    const doc = createDefaultDocument("blank", "");
     setDocument(doc);
     router.push("/editor");
   };

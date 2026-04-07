@@ -2,15 +2,13 @@
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
-import {
-  Sparkles, Trash2, KeyRound, PenLine, Calculator, TableProperties, Bug,
-} from "lucide-react";
+import { Sparkles, Trash2, KeyRound, PenLine, Calculator, TableProperties, Bug } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
 import { sendAIMessage, streamAIMessage, StreamEvent, StreamDiagnostics } from "@/lib/api";
-import { ChatMessage, ThinkingStep, DocumentPatch } from "@/lib/types";
+import { ChatMessage, ThinkingStep } from "@/lib/types";
 import { chatLog } from "@/lib/logger";
 import { compressHistory } from "@/lib/chat-compression";
 import { buildDocumentContext } from "@/lib/document-context";
@@ -24,7 +22,7 @@ import { InputArea } from "./input-area";
 export function AIChatPanel() {
   const { t } = useI18n();
   const document = useDocumentStore((s) => s.document);
-  const applyPatch = useDocumentStore((s) => s.applyPatch);
+  const applyAiLatex = useDocumentStore((s) => s.applyAiLatex);
   const {
     chatMessages,
     isChatLoading,
@@ -35,11 +33,13 @@ export function AIChatPanel() {
     setLastAIAction,
   } = useUIStore();
 
-  const { canMakeRequest, incrementUsage, setShowPricing, initFromStorage, todayUsage, dailyLimit, monthUsage, monthlyLimit, currentPlan, usagePercent } = usePlanStore();
+  const {
+    canMakeRequest, incrementUsage, setShowPricing, initFromStorage,
+    todayUsage, dailyLimit, monthUsage, monthlyLimit, currentPlan, usagePercent,
+  } = usePlanStore();
 
   const [input, setInput] = useState("");
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
-  // Live agent state — displayed during streaming
   const [liveSteps, setLiveSteps] = useState<ThinkingStep[]>([]);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
 
@@ -50,41 +50,28 @@ export function AIChatPanel() {
 
   useEffect(() => { initFromStorage(); }, [initFromStorage]);
 
-  // OMRトリガーをUIStoreに登録 → チャット外のボタンから呼び出せるようにする
+  // OMRトリガー
   useEffect(() => {
     const { setOMRTrigger } = useUIStore.getState();
     setOMRTrigger(() => fileInputRef.current?.click());
     return () => setOMRTrigger(null);
   }, []);
 
-  // Restore chat history from localStorage on mount
+  // Restore chat history from localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("latex-gui-chat-v2");
+      const saved = localStorage.getItem("latex-gui-chat-v3");
       if (saved) {
         const parsed: ChatMessage[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0 && chatMessages.length === 0) {
           parsed.forEach((m) => addChatMessage(m));
-        }
-      } else {
-        const v1 = localStorage.getItem("latex-gui-chat-v1");
-        if (v1) {
-          const parsed = JSON.parse(v1);
-          if (Array.isArray(parsed) && parsed.length > 0 && chatMessages.length === 0) {
-            parsed.forEach((m: ChatMessage) => addChatMessage({
-              id: m.id, role: m.role, content: m.content,
-              thinkingSteps: m.thinkingSteps,
-              timestamp: m.appliedAt || Date.now(),
-            }));
-          }
-          localStorage.removeItem("latex-gui-chat-v1");
         }
       }
     } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist chat history to localStorage
+  // Persist chat history
   useEffect(() => {
     if (chatMessages.length === 0) return;
     try {
@@ -93,16 +80,14 @@ export function AIChatPanel() {
       }) => ({
         id, role, content, thinkingSteps, timestamp, duration, usage, requestId, error,
       }));
-      localStorage.setItem("latex-gui-chat-v2", JSON.stringify(toSave));
+      localStorage.setItem("latex-gui-chat-v3", JSON.stringify(toSave));
     } catch { /* ignore */ }
   }, [chatMessages]);
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, isChatLoading, liveSteps]);
 
-  // Watch for programmatic messages (e.g. 類題作成)
   const pendingChatMessage = useUIStore((s) => s.pendingChatMessage);
   useEffect(() => {
     if (pendingChatMessage && !isChatLoading) {
@@ -132,22 +117,16 @@ export function AIChatPanel() {
   };
 
   /**
-   * Auto-apply patches from agent — applies to document with undo support
+   * Apply latex from agent — replaces document.latex with AI's edit.
    */
-  const autoApplyPatches = useCallback((patch: DocumentPatch) => {
-    if (!patch || !patch.ops || patch.ops.length === 0) return;
+  const applyLatex = useCallback((latex: string) => {
     try {
-      applyPatch(patch);
-      // Extract new block IDs from add_block ops
-      const newIds = patch.ops
-        .filter((op): op is Extract<typeof op, { op: "add_block" }> => op.op === "add_block")
-        .map((op) => op.block.id);
-      const action = buildLastAIAction(patch, newIds);
-      setLastAIAction(action);
+      applyAiLatex(latex);
+      setLastAIAction(buildLastAIAction(latex));
     } catch (e) {
-      console.error("[agent:auto-apply] Failed:", e);
+      console.error("[agent:apply-latex] Failed:", e);
     }
-  }, [applyPatch, setLastAIAction]);
+  }, [applyAiLatex, setLastAIAction]);
 
   const handleSend = async (overrideText?: string) => {
     const raw = typeof overrideText === "string" ? overrideText : input;
@@ -172,23 +151,16 @@ export function AIChatPanel() {
     const startTime = Date.now();
 
     const feedbackCtx = buildFeedbackContext();
-    // 文書構��サマリーをフロントエンド側で生成（AIのread_documentツール呼び出しを省略）
     const docContext = document ? buildDocumentContext(document) : "";
-    // フィード��ック + 文書構造をユーザーメッセージに付加
     const enhancedContent = docContext
       ? `${docContext}\n\n${userMsg.content}${feedbackCtx}`
       : `${userMsg.content}${feedbackCtx}`;
-    const enhancedUserMsg: ChatMessage = {
-      ...userMsg,
-      content: enhancedContent,
-    };
-    // チャット履歴を圧縮して送信（直近3ペアのみフル、古い応答は切り詰め）
+    const enhancedUserMsg: ChatMessage = { ...userMsg, content: enhancedContent };
     const history = compressHistory(chatMessages, enhancedUserMsg);
 
     const assistantMsgId = crypto.randomUUID();
 
     try {
-      // Create placeholder streaming message
       addChatMessage({
         id: assistantMsgId,
         role: "assistant",
@@ -204,11 +176,10 @@ export function AIChatPanel() {
       let finalThinking: ThinkingStep[] = [];
       let finalUsage: { inputTokens: number; outputTokens: number } = { inputTokens: 0, outputTokens: 0 };
       let finalMessage: string = "";
-      let finalPatches: DocumentPatch | null = null;
+      let finalLatex: string | null = null;
       let streamSucceeded = false;
       let streamDiag: StreamDiagnostics | null = null;
       const accumulatedSteps: ThinkingStep[] = [];
-      const accumulatedOps: Record<string, unknown>[] = [];
       let lastStreamError: string | null = null;
 
       try {
@@ -241,7 +212,6 @@ export function AIChatPanel() {
 
             case "tool_result": {
               setCurrentTool(null);
-              // Update the last tool_call step with result info
               let lastToolIdx = -1;
               for (let j = accumulatedSteps.length - 1; j >= 0; j--) {
                 if (accumulatedSteps[j].type === "tool_call" && accumulatedSteps[j].tool === event.name) {
@@ -258,19 +228,15 @@ export function AIChatPanel() {
                 };
               }
               setLiveSteps([...accumulatedSteps]);
-              // Also persist thinking steps into the message in real-time
-              // so they survive even if streaming ends unexpectedly
-              updateChatMessage(assistantMsgId, {
-                thinkingSteps: [...accumulatedSteps],
-              });
+              updateChatMessage(assistantMsgId, { thinkingSteps: [...accumulatedSteps] });
               break;
             }
 
-            case "patch": {
-              // Accumulate patch ops and auto-apply immediately
-              if (event.ops) {
-                accumulatedOps.push(...event.ops);
-                autoApplyPatches({ ops: event.ops } as unknown as DocumentPatch);
+            case "latex": {
+              // Apply latex live
+              if (typeof event.latex === "string") {
+                finalLatex = event.latex;
+                applyLatex(event.latex);
               }
               break;
             }
@@ -279,27 +245,24 @@ export function AIChatPanel() {
               finalMessage = event.message;
               finalThinking = (event.thinking || []) as ThinkingStep[];
               finalUsage = event.usage || { inputTokens: 0, outputTokens: 0 };
-              finalPatches = event.patches || null;
+              if (event.latex !== null && event.latex !== undefined) {
+                finalLatex = event.latex;
+              }
               streamSucceeded = true;
               break;
 
             case "error":
-              // Don't throw immediately — backend will send "done" after error.
-              // Record the error and keep listening for the "done" event.
               lastStreamError = event.message;
               break;
           }
         }, controller.signal);
       } catch (streamErr) {
         if (!streamSucceeded) {
-          // Check if we already got partial content
           const currentContent = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId)?.content || "";
-          const hasPartialContent = currentContent.length > 0 || accumulatedOps.length > 0;
+          const hasPartialContent = currentContent.length > 0 || finalLatex !== null;
 
-          // If we have partial content, don't fallback — use what we have
           if (hasPartialContent) {
             chatLog.stream(requestId, "partial-content-recovered");
-            // streamSucceeded stays false, will be handled below
           } else {
             const isConnectionError = streamErr instanceof Error &&
               (streamErr.message.includes("404") || streamErr.message.includes("fetch") ||
@@ -317,13 +280,13 @@ export function AIChatPanel() {
                 const duration = Date.now() - startTime;
                 incrementUsage();
 
-                if (result.patches) {
-                  autoApplyPatches(result.patches);
+                if (result.latex) {
+                  applyLatex(result.latex);
                 }
 
                 updateChatMessage(assistantMsgId, {
                   content: result.message,
-                  patches: result.patches,
+                  latex: result.latex,
                   thinkingSteps: result.thinking as ThinkingStep[],
                   isStreaming: false,
                   duration,
@@ -333,7 +296,6 @@ export function AIChatPanel() {
                 chatLog.receive(requestId, duration, false);
                 return;
               } catch (syncErr) {
-                // Sync fallback also failed
                 throw syncErr;
               }
             }
@@ -344,38 +306,21 @@ export function AIChatPanel() {
         abortControllerRef.current = null;
       }
 
-      // Finalize the message — whether "done" was received or the stream ended early
       const duration = Date.now() - startTime;
-      const currentMsg = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId);
-      const streamedContent = currentMsg?.content || "";
 
       if (streamSucceeded) {
         incrementUsage();
 
-        // Use finalPatches from done event, or build from accumulated ops
-        const patches = finalPatches ||
-          (accumulatedOps.length > 0 ? { ops: accumulatedOps } as unknown as DocumentPatch : null);
-
-        // Auto-apply any patches from "done" that weren't already applied via "patch" events
-        if (finalPatches) {
-          const doneOps = (finalPatches as DocumentPatch).ops || [];
-          const newOps = doneOps.filter(
-            (op) => !accumulatedOps.some(
-              (aOp) => JSON.stringify(aOp) === JSON.stringify(op)
-            )
-          );
-          if (newOps.length > 0) {
-            autoApplyPatches({ ops: newOps } as DocumentPatch);
-          }
+        // Final apply (in case "done" carried latex but no live "latex" event)
+        if (finalLatex && document.latex !== finalLatex) {
+          applyLatex(finalLatex);
         }
 
-        // Merge: prefer accumulated live steps (richer), supplement with server steps
         const mergedSteps: ThinkingStep[] = accumulatedSteps.length > 0
           ? [...accumulatedSteps]
           : finalThinking.length > 0
           ? [...finalThinking]
           : [];
-        // Add any server-side steps not already captured in live steps
         if (finalThinking.length > 0 && accumulatedSteps.length > 0) {
           for (const st of finalThinking) {
             const alreadyHas = accumulatedSteps.some(
@@ -388,7 +333,7 @@ export function AIChatPanel() {
 
         updateChatMessage(assistantMsgId, {
           content: finalMessage,
-          patches,
+          latex: finalLatex,
           thinkingSteps,
           isStreaming: false,
           duration,
@@ -399,28 +344,20 @@ export function AIChatPanel() {
         setCurrentTool(null);
         chatLog.receive(requestId, duration, false);
       } else {
-        // Stream ended without "done" event — build diagnostic error message
         incrementUsage();
-        const hasContent = streamedContent.length > 0 || accumulatedOps.length > 0;
-        const patches = accumulatedOps.length > 0
-          ? { ops: accumulatedOps } as unknown as DocumentPatch
-          : null;
+        const streamedContent = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId)?.content || "";
+        const hasContent = streamedContent.length > 0 || finalLatex !== null;
 
-        // Build a descriptive error message based on diagnostics
         let errorDetail: string;
         if (hasContent) {
-          errorDetail = streamedContent || `${accumulatedOps.length}件の変更を適用しました。`;
+          errorDetail = streamedContent || `LaTeXソースを更新しました。`;
         } else if (streamDiag) {
           if (streamDiag.eventsReceived === 0) {
             errorDetail = "バックエンドからの応答がありませんでした。サーバーが起動中か、接続に問題がある可能性があります。";
           } else if (lastStreamError || streamDiag.errorMessage) {
             errorDetail = lastStreamError || streamDiag.errorMessage!;
-          } else if (streamDiag.lastEventType === "thinking") {
-            errorDetail = "AIの思考中に接続が切断されました。サーバー側でエラーが発生した可能性があります（APIの使用量超過・レート制限等）。";
-          } else if (streamDiag.lastEventType === "tool_call" || streamDiag.lastEventType === "tool_result") {
-            errorDetail = "ツール実行中に接続が切断されました。処理がタイムアウトした可能性があります。";
           } else {
-            errorDetail = `ス��リーミングが途中で終了しました（受信イベント: ${streamDiag.eventsReceived}件, 最後: ${streamDiag.lastEventType || "なし"}）。`;
+            errorDetail = `ストリーミングが途中で終了しました（受信イベント: ${streamDiag.eventsReceived}件）。`;
           }
         } else {
           errorDetail = "ストリーミングが中断されました。ネットワーク接続を確認してください。";
@@ -430,7 +367,7 @@ export function AIChatPanel() {
 
         updateChatMessage(assistantMsgId, {
           content: errorDetail,
-          patches,
+          latex: finalLatex,
           thinkingSteps,
           isStreaming: false,
           duration,
@@ -443,7 +380,6 @@ export function AIChatPanel() {
       }
     } catch (e) {
       let msg = e instanceof Error ? e.message : "エラーが発生しました。もう一度お試しください。";
-      // Enhance generic error messages with context
       if (msg.includes("Failed to fetch") || msg.includes("fetch")) {
         msg = "サーバーへの接続に失敗しました。バックエンドが起動しているか確認してください。";
       } else if (msg.includes("AbortError") || msg.includes("abort")) {
@@ -518,14 +454,17 @@ export function AIChatPanel() {
       const { analyzeImageOMR } = await import("@/lib/api");
       const result = await analyzeImageOMR(file, document);
       incrementUsage();
-      if (result.patches) {
-        autoApplyPatches(result.patches);
+      if (result.latex) {
+        applyLatex(result.latex);
       }
       addChatMessage({
         id: crypto.randomUUID(),
         role: "assistant",
         content: result.description || "ファイルを解析しました。",
-        requestId, timestamp: Date.now(), duration: Date.now() - startTime,
+        latex: result.latex,
+        requestId,
+        timestamp: Date.now(),
+        duration: Date.now() - startTime,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "ファイル解析中にエラーが発生しました。";
@@ -542,18 +481,16 @@ export function AIChatPanel() {
 
   return (
     <div className="flex flex-col h-full chat-aurora-panel">
-      {/* Header — LP-matching clean style */}
       <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-black/[0.08] dark:border-white/[0.06] shrink-0 chat-panel-bar dark:bg-white/[0.03] backdrop-blur-sm">
         <div className="h-7 w-7 rounded-lg chat-avatar-ai-static flex items-center justify-center shrink-0">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
         <span className="flex-1 text-[13.5px] font-bold text-foreground/85 tracking-tight truncate">EddivomAI</span>
         <div className="flex items-center gap-2 shrink-0">
-          {/* Active indicator */}
           <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.55)]" title="オンライン" />
           {chatMessages.length > 0 && (
             <button
-              onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v2"); } catch { /**/ } }}
+              onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v3"); } catch { /**/ } }}
               className="h-7 w-7 rounded-lg flex items-center justify-center text-foreground/25 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/15 transition-all duration-150"
               title={t("chat.clear")}
             >
@@ -563,7 +500,6 @@ export function AIChatPanel() {
         </div>
       </div>
 
-      {/* Usage bar */}
       <UsageBar
         todayUsage={todayUsage()}
         dailyLimit={dailyLimit()}
@@ -574,7 +510,6 @@ export function AIChatPanel() {
         onUpgrade={() => setShowPricing(true)}
       />
 
-      {/* API Key banner */}
       {apiKeyMissing && (
         <div className="mx-3 mt-2 shrink-0 rounded-xl border border-amber-400/50 dark:border-amber-500/35 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-1.5">
           <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-semibold">
@@ -590,11 +525,9 @@ export function AIChatPanel() {
         </div>
       )}
 
-      {/* Message list */}
       <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4 min-h-0 scrollbar-thin">
         {chatMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-6 py-6 px-1 select-none">
-            {/* Aurora orb */}
             <div className="relative flex items-center justify-center">
               <div className="h-16 w-16 rounded-2xl chat-empty-orb flex items-center justify-center">
                 <Sparkles className="h-8 w-8 text-white" />
@@ -604,12 +537,11 @@ export function AIChatPanel() {
             <div className="text-center space-y-2">
               <p className="text-[15px] font-semibold text-foreground/80 tracking-tight">{t("chat.empty.title")}</p>
               <p className="text-[12px] text-muted-foreground/50 leading-relaxed max-w-[200px]">
-                文書の作成・編集・修正を<br />
+                LaTeXソースの作成・編集・修正を<br />
                 何でもお気軽にどうぞ。
               </p>
             </div>
 
-            {/* Suggestion cards */}
             <div className="grid grid-cols-2 gap-2 w-full">
               {([
                 { text: t("chat.suggestion.1"), icon: PenLine },
@@ -650,7 +582,6 @@ export function AIChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      {/* 隠しファイル入力 — チャット外ボタン (ツールバー) からも trigger される */}
       <input
         ref={fileInputRef}
         type="file"
@@ -659,7 +590,6 @@ export function AIChatPanel() {
         onChange={handleOMRUpload}
       />
 
-      {/* Input area */}
       <InputArea
         input={input}
         setInput={setInput}
@@ -673,17 +603,15 @@ export function AIChatPanel() {
   );
 }
 
-/** Summarize a tool result for the live thinking display */
 function _summarizeToolResult(name: string, result: Record<string, unknown>): string {
   switch (name) {
-    case "read_document":
-      return `Read: ${result.blockCount || 0}ブロックの文書を読み込み`;
-    case "search_blocks":
-      return `Search: ${result.count || 0}件の一致`;
-    case "edit_document": {
-      const summary = (result.summary as string) || "適用完了";
-      const bc = result.current_block_count;
-      return `Write: ${bc ? `${summary} (計${bc}ブロック)` : summary}`;
+    case "read_latex":
+      return `Read: ${result.latex_length || 0}文字のLaTeX`;
+    case "set_latex":
+      return `Write: ${(result.message as string) || "LaTeXを更新"}`;
+    case "replace_in_latex": {
+      if (result.error) return `Replace ✗: ${(result.message as string) || result.error}`;
+      return `Replace: ${(result.message as string) || "修正完了"}`;
     }
     case "compile_check": {
       const msg = result.message as string;
@@ -695,8 +623,6 @@ function _summarizeToolResult(name: string, result: Record<string, unknown>): st
       const firstError = errors?.[0] || msg || "エラー";
       return `Build ✗: ${firstError.slice(0, 100)}`;
     }
-    case "get_latex_source":
-      return `Inspect: ${result.total_length || 0}文字のLaTeX`;
     default:
       return JSON.stringify(result).slice(0, 80);
   }

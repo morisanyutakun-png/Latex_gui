@@ -1,25 +1,23 @@
 import React from "react";
 import { ThinkingStep } from "@/lib/types";
 import {
-  Sparkles, Brain, Terminal, CheckCircle, AlertCircle,
-  Search, FileText, Wrench, Code2, Eye, Hammer, BookOpen,
+  Sparkles, Brain, Terminal, AlertCircle,
+  Search, Wrench, Eye, Hammer, BookOpen,
 } from "lucide-react";
 import { formatDuration } from "./utils";
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
-  read_document: BookOpen,
-  search_blocks: Search,
-  edit_document: Wrench,
+  read_latex: BookOpen,
+  set_latex: Wrench,
+  replace_in_latex: Search,
   compile_check: Hammer,
-  get_latex_source: Code2,
 };
 
 const TOOL_LABELS: Record<string, string> = {
-  read_document: "文書を読み込み中",
-  search_blocks: "ブロックを検索中",
-  edit_document: "文書を編集中",
+  read_latex: "LaTeXソースを読み込み中",
+  set_latex: "LaTeXソースを更新中",
+  replace_in_latex: "LaTeXを部分修正中",
   compile_check: "コンパイルを検証中",
-  get_latex_source: "LaTeXソースを取得中",
 };
 
 export function ThinkingIndicator({

@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
-import { DiffViewer } from "./diff-viewer";
 import { formatRelativeTime, formatDuration, formatTokens } from "./utils";
 
 export function MessageRow({
@@ -111,27 +110,12 @@ export function MessageRow({
           </div>
         )}
 
-        {/* Patch applied — compact pill (LP style) */}
-        {!isUser && msg.patches && msg.patches.ops && msg.patches.ops.length > 0 && (
-          <>
-            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-500/20 shadow-sm">
-              <CheckCircle2 className="h-3 w-3 shrink-0" />
-              <span>
-                {(() => {
-                  const ops = msg.patches!.ops;
-                  const added = ops.filter(o => o.op === "add_block").length;
-                  const updated = ops.filter(o => o.op === "update_block").length;
-                  const deleted = ops.filter(o => o.op === "delete_block").length;
-                  const parts: string[] = [];
-                  if (added) parts.push(`${added}件追加`);
-                  if (updated) parts.push(`${updated}件更新`);
-                  if (deleted) parts.push(`${deleted}件削除`);
-                  return `反映済み${parts.length ? " — " + parts.join(" · ") : ""}`;
-                })()}
-              </span>
-            </div>
-            <DiffViewer patches={msg.patches!} />
-          </>
+        {/* LaTeX applied — compact pill */}
+        {!isUser && msg.latex && (
+          <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-500/20 shadow-sm">
+            <CheckCircle2 className="h-3 w-3 shrink-0" />
+            <span>反映済み — {msg.latex.length.toLocaleString()}文字のLaTeXソース</span>
+          </div>
         )}
 
         {/* Action timeline */}

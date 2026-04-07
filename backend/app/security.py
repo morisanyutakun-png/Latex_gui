@@ -270,29 +270,43 @@ def sanitize_code_field(code: str, block_type: str, advanced_mode: bool = False)
     return code
 
 
-def validate_document_security(blocks: list, advanced_mode: bool = False) -> list[str]:
+def validate_latex_security(latex_source: str) -> list[str]:
     """
-    ドキュメント全体のブロックをスキャンし、セキュリティ違反を収集。
+    raw LaTeX 文字列をスキャンし、セキュリティ違反を収集。
     違反があっても例外は投げず、違反リストを返す。
     """
     violations: list[str] = []
+    if not latex_source:
+        return violations
 
-    for block in blocks:
-        content = block.content
-        block_type = content.type
+    # 常に禁止されるコマンド
+    for match in _ALWAYS_FORBIDDEN_RE.finditer(latex_source):
+        msg = f"禁止コマンド検出: {match.group()}"
+        if msg not in violations:
+            violations.append(msg)
 
-        # code フィールドを持つブロックを検査
-        code_value = None
-        if hasattr(content, "code"):
-            code_value = content.code
-        elif hasattr(content, "formula"):
-            code_value = content.formula
+    # ファイルアクセス系
+    for match in _DANGEROUS_RE.finditer(latex_source):
+        cmd = match.group()
+        msg = f"禁止コマンド検出: {cmd}"
+        if msg not in violations:
+            violations.append(msg)
 
-        if code_value:
-            try:
-                sanitize_code_field(code_value, block_type, advanced_mode)
-            except SecurityViolation as e:
-                violations.extend(e.violations)
+    # usepackage ホワイトリスト
+    pkg_matches = re.findall(r'\\usepackage(?:\[.*?\])?\{([^}]+)\}', latex_source)
+    for pkg_str in pkg_matches:
+        for pkg in pkg_str.split(","):
+            pkg = pkg.strip()
+            if pkg and pkg not in ALLOWED_PACKAGES:
+                violations.append(f"未許可パッケージ: {pkg}")
+
+    # tikz library ホワイトリスト
+    lib_matches = re.findall(r'\\usetikzlibrary\{([^}]+)\}', latex_source)
+    for lib_str in lib_matches:
+        for lib in lib_str.split(","):
+            lib = lib.strip()
+            if lib and lib not in ALLOWED_TIKZ_LIBRARIES:
+                violations.append(f"未許可TikZライブラリ: {lib}")
 
     return violations
 
@@ -366,27 +380,10 @@ def get_preview_compile_args(base_cmd: str, output_dir: str, tex_path: str) -> l
     ]
 
 
-def validate_input_size(blocks: list, max_blocks: int = 5000, max_total_chars: int = 5_000_000) -> Optional[str]:
-    """入力サイズの制限チェック"""
-    if len(blocks) > max_blocks:
-        return f"ブロック数が上限({max_blocks})を超えています: {len(blocks)}"
-
-    total_chars = 0
-    for block in blocks:
-        content = block.content
-        for field_name in ("text", "latex", "code", "formula"):
-            val = getattr(content, field_name, None)
-            if val:
-                total_chars += len(val)
-        if hasattr(content, "items"):
-            total_chars += sum(len(item) for item in content.items)
-        if hasattr(content, "headers"):
-            total_chars += sum(len(h) for h in content.headers)
-        if hasattr(content, "rows"):
-            for row in content.rows:
-                total_chars += sum(len(cell) for cell in row)
-
-    if total_chars > max_total_chars:
-        return f"ドキュメントの合計文字数が上限({max_total_chars:,})を超えています: {total_chars:,}"
-
+def validate_latex_size(latex_source: str, max_chars: int = 1_000_000) -> Optional[str]:
+    """raw LaTeX のサイズ制限チェック"""
+    if not latex_source:
+        return None
+    if len(latex_source) > max_chars:
+        return f"LaTeXソースが上限({max_chars:,}文字)を超えています: {len(latex_source):,}"
     return None

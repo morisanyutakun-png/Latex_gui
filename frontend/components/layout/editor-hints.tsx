@@ -3,29 +3,24 @@
 import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
 import { useI18n } from "@/lib/i18n";
-import { Keyboard, Type, Sigma, MousePointer } from "lucide-react";
+import { Keyboard, Sigma, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 
 const HINTS = {
   default: {
-    icon: MousePointer,
-    ja: "テキストをクリックして編集 · Tab で数式モード · Enter で新しいブロック",
-    en: "Click text to edit · Tab for math mode · Enter for new block",
+    icon: Keyboard,
+    ja: "左のエディタで raw LaTeX を編集 · 右ペインで自動プレビュー · AIに依頼すれば代わりに編集します",
+    en: "Edit raw LaTeX on the left · Auto preview on the right · Ask AI to edit for you",
   },
   math: {
     icon: Sigma,
-    ja: "数式モード: LaTeX記法で入力 · ;a → \\alpha · ;f → \\frac{}{} · Esc で戻る",
-    en: "Math mode: Type LaTeX · ;a → \\alpha · ;f → \\frac{}{} · Esc to exit",
-  },
-  heading: {
-    icon: Type,
-    ja: "見出し: H1/H2/H3を選択 · ツールバーで太字・色・配置を変更",
-    en: "Heading: Select H1/H2/H3 · Use toolbar for bold, color, alignment",
+    ja: "数式モード: $...$ でインライン数式 · \\[ ... \\] でディスプレイ数式",
+    en: "Math: $...$ for inline · \\[ ... \\] for display",
   },
   empty: {
-    icon: Keyboard,
-    ja: "テンプレートから開始するか、テキストをクリックして入力を始めましょう",
-    en: "Start from a template or click text to begin typing",
+    icon: Sparkles,
+    ja: "テンプレートから始めるか、AIに「○○を作って」と依頼してください",
+    en: "Start from a template or ask AI to create something",
   },
 };
 
@@ -33,24 +28,19 @@ export function EditorHints() {
   const { locale } = useI18n();
   const lang = locale === "en" ? "en" : "ja";
   const isMathEditing = useUIStore((s) => s.isMathEditing);
-  const selectedBlockId = useUIStore((s) => s.selectedBlockId);
-  const activeGuideContext = useUIStore((s) => s.activeGuideContext);
-  const blocks = useDocumentStore((s) => s.document?.blocks);
+  const latex = useDocumentStore((s) => s.document?.latex);
   const [dismissed, setDismissed] = useState(false);
 
-  // Reset dismissed state when context changes
   useEffect(() => {
     setDismissed(false);
-  }, [isMathEditing, activeGuideContext]);
+  }, [isMathEditing]);
 
   if (dismissed) return null;
 
   let hint = HINTS.default;
   if (isMathEditing) {
     hint = HINTS.math;
-  } else if (activeGuideContext === "heading") {
-    hint = HINTS.heading;
-  } else if (!blocks || blocks.length <= 1) {
+  } else if (!latex || latex.trim().length === 0) {
     hint = HINTS.empty;
   }
 

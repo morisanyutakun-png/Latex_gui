@@ -1,192 +1,139 @@
-"""OMR service — image/PDF → structured document blocks via OpenAI Vision
-SSEストリーミング対応: 進捗をリアルタイムでフロントエンドへ送信。
+"""OMR service — image/PDF → raw LaTeX via OpenAI Vision
 
-PDFテキスト抽出は2段構え:
-  1. PyMuPDF (fitz) でテキスト直接抽出 → ページ画像レンダリング
-  2. poppler (pdftoppm) をフォールバック
-  3. テキスト抽出のみ (画像なし) を最終フォールバック
+方針:
+  - 画像/PDF からテキスト・数式・表・図を読み取り、raw LaTeX として返す
+  - AI には set_latex ツール (簡略版) を使わせて完全な LaTeX を返させる
+  - PDF は PyMuPDF (fitz) → poppler → text-only の3段フォールバック
 """
 import base64
 import json
 import logging
-import re
+import os
 import subprocess
 import tempfile
-import os
 
-from .ai_service import get_client, get_openai_tools, MODEL_VISION
+from .ai_service import get_client, MODEL_VISION
 
 logger = logging.getLogger(__name__)
 
-OMR_SYSTEM_PROMPT = """\
-You are an OMR (Optical Mark Recognition) and document structure extraction assistant
-integrated into a Japanese LaTeX document editor called Eddivom (かんたんPDFメーカー).
 
-Your job is to analyze uploaded images or extracted PDF content and convert them into
-structured document blocks that can be imported into the editor.
+OMR_SYSTEM_PROMPT = r"""\
+You are an OMR (Optical Mark Recognition) assistant inside a Japanese LaTeX
+editor (Eddivom / かんたんPDFメーカー). The editor uses a *raw LaTeX* document
+model — you must output a complete, compilable LaTeX document.
 
 ## What to extract
-- Text headings → heading blocks (with appropriate level: 1, 2, or 3)
-- Body text / explanations → paragraph blocks
-- Mathematical expressions: **CAREFULLY distinguish inline vs display math** (see rules below)
-- Lists or numbered items → list blocks (style: "bullet" or "numbered")
-- Tables / grids → table blocks (with headers and rows arrays)
-- Chemical formulas → chemistry blocks
-- Diagrams / figures / graphs / illustrations → latex blocks with \\begin{figure} placeholder
-- For OMR answer sheets (bubble sheets): extract question number + selected choice
+- Text headings → \section / \subsection / \subsubsection
+- Body text → ordinary paragraphs
+- Math → use $...$ for inline math and \[ ... \] (or $$...$$) for display math
+- Lists → itemize / enumerate
+- Tables → tabular / booktabs
+- Chemical formulas → \ce{...} (mhchem)
+- Diagrams / figures → \begin{figure} ... \end{figure} placeholder
+- Multi-choice answer sheets → list with \item entries
 
-## ★★ Math classification — FOLLOW STRICTLY ★★
+## How to respond
+You MUST call the `set_latex` tool with a single argument `latex` containing
+the FULL LaTeX source. The source MUST be a complete document that compiles
+under LuaLaTeX with luatexja-preset for Japanese.
 
-ALL math goes into paragraph blocks. There is NO separate "math" block type.
-You MUST decide between two forms for every formula:
+### Required preamble
+\documentclass[11pt,a4paper]{article}
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{amsmath, amssymb, amsthm, mathtools}
+\usepackage{geometry}
+\geometry{margin=20mm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
 
-### Form A — DISPLAY math → $$...$$ in a DEDICATED paragraph block
-Use $$...$$ (double dollar signs) and create a SEPARATE paragraph block when ANY of these apply:
-- The formula sits on its OWN LINE, separated from surrounding text by blank lines or line breaks
-- The formula is HORIZONTALLY CENTERED on its own line
-- The formula is INDENTED away from the body text
-- The formula has an EQUATION NUMBER like (1), (2.3), [式1] on the right edge
-- The formula is BOXED, FRAMED, or has a colored background
-- The formula is LARGER than the body text font (e.g. tall fractions, big integrals, summations with limits)
-- The formula contains \\sum, \\int, \\prod, \\lim, \\frac with multi-line arguments, matrices, cases
-- Multi-line derivations / aligned equations
-- The formula introduces an important result (例: "次式が成り立つ:" の直後)
+You may add other allowed packages (tikz, mhchem, hyperref, xcolor, tcolorbox,
+multicol, etc.) when needed.
 
-Example: {"type": "paragraph", "text": "$$\\\\int_0^\\\\infty e^{-x}\\\\,dx = 1$$"}
-
-### Form B — INLINE math → $...$ inside the paragraph text
-Use $...$ (single dollar signs) when the formula:
-- Appears in the MIDDLE of a sentence with text on BOTH sides on the SAME line
-- Is a SHORT symbol or expression (variable name, simple ratio, single function call)
-- Examples: 速度 $v$, 質量 $m$, 関数 $f(x)$, 比 $a/b$, 角度 $\\theta$, $\\therefore x = 2$
-
-### Default rule
-If you are uncertain → choose DISPLAY math ($$...$$, separate block). Over-splitting into
-display blocks is far better than cramming everything inline. Inline $...$ is the EXCEPTION.
-
-## ★★ Line breaks and paragraph structure ★★
-- PRESERVE paragraph breaks visible in the source. Do NOT merge separate paragraphs into one.
-- When you see a blank line or visible vertical gap between text regions, create SEPARATE paragraph blocks.
-- When a single sentence wraps across multiple visual lines, JOIN them into one paragraph (do not insert artificial breaks).
-- A heading is followed by its body — keep them as separate blocks.
-- Use \\n inside paragraph text ONLY for hard line breaks (like poetry or addresses); normally use separate paragraph blocks instead.
-
-## CRITICAL Instructions
-- You MUST call the `edit_document` tool to return the extracted blocks.
-- Do NOT describe the content in chat — always use the tool to create blocks.
-- Generate IDs like "omr-001", "omr-002", "omr-003", etc.
-- Default style: { "textAlign": "left", "fontSize": 11, "fontFamily": "sans" }
-- If confidence is low for any region, add "(要確認)" at the end.
-- Respond in Japanese.
-- Even if the content is unclear, extract whatever you can. Do not refuse.
-- For math expressions: use proper LaTeX (e.g. \\frac{a}{b}, \\sum_{i=1}^{n}, \\sqrt{x}, \\int_a^b)
-
-## Block format (MUST follow exactly)
-Each block in ops must have this structure:
-```json
-{"op": "add_block", "afterId": null, "block": {
-  "id": "omr-001",
-  "content": {"type": "heading", "text": "タイトル", "level": 1},
-  "style": {"textAlign": "left", "fontSize": 11, "fontFamily": "sans"}
-}}
-```
-
-Block types and their content fields:
-- heading: {"type": "heading", "text": "...", "level": 1}
-- paragraph: {"type": "paragraph", "text": "文章中の数式は $f(x) = x^2$ のように $...$ で囲む。独立した数式は $$\\\\frac{a}{b}$$ のように $$$$ で囲む"}
-  ★ NOTE: "math" block type is ABOLISHED. Use paragraph with $...$ or $$...$$ instead.
-- list: {"type": "list", "style": "numbered", "items": ["item1", "item2"]}
-- table: {"type": "table", "headers": ["列1", "列2"], "rows": [["A", "B"]]}
-- latex: {"type": "latex", "code": "\\\\begin{figure}[h]\\n\\\\centering\\n% TODO: \\\\includegraphics{...}\\n\\\\caption{図の説明}\\n\\\\end{figure}"}
-
-IMPORTANT: content MUST be a nested object with "type" field. Do NOT use flat format.
+### CRITICAL rules
+- Always call set_latex once. Do NOT print the LaTeX in the chat reply.
+- Always wrap math correctly:
+  * inline: $x^2 + 1$
+  * display: \[ \int_0^1 f(x)\,dx \]
+- Preserve paragraph breaks visible in the source.
+- If something is unclear, transcribe what you can read and add "(要確認)".
+- Respond in Japanese for any chat reply (but the LaTeX itself can mix as needed).
+- Do NOT use forbidden commands: \input, \include, \write18, \directlua, etc.
 """
+
 
 OMR_PDF_SYSTEM_PROMPT = OMR_SYSTEM_PROMPT + """
 
 ## PDF-specific instructions
-- You are receiving content extracted from a PDF document (text + page images).
-- The extracted text may have formatting artifacts — clean them up.
-- Use the page images to verify and supplement the extracted text.
-- Treat all pages as a continuous document — maintain logical flow.
-- Number IDs sequentially across all pages (omr-001, omr-002, ...).
-- Do NOT repeat headings or titles if they appear identically on multiple pages.
+- The user uploaded a multi-page PDF. Treat it as one continuous document.
+- Use the extracted text as the primary source and the page images for verification.
+- Number sections naturally (e.g. "第1章", "1.", "問1") if the original has them.
 """
+
 
 OMR_HANDWRITING_PROMPT = OMR_SYSTEM_PROMPT + """
 
-## ★★ Handwriting recognition mode ★★
-The image likely contains HANDWRITTEN content (notebook, whiteboard, exam, lecture notes).
-Apply these extra rules:
-
-### Character disambiguation
-- Distinguish carefully: 0/O/Q, 1/l/I/|, 2/Z, 5/S, 6/G, 9/q, u/v, n/h, t/+, x/×, ・/.
-- 日本語の場合: 「シ/ツ」「ソ/ン」「ロ/口」「カ/力」「タ/夕」を文脈で判断
-- If a stroke is ambiguous, choose the option that makes the **mathematical or linguistic context** consistent
-- 日本語の手書き文字は崩れやすいので、前後の文脈から最も自然な単語を選ぶ
-
-### Math symbols (handwritten)
-- Greek letters are often messy: α/a, β/B, ε/E, θ/0, π/n, σ/o, μ/u — judge by context
-- Sub/superscripts: handwritten 添え字 are often small and floating; carefully detect $x_i$, $a^2$, $a_n^2$
-- $\\sum$, $\\int$, $\\prod$ may be drawn loosely; recognize their loops and limits (上下の式)
-- Fractions: a horizontal line with text above/below = $\\frac{...}{...}$
-- Square roots: the radical sign $\\sqrt{}$ may have a long horizontal extension over the radicand
-- Vector arrows: $\\vec{a}$, $\\overrightarrow{AB}$ — detect arrows above letters
-- Equals signs may be drawn at slight angles — still recognize as =
-
-### Layout (handwritten)
-- Handwritten lines may be SLANTED or NOT perfectly horizontal — group by visual proximity
-- A formula CENTERED on its own line, even if hand-drawn, is DISPLAY math (per the rules above)
-- 行の終わりが詰まっていることが多い — 改行は文の意味の切れ目で判断
-- Strikethroughs / crossed-out content → SKIP it (do not include)
-- Margin notes / arrows pointing to corrections → apply the correction, ignore the arrow
-
-### Confidence
-- If a region is genuinely illegible, output what you can read + " (要確認)" suffix
-- Never invent content — if you cannot read a word, write "□" or "(判読不能)"
-- 自信がない数式は LaTeX に書き起こした上で末尾に "(要確認)" を付ける
-
-You will likely be asked to extract a notebook page, whiteboard photo, or exam answer.
-Be patient and read carefully — handwriting often rewards a second look at curves and tails.
+## Handwriting mode
+The image is HANDWRITTEN (notebook, board, exam answer). Be extra careful with:
+- Greek letters (α/a, β/B, ε/E, θ/0, π/n)
+- Sub/superscripts
+- Fractions / square roots / matrices
+- 日本語の崩し字
+- Crossed-out / struck-through content → SKIP
+Where unsure, transcribe + "(要確認)".
 """
+
 
 OMR_TEXT_ONLY_PROMPT = OMR_SYSTEM_PROMPT + """
 
 ## Text-only PDF instructions
-- You are receiving raw text extracted from a PDF (no images available).
-- The text may have formatting artifacts, extra whitespace, or broken lines.
-- Reconstruct the logical document structure from the raw text.
-- Identify headings by context (shorter standalone lines, numbered sections, etc.).
-- Identify math expressions and convert to proper LaTeX notation.
-- Group related paragraphs together.
+You only have raw extracted text (no images). Reconstruct the logical structure
+from line breaks and section numbering.
 """
 
 
+# ─── Tool definition (simplified set_latex for OMR) ──────────────────────────
+
+def _build_omr_tools() -> list[dict]:
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "set_latex",
+                "description": (
+                    "Set the full LaTeX source of the document. Provide a complete, "
+                    "compilable LaTeX document including \\documentclass and "
+                    "\\begin{document} ... \\end{document}."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "latex": {
+                            "type": "string",
+                            "description": "The full LaTeX source.",
+                        },
+                    },
+                    "required": ["latex"],
+                },
+            },
+        }
+    ]
+
+
 def _sse(data: dict) -> str:
-    """Format SSE event."""
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def _image_to_data_url(image_bytes: bytes, media_type: str) -> str:
-    """Convert image bytes to data URL for OpenAI Vision API."""
     b64 = base64.b64encode(image_bytes).decode("utf-8")
     return f"data:{media_type};base64,{b64}"
 
 
-def _build_omr_tools() -> list[dict]:
-    """Build OpenAI tools list with only edit_document for OMR."""
-    all_tools = get_openai_tools()
-    return [t for t in all_tools if t["function"]["name"] == "edit_document"]
-
-
 # ─── PDF extraction strategies ──────────────────────────────────────────────
 
-
 def _pdf_extract_pymupdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
-    """Extract text + render images using PyMuPDF (fitz).
-    Returns {"texts": [str, ...], "images": [(bytes, mime), ...], "page_count": int}
-    """
-    import fitz  # PyMuPDF
+    """Extract text + images using PyMuPDF (fitz)."""
+    import fitz
 
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     page_count = min(len(doc), max_pages)
@@ -196,12 +143,9 @@ def _pdf_extract_pymupdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
 
     for i in range(page_count):
         page = doc[i]
-
-        # Extract text
         text = page.get_text("text")
         texts.append(text.strip())
 
-        # Render page to PNG image (150 DPI for reasonable size)
         mat = fitz.Matrix(150 / 72, 150 / 72)
         pix = page.get_pixmap(matrix=mat)
         img_bytes = pix.tobytes("png")
@@ -212,15 +156,12 @@ def _pdf_extract_pymupdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
 
 
 def _pdf_extract_poppler(pdf_bytes: bytes, max_pages: int = 10) -> dict:
-    """Fallback: Extract images using poppler-utils (pdftoppm).
-    Returns {"texts": [], "images": [(bytes, mime), ...], "page_count": int}
-    """
+    """Fallback: poppler-utils (pdftoppm)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         pdf_path = os.path.join(tmpdir, "input.pdf")
         with open(pdf_path, "wb") as f:
             f.write(pdf_bytes)
 
-        # Get page count
         result = subprocess.run(
             ["pdfinfo", pdf_path],
             capture_output=True, text=True, timeout=10,
@@ -249,7 +190,6 @@ def _pdf_extract_poppler(pdf_bytes: bytes, max_pages: int = 10) -> dict:
                 with open(os.path.join(tmpdir, fname), "rb") as img_f:
                     images.append((img_f.read(), "image/png"))
 
-        # Try pdftotext for text extraction
         texts: list[str] = []
         try:
             text_result = subprocess.run(
@@ -257,7 +197,6 @@ def _pdf_extract_poppler(pdf_bytes: bytes, max_pages: int = 10) -> dict:
                 capture_output=True, text=True, timeout=30,
             )
             if text_result.returncode == 0 and text_result.stdout.strip():
-                # Split by form feeds (page breaks)
                 pages = text_result.stdout.split("\f")
                 texts = [p.strip() for p in pages if p.strip()]
         except Exception:
@@ -267,9 +206,7 @@ def _pdf_extract_poppler(pdf_bytes: bytes, max_pages: int = 10) -> dict:
 
 
 def _pdf_extract_text_only(pdf_bytes: bytes, max_pages: int = 10) -> dict:
-    """Last resort: Extract text only using PyMuPDF (no images).
-    Returns {"texts": [str, ...], "images": [], "page_count": int}
-    """
+    """Last resort: text only via PyMuPDF."""
     try:
         import fitz
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -281,53 +218,32 @@ def _pdf_extract_text_only(pdf_bytes: bytes, max_pages: int = 10) -> dict:
         doc.close()
         return {"texts": texts, "images": [], "page_count": page_count}
     except ImportError:
-        # Even fitz not available — try basic extraction
         return {"texts": [], "images": [], "page_count": 0}
 
 
-async def _extract_pdf_content(pdf_bytes: bytes, progress_callback=None):
-    """Try multiple PDF extraction strategies, returning the best result.
-
-    Returns {"texts": [...], "images": [...], "page_count": int, "method": str}
-    """
+async def _extract_pdf_content(pdf_bytes: bytes):
     import asyncio
-
-    # Strategy 1: PyMuPDF (best — text + images, pure Python)
     try:
-        if progress_callback:
-            progress_callback("PyMuPDF でPDFを解析中...")
         result = await asyncio.to_thread(_pdf_extract_pymupdf, pdf_bytes)
         if result["page_count"] > 0:
-            logger.info("PDF extraction via PyMuPDF: %d pages, %d images, text=%s",
-                        result["page_count"], len(result["images"]),
-                        "yes" if any(result["texts"]) else "no")
             return {**result, "method": "pymupdf"}
     except ImportError:
         logger.info("PyMuPDF not available, trying poppler")
     except Exception as e:
         logger.warning("PyMuPDF extraction failed: %s", e)
 
-    # Strategy 2: poppler-utils (external dependency)
     try:
-        if progress_callback:
-            progress_callback("poppler でPDFを変換中...")
         result = await asyncio.to_thread(_pdf_extract_poppler, pdf_bytes)
         if result["images"]:
-            logger.info("PDF extraction via poppler: %d pages, %d images",
-                        result["page_count"], len(result["images"]))
             return {**result, "method": "poppler"}
     except FileNotFoundError:
-        logger.info("poppler-utils not installed, trying text-only extraction")
+        logger.info("poppler-utils not installed")
     except Exception as e:
         logger.warning("poppler extraction failed: %s", e)
 
-    # Strategy 3: Text-only extraction (last resort)
     try:
-        if progress_callback:
-            progress_callback("テキストを直接抽出中...")
         result = await asyncio.to_thread(_pdf_extract_text_only, pdf_bytes)
         if any(result["texts"]):
-            logger.info("PDF text-only extraction: %d pages", result["page_count"])
             return {**result, "method": "text_only"}
     except Exception as e:
         logger.warning("Text-only extraction failed: %s", e)
@@ -337,340 +253,10 @@ async def _extract_pdf_content(pdf_bytes: bytes, progress_callback=None):
 
 # ─── Response parsing ──────────────────────────────────────────────────────
 
-
-def _normalize_omr_block(block: dict, block_id: str) -> dict:
-    """OMR ブロックを正規化して content/style 構造を保証する。"""
-    if not isinstance(block, dict):
-        return None
-
-    bid = block.get("id") or block_id
-
-    # content が既に構造化されている場合
-    content = block.get("content")
-    if isinstance(content, dict) and "type" in content:
-        style = block.get("style") or {"textAlign": "left", "fontSize": 11, "fontFamily": "sans"}
-        return {"id": bid, "content": content, "style": style}
-
-    # フラット形式: { id, type: "heading", text: "...", level: 2, style: {...} }
-    btype = block.get("type")
-    if btype:
-        meta_keys = {"id", "style"}
-        content = {k: v for k, v in block.items() if k not in meta_keys}
-        style = block.get("style") or {"textAlign": "left", "fontSize": 11, "fontFamily": "sans"}
-        return {"id": bid, "content": content, "style": style}
-
-    return None
-
-
-# 表示数式の特徴を持つLaTeXコマンド（これらが含まれていれば display にすべき可能性が高い）
-_DISPLAY_MATH_HINTS = (
-    "\\sum", "\\int", "\\prod", "\\lim", "\\oint", "\\iint", "\\iiint",
-    "\\begin{aligned}", "\\begin{align}", "\\begin{cases}", "\\begin{matrix}",
-    "\\begin{pmatrix}", "\\begin{bmatrix}", "\\begin{vmatrix}",
-    "\\overbrace", "\\underbrace", "\\binom",
-    "\\\\",  # 改行 → ほぼ確実に display
-)
-
-# $...$ をスキャンして (start, end, latex) を返す
-_INLINE_MATH_RE = re.compile(r"\$([^$\n]+?)\$")
-
-# \[...\] (display) と \(...\) (inline) デリミタにもマッチ
-_DISPLAY_ENV_RE = re.compile(r"\\\[(.+?)\\\]", re.DOTALL)
-_PAREN_INLINE_RE = re.compile(r"\\\((.+?)\\\)", re.DOTALL)
-
-# 既存の $...$ / $$...$$ ブロックを保護するためのパターン
-_MATH_BLOCK_RE = re.compile(r"\$\$[\s\S]*?\$\$|\$[^$\n]+?\$")
-
-
-def _wrap_bare_latex_runs(segment: str) -> str:
-    """$...$ 外の区間で \\LaTeXコマンド を含む ASCII run を $...$ で囲む。
-    日本語（非ASCII）文字をセパレータとして使い、\\command を含む ASCII 部分だけをラップする。
-    """
-    if "\\" not in segment:
-        return segment
-
-    result = []
-    i = 0
-    n = len(segment)
-
-    while i < n:
-        c = segment[i]
-
-        # ASCII文字のrun（潜在的な数式区間）
-        if ord(c) < 128:
-            run_start = i
-            has_cmd = False
-            while i < n and ord(segment[i]) < 128:
-                if segment[i] == "\\" and i + 1 < n and segment[i + 1].isalpha():
-                    has_cmd = True
-                i += 1
-            run = segment[run_start:i]
-            if has_cmd:
-                # \command を含む → $...$ で囲む（前後の空白は外に出す）
-                stripped = run.strip()
-                leading = run[: len(run) - len(run.lstrip())]
-                trailing = run[len(run.rstrip()):]
-                result.append(leading)
-                if stripped:
-                    result.append(f"${stripped}$")
-                result.append(trailing)
-            else:
-                result.append(run)
-
-        # 非ASCII（日本語・全角記号など）: そのまま出力
-        else:
-            result.append(c)
-            i += 1
-
-    return "".join(result)
-
-
-def _fix_bare_latex_in_text(text: str) -> str:
-    """段落テキスト中で $...$ の外に出てしまった \\LaTeXコマンド を $...$ で囲む。
-    既存の $...$ / $$...$$ ブロックは保護する。
-    """
-    if "\\" not in text:
-        return text
-
-    result = []
-    pos = 0
-
-    for m in _MATH_BLOCK_RE.finditer(text):
-        # math ブロックの前の非math部分を処理
-        before = text[pos:m.start()]
-        result.append(_wrap_bare_latex_runs(before))
-        # math ブロック自体は保護してそのまま追加
-        result.append(m.group())
-        pos = m.end()
-
-    # 末尾の残りを処理
-    result.append(_wrap_bare_latex_runs(text[pos:]))
-    return "".join(result)
-
-
-def _normalize_math_delimiters(text: str) -> str:
-    """LaTeX デリミタを統一し、bare な \\command を $...$ で囲む。
-    \\[...\\] → $$...$$ (display)
-    \\(...\\) → $...$ (inline)
-    \\therefore などの生コマンド → $\\therefore$ (inline math)
-    """
-    # \[...\] → $$...$$
-    text = _DISPLAY_ENV_RE.sub(lambda m: f"$${m.group(1).strip()}$$", text)
-    # \(...\) → $...$
-    text = _PAREN_INLINE_RE.sub(lambda m: f"${m.group(1).strip()}$", text)
-    # bare \LaTeX コマンドを $...$ で囲む
-    text = _fix_bare_latex_in_text(text)
-    return text
-
-
-def _looks_like_display_math(latex: str) -> bool:
-    """このLaTeXは display math に昇格すべきか?"""
-    s = latex.strip()
-    if not s:
-        return False
-    if len(s) >= 40:
-        return True
-    for hint in _DISPLAY_MATH_HINTS:
-        if hint in s:
-            return True
-    # 高いフラクション (\frac{...}{...} の中身が長いものは display 向き)
-    if s.count("\\frac") >= 2:
-        return True
-    return False
-
-
-def _promote_display_math_in_paragraph(content: dict) -> list[dict]:
-    """段落テキストを走査して、display 級の数式を $$...$$ で囲んだ独立 paragraph に昇格させる。
-
-    math ブロックタイプは廃止 — 全て paragraph + $$...$$ / $...$ で表現する。
-    返り値: 新しい content オブジェクトのリスト (1個以上)。
-    """
-    if not isinstance(content, dict) or content.get("type") != "paragraph":
-        return [content]
-
-    text = content.get("text") or ""
-    text = _normalize_math_delimiters(text)
-    if not text or "$" not in text:
-        return [content]
-
-    # $$...$$ はすでに display として扱われているのでそのまま通す
-    # $...$ のみを対象に display 昇格を検討
-    matches = list(_INLINE_MATH_RE.finditer(text))
-    if not matches:
-        return [content]
-
-    # 段落全体が "$...$" 1個だけ (周囲の文字が空白だけ) → display paragraph に昇格
-    if len(matches) == 1:
-        m = matches[0]
-        before = text[:m.start()].strip()
-        after = text[m.end():].strip()
-        if not before and not after:
-            latex = m.group(1).strip()
-            # paragraph の text を $$...$$ に変換（display math）
-            return [{"type": "paragraph", "text": f"$${latex}$$"}]
-
-    # 段落内に display 級の数式が混じっている → 段落を分割
-    # display 数式 → 独立した paragraph with $$...$$
-    # inline 数式 → 前後のテキストと同じ paragraph に残す
-    result: list[dict] = []
-    cursor = 0
-    buffer = ""
-
-    def flush_text():
-        nonlocal buffer
-        t = buffer.strip()
-        if t:
-            result.append({"type": "paragraph", "text": t})
-        buffer = ""
-
-    for m in matches:
-        latex = m.group(1).strip()
-        if _looks_like_display_math(latex):
-            # 直前のテキストを paragraph として確定
-            buffer += text[cursor:m.start()]
-            flush_text()
-            # display math → 独立した paragraph with $$...$$
-            result.append({"type": "paragraph", "text": f"$${latex}$$"})
-            cursor = m.end()
-        # それ以外は そのまま buffer に流し込む（後で一括コピー）
-
-    buffer += text[cursor:]
-    flush_text()
-
-    if not result:
-        return [content]
-    return result
-
-
-def _post_process_omr_blocks(ops: list[dict]) -> list[dict]:
-    """OMR が生成したブロックを後処理して、display math 検出ミスや過度なインライン化を修正する。"""
-    new_ops: list[dict] = []
-    counter = 0
-
-    for op in ops:
-        if op.get("op") != "add_block":
-            new_ops.append(op)
-            continue
-
-        block = op.get("block") or {}
-        content = block.get("content")
-        if not isinstance(content, dict):
-            new_ops.append(op)
-            continue
-
-        promoted = _promote_display_math_in_paragraph(content)
-
-        if len(promoted) == 1 and promoted[0] is content:
-            new_ops.append(op)
-            continue
-
-        # 1個以上に分割された → 元のブロックを置き換え
-        prev_after_id = op.get("afterId")
-        for i, new_content in enumerate(promoted):
-            counter += 1
-            new_block = {
-                "id": f"{block.get('id', 'omr')}-{i+1}" if i > 0 else block.get("id"),
-                "content": new_content,
-                "style": block.get("style") or {"textAlign": "left", "fontSize": 11, "fontFamily": "sans"},
-            }
-            new_ops.append({
-                "op": "add_block",
-                "afterId": prev_after_id,
-                "block": new_block,
-            })
-            prev_after_id = new_block["id"]
-
-    # afterId チェーンを再構築 (分割でズレた可能性があるため)
-    fixed: list[dict] = []
-    last_id = None
-    for op in new_ops:
-        if op.get("op") == "add_block":
-            new_op = {**op}
-            if last_id is not None and new_op.get("afterId") is None:
-                new_op["afterId"] = last_id
-            fixed.append(new_op)
-            last_id = (new_op.get("block") or {}).get("id") or last_id
-        else:
-            fixed.append(op)
-
-    return fixed
-
-
-def _normalize_omr_patches(raw_patches: dict | list) -> dict | None:
-    """OMR パッチを正規化し、afterId チェーンを修復する。"""
-    if isinstance(raw_patches, list):
-        ops = raw_patches
-    elif isinstance(raw_patches, dict):
-        ops = raw_patches.get("ops") or raw_patches.get("operations") or []
-        if not ops and "op" in raw_patches:
-            # 単一のオペレーション
-            ops = [raw_patches]
-    else:
-        return None
-
-    if not isinstance(ops, list) or len(ops) == 0:
-        return None
-
-    normalized_ops = []
-    prev_id = None
-
-    for i, op in enumerate(ops):
-        if not isinstance(op, dict):
-            continue
-
-        op_type = op.get("op") or op.get("operation") or op.get("type")
-        if not op_type:
-            continue
-
-        # op名の正規化
-        if op_type in ("add", "add_block", "insert"):
-            block = op.get("block") or {k: v for k, v in op.items() if k not in ("op", "operation", "type", "afterId", "after_id")}
-            block_id = f"omr-{i+1:03d}"
-            normalized_block = _normalize_omr_block(block, block_id)
-            if not normalized_block:
-                continue
-
-            # afterId チェーンを修復
-            after_id = op.get("afterId") or op.get("after_id")
-            if after_id is None and prev_id is not None:
-                after_id = prev_id
-
-            normalized_ops.append({
-                "op": "add_block",
-                "afterId": after_id,
-                "block": normalized_block,
-            })
-            prev_id = normalized_block["id"]
-
-        elif op_type in ("update", "update_block"):
-            normalized_ops.append({
-                "op": "update_block",
-                "blockId": op.get("blockId") or op.get("block_id"),
-                "content": op.get("content"),
-                "style": op.get("style"),
-            })
-        elif op_type in ("delete", "delete_block"):
-            normalized_ops.append({
-                "op": "delete_block",
-                "blockId": op.get("blockId") or op.get("block_id"),
-            })
-
-    if not normalized_ops:
-        return None
-
-    # 後処理: 段落内に紛れ込んだ display math を昇格 / 分割
-    try:
-        normalized_ops = _post_process_omr_blocks(normalized_ops)
-    except Exception as e:
-        logger.warning("OMR post-processing failed: %s", e)
-
-    return {"ops": normalized_ops}
-
-
-def _extract_patches_from_response(response) -> tuple[list[str], dict | None]:
-    """Extract text and patches from an OpenAI response."""
+def _extract_latex_from_response(response) -> tuple[list[str], str | None]:
+    """Extract text and raw LaTeX from an OpenAI response."""
     text_parts: list[str] = []
-    patches = None
+    latex: str | None = None
     try:
         choice = response.choices[0]
         msg = choice.message
@@ -680,28 +266,24 @@ def _extract_patches_from_response(response) -> tuple[list[str], dict | None]:
 
         if msg.tool_calls:
             for tc in msg.tool_calls:
-                if tc.function.name == "edit_document":
+                if tc.function.name == "set_latex":
                     try:
                         parsed = json.loads(tc.function.arguments)
-                        patches = _normalize_omr_patches(parsed)
-                        if patches:
-                            logger.info("OMR: Extracted %d ops from edit_document",
-                                        len(patches.get("ops", [])))
-                        else:
-                            logger.warning("OMR: edit_document returned empty/invalid patches")
+                        candidate = parsed.get("latex")
+                        if isinstance(candidate, str) and candidate.strip():
+                            latex = candidate
+                            logger.info("OMR: Extracted %d chars of LaTeX", len(latex))
                     except json.JSONDecodeError as e:
-                        logger.warning("OMR: edit_document args parse failed: %s (args: %s...)",
-                                       e, tc.function.arguments[:200])
+                        logger.warning("OMR: set_latex args parse failed: %s", e)
         else:
-            logger.warning("OMR: No tool_calls in response. finish_reason=%s, content=%s",
-                           choice.finish_reason, (msg.content or "")[:200])
+            logger.warning("OMR: No tool_calls in response. finish_reason=%s",
+                           choice.finish_reason)
     except (IndexError, AttributeError) as e:
         logger.warning("OpenAI OMR response parse failed: %s", e)
-    return text_parts, patches
+    return text_parts, latex
 
 
 # ─── Image analysis ──────────────────────────────────────────────────────────
-
 
 async def analyze_image(
     image_bytes: bytes,
@@ -709,15 +291,15 @@ async def analyze_image(
     document_context: dict,
     hint: str = "",
 ) -> dict:
-    """OpenAI Vision で画像/PDFを解析し、ドキュメントパッチを返す。"""
-    result = {"description": "", "patches": None}
+    """OpenAI Vision で画像/PDFを解析し、raw LaTeX を返す。"""
+    result = {"description": "", "latex": None}
     async for event_str in analyze_image_stream(image_bytes, media_type, document_context, hint):
         if event_str.startswith("data: "):
             try:
                 event = json.loads(event_str[6:])
                 if event.get("type") == "done":
                     result["description"] = event.get("description", "")
-                    result["patches"] = event.get("patches")
+                    result["latex"] = event.get("latex")
                 elif event.get("type") == "error":
                     result["description"] = event.get("message", "")
             except json.JSONDecodeError:
@@ -726,10 +308,7 @@ async def analyze_image(
 
 
 async def _detect_handwriting(client, data_url: str) -> bool:
-    """画像が手書きかどうかを軽量モデルで判定する (1リクエスト, 数トークン)。
-
-    失敗時は False を返す (=活字扱い)。
-    """
+    """画像が手書きかどうかを軽量モデルで判定する。"""
     import asyncio
     try:
         def _call():
@@ -741,10 +320,8 @@ async def _detect_handwriting(client, data_url: str) -> bool:
                         "content": [
                             {"type": "image_url", "image_url": {"url": data_url, "detail": "low"}},
                             {"type": "text", "text": (
-                                "この画像の主要な内容は手書き(handwritten)ですか、それとも活字(printed/typeset)ですか? "
-                                "手書きノート・板書・試験答案・走り書きであれば 'handwritten' のみ返してください。"
-                                "印刷物・PDF・スクリーンショットであれば 'printed' のみ返してください。"
-                                "1単語のみで答えてください。"
+                                "この画像の主要な内容は手書き(handwritten)ですか、それとも活字(printed)ですか? "
+                                "1単語のみで答えてください: 'handwritten' か 'printed'."
                             )},
                         ],
                     }
@@ -754,16 +331,13 @@ async def _detect_handwriting(client, data_url: str) -> bool:
             )
         resp = await asyncio.to_thread(_call)
         ans = (resp.choices[0].message.content or "").strip().lower()
-        return "hand" in ans  # handwritten / handwriting
+        return "hand" in ans
     except Exception as e:
         logger.warning("handwriting detection failed: %s", e)
         return False
 
 
 def _hint_forces_handwriting(hint: str) -> bool | None:
-    """ヒント文字列に明示的なモード指定があればそれを優先。
-    None=自動判定, True=手書き強制, False=活字強制
-    """
     if not hint:
         return None
     h = hint.lower()
@@ -793,7 +367,6 @@ async def analyze_image_stream(
     client = get_client()
     data_url = _image_to_data_url(image_bytes, media_type)
 
-    # ── 手書き判定 (ヒント優先 / 自動判定フォールバック) ──
     forced = _hint_forces_handwriting(hint)
     if forced is True:
         is_handwriting = True
@@ -812,7 +385,7 @@ async def analyze_image_stream(
     prompt_text = (
         f"この画像からドキュメント構造を抽出してください。{hint}"
         if hint
-        else "この画像からドキュメント構造を抽出して、edit_documentツールでブロックとして追加してください。"
+        else "この画像からドキュメント構造を抽出して、set_latexツールで完全なLaTeXソースを返してください。"
     )
 
     messages = [
@@ -829,7 +402,7 @@ async def analyze_image_stream(
     tools = _build_omr_tools()
 
     MAX_RETRIES = 2
-    patches = None
+    latex: str | None = None
     text_parts: list[str] = []
 
     for attempt in range(1, MAX_RETRIES + 1):
@@ -844,7 +417,7 @@ async def analyze_image_stream(
                     model=MODEL_VISION,
                     messages=messages,
                     tools=tools,
-                    tool_choice={"type": "function", "function": {"name": "edit_document"}},
+                    tool_choice={"type": "function", "function": {"name": "set_latex"}},
                     temperature=0.3,
                     max_tokens=16384,
                 )
@@ -856,46 +429,37 @@ async def analyze_image_stream(
             yield _sse({"type": "error", "message": f"AI解析エラー: {str(e)[:200]}"})
             return
 
-        text_parts, patches = _extract_patches_from_response(response)
+        text_parts, latex = _extract_latex_from_response(response)
 
-        if patches and patches.get("ops"):
+        if latex:
             break
 
-        if attempt < MAX_RETRIES:
-            logger.info("OMR attempt %d: no patches, retrying", attempt)
-
-    yield _sse({"type": "progress", "phase": "extracting", "message": "ブロックを構成中..."})
+    yield _sse({"type": "progress", "phase": "extracting", "message": "LaTeXを構成中..."})
 
     description = "\n".join(text_parts).strip()
-    if not description and patches:
-        description = f"画像から{len(patches.get('ops', []))}件のブロックを抽出しました。"
+    if not description and latex:
+        description = f"画像から{len(latex)}文字のLaTeXソースを抽出しました。"
 
     yield _sse({
         "type": "done",
         "description": description,
-        "patches": patches,
+        "latex": latex,
     })
 
 
 # ─── PDF analysis ──────────────────────────────────────────────────────────
-
 
 async def _analyze_pdf_stream(
     pdf_bytes: bytes,
     document_context: dict,
     hint: str = "",
 ):
-    """PDFからテキスト+画像を抽出し、OpenAI APIで構造化ブロックに変換する。"""
+    """PDFからテキスト+画像を抽出し、OpenAI APIで raw LaTeX に変換する。"""
     import asyncio
 
     yield _sse({"type": "progress", "phase": "converting", "message": "PDFを解析中..."})
 
-    # Extract PDF content (tries PyMuPDF → poppler → text-only)
-    def _progress(msg):
-        pass  # Cannot yield from sync callback; log instead
-        logger.info("PDF extraction: %s", msg)
-
-    extraction = await _extract_pdf_content(pdf_bytes, progress_callback=_progress)
+    extraction = await _extract_pdf_content(pdf_bytes)
 
     method = extraction.get("method", "none")
     page_count = extraction.get("page_count", 0)
@@ -905,7 +469,7 @@ async def _analyze_pdf_stream(
     has_images = len(images) > 0
 
     if page_count == 0 and not has_text:
-        yield _sse({"type": "error", "message": "PDFからコンテンツを抽出できませんでした。ファイルが破損しているか、スキャンPDFの可能性があります。"})
+        yield _sse({"type": "error", "message": "PDFからコンテンツを抽出できませんでした。"})
         return
 
     yield _sse({"type": "progress", "phase": "converted",
@@ -916,7 +480,6 @@ async def _analyze_pdf_stream(
 
     page_label = f"{page_count}ページのPDF" if page_count > 1 else "1ページのPDF"
 
-    # ── 手書きPDF判定 (画像があり、かつ抽出テキストがほぼ空の時に判定する) ──
     forced = _hint_forces_handwriting(hint)
     is_handwriting = False
     if forced is True:
@@ -924,32 +487,27 @@ async def _analyze_pdf_stream(
     elif forced is False:
         is_handwriting = False
     elif has_images and not has_text:
-        # スキャン/写真PDF — 1ページ目で手書き判定
         yield _sse({"type": "progress", "phase": "detecting", "message": "手書き / 活字を判定中..."})
         first_data_url = _image_to_data_url(images[0][0], images[0][1])
         is_handwriting = await _detect_handwriting(client, first_data_url)
         if is_handwriting:
             yield _sse({"type": "progress", "phase": "mode", "message": "手書きモードで読み取ります"})
 
-    # Build the optimal message based on what we extracted
     if has_images and has_text:
-        # Best case: text + images
         yield _sse({"type": "progress", "phase": "ai_processing",
                     "message": f"AIが{page_count}ページのテキストと画像を解析中..."})
         messages = _build_pdf_messages_with_text_and_images(
             texts, images, page_count, page_label, hint)
         system_prompt = OMR_PDF_SYSTEM_PROMPT
     elif has_images:
-        # Images only (scanned PDF)
         yield _sse({"type": "progress", "phase": "ai_processing",
                     "message": f"AIが{page_count}ページの画像を解析中..."})
         messages = _build_pdf_messages_images_only(
             images, page_count, page_label, hint)
         system_prompt = OMR_HANDWRITING_PROMPT if is_handwriting else OMR_PDF_SYSTEM_PROMPT
     else:
-        # Text only (no images available)
         yield _sse({"type": "progress", "phase": "ai_processing",
-                    "message": f"AIがテキストからブロックを構成中..."})
+                    "message": "AIがテキストからLaTeXを構成中..."})
         messages = _build_pdf_messages_text_only(
             texts, page_count, page_label, hint)
         system_prompt = OMR_TEXT_ONLY_PROMPT
@@ -957,7 +515,7 @@ async def _analyze_pdf_stream(
     messages.insert(0, {"role": "system", "content": system_prompt})
 
     MAX_RETRIES = 2
-    patches = None
+    latex: str | None = None
     resp_text_parts: list[str] = []
 
     for attempt in range(1, MAX_RETRIES + 1):
@@ -966,15 +524,12 @@ async def _analyze_pdf_stream(
                         "message": f"再解析中... (試行 {attempt}/{MAX_RETRIES})"})
 
         try:
-            use_vision = has_images
-            model = MODEL_VISION
-
             def _call():
                 return client.chat.completions.create(
-                    model=model,
+                    model=MODEL_VISION,
                     messages=messages,
                     tools=tools,
-                    tool_choice={"type": "function", "function": {"name": "edit_document"}},
+                    tool_choice={"type": "function", "function": {"name": "set_latex"}},
                     temperature=0.3,
                     max_tokens=16384,
                 )
@@ -986,36 +541,30 @@ async def _analyze_pdf_stream(
             yield _sse({"type": "error", "message": f"AI解析エラー: {str(e)[:200]}"})
             return
 
-        resp_text_parts, patches = _extract_patches_from_response(response)
+        resp_text_parts, latex = _extract_latex_from_response(response)
 
-        if patches and patches.get("ops"):
+        if latex:
             break
 
-        if attempt < MAX_RETRIES:
-            logger.info("OMR PDF attempt %d: no patches, retrying", attempt)
-
-    yield _sse({"type": "progress", "phase": "extracting", "message": "ブロックを構成中..."})
+    yield _sse({"type": "progress", "phase": "extracting", "message": "LaTeXを構成中..."})
 
     description = "\n".join(resp_text_parts).strip()
-    if not description and patches:
-        n_ops = len(patches.get("ops", []))
-        description = f"PDFから{n_ops}件のブロックを抽出しました（{page_count}ページ）。"
+    if not description and latex:
+        description = f"PDFから{len(latex)}文字のLaTeXソースを抽出しました（{page_count}ページ）。"
 
     yield _sse({
         "type": "done",
         "description": description,
-        "patches": patches,
+        "latex": latex,
     })
 
 
-# ─── Message builders for different PDF extraction modes ─────────────────
-
+# ─── Message builders ─────────────────────────────────────────────────────
 
 def _build_pdf_messages_with_text_and_images(
     texts: list[str], images: list[tuple[bytes, str]],
     page_count: int, page_label: str, hint: str,
 ) -> list[dict]:
-    """Build messages using both extracted text and page images."""
     content_parts: list[dict] = []
 
     for i in range(page_count):
@@ -1035,8 +584,7 @@ def _build_pdf_messages_with_text_and_images(
         if hint
         else (
             f"上記の{page_label}から抽出したテキストとページ画像を確認し、"
-            "edit_documentツールでブロックとして正確に再構成してください。"
-            "テキスト抽出結果を主に使い、画像で補完してください。"
+            "set_latex ツールで完全なLaTeXソースを返してください。"
             "全ページを通して1つの連続したドキュメントとして処理してください。"
         )
     )
@@ -1049,7 +597,6 @@ def _build_pdf_messages_images_only(
     images: list[tuple[bytes, str]],
     page_count: int, page_label: str, hint: str,
 ) -> list[dict]:
-    """Build messages using page images only (scanned PDF)."""
     content_parts: list[dict] = []
 
     for i in range(min(page_count, len(images))):
@@ -1066,7 +613,7 @@ def _build_pdf_messages_images_only(
         if hint
         else (
             f"この{page_label}のページ画像からテキスト・数式・表などを読み取り、"
-            "edit_documentツールでブロックとして追加してください。"
+            "set_latex ツールで完全なLaTeXソースを返してください。"
             "全ページを通して1つの連続したドキュメントとして処理してください。"
         )
     )
@@ -1079,7 +626,6 @@ def _build_pdf_messages_text_only(
     texts: list[str],
     page_count: int, page_label: str, hint: str,
 ) -> list[dict]:
-    """Build messages using extracted text only (no images)."""
     combined_text = ""
     for i, text in enumerate(texts):
         if text.strip():
@@ -1092,9 +638,8 @@ def _build_pdf_messages_text_only(
         if hint
         else (
             f"以下は{page_label}から抽出した生テキストです。\n"
-            "このテキストを解析して、edit_documentツールでドキュメントブロックに変換してください。\n"
-            "見出し、本文、数式、リスト、表などを適切なブロックタイプに分類してください。\n"
-            "数式は正しいLaTeX記法に変換してください。\n\n"
+            "このテキストを解析して、set_latex ツールで完全なLaTeXソースを返してください。\n"
+            "見出し、本文、数式、リスト、表などを適切な LaTeX 構文に変換してください。\n\n"
         )
     )
 

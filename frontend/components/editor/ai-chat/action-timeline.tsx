@@ -7,10 +7,14 @@ import {
 import { formatDuration } from "./utils";
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
+  read_latex: BookOpen,
+  set_latex: Wrench,
+  replace_in_latex: Search,
+  compile_check: Hammer,
+  // Legacy aliases
   read_document: BookOpen,
   search_blocks: Search,
   edit_document: Wrench,
-  compile_check: Hammer,
   get_latex_source: Code2,
 };
 

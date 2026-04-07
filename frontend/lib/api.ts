@@ -1,27 +1,16 @@
-import type { DocumentModel, BatchRequest, ChatMessage, DocumentPatch } from "./types";
+import type { DocumentModel, BatchRequest, ChatMessage, AnswerKey, StudentAnswer, ScoreResult } from "./types";
 
 /**
  * API ベース URL
- *
- * 本番 (Vercel): 空文字列 → 同一オリジンの /api/* Route Handler を経由
- *   → サーバーサイドで Koyeb バックエンドへプロキシ (CORS 不要)
- *
- * ローカル開発: NEXT_PUBLIC_API_URL=http://localhost:8000 を .env.local に設定
- *   → 直接バックエンドに接続
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 /**
- * AI専用バックエンドURL
- *
- * Vercel無料プランは60秒でタイムアウトするため、
- * AIストリーミングはVercelプロキシを経由せず直接バックエンドに接続する。
- * NEXT_PUBLIC_BACKEND_URL を設定すればプロキシをバイパスする。
+ * AI専用バックエンドURL（Vercel無料プランの60秒制限を回避するため）
  */
 const AI_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
 export async function generatePDF(doc: DocumentModel): Promise<Blob> {
-  // 最大2回試行 (初回がコールドスタートタイムアウトの場合にリトライ)
   const maxAttempts = 2;
   let lastError: Error | null = null;
 
@@ -31,7 +20,6 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(doc),
-        // Vercel Route Handler (max 60s) + マージン
         signal: AbortSignal.timeout(58000),
       });
 
@@ -42,7 +30,6 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
           ? detail
           : detail?.message || `PDF生成に失敗しました (HTTP ${res.status})`;
 
-        // 502/504 はリトライ可能
         if ((res.status === 502 || res.status === 504) && attempt < maxAttempts) {
           lastError = new Error(message);
           continue;
@@ -53,7 +40,7 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
       return await res.blob();
     } catch (networkErr) {
       if (networkErr instanceof Error && networkErr.message?.startsWith("PDF")) {
-        throw networkErr; // アプリケーションエラー（リトライ不要）
+        throw networkErr;
       }
 
       const isTimeout = networkErr instanceof Error &&
@@ -98,7 +85,8 @@ export async function compileRawLatex(latex: string, filename?: string): Promise
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as { message?: string }).message ?? "LaTeXコンパイルに失敗しました");
+    const detail = (err as { detail?: { message?: string } })?.detail;
+    throw new Error(detail?.message ?? "LaTeXコンパイルに失敗しました");
   }
   return res.blob();
 }
@@ -110,33 +98,6 @@ export async function healthCheck(): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-export async function previewBlockSVG(
-  code: string,
-  blockType: string,
-  caption: string = "",
-  customPreamble: string = "",
-  customCommands: string[] = []
-): Promise<string> {
-  const res = await fetch(`${API_BASE}/api/preview-block`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      code,
-      block_type: blockType,
-      caption,
-      customPreamble,
-      customCommands,
-    }),
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => null);
-    throw new Error(err?.detail?.message || "プレビュー生成に失敗しました");
-  }
-  const data = await res.json();
-  return data.svg;
 }
 
 // ═══ バッチ生成 (教材工場) API ═══
@@ -158,7 +119,7 @@ export async function batchGeneratePDFs(req: BatchRequest): Promise<Blob> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
-    signal: AbortSignal.timeout(300000), // 5分
+    signal: AbortSignal.timeout(300000),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
@@ -188,8 +149,9 @@ export async function batchPreview(req: BatchRequest): Promise<{
 
 export interface AIChatResponse {
   message: string;
-  patches: DocumentPatch | null;
-  thinking: Array<{ type: "thinking" | "action" | "result"; text: string }>;
+  /** New full LaTeX source produced by the agent (or null if no edits were made) */
+  latex: string | null;
+  thinking: Array<{ type: string; text: string; tool?: string; duration?: number }>;
   usage: { inputTokens: number; outputTokens: number };
 }
 
@@ -197,14 +159,13 @@ export async function sendAIMessage(
   messages: Pick<ChatMessage, "role" | "content">[],
   doc: DocumentModel,
 ): Promise<AIChatResponse> {
-  // バックエンドURLが設定されていればVercelプロキシをバイパス
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/ai/chat`
     : `${API_BASE}/api/ai/chat`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, document: doc, requestPatches: true }),
+    body: JSON.stringify({ messages, document: doc }),
     signal: AbortSignal.timeout(180000),
   });
 
@@ -217,7 +178,7 @@ export async function sendAIMessage(
   const data = await res.json();
   return {
     message: data.message || "",
-    patches: data.patches || null,
+    latex: data.latex ?? null,
     thinking: data.thinking || [],
     usage: data.usage || { inputTokens: 0, outputTokens: 0 },
   };
@@ -228,10 +189,10 @@ export async function sendAIMessage(
 export type StreamEvent =
   | { type: "thinking"; text: string }
   | { type: "text"; delta: string }
-  | { type: "tool_call"; name: string; args?: Record<string, unknown>; ops_count?: number }
+  | { type: "tool_call"; name: string; args?: Record<string, unknown> }
   | { type: "tool_result"; name: string; result: Record<string, unknown>; duration: number }
-  | { type: "patch"; ops: Record<string, unknown>[] }
-  | { type: "done"; message: string; patches: DocumentPatch | null; thinking: AIChatResponse["thinking"]; usage: AIChatResponse["usage"] }
+  | { type: "latex"; latex: string }
+  | { type: "done"; message: string; latex: string | null; thinking: AIChatResponse["thinking"]; usage: AIChatResponse["usage"] }
   | { type: "error"; message: string };
 
 export interface StreamDiagnostics {
@@ -247,14 +208,13 @@ export async function streamAIMessage(
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<StreamDiagnostics> {
-  // バックエンドURLが設定されていればVercelプロキシをバイパス（60秒制限回避）
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/ai/chat/stream`
     : `${API_BASE}/api/ai/chat/stream`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, document: doc, requestPatches: true }),
+    body: JSON.stringify({ messages, document: doc }),
     signal: signal || AbortSignal.timeout(300000),
   });
 
@@ -270,7 +230,7 @@ export async function streamAIMessage(
   const decoder = new TextDecoder();
   let buffer = "";
   let lastDataTime = Date.now();
-  const READ_TIMEOUT = 180000; // 3 minutes without any data = timeout
+  const READ_TIMEOUT = 180000;
 
   const diag: StreamDiagnostics = {
     eventsReceived: 0,
@@ -280,7 +240,6 @@ export async function streamAIMessage(
 
   try {
     while (true) {
-      // Create a timeout race for each read (with cleanup)
       const readPromise = reader.read();
       let timer: ReturnType<typeof setTimeout> | null = null;
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -320,22 +279,20 @@ export async function streamAIMessage(
           try {
             event = JSON.parse(line.slice(6)) as StreamEvent;
           } catch {
-            continue; // ignore malformed SSE lines
+            continue;
           }
           diag.eventsReceived++;
           diag.lastEventType = event.type;
-          onEvent(event); // callback errors propagate up
+          onEvent(event);
         }
       }
     }
 
-    // Process remaining buffer
     if (buffer.startsWith("data: ")) {
       let event: StreamEvent;
       try {
         event = JSON.parse(buffer.slice(6)) as StreamEvent;
       } catch {
-        // ignore
         return diag;
       }
       diag.eventsReceived++;
@@ -353,12 +310,13 @@ export async function streamAIMessage(
 
 export interface OMRAnalyzeResponse {
   description: string;
-  patches: DocumentPatch | null;
+  /** Extracted full LaTeX source */
+  latex: string | null;
 }
 
 export type OMRStreamEvent =
   | { type: "progress"; phase: string; message: string }
-  | { type: "done"; description: string; patches: DocumentPatch | null }
+  | { type: "done"; description: string; latex: string | null }
   | { type: "error"; message: string };
 
 export async function analyzeImageOMR(
@@ -386,13 +344,10 @@ export async function analyzeImageOMR(
   const data = await res.json();
   return {
     description: data.description || "",
-    patches: data.patches || null,
+    latex: data.latex ?? null,
   };
 }
 
-/**
- * SSEストリーミング版OMR解析 — 進捗をリアルタイムで受け取る
- */
 export async function streamOMRAnalyze(
   imageFile: File,
   doc: DocumentModel,
@@ -405,7 +360,6 @@ export async function streamOMRAnalyze(
   formData.append("document", JSON.stringify(doc));
   formData.append("hint", hint);
 
-  // バックエンドURLが設定されていればプロキシをバイパス
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/omr/analyze/stream`
     : `${API_BASE}/api/omr/analyze/stream`;
@@ -427,7 +381,7 @@ export async function streamOMRAnalyze(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let result: OMRAnalyzeResponse = { description: "", patches: null };
+  let result: OMRAnalyzeResponse = { description: "", latex: null };
 
   try {
     while (true) {
@@ -451,7 +405,7 @@ export async function streamOMRAnalyze(
           if (event.type === "done") {
             result = {
               description: event.description || "",
-              patches: event.patches || null,
+              latex: event.latex ?? null,
             };
           } else if (event.type === "error") {
             throw new Error(event.message);
@@ -460,7 +414,6 @@ export async function streamOMRAnalyze(
       }
     }
 
-    // Process remaining buffer
     if (buffer.startsWith("data: ")) {
       try {
         const event = JSON.parse(buffer.slice(6)) as OMRStreamEvent;
@@ -468,7 +421,7 @@ export async function streamOMRAnalyze(
         if (event.type === "done") {
           result = {
             description: event.description || "",
-            patches: event.patches || null,
+            latex: event.latex ?? null,
           };
         } else if (event.type === "error") {
           throw new Error(event.message);
@@ -511,8 +464,6 @@ export async function getAllowedPackages(): Promise<{
 }
 
 // ═══ 採点 API ═══
-
-import type { AnswerKey, StudentAnswer, ScoreResult } from "./types";
 
 export async function scoreAnswers(
   answerKey: AnswerKey,

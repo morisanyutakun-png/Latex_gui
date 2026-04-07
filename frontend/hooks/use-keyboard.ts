@@ -14,22 +14,26 @@ export function useKeyboardShortcuts() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
-      const { document, undo, redo, deleteBlock, duplicateBlock } = store.getState();
-      const { selectedBlockId, editingBlockId, setGenerating, setGlobalPalette } = uiStore.getState();
+      const { document, undo, redo } = store.getState();
 
       // Undo: Ctrl/Cmd + Z
       if (meta && !e.shiftKey && e.key === "z") {
+        // Don't intercept inside textarea/input — those have their own undo
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) return;
         e.preventDefault();
         undo();
         return;
       }
-      // Redo: Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y
       if ((meta && e.shiftKey && e.key === "z") || (meta && e.key === "y")) {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) return;
         e.preventDefault();
         redo();
         return;
       }
-      // Save: Ctrl/Cmd + S
+
+      // Save JSON: Ctrl/Cmd + S
       if (meta && e.key === "s") {
         e.preventDefault();
         if (document) {
@@ -38,11 +42,12 @@ export function useKeyboardShortcuts() {
         }
         return;
       }
+
       // Generate PDF: Ctrl/Cmd + P
       if (meta && e.key === "p") {
         e.preventDefault();
         if (document && !uiStore.getState().isGenerating) {
-          setGenerating(true);
+          uiStore.getState().setGenerating(true);
           generatePDF(document)
             .then((blob) => {
               const url = URL.createObjectURL(blob);
@@ -55,55 +60,9 @@ export function useKeyboardShortcuts() {
               toast.success("PDFを生成しました");
             })
             .catch((err: Error) => toast.error(err.message))
-            .finally(() => setGenerating(false));
+            .finally(() => uiStore.getState().setGenerating(false));
         }
         return;
-      }
-      // Delete selected block: Delete / Backspace (when not editing)
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedBlockId && !uiStore.getState().editingBlockId) {
-        e.preventDefault();
-        deleteBlock(selectedBlockId);
-        uiStore.getState().selectBlock(null);
-        return;
-      }
-      // Duplicate: Ctrl/Cmd + D
-      if (meta && e.key === "d" && selectedBlockId) {
-        e.preventDefault();
-        duplicateBlock(selectedBlockId);
-        return;
-      }
-      // Cmd/Ctrl + K: open global block palette
-      if (meta && e.key === "k") {
-        e.preventDefault();
-        setGlobalPalette(true);
-        return;
-      }
-      // Escape priority: latex-inspect → editing → deselect
-      if (e.key === "Escape") {
-        const ui = uiStore.getState();
-        if (ui.latexInspectSource !== null) {
-          ui.closeLeftPanel();
-        } else if (editingBlockId) {
-          ui.setEditingBlock(null);
-        } else {
-          ui.selectBlock(null);
-        }
-        return;
-      }
-      // Arrow Up/Down: navigate blocks when selected but not editing
-      if (!editingBlockId && selectedBlockId && !meta && !e.shiftKey) {
-        const blocks = document?.blocks ?? [];
-        const idx = blocks.findIndex((b) => b.id === selectedBlockId);
-        if (e.key === "ArrowUp" && idx > 0) {
-          e.preventDefault();
-          uiStore.getState().selectBlock(blocks[idx - 1].id);
-          return;
-        }
-        if (e.key === "ArrowDown" && idx < blocks.length - 1) {
-          e.preventDefault();
-          uiStore.getState().selectBlock(blocks[idx + 1].id);
-          return;
-        }
       }
     };
 

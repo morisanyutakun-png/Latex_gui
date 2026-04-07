@@ -4,12 +4,8 @@ import { AppHeader } from "@/components/layout/app-header";
 import { EditToolbar } from "@/components/layout/edit-toolbar";
 import { StatusBar } from "@/components/layout/status-bar";
 import { DocumentEditor } from "@/components/editor/document-editor";
-import { AdvancedModePanel } from "@/components/editor/advanced-mode";
 import { AIChatPanel } from "@/components/editor/ai-chat-panel";
 import { PricingModal } from "@/components/pricing-modal";
-import { LaTeXSourceViewer } from "@/components/editor/latex-source-viewer";
-import { EditGuidePanel } from "@/components/editor/edit-guide-panel";
-import { MathReferencePanel } from "@/components/editor/math-reference-panel";
 import { ScoringPanel } from "@/components/editor/scoring-panel";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
@@ -20,14 +16,12 @@ import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
-import { Terminal, Sparkles, Globe, FileText, X, BookOpen, Sigma, ClipboardCheck } from "lucide-react";
+import { Sparkles, Globe, FileText, X, ClipboardCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { EditorHints } from "@/components/layout/editor-hints";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
-import { LeftReviewPanel } from "@/components/editor/left-review-panel";
-import { HEAVY_BLOCK_TYPES } from "@/lib/types";
 
-type SidebarTab = "ai" | "advanced" | "latex" | "guide" | "math" | "scoring";
+type SidebarTab = "ai" | "scoring";
 
 export default function EditorPage() {
   useKeyboardShortcuts();
@@ -36,21 +30,16 @@ export default function EditorPage() {
   const { locale, setLocale, t } = useI18n();
   const isJa = locale !== "en";
   const isChatLoading = useUIStore((s) => s.isChatLoading);
-  const isMathEditing = useUIStore((s) => s.isMathEditing);
-  const activeGuideContext = useUIStore((s) => s.activeGuideContext);
   const isMobile = useIsMobile();
 
   const doc = useDocumentStore((s) => s.document);
   const setDocument = useDocumentStore((s) => s.setDocument);
-  const advancedEnabled = useDocumentStore((s) => s.document?.advanced?.enabled ?? false);
   const router = useRouter();
 
-  // Desktop state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
   const { width: sidebarWidth, isDragging, handleMouseDown } = useResizePanel();
 
-  // Mobile state
   const [mobileTab, setMobileTab] = useState<"ai" | "preview">("ai");
 
   // Handle ?new=1 from login redirect — create blank document
@@ -58,8 +47,7 @@ export default function EditorPage() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("new") === "1" && !doc) {
-      setDocument(createDefaultDocument("blank", []));
-      // Clean URL
+      setDocument(createDefaultDocument("blank", ""));
       window.history.replaceState({}, "", "/editor");
     }
   }, [doc, setDocument]);
@@ -72,68 +60,25 @@ export default function EditorPage() {
     fetch("/api/health", { signal: AbortSignal.timeout(15000) }).catch(() => {});
   }, []);
 
-  // advancedEnabled が変わってもサイドバーを自動で切り替えない
-  // ユーザーが手動でタブを選択する
-
-  // 類題作成などでpendingChatMessageがセットされた場合も
-  // サイドバーを自動で開かない（ユーザーが手動でAIタブを開く）
-  const pendingChatMessage = useUIStore((s) => s.pendingChatMessage);
-
-  // 数式編集コンテキストが変わってもガイドパネルを自動切替しない
-
-  // Left review panel: opens for heavy block edit, AI LaTeX inspect, the LaTeX
-  // source viewer, or the global Cmd+K palette.
-  const editingBlockId = useUIStore((s) => s.editingBlockId);
-  const latexInspectSource = useUIStore((s) => s.latexInspectSource);
-  const latexSourceViewerOpen = useUIStore((s) => s.latexSourceViewerOpen);
-  const showGlobalPalette = useUIStore((s) => s.showGlobalPalette);
-  const closeLeftPanel = useUIStore((s) => s.closeLeftPanel);
-  const editingBlock = editingBlockId
-    ? doc?.blocks.find((b) => b.id === editingBlockId) ?? null
-    : null;
-  const isHeavyBlockEdit = editingBlock !== null && HEAVY_BLOCK_TYPES.has(editingBlock.content.type);
-  const leftPanelActive =
-    !isMobile && (
-      showGlobalPalette ||
-      latexInspectSource !== null ||
-      latexSourceViewerOpen ||
-      isHeavyBlockEdit
-    );
-  // 左パネル幅 — パレット・LaTeXソース・ブロック編集で一貫した1:1スプリット
-  const leftPanelWidth = "min(50%, 720px)";
-  const leftPanelMinWidth = 420;
-
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
-      {/* Skeleton header */}
       <div className="flex items-center gap-3 px-3 h-12 border-b border-border/40 bg-background/80 shrink-0">
         <div className="h-7 w-7 rounded-lg bg-muted animate-skeleton-pulse" />
         <div className="h-5 w-24 rounded bg-muted animate-skeleton-pulse" />
         <div className="flex-1" />
         <div className="h-8 w-24 rounded-full bg-muted animate-skeleton-pulse" />
       </div>
-      {/* Skeleton body */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 flex flex-col items-center py-10">
           <div className="w-[700px] max-w-full space-y-4 px-4">
             <div className="h-8 w-2/3 rounded bg-muted animate-skeleton-pulse" />
             <div className="h-4 w-full rounded bg-muted/60 animate-skeleton-pulse" />
             <div className="h-4 w-5/6 rounded bg-muted/60 animate-skeleton-pulse" />
-            <div className="h-4 w-4/5 rounded bg-muted/60 animate-skeleton-pulse" />
             <div className="h-20 w-full rounded-lg bg-muted/40 animate-skeleton-pulse mt-6" />
-            <div className="h-4 w-3/4 rounded bg-muted/60 animate-skeleton-pulse" />
-            <div className="h-4 w-full rounded bg-muted/60 animate-skeleton-pulse" />
           </div>
         </div>
-        <div className="w-11 border-l border-foreground/[0.04] bg-background/50 dark:bg-surface-0/60">
-          <div className="flex flex-col items-center gap-2 pt-3">
-            <div className="h-6 w-6 rounded bg-muted animate-skeleton-pulse" />
-            <div className="h-6 w-6 rounded bg-muted animate-skeleton-pulse" />
-            <div className="h-6 w-6 rounded bg-muted animate-skeleton-pulse" />
-          </div>
-        </div>
+        <div className="w-11 border-l border-foreground/[0.04] bg-background/50 dark:bg-surface-0/60" />
       </div>
-      {/* Skeleton status bar */}
       <div className="h-6 bg-surface-1 dark:bg-surface-0 border-t border-border/30" />
     </div>
   );
@@ -149,27 +94,16 @@ export default function EditorPage() {
     }
   };
 
-  // パネルタイトルと色設定
   const panelMeta: Record<SidebarTab, { label: string; bg: string; textColor: string; indicator: string }> = {
-    ai:       { label: "EddivomAI",                                    bg: "bg-amber-950/5 dark:bg-amber-950/15",    textColor: "text-amber-500/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-amber-500/70 to-amber-400/30" },
-    advanced: { label: isJa ? "LaTeX拡張"      : "LaTeX Extensions", bg: "bg-amber-950/8 dark:bg-amber-950/15",   textColor: "text-amber-500/70 font-mono", indicator: "bg-amber-400" },
-    latex:    { label: isJa ? "LaTeXソース"    : "LaTeX Source",     bg: "bg-muted/10",                           textColor: "text-muted-foreground/50",    indicator: "" },
-    guide:    { label: isJa ? "編集ガイド"      : "Editing Guide",    bg: "bg-sky-950/8 dark:bg-sky-950/15",       textColor: "text-sky-400/80",             indicator: "bg-gradient-to-b from-sky-500/60 to-sky-400/20" },
-    math:     { label: isJa ? "数式入力ガイド"  : "Math Reference",   bg: "bg-violet-950/10 dark:bg-violet-950/20", textColor: "text-violet-400/80",         indicator: "bg-gradient-to-b from-violet-500/60 to-violet-400/20" },
-    scoring:  { label: isJa ? "採点"            : "Scoring",          bg: "bg-emerald-950/8 dark:bg-emerald-950/15", textColor: "text-emerald-400/80",       indicator: "bg-gradient-to-b from-emerald-500/60 to-emerald-400/20" },
+    ai:      { label: "EddivomAI", bg: "bg-amber-950/5 dark:bg-amber-950/15", textColor: "text-amber-500/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-amber-500/70 to-amber-400/30" },
+    scoring: { label: isJa ? "採点" : "Scoring", bg: "bg-emerald-950/8 dark:bg-emerald-950/15", textColor: "text-emerald-400/80", indicator: "bg-gradient-to-b from-emerald-500/60 to-emerald-400/20" },
   };
 
-  /* ══════════════════════════════════════════════
-     MOBILE — AI chat or document preview
-  ══════════════════════════════════════════════ */
+  /* ══════════ MOBILE ══════════ */
   if (isMobile) {
     return (
       <div className="flex h-screen flex-col bg-background overflow-hidden">
-        <header className={`flex items-center gap-2 px-3 h-12 border-b shrink-0 transition-colors duration-300 ${
-          mobileTab === "ai" || isChatLoading
-            ? "border-violet-500/25 bg-violet-950/15 dark:bg-violet-950/30"
-            : "border-border/20 bg-background"
-        }`}>
+        <header className="flex items-center gap-2 px-3 h-12 border-b shrink-0 transition-colors duration-300 border-border/20 bg-background">
           <button
             onClick={() => router.push("/")}
             className="text-muted-foreground/60 p-1.5 -ml-1 rounded"
@@ -195,7 +129,7 @@ export default function EditorPage() {
           {mobileTab === "ai" ? (
             <div className="h-full overflow-hidden flex flex-col"><AIChatPanel /></div>
           ) : (
-            <div className="h-full overflow-auto"><DocumentEditor editMode={true} /></div>
+            <div className="h-full overflow-auto"><DocumentEditor /></div>
           )}
         </div>
 
@@ -223,76 +157,32 @@ export default function EditorPage() {
     );
   }
 
-  /* ══════════════════════════════════════════════
-     DESKTOP — VSCode-style: editor + panel side by side
-  ══════════════════════════════════════════════ */
+  /* ══════════ DESKTOP ══════════ */
   const meta = panelMeta[activeTab];
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f5f4f0] dark:bg-[#111110]">
-      {/* OMR split-view overlay */}
       <OMRSplitView />
 
-      {/* Header — spans full width */}
       <AppHeader isAIActive={isAIActive} />
 
-      {/* Edit toolbar — always visible */}
       <EditToolbar />
 
-      {/* Inline editing hints */}
       <EditorHints />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* ── Left review panel — heavy block edit / Cmd+K palette / LaTeX inspect / LaTeX source viewer ── */}
-        {leftPanelActive && (
-          <div
-            className="flex flex-shrink-0 border-r-2 border-border/60 bg-background overflow-hidden shadow-[1px_0_0_0_rgba(0,0,0,0.04)]"
-            style={{ width: leftPanelWidth, minWidth: leftPanelMinWidth }}
-          >
-            <LeftReviewPanel />
-          </div>
-        )}
+        <div className="flex-1 overflow-hidden min-w-0">
+          <DocumentEditor />
+        </div>
 
-        {/* ── Document editor — always editable.
-            When the left panel is active, wrap with an OMR-style section header
-            so that the two columns visually pair up like a split-view. ── */}
-        {leftPanelActive ? (
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-muted/10">
-            <div className="h-12 border-b border-border/40 bg-background/95 backdrop-blur flex items-center justify-between px-4 shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
-                <FileText className="h-4 w-4 text-sky-500 shrink-0" />
-                <span className="text-sm font-medium text-foreground/90 truncate">
-                  {isJa ? "ドキュメントプレビュー" : "Document Preview"}
-                </span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {doc.metadata.title || (isJa ? "無題" : "Untitled")}
-                </span>
-              </div>
-              <span className="text-[10px] text-muted-foreground/60 font-mono uppercase tracking-wider">
-                {doc.blocks.length} {isJa ? "ブロック" : "blocks"}
-              </span>
-            </div>
-            <div className="flex-1 overflow-auto min-w-0">
-              <DocumentEditor editMode={true} />
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-auto min-w-0">
-            <DocumentEditor editMode={true} />
-          </div>
-        )}
-
-        {/* ── Resize handle ── */}
-        {sidebarOpen && !leftPanelActive && (
+        {sidebarOpen && (
           <div
             className={`resize-handle ${isDragging ? "is-dragging" : ""}`}
             onMouseDown={handleMouseDown}
           />
         )}
 
-        {/* ── Sidebar (panel + activity bar) — square card; hidden (display:none) when left panel is active to preserve chat streaming ── */}
-        <div className={`${leftPanelActive ? "hidden" : "flex"} flex-shrink-0 sidebar-card bg-[#f9f9f8] dark:bg-[#111110] overflow-hidden shadow-[-1px_0_0_0_hsl(var(--border)/0.4)]`}>
-          {/* Panel content */}
+        <div className="flex flex-shrink-0 sidebar-card bg-[#f9f9f8] dark:bg-[#111110] overflow-hidden shadow-[-1px_0_0_0_hsl(var(--border)/0.4)]">
           <div
             className="overflow-hidden flex flex-col panel-depth"
             style={{
@@ -302,7 +192,6 @@ export default function EditorPage() {
           >
             {sidebarOpen && (
               <div className="h-full flex flex-col min-w-0" style={{ width: sidebarWidth }}>
-                {/* Panel title bar — ai タブはチャットパネル自身がヘッダーを持つため非表示 */}
                 {activeTab !== "ai" && (
                   <div className={`relative flex items-center px-3 h-9 border-b border-foreground/[0.04] shrink-0 select-none ${meta.bg}`}>
                     {meta.indicator && (
@@ -311,9 +200,6 @@ export default function EditorPage() {
                     <span className={`text-[10px] font-bold uppercase tracking-[0.2em] flex-1 ${meta.textColor}`}>
                       {meta.label}
                     </span>
-                    {activeTab === "advanced" && advancedEnabled && (
-                      <span className="mr-2 px-1.5 py-0.5 text-[8px] bg-amber-500 text-white rounded font-bold tracking-wider font-mono shadow-sm shadow-amber-500/20">ON</span>
-                    )}
                     <button
                       onClick={() => setSidebarOpen(false)}
                       className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/15 hover:text-foreground/60 hover:bg-foreground/[0.06] transition-all duration-200"
@@ -323,120 +209,68 @@ export default function EditorPage() {
                     </button>
                   </div>
                 )}
-                {/* Panel body */}
                 <div className={`flex-1 min-h-0 animate-slide-in-right ${
-                  activeTab === "ai" || activeTab === "latex" || activeTab === "scoring" ? "overflow-hidden flex flex-col" : "overflow-y-auto scrollbar-thin"
+                  activeTab === "ai" || activeTab === "scoring" ? "overflow-hidden flex flex-col" : "overflow-y-auto scrollbar-thin"
                 }`} key={activeTab}>
-                  {activeTab === "ai"       && <AIChatPanel />}
-                  {activeTab === "advanced" && <AdvancedModePanel />}
-                  {activeTab === "latex"    && <LaTeXSourceViewer />}
-                  {activeTab === "guide"    && <EditGuidePanel context={activeGuideContext} />}
-                  {activeTab === "math"     && <MathReferencePanel />}
-                  {activeTab === "scoring"  && <ScoringPanel />}
+                  {activeTab === "ai" && <AIChatPanel />}
+                  {activeTab === "scoring" && <ScoringPanel />}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Activity bar — right edge of the floating card */}
           <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l border-foreground/[0.05] bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
-          {/* Main tabs — AI and Scoring toggle the right panel */}
-          {/* AI tab — LP-matching orange/amber round style */}
-          {(() => {
-            const isActive = sidebarOpen && activeTab === "ai";
-            return (
-              <button onClick={() => handleTabClick("ai")} title={isJa ? "AIアシスタント" : "AI Assistant"}
-                className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
-                  isActive ? "" : "text-foreground/25 hover:text-amber-500/80 hover:bg-amber-50/50 dark:hover:bg-amber-500/10 rounded-lg mx-0.5"
-                }`}
-              >
-                {isActive ? (
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-md shadow-amber-500/30 transition-all duration-200">
-                    <Sparkles className="h-[15px] w-[15px] text-white" />
-                  </div>
-                ) : (
-                  <Sparkles className="h-[17px] w-[17px]" />
-                )}
-                {isChatLoading && (
-                  <span className={`absolute top-1.5 right-1.5 h-2 w-2 rounded-full animate-pulse ring-2 ${
-                    isActive ? "bg-white ring-amber-600/60" : "bg-amber-500 ring-surface-0/80"
-                  }`} />
-                )}
-              </button>
-            );
-          })()}
+            {(() => {
+              const isActive = sidebarOpen && activeTab === "ai";
+              return (
+                <button onClick={() => handleTabClick("ai")} title={isJa ? "AIアシスタント" : "AI Assistant"}
+                  className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
+                    isActive ? "" : "text-foreground/25 hover:text-amber-500/80 hover:bg-amber-50/50 dark:hover:bg-amber-500/10 rounded-lg mx-0.5"
+                  }`}
+                >
+                  {isActive ? (
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-md shadow-amber-500/30 transition-all duration-200">
+                      <Sparkles className="h-[15px] w-[15px] text-white" />
+                    </div>
+                  ) : (
+                    <Sparkles className="h-[17px] w-[17px]" />
+                  )}
+                  {isChatLoading && (
+                    <span className={`absolute top-1.5 right-1.5 h-2 w-2 rounded-full animate-pulse ring-2 ${
+                      isActive ? "bg-white ring-amber-600/60" : "bg-amber-500 ring-surface-0/80"
+                    }`} />
+                  )}
+                </button>
+              );
+            })()}
 
-          {/* Scoring tab */}
-          {(() => {
-            const isActive = sidebarOpen && activeTab === "scoring";
-            return (
-              <button onClick={() => handleTabClick("scoring")} title={isJa ? "採点" : "Scoring"}
-                className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
-                  isActive ? "text-emerald-500 dark:text-emerald-400 bg-foreground/[0.05]" : "text-foreground/20 hover:text-foreground/50 hover:bg-foreground/[0.04]"
-                }`}
-              >
-                {isActive && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-emerald-500 shadow-[0_0_8px_-1px_currentColor] transition-all duration-300" />}
-                <ClipboardCheck className={`h-[17px] w-[17px] transition-transform duration-200 ${isActive ? "scale-110" : ""}`} />
-              </button>
-            );
-          })()}
+            {(() => {
+              const isActive = sidebarOpen && activeTab === "scoring";
+              return (
+                <button onClick={() => handleTabClick("scoring")} title={isJa ? "採点" : "Scoring"}
+                  className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
+                    isActive ? "text-emerald-500 dark:text-emerald-400 bg-foreground/[0.05]" : "text-foreground/20 hover:text-foreground/50 hover:bg-foreground/[0.04]"
+                  }`}
+                >
+                  {isActive && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-emerald-500 shadow-[0_0_8px_-1px_currentColor] transition-all duration-300" />}
+                  <ClipboardCheck className={`h-[17px] w-[17px] transition-transform duration-200 ${isActive ? "scale-110" : ""}`} />
+                </button>
+              );
+            })()}
 
-          {/* Guide / Math */}
-          <button
-            onClick={() => handleTabClick(isMathEditing ? "math" : "guide")}
-            title={isMathEditing
-              ? (isJa ? "数式入力ガイド" : "Math reference")
-              : (isJa ? "編集ガイド" : "Editing guide")}
-            className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
-              sidebarOpen && (activeTab === "guide" || activeTab === "math")
-                ? isMathEditing ? "text-violet-500 bg-foreground/[0.05]" : "text-sky-500 bg-foreground/[0.05]"
-                : "text-foreground/20 hover:text-foreground/50 hover:bg-foreground/[0.04]"
-            }`}
-          >
-            {sidebarOpen && (activeTab === "guide" || activeTab === "math") && (
-              <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full transition-all duration-300 ${isMathEditing ? "bg-violet-500 shadow-[0_0_8px_-1px_theme(colors.violet.500)]" : "bg-sky-400 shadow-[0_0_8px_-1px_theme(colors.sky.400)]"}`} />
-            )}
-            {isMathEditing
-              ? <Sigma className="h-4 w-4" />
-              : <BookOpen className="h-4 w-4" />
-            }
-          </button>
+            <div className="flex-1" />
 
-          <div className="flex-1" />
-          <div className="w-5 h-px bg-foreground/[0.04] mb-0.5" />
-
-          {/* LaTeX拡張 */}
-          {(() => {
-            const isActive = sidebarOpen && activeTab === "advanced";
-            return (
-              <button
-                onClick={() => handleTabClick("advanced")}
-                title={isJa ? "LaTeX拡張（上級者向け）" : "LaTeX Extensions (advanced)"}
-                className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
-                  isActive ? "text-amber-500 dark:text-amber-400 bg-foreground/[0.05]" : "text-foreground/15 hover:text-foreground/40 hover:bg-foreground/[0.04]"
-                }`}
-              >
-                {isActive && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-amber-500 shadow-[0_0_8px_-1px_theme(colors.amber.500)] transition-all duration-300" />}
-                <Terminal className="h-4 w-4" />
-                {advancedEnabled && !isActive && (
-                  <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-amber-500 ring-2 ring-surface-0/80" />
-                )}
-              </button>
-            );
-          })()}
-
-          {/* Language toggle */}
-          <button
-            onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
-            title={locale === "ja" ? "Switch to English" : "日本語に切り替え"}
-            className="h-9 w-full flex flex-col items-center justify-center gap-0.5 rounded-lg mx-0.5 text-foreground/15 hover:text-foreground/40 hover:bg-foreground/[0.04] transition-all duration-200"
-          >
-            <Globe className="h-3.5 w-3.5" />
-            <span className="text-[7px] font-mono uppercase tracking-wider">{locale === "ja" ? "EN" : "JA"}</span>
-          </button>
-          </div>{/* end activity bar */}
-        </div>{/* end sidebar column */}
-      </div>{/* end flex-1 */}
+            <button
+              onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
+              title={locale === "ja" ? "Switch to English" : "日本語に切り替え"}
+              className="h-9 w-full flex flex-col items-center justify-center gap-0.5 rounded-lg mx-0.5 text-foreground/15 hover:text-foreground/40 hover:bg-foreground/[0.04] transition-all duration-200"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <span className="text-[7px] font-mono uppercase tracking-wider">{locale === "ja" ? "EN" : "JA"}</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       <StatusBar />
       <PricingModal />

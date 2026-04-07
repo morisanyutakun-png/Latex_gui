@@ -1,21 +1,17 @@
 "use client";
 
 import { create } from "zustand";
-import { Block, ChatMessage, DocumentPatch } from "@/lib/types";
+import { ChatMessage } from "@/lib/types";
 
 export type PaperSize = "a4" | "a3" | "b5" | "letter";
 export type GuideContext = "none" | "math" | "heading" | "list" | "table" | "code" | "general";
 
 export interface LastAIAction {
   description: string;
-  blockIds: string[];
-  opCounts: { added: number; updated: number; deleted: number; reordered: number };
   timestamp: number;
 }
 
 interface UIState {
-  selectedBlockId: string | null;
-  editingBlockId: string | null;
   isGenerating: boolean;
   zoom: number;
   zoomFitMode: boolean;
@@ -25,35 +21,23 @@ interface UIState {
 
   // AI action tracking
   lastAIAction: LastAIAction | null;
-  isOutlineOpen: boolean;
-
-  // Global command palette
-  showGlobalPalette: boolean;
 
   // AI Chat state (in-memory only, not persisted)
   chatMessages: ChatMessage[];
-  pendingPatch: DocumentPatch | null;
   isChatLoading: boolean;
   streamingMessageId: string | null;
 
   // Programmatic chat message (e.g. from 類題作成)
   pendingChatMessage: string | null;
 
-  // OMR split-view mode
+  // OMR (画像/PDF → raw LaTeX) split-view
   omrMode: boolean;
-  omrSourceUrl: string | null;       // Object URL for file preview
+  omrSourceUrl: string | null;
   omrSourceName: string | null;
-  omrExtractedBlocks: Block[];
+  omrExtractedLatex: string | null;
   omrProcessing: boolean;
   omrProgress: string;
 
-  // Left review panel — pops out heavy block editors, AI LaTeX inspect,
-  // the LaTeX source viewer, and the Cmd+K block palette
-  latexInspectSource: string | null;
-  latexSourceViewerOpen: boolean;
-
-  selectBlock: (id: string | null) => void;
-  setEditingBlock: (id: string | null) => void;
   setMathEditing: (v: boolean) => void;
   setActiveGuideContext: (ctx: GuideContext) => void;
   setGenerating: (v: boolean) => void;
@@ -61,18 +45,12 @@ interface UIState {
   setZoomFitMode: (v: boolean) => void;
   setPaperSize: (s: PaperSize) => void;
 
-  // AI action actions
   setLastAIAction: (action: LastAIAction | null) => void;
   clearLastAIAction: () => void;
-  toggleOutline: () => void;
-  setOutlineOpen: (v: boolean) => void;
-
-  setGlobalPalette: (v: boolean) => void;
 
   // Chat actions
   addChatMessage: (msg: ChatMessage) => void;
   updateChatMessage: (id: string, updates: Partial<ChatMessage>) => void;
-  setPendingPatch: (patch: DocumentPatch | null) => void;
   setChatLoading: (v: boolean) => void;
   clearChat: () => void;
   updateStreamingContent: (id: string, content: string) => void;
@@ -82,23 +60,15 @@ interface UIState {
   // OMR actions
   openOMR: (sourceUrl: string, sourceName: string) => void;
   closeOMR: () => void;
-  setOMRBlocks: (blocks: Block[]) => void;
+  setOMRLatex: (latex: string | null) => void;
   setOMRProcessing: (v: boolean) => void;
   setOMRProgress: (msg: string) => void;
-  // チャット外からOMRファイル選択を呼び出すためのトリガー
   omrTriggerFn: (() => void) | null;
   setOMRTrigger: (fn: (() => void) | null) => void;
   triggerOMR: () => void;
-
-  // Left review panel actions
-  openLatexInspect: (src: string) => void;
-  openLatexSourceViewer: () => void;
-  closeLeftPanel: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  selectedBlockId: null,
-  editingBlockId: null,
   isGenerating: false,
   zoom: 1,
   zoomFitMode: true,
@@ -106,28 +76,17 @@ export const useUIStore = create<UIState>((set) => ({
   isMathEditing: false,
   activeGuideContext: "none",
   lastAIAction: null,
-  isOutlineOpen: false,
-  showGlobalPalette: false,
   chatMessages: [],
-  pendingPatch: null,
   isChatLoading: false,
   streamingMessageId: null,
   pendingChatMessage: null,
   omrMode: false,
   omrSourceUrl: null,
   omrSourceName: null,
-  omrExtractedBlocks: [],
+  omrExtractedLatex: null,
   omrProcessing: false,
   omrProgress: "",
-  latexInspectSource: null,
-  latexSourceViewerOpen: false,
 
-  selectBlock: (id) => set(
-    id === null
-      ? { selectedBlockId: null, editingBlockId: null }
-      : { selectedBlockId: id }
-  ),
-  setEditingBlock: (id) => set({ editingBlockId: id, selectedBlockId: id }),
   setMathEditing: (v) => set({ isMathEditing: v }),
   setActiveGuideContext: (ctx) => set({ activeGuideContext: ctx }),
   setGenerating: (v) => set({ isGenerating: v }),
@@ -135,19 +94,15 @@ export const useUIStore = create<UIState>((set) => ({
   setZoomFitMode: (v) => set({ zoomFitMode: v }),
   setPaperSize: (s) => set({ paperSize: s }),
 
-  setGlobalPalette: (v) => set({ showGlobalPalette: v }),
   setLastAIAction: (action) => set({ lastAIAction: action }),
   clearLastAIAction: () => set({ lastAIAction: null }),
-  toggleOutline: () => set((s) => ({ isOutlineOpen: !s.isOutlineOpen })),
-  setOutlineOpen: (v) => set({ isOutlineOpen: v }),
 
   addChatMessage: (msg) => set((state) => ({ chatMessages: [...state.chatMessages, msg] })),
   updateChatMessage: (id, updates) => set((state) => ({
     chatMessages: state.chatMessages.map((m) => m.id === id ? { ...m, ...updates } : m),
   })),
-  setPendingPatch: (patch) => set({ pendingPatch: patch }),
   setChatLoading: (v) => set({ isChatLoading: v }),
-  clearChat: () => set({ chatMessages: [], pendingPatch: null, streamingMessageId: null }),
+  clearChat: () => set({ chatMessages: [], streamingMessageId: null }),
   updateStreamingContent: (id, content) => set((state) => ({
     chatMessages: state.chatMessages.map((m) =>
       m.id === id ? { ...m, content: m.content + content } : m
@@ -161,34 +116,29 @@ export const useUIStore = create<UIState>((set) => ({
   })),
   setPendingChatMessage: (msg) => set({ pendingChatMessage: msg }),
 
-  openOMR: (sourceUrl, sourceName) => set({ omrMode: true, omrSourceUrl: sourceUrl, omrSourceName: sourceName, omrExtractedBlocks: [], omrProcessing: false, omrProgress: "" }),
+  openOMR: (sourceUrl, sourceName) => set({
+    omrMode: true,
+    omrSourceUrl: sourceUrl,
+    omrSourceName: sourceName,
+    omrExtractedLatex: null,
+    omrProcessing: false,
+    omrProgress: "",
+  }),
   closeOMR: () => set((s) => {
     if (s.omrSourceUrl) URL.revokeObjectURL(s.omrSourceUrl);
-    return { omrMode: false, omrSourceUrl: null, omrSourceName: null, omrExtractedBlocks: [], omrProcessing: false, omrProgress: "" };
+    return {
+      omrMode: false,
+      omrSourceUrl: null,
+      omrSourceName: null,
+      omrExtractedLatex: null,
+      omrProcessing: false,
+      omrProgress: "",
+    };
   }),
-  setOMRBlocks: (blocks) => set({ omrExtractedBlocks: blocks }),
+  setOMRLatex: (latex) => set({ omrExtractedLatex: latex }),
   setOMRProcessing: (v) => set({ omrProcessing: v }),
   setOMRProgress: (msg) => set({ omrProgress: msg }),
   omrTriggerFn: null,
   setOMRTrigger: (fn) => set({ omrTriggerFn: fn }),
   triggerOMR: () => { const fn = useUIStore.getState().omrTriggerFn; if (fn) fn(); },
-
-  openLatexInspect: (src) => set({
-    latexInspectSource: src,
-    editingBlockId: null,
-    latexSourceViewerOpen: false,
-    showGlobalPalette: false,
-  }),
-  openLatexSourceViewer: () => set({
-    latexSourceViewerOpen: true,
-    latexInspectSource: null,
-    editingBlockId: null,
-    showGlobalPalette: false,
-  }),
-  closeLeftPanel: () => set({
-    latexInspectSource: null,
-    latexSourceViewerOpen: false,
-    editingBlockId: null,
-    showGlobalPalette: false,
-  }),
 }));

@@ -1,4 +1,4 @@
-"""FastAPI メインアプリケーション (512MB最適化版 v5)"""
+"""FastAPI メインアプリケーション (raw LaTeX 駆動 v6)"""
 import os
 import json
 import logging
@@ -10,9 +10,8 @@ from fastapi.responses import Response, JSONResponse, StreamingResponse
 
 from .models import DocumentModel, ErrorResponse, BatchRequest, BatchResponse, BatchResultItem
 from .pdf_service import compile_pdf, compile_raw_latex, generate_latex, PDFGenerationError
-from .preview_service import preview_block_svg
 from .security import (
-    validate_document_security, validate_input_size,
+    validate_latex_security, validate_latex_size,
     SecurityViolation, ALLOWED_PACKAGES, ALLOWED_TIKZ_LIBRARIES,
 )
 from .cache_service import get_cache_stats, clear_all_caches
@@ -33,13 +32,11 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="LaTeX GUI - PDF生成API",
-    description="GUIで作成した文書をPDF化するAPI (クラウド軽量版 v4)",
-    version="0.4.0",
+    description="raw LaTeX 駆動 + テンプレート + AI補助 (v6)",
+    version="0.6.0",
 )
 
-# CORS設定（環境変数 ALLOWED_ORIGINS でカンマ区切り指定可能）
-# Vercel の Route Handler 経由の場合、サーバー間通信なので CORS 不要。
-# ローカル開発 & 直接アクセス用にのみ必要。
+# CORS設定
 _default_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -58,14 +55,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── 監査ログミドルウェア ──
 app.add_middleware(AuditMiddleware)
-
-
-# ── サブスクリプション ルーター ──
 app.include_router(subscription_router)
 
-# ── サーバー起動時にバックグラウンド・ウォームアップを開始 ──
+
 @app.on_event("startup")
 async def _startup_warmup():
     from .tex_env import start_background_warmup
@@ -79,13 +72,11 @@ async def _startup_warmup():
 
 @app.get("/")
 async def root_health():
-    """ルートヘルスチェック (Koyeb等のデフォルトヘルスチェック用)"""
     return {"status": "ok"}
 
 
 @app.get("/api/health")
 async def health_check():
-    """ヘルスチェック + メモリ使用量レポート"""
     mem_info = _get_memory_info()
     return {
         "status": "ok",
@@ -95,7 +86,6 @@ async def health_check():
 
 
 def _get_memory_info() -> dict:
-    """プロセスメモリ + コンテナメモリ上限を取得"""
     info: dict = {}
     try:
         import resource
@@ -103,14 +93,12 @@ def _get_memory_info() -> dict:
         usage = resource.getrusage(resource.RUSAGE_SELF)
         maxrss = usage.ru_maxrss
         if platform.system() == "Linux":
-            maxrss *= 1024  # KB → bytes
+            maxrss *= 1024
         info["process_rss_mb"] = round(maxrss / (1024 * 1024), 1)
     except Exception:
         info["process_rss_mb"] = -1
 
-    # コンテナのメモリ上限を取得 (cgroup v1/v2)
     try:
-        # cgroup v2
         p = Path("/sys/fs/cgroup/memory.max")
         if p.exists():
             val = p.read_text().strip()
@@ -119,18 +107,16 @@ def _get_memory_info() -> dict:
             else:
                 info["container_limit_mb"] = "unlimited"
         else:
-            # cgroup v1
             p = Path("/sys/fs/cgroup/memory/memory.limit_in_bytes")
             if p.exists():
                 val = int(p.read_text().strip())
-                if val < 2**62:  # "unlimited" は巨大な値
+                if val < 2**62:
                     info["container_limit_mb"] = round(val / (1024 * 1024), 1)
                 else:
                     info["container_limit_mb"] = "unlimited"
     except Exception:
         info["container_limit_mb"] = "unknown"
 
-    # コンテナの現在のメモリ使用量 (cgroup)
     try:
         p = Path("/sys/fs/cgroup/memory.current")
         if p.exists():
@@ -145,96 +131,8 @@ def _get_memory_info() -> dict:
     return info
 
 
-@app.get("/api/debug/tex-info")
-async def tex_debug_info():
-    """TeX環境の診断情報を返す（LuaLaTeX 専用版）"""
-    import shutil
-    import subprocess
-    from pathlib import Path
-    from .tex_env import (
-        LUALATEX_CMD, PDFTOCAIRO_CMD, DVISVGM_CMD,
-        TEX_ENV, DEFAULT_ENGINE,
-        LUALATEX_JA_OK, LUALATEX_AVAILABLE,
-        LUATEXJA_STY_AVAILABLE, LUATEXJA_PRESET_AVAILABLE,
-        DETECTED_CJK_MAIN_FONT, DETECTED_CJK_SANS_FONT,
-        is_warmup_done, is_lualatex_cache_warm,
-    )
-
-    info: dict = {
-        "warmup": {
-            "done": is_warmup_done(),
-            "lualatex_cache_warm": is_lualatex_cache_warm(),
-        },
-        "engine": {
-            "default": DEFAULT_ENGINE,
-            "mode": "lualatex-only",
-            "lualatex_ja_ok": LUALATEX_JA_OK,
-        },
-        "availability": {
-            "lualatex": LUALATEX_AVAILABLE,
-        },
-        "packages": {
-            "luatexja_sty": LUATEXJA_STY_AVAILABLE,
-            "luatexja_preset_sty": LUATEXJA_PRESET_AVAILABLE,
-        },
-        "commands": {
-            "lualatex": {"path": LUALATEX_CMD, "exists": bool(shutil.which(LUALATEX_CMD) or Path(LUALATEX_CMD).is_file())},
-            "pdftocairo": {"path": PDFTOCAIRO_CMD, "exists": bool(shutil.which(PDFTOCAIRO_CMD))},
-            "dvisvgm": {"path": DVISVGM_CMD, "exists": bool(shutil.which(DVISVGM_CMD))},
-        },
-        "fonts": {
-            "main": DETECTED_CJK_MAIN_FONT,
-            "sans": DETECTED_CJK_SANS_FONT,
-        },
-        "env": {
-            "COMPILE_TIMEOUT_SECONDS": os.environ.get("COMPILE_TIMEOUT_SECONDS", "120"),
-        },
-    }
-
-    # Test fc-list (fast)
-    if shutil.which("fc-list"):
-        try:
-            result = subprocess.run(
-                ["fc-list", ":lang=ja", "family"],
-                capture_output=True, text=True, timeout=5
-            )
-            fonts = sorted(set(l.strip() for l in result.stdout.split("\n") if l.strip()))
-            info["fc_list_ja"] = fonts[:20]
-        except Exception as e:
-            info["fc_list_ja"] = f"error: {e}"
-    else:
-        info["fc_list_ja"] = "fc-list not available"
-
-    # ── .sty ファイルシステム検索 (luatexja のみ) ──
-    sty_files = {}
-    for sty_name in ["luatexja.sty", "luatexja-preset.sty"]:
-        try:
-            r = subprocess.run(
-                ["find", "/usr", "-name", sty_name, "-type", "f"],
-                capture_output=True, text=True, timeout=10,
-            )
-            paths = [l.strip() for l in r.stdout.strip().split("\n") if l.strip()]
-            sty_files[sty_name] = paths if paths else "NOT FOUND"
-        except Exception:
-            sty_files[sty_name] = "search failed"
-    info["sty_filesystem"] = sty_files
-
-    # OS info
-    try:
-        with open("/etc/os-release") as f:
-            for line in f:
-                if line.startswith("PRETTY_NAME="):
-                    info["os"] = line.strip().split("=", 1)[1].strip('"')
-                    break
-    except Exception:
-        info["os"] = "unknown"
-
-    return info
-
-
 @app.get("/api/debug/warmup-status")
 async def warmup_status():
-    """ウォームアップ状態を即座に返す (軽量)"""
     from .tex_env import (
         LUALATEX_JA_OK, LUALATEX_AVAILABLE,
         DEFAULT_ENGINE, is_warmup_done, is_lualatex_cache_warm,
@@ -252,32 +150,9 @@ async def warmup_status():
     }
 
 
-@app.get("/api/capabilities")
-async def get_capabilities():
-    """利用可能な機能一覧を返す"""
-    return {
-        "blockTypes": [
-            "heading", "paragraph", "math", "list", "table", "image",
-            "divider", "code", "quote", "circuit", "diagram", "chemistry", "chart",
-        ],
-        "engineeringFeatures": {
-            "circuit": {"package": "circuitikz", "description": "電子回路図の描画"},
-            "diagram": {"package": "tikz", "description": "フローチャート・ブロック図・状態遷移図"},
-            "chemistry": {"package": "mhchem", "description": "化学反応式・分子式"},
-            "chart": {"package": "pgfplots", "description": "データグラフ・プロット"},
-            "math": {"package": "amsmath", "description": "高品質な数式組版"},
-        },
-        "templates": [
-            "report", "announcement", "worksheet", "academic", "resume",
-            "circuit", "control", "chemistry", "physics", "algorithm",
-            "math-proof", "tech-spec", "blank",
-        ],
-    }
-
-
 @app.post("/api/preview-latex")
 async def preview_latex(doc: DocumentModel):
-    """LaTeXソースのプレビュー（デバッグ用）"""
+    """LaTeXソースのプレビュー（生成済みLaTeXをそのまま返す）"""
     try:
         latex_source = generate_latex(doc)
         return {"success": True, "latex": latex_source}
@@ -294,71 +169,13 @@ async def preview_latex(doc: DocumentModel):
         })
 
 
-from pydantic import BaseModel as _BM
-from pydantic import Field as _Field
-from pydantic import ConfigDict as _ConfigDict
-from pydantic.alias_generators import to_camel as _to_camel
-
-class PreviewBlockRequest(_BM):
-    # camelCase JSON (customPreamble) ↔ snake_case Python (custom_preamble)
-    model_config = _ConfigDict(populate_by_name=True, alias_generator=_to_camel)
-    code: str
-    block_type: str  # circuit, diagram, chart, latex
-    caption: str = ""
-    # 上級者モードのプリアンブル/マクロ定義 — latex ブロックの単体プレビューが
-    # 文書全体と同じ環境でコンパイルできるようにフロントから渡す
-    custom_preamble: str = ""
-    custom_commands: list[str] = _Field(default_factory=list)
-
-
-@app.post("/api/preview-block")
-async def preview_block(req: PreviewBlockRequest):
-    """ブロック単位のSVGプレビューを生成"""
-    if not req.code.strip():
-        raise HTTPException(status_code=400, detail={
-            "success": False,
-            "message": "コードが空です",
-        })
-    # 受け取ったプリアンブルはサニタイズ
-    if req.custom_preamble and req.custom_preamble.strip():
-        from .security import validate_custom_preamble
-        violations = validate_custom_preamble(req.custom_preamble)
-        if violations:
-            raise HTTPException(status_code=400, detail={
-                "success": False,
-                "message": "プリアンブル検証エラー: " + "; ".join(violations[:3]),
-            })
-    try:
-        svg = preview_block_svg(
-            req.code,
-            req.block_type,
-            req.caption,
-            custom_preamble=req.custom_preamble,
-            custom_commands=req.custom_commands,
-        )
-        return {"success": True, "svg": svg}
-    except RuntimeError as e:
-        logger.error(f"Preview generation failed: {e}")
-        raise HTTPException(status_code=422, detail={
-            "success": False,
-            "message": f"プレビュー生成に失敗: {str(e)}",
-        })
-    except Exception as e:
-        logger.exception("Unexpected error during preview")
-        raise HTTPException(status_code=500, detail={
-            "success": False,
-            "message": "プレビューの生成中にエラーが発生しました",
-        })
-
-
 @app.post("/api/generate-pdf")
 async def generate_pdf(doc: DocumentModel):
-    """PDF生成エンドポイント"""
-    # バリデーション
-    if not doc.blocks:
+    """PDF生成エンドポイント — DocumentModel.latex をコンパイルしてPDFバイトを返す"""
+    if not (doc.latex or "").strip():
         raise HTTPException(status_code=400, detail={
             "success": False,
-            "message": "ブロックが1つもありません。コンテンツを追加してください。",
+            "message": "LaTeXソースが空です。コンテンツを追加してください。",
         })
 
     try:
@@ -379,7 +196,6 @@ async def generate_pdf(doc: DocumentModel):
 
     filename = (doc.metadata.title or "document").replace(" ", "_") + ".pdf"
 
-    # RFC 5987: non-ASCII filenames use filename*=UTF-8'' encoding
     from urllib.parse import quote
     safe_filename = quote(filename, safe="")
 
@@ -399,7 +215,7 @@ class RawLatexRequest(pydantic.BaseModel):
 
 @app.post("/api/compile-raw")
 async def compile_raw(req: RawLatexRequest):
-    """生のLaTeXソースを直接コンパイルしてPDFを返す（LaTeXソースビューワ用）"""
+    """生のLaTeXソースを直接コンパイルしてPDFを返す"""
     try:
         pdf_bytes = await compile_raw_latex(req.latex)
     except PDFGenerationError as e:
@@ -440,7 +256,6 @@ async def detect_variables(doc: DocumentModel):
 @app.post("/api/batch/generate")
 async def batch_generate_pdfs(req: BatchRequest):
     """テンプレート × 変数データで複数PDFを量産→ZIPで返却"""
-    # 変数データのパース
     variable_rows = []
     try:
         if req.variables_csv:
@@ -483,7 +298,6 @@ async def batch_generate_pdfs(req: BatchRequest):
             "message": f"バッチ生成に失敗: {str(e)}",
         })
 
-    # ZIP 生成して返却
     if batch_result.success_count == 0:
         errors = [r.get("error", "") for r in batch_result.results if not r["success"]]
         raise HTTPException(status_code=422, detail={
@@ -534,27 +348,24 @@ async def batch_preview(req: BatchRequest):
     }
 
 
-# ═══ キャッシュ管理 エンドポイント ═══
+# ═══ キャッシュ管理 ═══
 
 @app.get("/api/cache/stats")
 async def cache_stats():
-    """キャッシュ統計情報"""
     return {"success": True, "stats": get_cache_stats()}
 
 
 @app.post("/api/cache/clear")
 async def cache_clear():
-    """全キャッシュクリア"""
     clear_all_caches()
     log_audit(AuditEvent.CACHE_CLEAR)
     return {"success": True, "message": "キャッシュをクリアしました"}
 
 
-# ═══ セキュリティ情報 エンドポイント ═══
+# ═══ セキュリティ情報 ═══
 
 @app.get("/api/security/allowed-packages")
 async def get_allowed_packages():
-    """許可されたパッケージ一覧"""
     return {
         "success": True,
         "packages": sorted(ALLOWED_PACKAGES),
@@ -562,26 +373,24 @@ async def get_allowed_packages():
     }
 
 
-# ═══ 監査ログ エンドポイント ═══
+# ═══ 監査ログ ═══
 
 @app.get("/api/audit/logs")
 async def audit_logs(limit: int = 100):
-    """最近の監査ログを取得"""
     logs = get_recent_audit_logs(limit=min(limit, 500))
     return {"success": True, "logs": logs, "count": len(logs)}
 
 
-# ═══ AI チャット エンドポイント ═══
+# ═══ AI チャット ═══
 
 class ChatRequest(pydantic.BaseModel):
     messages: list[dict] = []
     document: dict = {}
-    requestPatches: bool = True
 
 
 @app.post("/api/ai/chat")
 async def ai_chat_endpoint(request: ChatRequest):
-    """AIチャット — 文書コンテキストを使ったClaudeとの会話"""
+    """AIチャット — raw LaTeX を直接編集する自律エージェント"""
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -609,7 +418,7 @@ async def ai_chat_endpoint(request: ChatRequest):
 
 @app.post("/api/ai/chat/stream")
 async def ai_chat_stream_endpoint(request: ChatRequest):
-    """AIチャット (SSEストリーミング) — リアルタイムでトークンを返す"""
+    """AIチャット (SSEストリーミング)"""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(
@@ -623,8 +432,7 @@ async def ai_chat_stream_endpoint(request: ChatRequest):
     if not request.messages:
         raise HTTPException(status_code=400, detail={"message": "messages が空です"})
 
-    logger.info("[stream] Starting SSE stream: %d messages, key=%s...%s",
-                len(request.messages), api_key[:4], api_key[-4:])
+    logger.info("[stream] Starting SSE stream: %d messages", len(request.messages))
 
     return StreamingResponse(
         ai_chat_stream(request.messages, request.document),
@@ -645,7 +453,7 @@ async def omr_analyze_endpoint(
     document: str = Form("{}"),
     hint: str = Form(""),
 ):
-    """OMR解析 — 画像から文書ブロックを抽出"""
+    """OMR解析 — 画像から raw LaTeX を抽出"""
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -656,7 +464,7 @@ async def omr_analyze_endpoint(
         )
 
     image_bytes = await image.read()
-    max_size = 20 * 1024 * 1024  # 20MB (PDFは大きい場合がある)
+    max_size = 20 * 1024 * 1024
     if len(image_bytes) > max_size:
         raise HTTPException(
             status_code=400,
@@ -695,7 +503,7 @@ async def omr_analyze_stream_endpoint(
     document: str = Form("{}"),
     hint: str = Form(""),
 ):
-    """OMR解析 SSEストリーミング — 進捗をリアルタイムで返す"""
+    """OMR解析 SSEストリーミング"""
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,

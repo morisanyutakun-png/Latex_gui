@@ -5,26 +5,9 @@ import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
 import { streamOMRAnalyze } from "@/lib/api";
 import type { OMRStreamEvent } from "@/lib/api";
-import { Block, DocumentPatch, PatchOp } from "@/lib/types";
 import { X, Check, RefreshCw, FileText, Loader2, ArrowRight } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
-import { MathRenderer } from "@/components/editor/math-editor";
-import { parseInlineText } from "@/lib/math-japanese";
-
-// ── Block を正規化 (omr_service と同じロジック) ──
-function normalizeBlock(raw: Record<string, unknown>): Block | null {
-  const id = (raw.id as string) || `omr-${crypto.randomUUID().slice(0, 8)}`;
-  let content = raw.content as Record<string, unknown> | undefined;
-  if (!content || typeof content !== "object" || !("type" in content)) {
-    const btype = raw.type as string;
-    if (!btype) return null;
-    const meta = new Set(["id", "style"]);
-    content = Object.fromEntries(Object.entries(raw).filter(([k]) => !meta.has(k)));
-  }
-  const style = (raw.style as Record<string, unknown>) || { textAlign: "left", fontSize: 11, fontFamily: "sans" };
-  return { id, content: content as unknown as Block["content"], style: style as unknown as Block["style"] };
-}
 
 export function OMRSplitView() {
   const { locale } = useI18n();
@@ -33,25 +16,24 @@ export function OMRSplitView() {
   const omrMode = useUIStore((s) => s.omrMode);
   const sourceUrl = useUIStore((s) => s.omrSourceUrl);
   const sourceName = useUIStore((s) => s.omrSourceName);
-  const extractedBlocks = useUIStore((s) => s.omrExtractedBlocks);
+  const extractedLatex = useUIStore((s) => s.omrExtractedLatex);
   const processing = useUIStore((s) => s.omrProcessing);
   const progress = useUIStore((s) => s.omrProgress);
   const closeOMR = useUIStore((s) => s.closeOMR);
-  const setOMRBlocks = useUIStore((s) => s.setOMRBlocks);
+  const setOMRLatex = useUIStore((s) => s.setOMRLatex);
   const setOMRProcessing = useUIStore((s) => s.setOMRProcessing);
   const setOMRProgress = useUIStore((s) => s.setOMRProgress);
 
   const doc = useDocumentStore((s) => s.document);
-  const applyPatch = useDocumentStore((s) => s.applyPatch);
+  const applyAiLatex = useDocumentStore((s) => s.applyAiLatex);
   const fileRef = useRef<File | null>(null);
 
-  // OMR解析を開始
   const startAnalysis = useCallback(async (file: File) => {
     if (!doc) return;
     fileRef.current = file;
     setOMRProcessing(true);
     setOMRProgress(isJa ? "ファイルを解析中..." : "Analyzing file...");
-    setOMRBlocks([]);
+    setOMRLatex(null);
 
     try {
       const result = await streamOMRAnalyze(
@@ -61,19 +43,11 @@ export function OMRSplitView() {
         },
       );
 
-      if (result.patches?.ops && result.patches.ops.length > 0) {
-        // パッチからブロックを抽出して右パネルに表示
-        const blocks: Block[] = [];
-        for (const op of result.patches.ops) {
-          if (op.op === "add_block" && op.block) {
-            const normalized = normalizeBlock(op.block as unknown as Record<string, unknown>);
-            if (normalized) blocks.push(normalized);
-          }
-        }
-        setOMRBlocks(blocks);
-        setOMRProgress(isJa ? `${blocks.length}件のブロックを抽出しました` : `Extracted ${blocks.length} blocks`);
+      if (result.latex) {
+        setOMRLatex(result.latex);
+        setOMRProgress(isJa ? `${result.latex.length}文字のLaTeXを抽出しました` : `Extracted ${result.latex.length} chars`);
       } else {
-        setOMRProgress(isJa ? "ブロックを抽出できませんでした" : "No blocks extracted");
+        setOMRProgress(isJa ? "LaTeXを抽出できませんでした" : "No LaTeX extracted");
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "OMR error";
@@ -81,40 +55,25 @@ export function OMRSplitView() {
     } finally {
       setOMRProcessing(false);
     }
-  }, [doc, isJa, setOMRBlocks, setOMRProcessing, setOMRProgress]);
+  }, [doc, isJa, setOMRLatex, setOMRProcessing, setOMRProgress]);
 
-  // 承認: ブロックを文書に追加して編集画面に戻る
+  // 承認: 抽出されたLaTeXを文書に適用
   const handleApprove = useCallback(() => {
-    if (extractedBlocks.length === 0) return;
-
-    const currentBlocks = useDocumentStore.getState().document?.blocks ?? [];
-    const lastBlockId = currentBlocks.length > 0 ? currentBlocks[currentBlocks.length - 1].id : null;
-
-    // afterId チェーンを構築して末尾に追加
-    const ops: PatchOp[] = [];
-    let prevId = lastBlockId;
-    for (const block of extractedBlocks) {
-      ops.push({ op: "add_block", afterId: prevId, block });
-      prevId = block.id;
-    }
-
-    applyPatch({ ops } as DocumentPatch);
-    toast.success(isJa ? `${extractedBlocks.length}件のブロックを文書に追加しました` : `Added ${extractedBlocks.length} blocks`);
+    if (!extractedLatex) return;
+    applyAiLatex(extractedLatex);
+    toast.success(isJa ? `LaTeXソースを文書に適用しました` : `LaTeX applied`);
     closeOMR();
-  }, [extractedBlocks, applyPatch, closeOMR, isJa]);
+  }, [extractedLatex, applyAiLatex, closeOMR, isJa]);
 
-  // 再スキャン
   const handleRetry = useCallback(() => {
     if (fileRef.current) startAnalysis(fileRef.current);
   }, [startAnalysis]);
 
-  // OMRモードが最初に開かれた時にファイルを取得して解析開始
   const initialized = useRef(false);
   React.useEffect(() => {
     if (!omrMode || initialized.current) return;
     initialized.current = true;
 
-    // sourceUrl から Blob を取得してFile化 → 解析開始
     if (sourceUrl && sourceName) {
       fetch(sourceUrl)
         .then((r) => r.blob())
@@ -133,7 +92,6 @@ export function OMRSplitView() {
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-in fade-in duration-200">
-      {/* ── ヘッダー ── */}
       <div className="h-12 border-b border-border/40 bg-background/95 backdrop-blur flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
           <FileText className="h-4 w-4 text-emerald-500" />
@@ -141,7 +99,6 @@ export function OMRSplitView() {
           {sourceName && <span className="text-xs text-muted-foreground truncate max-w-[200px]">{sourceName}</span>}
         </div>
         <div className="flex items-center gap-2">
-          {/* 進捗表示 */}
           {(processing || progress) && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               {processing && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -149,8 +106,7 @@ export function OMRSplitView() {
             </div>
           )}
 
-          {/* 再スキャン */}
-          {!processing && extractedBlocks.length > 0 && (
+          {!processing && extractedLatex && (
             <button onClick={handleRetry}
               className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
               <RefreshCw className="h-3 w-3" />
@@ -158,8 +114,7 @@ export function OMRSplitView() {
             </button>
           )}
 
-          {/* 承認ボタン */}
-          {extractedBlocks.length > 0 && !processing && (
+          {extractedLatex && !processing && (
             <button onClick={handleApprove}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm">
               <Check className="h-3.5 w-3.5" />
@@ -168,7 +123,6 @@ export function OMRSplitView() {
             </button>
           )}
 
-          {/* 閉じる */}
           <button onClick={closeOMR}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
             <X className="h-4 w-4" />
@@ -176,7 +130,6 @@ export function OMRSplitView() {
         </div>
       </div>
 
-      {/* ── メイン: 左右分割 ── */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左パネル: 入力ファイルプレビュー */}
         <div className="w-1/2 border-r border-border/30 bg-muted/20 flex flex-col">
@@ -199,134 +152,34 @@ export function OMRSplitView() {
           </div>
         </div>
 
-        {/* 右パネル: 抽出結果 */}
+        {/* 右パネル: 抽出LaTeXソース */}
         <div className="w-1/2 bg-background flex flex-col">
           <div className="px-3 py-2 border-b border-border/20 bg-muted/30 flex items-center justify-between">
             <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-              {isJa ? "抽出結果" : "Extracted Content"}
+              {isJa ? "抽出LaTeX" : "Extracted LaTeX"}
             </span>
-            {extractedBlocks.length > 0 && (
-              <span className="text-[10px] text-muted-foreground">{extractedBlocks.length} {isJa ? "ブロック" : "blocks"}</span>
+            {extractedLatex && (
+              <span className="text-[10px] text-muted-foreground">{extractedLatex.length.toLocaleString()} {isJa ? "文字" : "chars"}</span>
             )}
           </div>
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-auto p-0">
             {processing ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
                 <p className="text-sm text-muted-foreground">{progress}</p>
               </div>
-            ) : extractedBlocks.length === 0 ? (
+            ) : !extractedLatex ? (
               <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
                 <FileText className="h-8 w-8 opacity-30" />
                 <p className="text-sm">{progress || (isJa ? "解析結果がここに表示されます" : "Results appear here")}</p>
               </div>
             ) : (
-              <div className="space-y-1 max-w-[600px] mx-auto">
-                {extractedBlocks.map((block) => (
-                  <OMRBlockPreview key={block.id} block={block} />
-                ))}
-              </div>
+              <pre className="text-[12px] font-mono leading-[1.55] text-foreground/85 px-4 py-3 whitespace-pre-wrap break-all">
+                {extractedLatex}
+              </pre>
             )}
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── インラインテキスト（数式含む）レンダリング ──
-function InlineText({ text }: { text: string }) {
-  const segments = parseInlineText(text);
-  const hasMath = segments.some((s) => s.type === "math");
-  if (!hasMath) return <span>{text}</span>;
-  return (
-    <>
-      {segments.map((seg, i) =>
-        seg.type === "math" && seg.latex ? (
-          <span key={i} className="inline-block mx-0.5 align-middle">
-            <MathRenderer latex={seg.latex} displayMode={false} />
-          </span>
-        ) : (
-          <span key={i}>{seg.content}</span>
-        )
-      )}
-    </>
-  );
-}
-
-// ── 抽出ブロックのプレビュー表示 ──
-function OMRBlockPreview({ block }: { block: Block }) {
-  const c = block.content;
-  const type = c.type;
-
-  const typeLabel: Record<string, string> = {
-    heading: "見出し", paragraph: "テキスト", math: "数式", list: "リスト",
-    table: "表", divider: "区切り線", code: "コード", quote: "引用",
-    latex: "LaTeX", image: "画像",
-  };
-
-  const typeColor: Record<string, string> = {
-    heading: "text-blue-500 bg-blue-50 dark:bg-blue-950/30",
-    paragraph: "text-slate-500 bg-slate-50 dark:bg-slate-950/30",
-    math: "text-violet-500 bg-violet-50 dark:bg-violet-950/30",
-    list: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30",
-    table: "text-orange-500 bg-orange-50 dark:bg-orange-950/30",
-    divider: "text-gray-400 bg-gray-50 dark:bg-gray-950/30",
-    latex: "text-fuchsia-500 bg-fuchsia-50 dark:bg-fuchsia-950/30",
-  };
-
-  const renderContent = () => {
-    if (type === "math" && "latex" in c && c.latex) {
-      return (
-        <span className="overflow-x-auto">
-          <MathRenderer latex={c.latex as string} displayMode={(c as { displayMode?: boolean }).displayMode ?? true} />
-        </span>
-      );
-    }
-    if (type === "heading" && "text" in c && c.text) {
-      const level = (c as { level?: number }).level ?? 1;
-      const sizeClass = level === 1 ? "text-base font-bold" : level === 2 ? "text-sm font-semibold" : "text-sm font-medium";
-      return <span className={sizeClass}><InlineText text={c.text as string} /></span>;
-    }
-    if (type === "paragraph" && "text" in c && c.text) {
-      return <span className="text-sm leading-relaxed"><InlineText text={c.text as string} /></span>;
-    }
-    if (type === "list" && "items" in c && Array.isArray(c.items)) {
-      return (
-        <span className="text-sm leading-relaxed">
-          {(c.items as string[]).slice(0, 3).map((item, i) => (
-            <span key={i} className="block"><InlineText text={item} /></span>
-          ))}
-          {(c.items as string[]).length > 3 && (
-            <span className="text-muted-foreground text-xs">…他{(c.items as string[]).length - 3}件</span>
-          )}
-        </span>
-      );
-    }
-    if ("code" in c && c.code) return <span className="text-sm font-mono text-muted-foreground">{(c.code as string).slice(0, 100)}</span>;
-    if ("formula" in c && c.formula) return <span className="text-sm font-mono">{c.formula as string}</span>;
-    if ("text" in c && c.text) return <span className="text-sm"><InlineText text={c.text as string} /></span>;
-    return <span className="text-muted-foreground text-sm">—</span>;
-  };
-
-  if (type === "divider") {
-    return (
-      <div className="flex items-center gap-2 py-1.5 px-2">
-        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium ${typeColor[type] || "text-gray-500 bg-gray-50"}`}>
-          {typeLabel[type] || type}
-        </span>
-        <hr className="flex-1 border-border/50" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-start gap-2 py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors">
-      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium ${typeColor[type] || "text-gray-500 bg-gray-50"}`}>
-        {typeLabel[type] || type}
-      </span>
-      <div className="flex-1 min-w-0 text-foreground/80">
-        {renderContent()}
       </div>
     </div>
   );

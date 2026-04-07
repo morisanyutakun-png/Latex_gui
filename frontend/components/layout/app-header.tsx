@@ -13,44 +13,13 @@ import {
   Redo2,
   FileDown,
   Loader2,
-  LayoutList,
-  Plus,
-  RefreshCw,
-  Trash2 as Trash2Icon,
   Sparkles,
   Printer,
   ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
-import { DocumentOutline } from "@/components/layout/document-outline";
 import { UserMenu } from "@/components/auth/user-menu";
-import { LastAIAction } from "@/store/ui-store";
-
-function OpCountIcons({ counts }: { counts: LastAIAction["opCounts"] }) {
-  return (
-    <span className="flex items-center gap-1 ml-1">
-      {counts.added > 0 && (
-        <span className="flex items-center gap-0.5 text-emerald-400">
-          <Plus className="h-2.5 w-2.5" />
-          <span className="text-[9px] tabular-nums font-mono">{counts.added}</span>
-        </span>
-      )}
-      {counts.updated > 0 && (
-        <span className="flex items-center gap-0.5 text-sky-400 ml-0.5">
-          <RefreshCw className="h-2.5 w-2.5" />
-          <span className="text-[9px] tabular-nums font-mono">{counts.updated}</span>
-        </span>
-      )}
-      {counts.deleted > 0 && (
-        <span className="flex items-center gap-0.5 text-red-400 ml-0.5">
-          <Trash2Icon className="h-2.5 w-2.5" />
-          <span className="text-[9px] tabular-nums font-mono">{counts.deleted}</span>
-        </span>
-      )}
-    </span>
-  );
-}
 
 interface AppHeaderProps {
   isAIActive?: boolean;
@@ -60,7 +29,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
-  const { isGenerating, setGenerating, lastAIAction, toggleOutline, isOutlineOpen, isChatLoading } = useUIStore();
+  const { isGenerating, setGenerating, lastAIAction, isChatLoading } = useUIStore();
   const [indicatorVisible, setIndicatorVisible] = useState(false);
   const omrFileRef = useRef<HTMLInputElement>(null);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
@@ -260,7 +229,6 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/70 text-xs font-medium animate-in fade-in duration-300 max-w-sm overflow-hidden shadow-sm">
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-500" />
             <span className="truncate">{lastAIAction.description}</span>
-            <OpCountIcons counts={lastAIAction.opCounts} />
           </div>
         ) : null}
       </div>
@@ -303,16 +271,6 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
           </span>
         </button>
 
-        <button
-          onClick={toggleOutline}
-          className={`btn-icon h-8 w-8 ${
-            isOutlineOpen ? "!text-primary !bg-primary/10" : ""
-          }`}
-          title={isJa ? "構成を表示" : "Show outline"}
-        >
-          <LayoutList className="h-4 w-4" />
-        </button>
-
         <ThemeToggle />
 
         <UserMenu />
@@ -330,8 +288,6 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
           <><Printer className="h-3.5 w-3.5" /><span>{isJa ? "PDF出力" : "Export PDF"}</span></>
         )}
       </button>
-
-      <DocumentOutline />
 
       {/* PDF Save As ダイアログ（showSaveFilePicker 非対応ブラウザ用） */}
       {showSaveDialog && (
