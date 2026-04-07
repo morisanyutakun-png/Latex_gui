@@ -12,7 +12,7 @@ import {
 import { MathRenderer } from "./math-editor";
 import { MathEditPopover } from "./math-edit-popover";
 import { useI18n } from "@/lib/i18n";
-import { ChevronRight, Code2, Sigma } from "lucide-react";
+import { Code2, Sigma } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 
 interface VisualEditorProps {
@@ -119,19 +119,21 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
 
   return (
     <>
-      <div className="visual-editor h-full w-full overflow-y-auto bg-background scrollbar-thin">
-        <div className="mx-auto max-w-3xl px-10 py-12 space-y-4">
-          {segments.map((seg, idx) => (
-            <SegmentRenderer
-              key={`${idx}-${seg.kind}`}
-              segment={seg}
-              latex={latex}
-              onHeadingCommit={(title) => handleHeadingCommit(seg, title)}
-              onParagraphCommit={(el) => handleParagraphCommit(seg, el)}
-              onOpenMath={setMathTarget}
-              onShowSource={() => setShowSourcePanel(true)}
-            />
-          ))}
+      <div className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin">
+        <div className="mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
+          <div className="px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)]">
+            {segments.map((seg, idx) => (
+              <SegmentRenderer
+                key={`${idx}-${seg.kind}`}
+                segment={seg}
+                latex={latex}
+                onHeadingCommit={(title) => handleHeadingCommit(seg, title)}
+                onParagraphCommit={(el) => handleParagraphCommit(seg, el)}
+                onOpenMath={setMathTarget}
+                onShowSource={() => setShowSourcePanel(true)}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -173,7 +175,9 @@ function SegmentRenderer({
 
   switch (segment.kind) {
     case "preamble":
-      return <PreambleBadge onShowSource={onShowSource} label={t("doc.editor.visual.preamble")} />;
+      // プリアンブルは Word ライクな白紙体験のため非表示。
+      // LaTeX を直接編集したいときはツールバーから LaTeX ソースパネルを開く。
+      return null;
 
     case "section":
       return (
@@ -436,20 +440,6 @@ function ContentEditableBlock({ segment, onCommit, onOpenMath, tag: Tag, classNa
 // ─────────────────────────────────────
 // PreambleBadge / RawBadge
 // ─────────────────────────────────────
-
-function PreambleBadge({ label, onShowSource }: { label: string; onShowSource: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onShowSource}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-dashed border-border/60 bg-muted/30 text-[11px] text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors w-full"
-    >
-      <ChevronRight className="h-3 w-3" />
-      <Code2 className="h-3 w-3" />
-      <span>{label}</span>
-    </button>
-  );
-}
 
 interface RawBadgeProps {
   segment: Segment;

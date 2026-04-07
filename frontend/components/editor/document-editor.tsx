@@ -37,19 +37,19 @@ export function DocumentEditor() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
-      {/* ── Visual editor (常時) ── */}
+      {/* ── LaTeX source panel (opt-in, 左) ── */}
+      {showSourcePanel && (
+        <LatexSourcePanel latex={latex} onChange={setLatex} />
+      )}
+
+      {/* ── Visual editor (常時, 中央) ── */}
       <div className="flex flex-1 min-w-0 flex-col">
         <VisualEditor latex={latex} onChange={setLatex} />
       </div>
 
-      {/* ── PDF preview panel (opt-in) ── */}
+      {/* ── PDF preview panel (opt-in, 右) ── */}
       {showPdfPanel && (
         <PdfPreviewPanel latex={latex} title={document.metadata.title || "preview"} />
-      )}
-
-      {/* ── LaTeX source panel (opt-in) ── */}
-      {showSourcePanel && (
-        <LatexSourcePanel latex={latex} onChange={setLatex} />
       )}
     </div>
   );
@@ -67,7 +67,7 @@ interface LatexSourcePanelProps {
 function LatexSourcePanel({ latex, onChange }: LatexSourcePanelProps) {
   const { t } = useI18n();
   return (
-    <div className="flex flex-1 min-w-0 max-w-[50%] flex-col border-l border-border/40 bg-background">
+    <div className="flex w-[420px] shrink-0 flex-col border-r border-border/40 bg-background">
       <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-1.5 shrink-0">
         <div className="flex items-center gap-2 text-xs font-medium text-foreground/70">
           <Code2 className="h-3.5 w-3.5" />
