@@ -8,6 +8,7 @@ import { useResizePanel } from "@/hooks/use-resize-panel";
 import { useI18n } from "@/lib/i18n";
 import { FileText, Loader2, AlertTriangle, RefreshCw, Code2, X } from "lucide-react";
 import { VisualEditor } from "./visual-editor";
+import { LatexCodeEditor } from "./latex-code-editor";
 
 /**
  * DocumentEditor — メインの編集領域
@@ -134,13 +135,13 @@ function LatexSourcePanel({ latex, onChange, width, onClose }: LatexSourcePanelP
           </button>
         </div>
       </div>
-      <textarea
-        value={latex}
-        onChange={(e) => onChange(e.target.value)}
-        spellCheck={false}
-        className="flex-1 w-full resize-none border-0 bg-background px-4 py-3 font-mono text-[12.5px] leading-[1.55] text-foreground outline-none focus:ring-0"
-        placeholder={"\\documentclass{article}\n\\begin{document}\n...\n\\end{document}"}
-      />
+      <div className="flex-1 min-h-0">
+        <LatexCodeEditor
+          value={latex}
+          onChange={onChange}
+          placeholder={"\\documentclass{article}\n\\begin{document}\n...\n\\end{document}"}
+        />
+      </div>
     </div>
   );
 }

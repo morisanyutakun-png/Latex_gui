@@ -1170,3 +1170,192 @@ html {
 .trailing-editable:focus:empty::before {
   opacity: 0.5;
 }
+
+/* ══════════════════════════════════════════════════════════
+   LatexCodeEditor — IDE 風 LaTeX ソースエディタ
+   textarea (透明テキスト) を pre (色付き) にオーバーレイする方式
+   ══════════════════════════════════════════════════════════ */
+
+.latex-code-editor {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+  background: hsl(var(--background));
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", "Monaco", "Consolas",
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  tab-size: 2;
+  font-variant-ligatures: none;
+  font-feature-settings: "calt" 0, "liga" 0;
+  scrollbar-gutter: stable;
+}
+
+.latex-code-editor::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.latex-code-editor::-webkit-scrollbar-track {
+  background: transparent;
+}
+.latex-code-editor::-webkit-scrollbar-thumb {
+  background: hsl(var(--foreground) / 0.10);
+  border: 3px solid hsl(var(--background));
+  border-radius: 8px;
+}
+.latex-code-editor::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground) / 0.20);
+}
+
+/* 行番号 gutter (横スクロール時も左に固定) */
+.latex-gutter {
+  flex: 0 0 auto;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  padding: 14px 12px 24px 16px;
+  text-align: right;
+  user-select: none;
+  background: hsl(var(--background));
+  border-right: 1px solid hsl(var(--foreground) / 0.06);
+  color: hsl(var(--foreground) / 0.30);
+  font-feature-settings: "tnum";
+  min-width: 3.5em;
+}
+.latex-gutter-line {
+  /* pre / textarea は font-size 12.5px / line-height 1.55 で 1 行 ≒ 19.375px。
+     gutter は少し小さい字で見せたいが行高は揃える必要があるので、
+     font-size を縮めつつ height を pre 基準で固定する。 */
+  font-size: 11.5px;
+  line-height: calc(12.5px * 1.55);
+  height: calc(12.5px * 1.55);
+}
+
+/* code-area: pre と textarea を grid で重ねる */
+.latex-code-area {
+  flex: 1 1 auto;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, max-content);
+  min-width: 0;
+}
+
+.latex-code-area > .latex-highlight,
+.latex-code-area > .latex-input {
+  grid-area: 1 / 1;
+  margin: 0;
+  padding: 14px 18px 24px 18px;
+  border: 0;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  tab-size: inherit;
+  white-space: pre;
+  word-wrap: normal;
+  overflow-wrap: normal;
+  letter-spacing: 0;
+  min-width: 100%;
+}
+
+.latex-code-area > .latex-highlight {
+  pointer-events: none;
+  color: hsl(var(--foreground) / 0.92);
+  display: block;
+  background: transparent;
+}
+.latex-code-area > .latex-highlight code {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre;
+}
+
+.latex-code-area > .latex-input {
+  resize: none;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: hsl(var(--foreground));
+  outline: none;
+  overflow: hidden;
+}
+.latex-code-area > .latex-input::placeholder {
+  color: hsl(var(--foreground) / 0.30);
+  -webkit-text-fill-color: hsl(var(--foreground) / 0.30);
+  font-style: italic;
+}
+.latex-code-area > .latex-input::selection {
+  background: hsl(var(--primary) / 0.25);
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.latex-code-area > .latex-input::-moz-selection {
+  background: hsl(var(--primary) / 0.25);
+  color: transparent;
+}
+
+/* ── トークン色 (ライトテーマ) ── */
+.latex-code-editor .tk-comment {
+  color: #6b7280;
+  font-style: italic;
+}
+.latex-code-editor .tk-command {
+  color: #7c3aed;     /* violet-600 */
+  font-weight: 600;
+}
+.latex-code-editor .tk-envname {
+  color: #0e7490;     /* cyan-700 */
+  font-weight: 500;
+}
+.latex-code-editor .tk-math {
+  color: #65a30d;     /* lime-600 — 黄緑 */
+  background: rgba(132, 204, 22, 0.06);
+  border-radius: 2px;
+}
+.latex-code-editor .tk-brace {
+  color: #b45309;     /* amber-700 */
+}
+.latex-code-editor .tk-bracket {
+  color: #475569;     /* slate-600 */
+}
+.latex-code-editor .tk-special {
+  color: #be185d;     /* pink-700 */
+  font-weight: 600;
+}
+.latex-code-editor .tk-number {
+  color: #c2410c;     /* orange-700 */
+}
+
+/* ── トークン色 (ダークテーマ) ── */
+.dark .latex-code-editor .tk-comment {
+  color: #6b7280;
+  font-style: italic;
+}
+.dark .latex-code-editor .tk-command {
+  color: #c4b5fd;     /* violet-300 */
+  font-weight: 600;
+}
+.dark .latex-code-editor .tk-envname {
+  color: #67e8f9;     /* cyan-300 */
+  font-weight: 500;
+}
+.dark .latex-code-editor .tk-math {
+  color: #bef264;     /* lime-300 — 黄緑 (ダークでより明るく) */
+  background: rgba(190, 242, 100, 0.07);
+  border-radius: 2px;
+}
+.dark .latex-code-editor .tk-brace {
+  color: #fcd34d;     /* amber-300 */
+}
+.dark .latex-code-editor .tk-bracket {
+  color: #94a3b8;     /* slate-400 */
+}
+.dark .latex-code-editor .tk-special {
+  color: #f9a8d4;     /* pink-300 */
+  font-weight: 600;
+}
+.dark .latex-code-editor .tk-number {
+  color: #fdba74;     /* orange-300 */
+}
