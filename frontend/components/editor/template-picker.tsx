@@ -4,9 +4,8 @@
  * TemplatePicker — テンプレ選択ポップオーバー
  *
  * ・トリガーボタン: 現在のテンプレ名 + タグ
- * ・展開後: カテゴリタブ + テンプレカードグリッド
- * ・カードに gradient プレビュー / アイコン / タグ / 説明 / ハイライト
- * ・キーボード操作 (Esc 閉じる)
+ * ・展開後: カテゴリタブ + ビジュアルプレビュー中心のカードグリッド
+ * ・各カードは TemplatePreview (実際の出力に近いミニチュア) を主役にする
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,6 +17,7 @@ import {
 } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
 import { ChevronDown, Check, Sparkles } from "lucide-react";
+import { TemplatePreview } from "./template-previews";
 
 interface TemplatePickerProps {
   currentId: string;
@@ -34,13 +34,11 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
 
   const current = TEMPLATES.find((tpl) => tpl.id === currentId) ?? TEMPLATES[0];
 
-  // Filtered templates by category
   const visible = useMemo(() => {
     if (activeCat === "all") return TEMPLATES;
     return TEMPLATES.filter((t) => t.category === activeCat);
   }, [activeCat]);
 
-  // Click-outside / Escape to close
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
@@ -89,7 +87,7 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
 
       {/* ── Popover ── */}
       {open && (
-        <div className="absolute left-0 top-full mt-1.5 w-[760px] max-w-[calc(100vw-2rem)] z-50 rounded-2xl border border-border/60 bg-popover shadow-2xl shadow-foreground/10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute left-0 top-full mt-1.5 w-[920px] max-w-[calc(100vw-2rem)] z-50 rounded-2xl border border-border/60 bg-popover shadow-2xl shadow-foreground/10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 bg-gradient-to-r from-muted/40 to-transparent">
             <div className="flex items-center gap-2">
@@ -124,9 +122,9 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
             ))}
           </div>
 
-          {/* Card grid */}
-          <div className="max-h-[64vh] overflow-y-auto p-4 bg-muted/10">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Card grid — visual previews are the centerpiece */}
+          <div className="max-h-[68vh] overflow-y-auto p-4 bg-stone-100/50 dark:bg-stone-950/30">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {visible.map((tpl) => (
                 <TemplateCard
                   key={tpl.id}
@@ -172,9 +170,11 @@ function CategoryTab({ icon, label, count, active, onClick }: CategoryTabProps) 
     >
       <span className="text-[13px] leading-none">{icon}</span>
       <span>{label}</span>
-      <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
-        active ? "bg-foreground/[0.10] text-foreground/70" : "bg-foreground/[0.05] text-muted-foreground/60"
-      }`}>
+      <span
+        className={`text-[9px] font-mono px-1 py-0.5 rounded ${
+          active ? "bg-foreground/[0.10] text-foreground/70" : "bg-foreground/[0.05] text-muted-foreground/60"
+        }`}
+      >
         {count}
       </span>
     </button>
@@ -182,7 +182,7 @@ function CategoryTab({ icon, label, count, active, onClick }: CategoryTabProps) 
 }
 
 // ─────────────────────────────────────
-// TemplateCard
+// TemplateCard — ビジュアルプレビュー中心
 // ─────────────────────────────────────
 
 interface TemplateCardProps {
@@ -194,62 +194,36 @@ interface TemplateCardProps {
 
 function TemplateCard({ tpl, isJa, selected, onSelect }: TemplateCardProps) {
   const name = isJa ? tpl.name : tpl.nameEn;
-  const desc = isJa ? tpl.description : tpl.descriptionEn;
   const tag = isJa ? tpl.tag : tpl.tagEn;
-  const contents = isJa ? tpl.contents : tpl.contentsEn;
-  const includesLabel = isJa ? "出力に含まれるもの" : "What you get";
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={`group relative text-left rounded-xl border transition-all duration-200 overflow-hidden bg-background hover:shadow-lg hover:shadow-foreground/5 hover:-translate-y-px ${
+      className={`group relative text-left rounded-xl transition-all duration-200 overflow-hidden hover:-translate-y-0.5 ${
         selected
-          ? "border-emerald-400/60 shadow-md shadow-emerald-500/10 ring-1 ring-emerald-400/30"
-          : "border-border/50 hover:border-foreground/20"
+          ? "ring-2 ring-emerald-400 shadow-lg shadow-emerald-500/15"
+          : "ring-1 ring-border/40 hover:ring-foreground/30 hover:shadow-md hover:shadow-foreground/10"
       }`}
     >
-      {/* Gradient header bar */}
-      <div className={`h-12 bg-gradient-to-br ${tpl.gradient} relative flex items-center justify-between px-3`}>
-        <div className="text-[26px] leading-none drop-shadow-sm">{tpl.icon}</div>
-        {tag && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/25 backdrop-blur-sm text-white font-bold uppercase tracking-wider">
-            {tag}
-          </span>
-        )}
+      {/* Visual preview takes the whole card top */}
+      <div className="relative bg-stone-200/40 dark:bg-stone-900/40 p-3">
+        <TemplatePreview id={tpl.id} />
         {selected && (
-          <div className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center shadow">
+          <div className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center shadow ring-2 ring-white">
             <Check className="h-3 w-3 text-white" strokeWidth={3} />
           </div>
         )}
       </div>
 
-      {/* Body */}
-      <div className="p-3">
-        <div className="text-[13px] font-bold text-foreground leading-tight">{name}</div>
-        <div className="text-[11px] text-muted-foreground/80 mt-1 leading-snug">
-          {desc}
-        </div>
-
-        {contents && contents.length > 0 && (
-          <div className="mt-2.5 pt-2 border-t border-border/40">
-            <div className="text-[8.5px] font-bold uppercase tracking-wider text-foreground/45 mb-1">
-              {includesLabel}
-            </div>
-            <ul className="space-y-0.5">
-              {contents.slice(0, 6).map((c, i) => (
-                <li key={i} className="flex items-start gap-1.5 text-[10.5px] text-foreground/65">
-                  <span className="text-foreground/25 mt-px shrink-0">▸</span>
-                  <span className="leading-snug">{c}</span>
-                </li>
-              ))}
-              {contents.length > 6 && (
-                <li className="text-[9.5px] text-muted-foreground/50 italic pl-3">
-                  {isJa ? `+ さらに ${contents.length - 6} 項目` : `+ ${contents.length - 6} more`}
-                </li>
-              )}
-            </ul>
-          </div>
+      {/* Footer label only — name + tag */}
+      <div className="px-3 py-2 bg-background border-t border-border/40 flex items-center gap-2">
+        <span className="text-[14px] leading-none">{tpl.icon}</span>
+        <span className="text-[12px] font-bold text-foreground truncate flex-1">{name}</span>
+        {tag && (
+          <span className="shrink-0 text-[8.5px] px-1.5 py-0.5 rounded bg-foreground/[0.06] text-foreground/60 font-mono uppercase tracking-wider">
+            {tag}
+          </span>
         )}
       </div>
     </button>
