@@ -46,11 +46,36 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
 
   const [mathTarget, setMathTarget] = useState<MathEditTarget | null>(null);
 
+  // 末尾の常時編集可能な段落 (Word ライクな「白紙の上にカーソル」感)
+  const trailingRef = useRef<HTMLParagraphElement | null>(null);
+
   // Edit を発行するヘルパー: range と新スニペットを受け取り、onChange を呼ぶ
   const applyRangeEdit = useCallback(
     (range: Range, newSnippet: string) => {
       const newLatex = replaceRange(latex, range, newSnippet);
       if (newLatex !== latex) onChange(newLatex);
+    },
+    [latex, onChange]
+  );
+
+  // 新しい段落を本文末尾 (\end{document} の直前) に挿入する
+  const handleInsertNewParagraph = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      const endDocIdx = latex.indexOf("\\end{document}");
+      let next: string;
+      if (endDocIdx === -1) {
+        // \end{document} なし → 末尾に追加
+        const sep = latex.length === 0 ? "" : latex.endsWith("\n\n") ? "" : latex.endsWith("\n") ? "\n" : "\n\n";
+        next = latex + sep + trimmed + "\n";
+      } else {
+        // \end{document} の前に空行で囲んで挿入
+        const before = latex.slice(0, endDocIdx).replace(/\s*$/, "");
+        const after = latex.slice(endDocIdx);
+        next = before + "\n\n" + trimmed + "\n\n" + after;
+      }
+      onChange(next);
     },
     [latex, onChange]
   );
@@ -115,26 +140,48 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
     if (seg.meta?.hidden === "true") return false;
     return true;
   });
-  const hasContent = visibleSegments.length > 0;
+
+  // ページ上の余白クリックで末尾の編集可能段落にカーソルを移す (Word ライク)
+  const handlePageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    const node = trailingRef.current;
+    if (!node) return;
+    e.preventDefault();
+    node.focus();
+    if (typeof window !== "undefined") {
+      const sel = window.getSelection();
+      if (sel) {
+        const range = window.document.createRange();
+        range.selectNodeContents(node);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+  };
 
   return (
     <>
       <div className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin">
         <div className="mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
-          <div className="px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)]">
-            {hasContent ? (
-              visibleSegments.map((seg, idx) => (
-                <SegmentRenderer
-                  key={`${idx}-${seg.kind}`}
-                  segment={seg}
-                  onHeadingCommit={(title) => handleHeadingCommit(seg, title)}
-                  onParagraphCommit={(el) => handleParagraphCommit(seg, el)}
-                  onOpenMath={setMathTarget}
-                />
-              ))
-            ) : (
-              <BlankPaperPlaceholder hint={t("doc.editor.visual.empty")} />
-            )}
+          <div
+            className="px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)] cursor-text"
+            onMouseDown={handlePageMouseDown}
+          >
+            {visibleSegments.map((seg, idx) => (
+              <SegmentRenderer
+                key={`${idx}-${seg.kind}`}
+                segment={seg}
+                onHeadingCommit={(title) => handleHeadingCommit(seg, title)}
+                onParagraphCommit={(el) => handleParagraphCommit(seg, el)}
+                onOpenMath={setMathTarget}
+              />
+            ))}
+            <TrailingEditableParagraph
+              innerRef={trailingRef}
+              placeholder={t("doc.editor.visual.type_here")}
+              onInsert={handleInsertNewParagraph}
+            />
           </div>
         </div>
       </div>
@@ -471,14 +518,42 @@ function RawPlaceholder({ segment }: { segment: Segment }) {
 }
 
 // ─────────────────────────────────────
-// BlankPaperPlaceholder — 本文ゼロのときに紙の上に薄く出すヒント
+// TrailingEditableParagraph — 本文末尾に常時ある「白紙の入力枠」
+//
+// Word ライクに「ページ上のどこをクリックしても入力できる」感を実現するため、
+// 常に末尾に空の contentEditable を 1 つ置いておく。
+// 入力 → blur で本文末尾 (\end{document} の直前) に新しい段落として挿入する。
+// 空のときは placeholder テキストを CSS で描画する。
 // ─────────────────────────────────────
 
-function BlankPaperPlaceholder({ hint }: { hint: string }) {
+interface TrailingEditableParagraphProps {
+  placeholder: string;
+  onInsert: (text: string) => void;
+  innerRef: React.MutableRefObject<HTMLParagraphElement | null>;
+}
+
+function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: TrailingEditableParagraphProps) {
   return (
-    <p className="text-foreground/30 text-[15px] leading-[1.75] italic select-none">
-      {hint}
-    </p>
+    <p
+      ref={(node: HTMLParagraphElement | null) => {
+        innerRef.current = node;
+      }}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      data-placeholder={placeholder}
+      className="trailing-editable text-[15px] leading-[1.75] text-foreground/85 my-3 outline-none focus:bg-foreground/[0.03] rounded px-1 -mx-1 cursor-text whitespace-pre-wrap min-h-[1.75em]"
+      onBlur={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        const text = (el.textContent || "").replace(/\u200B/g, "").trim();
+        if (text) {
+          // 親が onChange → 再パース → このコンポーネントは再マウントされない (key 安定)
+          // ので、ローカルにテキストを残さないよう手動でクリア
+          el.textContent = "";
+          onInsert(text);
+        }
+      }}
+    />
   );
 }
 

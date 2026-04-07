@@ -1156,3 +1156,17 @@ html {
 .dark .chat-timeline-border {
   border-left-color: rgba(245, 158, 11, 0.18);
 }
+
+/* ── VisualEditor: 末尾の常時編集可能段落の placeholder ── */
+.trailing-editable:empty::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--foreground) / 0.30);
+  font-style: italic;
+  pointer-events: none;
+  user-select: none;
+}
+/* contentEditable は focus 中に空でも <br> が入って :empty が外れることがある。
+   focus 中で本物のテキストが無いケースもプレースホルダを隠すには空時のみ表示すれば十分。 */
+.trailing-editable:focus:empty::before {
+  opacity: 0.5;
+}
