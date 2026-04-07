@@ -20,7 +20,7 @@ import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
-import { Terminal, Sparkles, FileCode2, Globe, FileText, X, BookOpen, Sigma, ClipboardCheck } from "lucide-react";
+import { Terminal, Sparkles, Globe, FileText, X, BookOpen, Sigma, ClipboardCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { EditorHints } from "@/components/layout/editor-hints";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
@@ -87,7 +87,6 @@ export default function EditorPage() {
   const latexInspectSource = useUIStore((s) => s.latexInspectSource);
   const latexSourceViewerOpen = useUIStore((s) => s.latexSourceViewerOpen);
   const showGlobalPalette = useUIStore((s) => s.showGlobalPalette);
-  const openLatexSourceViewer = useUIStore((s) => s.openLatexSourceViewer);
   const closeLeftPanel = useUIStore((s) => s.closeLeftPanel);
   const editingBlock = editingBlockId
     ? doc?.blocks.find((b) => b.id === editingBlockId) ?? null
@@ -100,13 +99,13 @@ export default function EditorPage() {
       latexSourceViewerOpen ||
       isHeavyBlockEdit
     );
-  // OMR-style 1:1 split for ALL left-panel modes (heavy block edit, palette,
-  // latex source, latex inspect). Cap is generous so on wide displays we still
-  // get a balanced two-column layout that mirrors OMRSplitView.
+  // パレット(Cmd+K)はコンパクトな固定幅サイドバー、それ以外は1:1スプリット
   const leftPanelWidth = isHeavyBlockEdit
     ? "min(50%, 760px)"
+    : showGlobalPalette
+    ? "300px"
     : "min(50%, 720px)";
-  const leftPanelMinWidth = isHeavyBlockEdit ? 460 : 420;
+  const leftPanelMinWidth = isHeavyBlockEdit ? 460 : showGlobalPalette ? 260 : 420;
 
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
@@ -156,7 +155,7 @@ export default function EditorPage() {
 
   // パネルタイトルと色設定
   const panelMeta: Record<SidebarTab, { label: string; bg: string; textColor: string; indicator: string }> = {
-    ai:       { label: "EddivomAI",                                    bg: "bg-slate-900/5 dark:bg-surface-1/60",    textColor: "text-indigo-400/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-indigo-500/70 to-violet-500/30" },
+    ai:       { label: "EddivomAI",                                    bg: "bg-amber-950/5 dark:bg-amber-950/15",    textColor: "text-amber-500/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-amber-500/70 to-amber-400/30" },
     advanced: { label: isJa ? "LaTeX拡張"      : "LaTeX Extensions", bg: "bg-amber-950/8 dark:bg-amber-950/15",   textColor: "text-amber-500/70 font-mono", indicator: "bg-amber-400" },
     latex:    { label: isJa ? "LaTeXソース"    : "LaTeX Source",     bg: "bg-muted/10",                           textColor: "text-muted-foreground/50",    indicator: "" },
     guide:    { label: isJa ? "編集ガイド"      : "Editing Guide",    bg: "bg-sky-950/8 dark:bg-sky-950/15",       textColor: "text-sky-400/80",             indicator: "bg-gradient-to-b from-sky-500/60 to-sky-400/20" },
@@ -345,38 +344,46 @@ export default function EditorPage() {
 
           {/* Activity bar — right edge of the floating card */}
           <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l border-foreground/[0.05] bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
-          {/* Main tabs — "latex" opens in the LEFT sidebar, others toggle the right panel */}
-          {(["ai", "latex", "scoring"] as SidebarTab[]).map((tab) => {
-            const Icon = tab === "ai" ? Sparkles : tab === "scoring" ? ClipboardCheck : FileCode2;
-            const color = tab === "ai" ? "text-indigo-500 dark:text-indigo-400" : tab === "scoring" ? "text-emerald-500 dark:text-emerald-400" : "text-slate-400";
-            const ind   = tab === "ai" ? "bg-indigo-500" : tab === "scoring" ? "bg-emerald-500" : "bg-slate-400";
-            const label = tab === "ai"
-              ? (isJa ? "AIアシスタント" : "AI Assistant")
-              : tab === "scoring"
-              ? (isJa ? "採点" : "Scoring")
-              : (isJa ? "LaTeXソース" : "LaTeX Source");
-            const isActive =
-              tab === "latex"
-                ? latexSourceViewerOpen
-                : sidebarOpen && activeTab === tab;
-            const handleClick =
-              tab === "latex"
-                ? () => { if (latexSourceViewerOpen) closeLeftPanel(); else openLatexSourceViewer(); }
-                : () => handleTabClick(tab);
+          {/* Main tabs — AI and Scoring toggle the right panel */}
+          {/* AI tab — LP-matching orange/amber round style */}
+          {(() => {
+            const isActive = sidebarOpen && activeTab === "ai";
             return (
-              <button key={tab} onClick={handleClick} title={label}
-                className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
-                  isActive ? `${color} bg-foreground/[0.05] ${tab === "ai" ? "active" : ""}` : "text-foreground/20 hover:text-foreground/50 hover:bg-foreground/[0.04]"
+              <button onClick={() => handleTabClick("ai")} title={isJa ? "AIアシスタント" : "AI Assistant"}
+                className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
+                  isActive ? "" : "text-foreground/25 hover:text-amber-500/80 hover:bg-amber-50/50 dark:hover:bg-amber-500/10 rounded-lg mx-0.5"
                 }`}
               >
-                {isActive && <span className={`absolute left-0 inset-y-2 w-[2px] rounded-r-full ${ind} shadow-[0_0_8px_-1px_currentColor] transition-all duration-300`} />}
-                <Icon className={`h-[17px] w-[17px] transition-transform duration-200 ${isActive ? "scale-110" : ""}`} />
-                {tab === "ai" && isChatLoading && (
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-500 animate-pulse ring-2 ring-surface-0/80" />
+                {isActive ? (
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-md shadow-amber-500/30 transition-all duration-200">
+                    <Sparkles className="h-[15px] w-[15px] text-white" />
+                  </div>
+                ) : (
+                  <Sparkles className="h-[17px] w-[17px]" />
+                )}
+                {isChatLoading && (
+                  <span className={`absolute top-1.5 right-1.5 h-2 w-2 rounded-full animate-pulse ring-2 ${
+                    isActive ? "bg-white ring-amber-600/60" : "bg-amber-500 ring-surface-0/80"
+                  }`} />
                 )}
               </button>
             );
-          })}
+          })()}
+
+          {/* Scoring tab */}
+          {(() => {
+            const isActive = sidebarOpen && activeTab === "scoring";
+            return (
+              <button onClick={() => handleTabClick("scoring")} title={isJa ? "採点" : "Scoring"}
+                className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
+                  isActive ? "text-emerald-500 dark:text-emerald-400 bg-foreground/[0.05]" : "text-foreground/20 hover:text-foreground/50 hover:bg-foreground/[0.04]"
+                }`}
+              >
+                {isActive && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-emerald-500 shadow-[0_0_8px_-1px_currentColor] transition-all duration-300" />}
+                <ClipboardCheck className={`h-[17px] w-[17px] transition-transform duration-200 ${isActive ? "scale-110" : ""}`} />
+              </button>
+            );
+          })()}
 
           {/* Guide / Math */}
           <button

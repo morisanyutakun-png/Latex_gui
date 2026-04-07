@@ -793,6 +793,18 @@ function ParagraphBlockEditor({ block }: { block: Block }) {
       </div>
       )}
 
+      {/* ── 通常編集中の数式プレビュー — $...$ が含まれる場合のみ ── */}
+      {showDirectTextarea && /\$/.test(content.text) && content.text.trim().length > 0 && (
+        <div className="mt-1 px-2.5 py-1.5 rounded-lg bg-muted/20 border border-border/20 pointer-events-none select-none">
+          <span className="text-[9px] font-medium text-muted-foreground/35 block mb-0.5 uppercase tracking-wide">
+            {isJa ? "プレビュー" : "Preview"}
+          </span>
+          <div className="text-[13px] leading-[1.75] opacity-75" style={baseStyle}>
+            <RenderedInlineText text={content.text} style={baseStyle} />
+          </div>
+        </div>
+      )}
+
       {/* ── 数式モード 下段: 自然言語入力 (IDE風シンタックスハイライト) ── */}
       {mathMode && (
         <div className="relative mt-0.5 rounded-lg border border-violet-300/30 dark:border-violet-700/30 bg-gray-950/[0.03] dark:bg-gray-950/40 overflow-hidden">
@@ -1528,7 +1540,7 @@ const PALETTE_CATEGORIES = [
  * The fullscreen modal version is no longer used — palette content lives in the left sidebar.
  */
 export function CommandPaletteContent() {
-  const { showGlobalPalette, setGlobalPalette, selectedBlockId, selectBlock, setEditingBlock } = useUIStore();
+  const { showGlobalPalette, setGlobalPalette, selectedBlockId, selectBlock, setEditingBlock, openLatexSourceViewer } = useUIStore();
   const { addBlock } = useDocumentStore();
   const [query, setQuery] = useState("");
   const [idx, setIdx] = useState(0);
@@ -1690,6 +1702,28 @@ export function CommandPaletteContent() {
           </>
         )}
       </div>
+
+      {/* LaTeXソース — ツールアクション */}
+      {!query && (
+        <div className="px-2.5 pt-1 pb-1.5 shrink-0 border-t border-border/20">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-[8.5px] font-bold uppercase tracking-[0.13em] text-slate-400">ツール</span>
+            <div className="flex-1 h-px bg-border/25" />
+          </div>
+          <button
+            onClick={() => { setGlobalPalette(false); openLatexSourceViewer(); }}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent hover:border-border/35 hover:bg-muted/35 text-left transition-all duration-100"
+          >
+            <div className="h-6 w-6 rounded flex items-center justify-center shrink-0 bg-muted/60">
+              <FileCode className="h-3.5 w-3.5 text-fuchsia-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold leading-none text-foreground/80">LaTeX ソース</p>
+              <p className="text-[9px] text-muted-foreground/40 mt-[2px] leading-tight">生成されたLaTeXコードを表示</p>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* フッター — キーボードヒント */}
       <div className="px-2.5 py-1.5 border-t border-border/20 bg-muted/5 shrink-0">
