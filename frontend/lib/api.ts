@@ -1,4 +1,5 @@
-import type { DocumentModel, BatchRequest, ChatMessage, AnswerKey, StudentAnswer, ScoreResult } from "./types";
+import type { DocumentModel, BatchRequest, ChatMessage } from "./types";
+import type { Rubric, RubricBundle, GradingResult, GradingStreamEvent } from "./grading-types";
 
 /**
  * API ベース URL
@@ -449,6 +450,221 @@ export async function clearCache(): Promise<void> {
   if (!res.ok) throw new Error("キャッシュクリアに失敗");
 }
 
+// ═══ 採点モード API ═══
+
+export async function parseRubric(latex: string): Promise<RubricBundle> {
+  const res = await fetch(`${API_BASE}/api/grading/parse-rubric`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latex }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail?.message || "ルーブリックの解析に失敗しました");
+  }
+  return res.json();
+}
+
+export async function writeRubric(latex: string, rubrics: Rubric[]): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/grading/write-rubric`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latex, rubrics }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail?.message || "ルーブリックの保存に失敗しました");
+  }
+  const data = await res.json();
+  return data.latex;
+}
+
+export type ExtractRubricEvent =
+  | { type: "progress"; phase: string; message: string }
+  | { type: "done"; latex: string; rubrics: RubricBundle }
+  | { type: "error"; message: string };
+
+export async function extractRubricStream(
+  latex: string,
+  onEvent: (event: ExtractRubricEvent) => void,
+  signal?: AbortSignal,
+): Promise<{ latex: string; rubrics: RubricBundle }> {
+  const url = AI_BACKEND_URL
+    ? `${AI_BACKEND_URL}/api/grading/extract-rubric/stream`
+    : `${API_BASE}/api/grading/extract-rubric/stream`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latex }),
+    signal: signal || AbortSignal.timeout(120000),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail?.message || `ルーブリック抽出に失敗しました (HTTP ${res.status})`);
+  }
+  if (!res.body) throw new Error("ストリーミングレスポンスが空です");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: { latex: string; rubrics: RubricBundle } | null = null;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        let event: ExtractRubricEvent;
+        try {
+          event = JSON.parse(line.slice(6)) as ExtractRubricEvent;
+        } catch {
+          continue;
+        }
+        onEvent(event);
+        if (event.type === "done") {
+          result = { latex: event.latex, rubrics: event.rubrics };
+        } else if (event.type === "error") {
+          throw new Error(event.message);
+        }
+      }
+    }
+    if (buffer.startsWith("data: ")) {
+      try {
+        const event = JSON.parse(buffer.slice(6)) as ExtractRubricEvent;
+        onEvent(event);
+        if (event.type === "done") {
+          result = { latex: event.latex, rubrics: event.rubrics };
+        } else if (event.type === "error") {
+          throw new Error(event.message);
+        }
+      } catch { /* ignore */ }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!result) throw new Error("ルーブリック抽出が完了しませんでした");
+  return result;
+}
+
+export interface GradeAnswerArgs {
+  rubrics: RubricBundle;
+  problemLatex: string;
+  studentName: string;
+  studentId: string;
+  files: File[];
+}
+
+export async function gradeAnswerStream(
+  args: GradeAnswerArgs,
+  onEvent: (event: GradingStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<GradingResult> {
+  const formData = new FormData();
+  formData.append("request_json", JSON.stringify({
+    rubrics: args.rubrics,
+    problemLatex: args.problemLatex,
+    studentName: args.studentName,
+    studentId: args.studentId,
+  }));
+  for (const f of args.files) {
+    formData.append("answers", f);
+  }
+
+  const url = AI_BACKEND_URL
+    ? `${AI_BACKEND_URL}/api/grading/grade/stream`
+    : `${API_BASE}/api/grading/grade/stream`;
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+    signal: signal || AbortSignal.timeout(180000),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail?.message || `採点に失敗しました (HTTP ${res.status})`);
+  }
+  if (!res.body) throw new Error("ストリーミングレスポンスが空です");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult: GradingResult | null = null;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        let event: GradingStreamEvent;
+        try {
+          event = JSON.parse(line.slice(6)) as GradingStreamEvent;
+        } catch {
+          continue;
+        }
+        onEvent(event);
+        if (event.type === "done") {
+          finalResult = event.result;
+        } else if (event.type === "error") {
+          throw new Error(event.message);
+        }
+      }
+    }
+    if (buffer.startsWith("data: ")) {
+      try {
+        const event = JSON.parse(buffer.slice(6)) as GradingStreamEvent;
+        onEvent(event);
+        if (event.type === "done") finalResult = event.result;
+        else if (event.type === "error") throw new Error(event.message);
+      } catch { /* ignore */ }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!finalResult) throw new Error("採点が完了しませんでした");
+  return finalResult;
+}
+
+export async function renderFeedbackPdf(result: GradingResult): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/grading/render-feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ result }),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail?.message || "フィードバックPDFの生成に失敗しました");
+  }
+  return res.blob();
+}
+
+export async function renderMarkedPdf(result: GradingResult): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/grading/render-marked`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ result }),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail?.message || "赤入れPDFの生成に失敗しました");
+  }
+  return res.blob();
+}
+
 // ═══ セキュリティ情報 API ═══
 
 export async function getAllowedPackages(): Promise<{
@@ -463,17 +679,3 @@ export async function getAllowedPackages(): Promise<{
   return { packages: data.packages, tikzLibraries: data.tikz_libraries };
 }
 
-// ═══ 採点 API ═══
-
-export async function scoreAnswers(
-  answerKey: AnswerKey,
-  studentAnswers: StudentAnswer[],
-): Promise<ScoreResult> {
-  const res = await fetch(`${API_BASE}/api/scoring/score`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ answerKey, studentAnswers }),
-  });
-  if (!res.ok) throw new Error("採点に失敗しました");
-  return res.json();
-}

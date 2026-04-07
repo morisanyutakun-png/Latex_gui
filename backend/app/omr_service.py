@@ -132,14 +132,18 @@ def _image_to_data_url(image_bytes: bytes, media_type: str) -> str:
 # ─── PDF extraction strategies ──────────────────────────────────────────────
 
 def _pdf_extract_pymupdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
-    """Extract text + images using PyMuPDF (fitz)."""
+    """Extract text + images using PyMuPDF (fitz).
+
+    images は `(bytes, mime, width_px, height_px)` のタプル列。
+    後方互換のため、既存呼び出しは `bytes, mime, *_extra = item` でアンパックする。
+    """
     import fitz
 
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     page_count = min(len(doc), max_pages)
 
     texts: list[str] = []
-    images: list[tuple[bytes, str]] = []
+    images: list[tuple] = []
 
     for i in range(page_count):
         page = doc[i]
@@ -149,7 +153,7 @@ def _pdf_extract_pymupdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
         mat = fitz.Matrix(150 / 72, 150 / 72)
         pix = page.get_pixmap(matrix=mat)
         img_bytes = pix.tobytes("png")
-        images.append((img_bytes, "image/png"))
+        images.append((img_bytes, "image/png", pix.width, pix.height))
 
     doc.close()
     return {"texts": texts, "images": images, "page_count": page_count}
@@ -184,11 +188,22 @@ def _pdf_extract_poppler(pdf_bytes: bytes, max_pages: int = 10) -> dict:
             check=True,
         )
 
-        images: list[tuple[bytes, str]] = []
+        images: list[tuple] = []
         for fname in sorted(os.listdir(tmpdir)):
             if fname.startswith("page") and fname.endswith(".png"):
-                with open(os.path.join(tmpdir, fname), "rb") as img_f:
-                    images.append((img_f.read(), "image/png"))
+                fpath = os.path.join(tmpdir, fname)
+                with open(fpath, "rb") as img_f:
+                    img_bytes = img_f.read()
+                # try to read dimensions via PIL if available; otherwise fall back to 0
+                width, height = 0, 0
+                try:
+                    from PIL import Image
+                    import io as _io
+                    with Image.open(_io.BytesIO(img_bytes)) as im:
+                        width, height = im.size
+                except Exception:
+                    pass
+                images.append((img_bytes, "image/png", width, height))
 
         texts: list[str] = []
         try:

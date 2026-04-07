@@ -20,9 +20,11 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════
 
 # ファイルシステムアクセス・外部コマンド実行に使われるコマンド
+# 注: `\\include(?![a-zA-Z])` のように負の先読みを使い、\includegraphics や
+#     \includepdf を巻き込まない。長いコマンド名は別途リストする。
 DANGEROUS_COMMANDS = [
-    r"\\input",
-    r"\\include",
+    r"\\input(?![a-zA-Z])",
+    r"\\include(?![a-zA-Z])",
     r"\\openin",
     r"\\openout",
     r"\\read",

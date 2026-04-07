@@ -26,6 +26,7 @@ from .batch_service import (
 from .ai_service import chat as ai_chat, chat_stream as ai_chat_stream
 from .omr_service import analyze_image as omr_analyze_image, analyze_image_stream as omr_analyze_image_stream
 from .routers.subscription import router as subscription_router
+from .routers.grading import router as grading_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ app.add_middleware(
 
 app.add_middleware(AuditMiddleware)
 app.include_router(subscription_router)
+app.include_router(grading_router)
 
 
 @app.on_event("startup")
@@ -542,18 +544,6 @@ async def omr_analyze_stream_endpoint(
             "X-Accel-Buffering": "no",
         },
     )
-
-
-# ─────────────── Scoring (採点) ───────────────
-
-from app.models import ScoreRequest, ScoreResult
-from app.scoring_service import score_answers
-
-
-@app.post("/api/scoring/score", response_model=ScoreResult)
-async def scoring_score(req: ScoreRequest):
-    """解答キーと生徒の回答を比較して採点する"""
-    return score_answers(req.answer_key, req.student_answers)
 
 
 # ─────────────── Stripe Webhook ───────────────

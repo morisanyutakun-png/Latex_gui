@@ -6,7 +6,6 @@ import { StatusBar } from "@/components/layout/status-bar";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { AIChatPanel } from "@/components/editor/ai-chat-panel";
 import { PricingModal } from "@/components/pricing-modal";
-import { ScoringPanel } from "@/components/editor/scoring-panel";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -16,12 +15,13 @@ import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
-import { Sparkles, Globe, FileText, X, ClipboardCheck } from "lucide-react";
+import { Sparkles, Globe, FileText, ClipboardCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { EditorHints } from "@/components/layout/editor-hints";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
+import { GradingMode } from "@/components/grading/grading-mode";
 
-type SidebarTab = "ai" | "scoring";
+type SidebarTab = "ai";
 
 export default function EditorPage() {
   useKeyboardShortcuts();
@@ -93,11 +93,6 @@ export default function EditorPage() {
     }
   };
 
-  const panelMeta: Record<SidebarTab, { label: string; bg: string; textColor: string; indicator: string }> = {
-    ai:      { label: "EddivomAI", bg: "bg-amber-950/5 dark:bg-amber-950/15", textColor: "text-amber-500/80 font-semibold tracking-wide", indicator: "bg-gradient-to-b from-amber-500/70 to-amber-400/30" },
-    scoring: { label: t("side.scoring.label"), bg: "bg-emerald-950/8 dark:bg-emerald-950/15", textColor: "text-emerald-400/80", indicator: "bg-gradient-to-b from-emerald-500/60 to-emerald-400/20" },
-  };
-
   /* ══════════ MOBILE ══════════ */
   if (isMobile) {
     return (
@@ -157,11 +152,11 @@ export default function EditorPage() {
   }
 
   /* ══════════ DESKTOP ══════════ */
-  const meta = panelMeta[activeTab];
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f5f4f0] dark:bg-[#111110]">
       <OMRSplitView />
+      <GradingMode />
 
       <AppHeader isAIActive={isAIActive} />
 
@@ -191,28 +186,8 @@ export default function EditorPage() {
           >
             {sidebarOpen && (
               <div className="h-full flex flex-col min-w-0" style={{ width: sidebarWidth }}>
-                {activeTab !== "ai" && (
-                  <div className={`relative flex items-center px-3 h-9 border-b border-foreground/[0.04] shrink-0 select-none ${meta.bg}`}>
-                    {meta.indicator && (
-                      <div className={`absolute left-0 top-0 h-full w-[2px] ${meta.indicator} rounded-r shadow-sm shadow-current`} />
-                    )}
-                    <span className={`text-[10px] font-bold uppercase tracking-[0.2em] flex-1 ${meta.textColor}`}>
-                      {meta.label}
-                    </span>
-                    <button
-                      onClick={() => setSidebarOpen(false)}
-                      className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/15 hover:text-foreground/60 hover:bg-foreground/[0.06] transition-all duration-200"
-                      title={t("panel.close")}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-                <div className={`flex-1 min-h-0 animate-slide-in-right ${
-                  activeTab === "ai" || activeTab === "scoring" ? "overflow-hidden flex flex-col" : "overflow-y-auto scrollbar-thin"
-                }`} key={activeTab}>
-                  {activeTab === "ai" && <AIChatPanel />}
-                  {activeTab === "scoring" && <ScoringPanel />}
+                <div className="flex-1 min-h-0 animate-slide-in-right overflow-hidden flex flex-col" key={activeTab}>
+                  <AIChatPanel />
                 </div>
               </div>
             )}
@@ -243,19 +218,13 @@ export default function EditorPage() {
               );
             })()}
 
-            {(() => {
-              const isActive = sidebarOpen && activeTab === "scoring";
-              return (
-                <button onClick={() => handleTabClick("scoring")} title={t("side.tooltip.scoring")}
-                  className={`activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 ${
-                    isActive ? "text-emerald-500 dark:text-emerald-400 bg-foreground/[0.05]" : "text-foreground/20 hover:text-foreground/50 hover:bg-foreground/[0.04]"
-                  }`}
-                >
-                  {isActive && <span className="absolute left-0 inset-y-2 w-[2px] rounded-r-full bg-emerald-500 shadow-[0_0_8px_-1px_currentColor] transition-all duration-300" />}
-                  <ClipboardCheck className={`h-[17px] w-[17px] transition-transform duration-200 ${isActive ? "scale-110" : ""}`} />
-                </button>
-              );
-            })()}
+            <button
+              onClick={() => useUIStore.getState().openGrading(doc.latex, doc.metadata.title || "")}
+              title={t("side.tooltip.grading")}
+              className="activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 text-foreground/20 hover:text-emerald-500 dark:hover:text-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-500/10"
+            >
+              <ClipboardCheck className="h-[17px] w-[17px]" />
+            </button>
 
             <div className="flex-1" />
 

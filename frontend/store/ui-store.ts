@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { ChatMessage } from "@/lib/types";
+import type { RubricBundle, GradingResult, GradingPhase } from "@/lib/grading-types";
 
 export type PaperSize = "a4" | "a3" | "b5" | "letter";
 export type GuideContext = "none" | "math" | "heading" | "list" | "table" | "code" | "general";
@@ -42,6 +43,22 @@ interface UIState {
   omrProcessing: boolean;
   omrProgress: string;
 
+  // 採点モード (フルスクリーン)
+  gradingMode: boolean;
+  gradingPhase: GradingPhase;
+  gradingProblemLatex: string;
+  gradingProblemTitle: string;
+  gradingRubrics: RubricBundle | null;
+  gradingAnswerFiles: File[];
+  gradingStudentName: string;
+  gradingStudentId: string;
+  gradingResult: GradingResult | null;
+  gradingMarkedPdfUrl: string | null;
+  gradingFeedbackPdfUrl: string | null;
+  gradingProcessing: boolean;
+  gradingProgress: string;
+  gradingError: string | null;
+
   setMathEditing: (v: boolean) => void;
   setActiveGuideContext: (ctx: GuideContext) => void;
   setShowSourcePanel: (v: boolean) => void;
@@ -74,6 +91,21 @@ interface UIState {
   omrTriggerFn: (() => void) | null;
   setOMRTrigger: (fn: (() => void) | null) => void;
   triggerOMR: () => void;
+
+  // 採点モード actions
+  openGrading: (problemLatex: string, problemTitle: string) => void;
+  closeGrading: () => void;
+  setGradingPhase: (p: GradingPhase) => void;
+  setGradingRubrics: (r: RubricBundle | null) => void;
+  setGradingAnswerFiles: (f: File[]) => void;
+  setGradingStudentName: (v: string) => void;
+  setGradingStudentId: (v: string) => void;
+  setGradingResult: (r: GradingResult | null) => void;
+  setGradingMarkedPdfUrl: (url: string | null) => void;
+  setGradingFeedbackPdfUrl: (url: string | null) => void;
+  setGradingProcessing: (v: boolean) => void;
+  setGradingProgress: (msg: string) => void;
+  setGradingError: (msg: string | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -96,6 +128,21 @@ export const useUIStore = create<UIState>((set) => ({
   omrExtractedLatex: null,
   omrProcessing: false,
   omrProgress: "",
+
+  gradingMode: false,
+  gradingPhase: "idle",
+  gradingProblemLatex: "",
+  gradingProblemTitle: "",
+  gradingRubrics: null,
+  gradingAnswerFiles: [],
+  gradingStudentName: "",
+  gradingStudentId: "",
+  gradingResult: null,
+  gradingMarkedPdfUrl: null,
+  gradingFeedbackPdfUrl: null,
+  gradingProcessing: false,
+  gradingProgress: "",
+  gradingError: null,
 
   setMathEditing: (v) => set({ isMathEditing: v }),
   setActiveGuideContext: (ctx) => set({ activeGuideContext: ctx }),
@@ -155,4 +202,62 @@ export const useUIStore = create<UIState>((set) => ({
   omrTriggerFn: null,
   setOMRTrigger: (fn) => set({ omrTriggerFn: fn }),
   triggerOMR: () => { const fn = useUIStore.getState().omrTriggerFn; if (fn) fn(); },
+
+  openGrading: (problemLatex, problemTitle) => set({
+    gradingMode: true,
+    gradingPhase: "step1-rubric",
+    gradingProblemLatex: problemLatex,
+    gradingProblemTitle: problemTitle,
+    gradingRubrics: null,
+    gradingAnswerFiles: [],
+    gradingStudentName: "",
+    gradingStudentId: "",
+    gradingResult: null,
+    gradingMarkedPdfUrl: null,
+    gradingFeedbackPdfUrl: null,
+    gradingProcessing: false,
+    gradingProgress: "",
+    gradingError: null,
+  }),
+  closeGrading: () => set((s) => {
+    if (s.gradingMarkedPdfUrl) URL.revokeObjectURL(s.gradingMarkedPdfUrl);
+    if (s.gradingFeedbackPdfUrl) URL.revokeObjectURL(s.gradingFeedbackPdfUrl);
+    return {
+      gradingMode: false,
+      gradingPhase: "idle",
+      gradingProblemLatex: "",
+      gradingProblemTitle: "",
+      gradingRubrics: null,
+      gradingAnswerFiles: [],
+      gradingStudentName: "",
+      gradingStudentId: "",
+      gradingResult: null,
+      gradingMarkedPdfUrl: null,
+      gradingFeedbackPdfUrl: null,
+      gradingProcessing: false,
+      gradingProgress: "",
+      gradingError: null,
+    };
+  }),
+  setGradingPhase: (p) => set({ gradingPhase: p }),
+  setGradingRubrics: (r) => set({ gradingRubrics: r }),
+  setGradingAnswerFiles: (f) => set({ gradingAnswerFiles: f }),
+  setGradingStudentName: (v) => set({ gradingStudentName: v }),
+  setGradingStudentId: (v) => set({ gradingStudentId: v }),
+  setGradingResult: (r) => set({ gradingResult: r }),
+  setGradingMarkedPdfUrl: (url) => set((s) => {
+    if (s.gradingMarkedPdfUrl && s.gradingMarkedPdfUrl !== url) {
+      URL.revokeObjectURL(s.gradingMarkedPdfUrl);
+    }
+    return { gradingMarkedPdfUrl: url };
+  }),
+  setGradingFeedbackPdfUrl: (url) => set((s) => {
+    if (s.gradingFeedbackPdfUrl && s.gradingFeedbackPdfUrl !== url) {
+      URL.revokeObjectURL(s.gradingFeedbackPdfUrl);
+    }
+    return { gradingFeedbackPdfUrl: url };
+  }),
+  setGradingProcessing: (v) => set({ gradingProcessing: v }),
+  setGradingProgress: (msg) => set({ gradingProgress: msg }),
+  setGradingError: (msg) => set({ gradingError: msg }),
 }));
