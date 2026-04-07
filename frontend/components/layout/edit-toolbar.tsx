@@ -11,7 +11,7 @@ import { useUIStore, PaperSize } from "@/store/ui-store";
 import { generatePDF } from "@/lib/api";
 import { TEMPLATES, createFromTemplate } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
-import { Download, ScanLine, FileText, Loader2 } from "lucide-react";
+import { Download, ScanLine, FileText, Loader2, Code2, FileImage } from "lucide-react";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
   { value: "a4", label: "A4" },
@@ -29,6 +29,10 @@ export function EditToolbar() {
   const document = useDocumentStore((s) => s.document);
   const setDocument = useDocumentStore((s) => s.setDocument);
   const { paperSize, setPaperSize } = useUIStore();
+  const showSourcePanel = useUIStore((s) => s.showSourcePanel);
+  const showPdfPanel = useUIStore((s) => s.showPdfPanel);
+  const toggleSourcePanel = useUIStore((s) => s.toggleSourcePanel);
+  const togglePdfPanel = useUIStore((s) => s.togglePdfPanel);
   const [downloading, setDownloading] = useState(false);
 
   const handleTemplateChange = (id: string) => {
@@ -84,6 +88,33 @@ export function EditToolbar() {
       </div>
 
       <div className="flex-1" />
+
+      {/* パネル表示トグル (デフォルトはどちらもOFF) */}
+      <button
+        onClick={togglePdfPanel}
+        className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] shrink-0 ${
+          showPdfPanel
+            ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300"
+            : "bg-transparent border-foreground/[0.10] text-foreground/55 hover:bg-foreground/[0.04] hover:text-foreground/80"
+        }`}
+        title={t("edit.toolbar.toggle.pdf")}
+      >
+        <FileImage className="h-3 w-3 shrink-0" />
+        <span className="hidden md:inline">PDF</span>
+      </button>
+
+      <button
+        onClick={toggleSourcePanel}
+        className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] shrink-0 ${
+          showSourcePanel
+            ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-300"
+            : "bg-transparent border-foreground/[0.10] text-foreground/55 hover:bg-foreground/[0.04] hover:text-foreground/80"
+        }`}
+        title={t("edit.toolbar.toggle.source")}
+      >
+        <Code2 className="h-3 w-3 shrink-0" />
+        <span className="hidden md:inline">LaTeX</span>
+      </button>
 
       <Sep />
 

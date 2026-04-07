@@ -227,6 +227,8 @@ const ja = {
   "edit.toolbar.scan.tooltip": "画像・PDFを読み取り (OMR)",
   "edit.toolbar.pdf.tooltip": "PDFをダウンロード",
   "edit.toolbar.pdf.error": "PDF生成に失敗しました",
+  "edit.toolbar.toggle.source": "LaTeXソースを表示/非表示",
+  "edit.toolbar.toggle.pdf": "PDFプレビューを表示/非表示",
 
   // Status bar (extended)
   "status.chars": "文字",
@@ -242,6 +244,15 @@ const ja = {
   "doc.editor.pdf.generating": "PDFを生成中…",
   "doc.editor.empty_preview": "LaTeXを入力するとプレビューが表示されます",
   "doc.editor.compile_error": "コンパイルエラー",
+  "doc.editor.visual.label": "ビジュアル編集",
+  "doc.editor.visual.preamble": "プリアンブル (ソースで編集)",
+  "doc.editor.visual.raw_hint": "この要素はビジュアル編集できません",
+  "doc.editor.visual.edit_in_source": "ソースで編集",
+  "doc.editor.visual.empty": "ドキュメントが空です。テンプレートを選択するか、AIで作成してください。",
+  "doc.editor.math.popover.title": "数式を編集",
+  "doc.editor.math.popover.current": "現在の数式",
+  "doc.editor.math.popover.hint": "新しい入力で上書きされます。空のまま閉じれば変更されません。",
+  "doc.editor.math.popover.cancel": "キャンセル",
 
   // Editor sidebar / page
   "side.scoring.label": "採点",
@@ -557,6 +568,8 @@ const en = {
   "edit.toolbar.scan.tooltip": "Scan image/PDF (OMR)",
   "edit.toolbar.pdf.tooltip": "Download PDF",
   "edit.toolbar.pdf.error": "PDF generation failed",
+  "edit.toolbar.toggle.source": "Show / hide LaTeX source",
+  "edit.toolbar.toggle.pdf": "Show / hide PDF preview",
 
   // Status bar (extended)
   "status.chars": "chars",
@@ -572,6 +585,15 @@ const en = {
   "doc.editor.pdf.generating": "Generating PDF…",
   "doc.editor.empty_preview": "Enter LaTeX to see the preview",
   "doc.editor.compile_error": "Compile error",
+  "doc.editor.visual.label": "Visual edit",
+  "doc.editor.visual.preamble": "Preamble (edit in source)",
+  "doc.editor.visual.raw_hint": "This element cannot be edited visually",
+  "doc.editor.visual.edit_in_source": "Edit in source",
+  "doc.editor.visual.empty": "Document is empty. Pick a template or ask the AI to create one.",
+  "doc.editor.math.popover.title": "Edit formula",
+  "doc.editor.math.popover.current": "Current formula",
+  "doc.editor.math.popover.hint": "Anything you type will replace the current formula. Close empty to leave it untouched.",
+  "doc.editor.math.popover.cancel": "Cancel",
 
   // Editor sidebar / page
   "side.scoring.label": "Scoring",

@@ -19,6 +19,10 @@ interface UIState {
   isMathEditing: boolean;
   activeGuideContext: GuideContext;
 
+  // ── Editor panel visibility (default: visual editor only) ──
+  showSourcePanel: boolean;
+  showPdfPanel: boolean;
+
   // AI action tracking
   lastAIAction: LastAIAction | null;
 
@@ -40,6 +44,10 @@ interface UIState {
 
   setMathEditing: (v: boolean) => void;
   setActiveGuideContext: (ctx: GuideContext) => void;
+  setShowSourcePanel: (v: boolean) => void;
+  setShowPdfPanel: (v: boolean) => void;
+  toggleSourcePanel: () => void;
+  togglePdfPanel: () => void;
   setGenerating: (v: boolean) => void;
   setZoom: (v: number) => void;
   setZoomFitMode: (v: boolean) => void;
@@ -75,6 +83,8 @@ export const useUIStore = create<UIState>((set) => ({
   paperSize: "a4",
   isMathEditing: false,
   activeGuideContext: "none",
+  showSourcePanel: false,
+  showPdfPanel: false,
   lastAIAction: null,
   chatMessages: [],
   isChatLoading: false,
@@ -89,6 +99,10 @@ export const useUIStore = create<UIState>((set) => ({
 
   setMathEditing: (v) => set({ isMathEditing: v }),
   setActiveGuideContext: (ctx) => set({ activeGuideContext: ctx }),
+  setShowSourcePanel: (v) => set({ showSourcePanel: v }),
+  setShowPdfPanel: (v) => set({ showPdfPanel: v }),
+  toggleSourcePanel: () => set((s) => ({ showSourcePanel: !s.showSourcePanel })),
+  togglePdfPanel: () => set((s) => ({ showPdfPanel: !s.showPdfPanel })),
   setGenerating: (v) => set({ isGenerating: v }),
   setZoom: (v) => set({ zoom: Math.max(0.3, Math.min(2, v)), zoomFitMode: false }),
   setZoomFitMode: (v) => set({ zoomFitMode: v }),
