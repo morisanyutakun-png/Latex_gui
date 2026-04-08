@@ -1,76 +1,156 @@
-# かんたんPDFメーカー
+# Eddivom
 
-**LaTeXを知らなくても、高品質な教材・試験・資料をAIと一緒に作れるWebアプリ**
+**AI 教材作成 IDE — テンプレ駆動の raw LaTeX エディタ + AI チャット + OMR + 採点モード**
 
-ブロックを組み合わせ、チャットでAIに頼み、画像を読み取らせて、最後にLaTeX品質のPDFで出力。
-LaTeXの知識は不要。でも、LaTeXの強さを裏で使い倒せる。
+LaTeX を書けない先生・チューター・教材販売者のための self-serve SaaS。
+12 種類のテンプレから選び、AI に依頼して、PDF を即出力する。
+裏側は LuaLaTeX のプロ組版。
 
 ---
 
 ## 思想
 
-このアプリは「LaTeXエディタ」ではなく、**LaTeX制作OS** です。
+Eddivom は LaTeX エディタではない。**AI 教材作成 IDE** である。
 
-- **Wordみたいに** — ブロックで直感的に組める
-- **Notionみたいに** — `/`コマンドで素早くブロック追加
-- **VS Code / Copilotみたいに** — チャットで頼めば、AIが文書を理解して動いてくれる
-- **LaTeX品質で** — 裏ではLuaLaTeXが動き、プロ並みの組版で出力
+- **テンプレ駆動** — 12 種のテンプレで「使用パッケージ / 配色 / 見出し設計 / 図の流儀 /
+  enumerate 規則 / 数式スタイル」の 6 項目を固定。AI もユーザーもテンプレの範囲内で編集する。
+- **raw LaTeX をそのまま編集** — ブロック型構造化レイヤは廃止済。
+  AI は `read_latex / set_latex / replace_in_latex / compile_check` のツールで
+  LaTeX ソースを直接読み書きする。
+- **Visual + LaTeX デュアルペイン** — KaTeX で数式を即時レンダリングする
+  Notion ライクな WYSIWYG と、生 LaTeX ペインを切り替えられる。
+- **裏は LuaLaTeX** — luatexja + Harano Aji フォントで日英バイリンガル組版。
 
 ---
 
 ## 主な機能
 
-### ブロック編集 (GUI)
-- 13種類のブロック: 見出し・テキスト・数式・リスト・表・画像・コード・引用・回路図・ダイアグラム・化学式・グラフ・区切り線
-- `/`コマンドパレット — テキスト入力中に`/`を入力するとブロック種別を切り替え・追加
-- 日本語数式入力 — 「ルートx」「二分の一」などの日本語でLaTeX数式を入力
-- undo/redo (50件), オートセーブ
+### テンプレートギャラリー
+12 種の "starter templates"。スケルトンではなく、最初から完成度の高いサンプル本文付き。
 
-### AI アシスタント
-- 右サイドバーの **AI** タブからチャット
-- 現在の文書をコンテキストとして送信し、Claudeが内容を理解して応答
-- 「問題を3つ追加して」「章立てを整理して」「表を見やすくして」などの依頼が可能
-- AIが変更を **パッチ形式** で返す → 内容を確認して「適用する」ボタンで反映
-- 適用はundo/redoに対応（1パッチセット = 1 Ctrl+Z）
+| ID | テンプレ | 説明 |
+|----|---------|------|
+| `blank` | 白紙 | Word ライクな白紙 |
+| `common-test` | 共通テスト風 | 70 分・100 点・大問 3 題の模試冊子 |
+| `kokuko-niji` | 国公立二次風 | 150 分・200 点・記述式 3 題 |
+| `school-test` | 学校テスト | 氏名欄+得点欄付き定期考査 |
+| `juku` | 塾プリント | ★難度バッジ付き 90 分授業プリント |
+| `kaisetsu-note` | 解説ノート | 定義→例題→定理→練習で 1 章 |
+| `worksheet` | 演習プリント | 1 単元 7 問・基本/標準/発展 |
+| `english-worksheet` | 英語ワークシート | vocab → reading → 設問 → 作文 |
+| `article` | レポート・論文 | abstract → 5 セクション → 参考文献 |
+| `report` | 技術報告書 | 表紙 + 目次 + 3 章 |
+| `beamer` | プレゼン | 16:9・5 枚スライド |
+| `letter` | 手紙・通信文 | 拝啓〜敬具・「記」付き案内状 |
 
-### OMR（画像読み取り）
-- AIチャットパネルの📎ボタンから画像をアップロード
-- Claude Visionが画像（試験問題・ノート・答案用紙など）を解析して構造化
-- 抽出されたブロックをパッチとして提案 → 承認でドキュメントに取り込む
+### Visual + LaTeX デュアルエディタ
+- **VisualEditor** (`frontend/components/editor/visual-editor.tsx`):
+  contentEditable + KaTeX で数式・表・図を即時レンダリング
+- **LatexCodeEditor**: 生 LaTeX ペイン。両側パネルは resize 可能
+- **日本語数式入力**: 「ルートx」→ `\sqrt{x}`、「二分の一」→ `\frac{1}{2}` など
+- **数式パレット / 数式辞書**: 記号と TeX コマンドの相互参照
+- undo/redo, オートセーブ
 
-### LaTeXソースビューア
-- 右サイドバーの **LaTeX** タブで生成されたLaTeXソースを確認
-- シンタックスハイライト付き、コピーボタン付き
+### AI チャットエージェント
+右サイドバーの **AI** タブから、文書全体をコンテキストに渡してチャット。
+自律エージェントとしてツール呼び出しで raw LaTeX を直接編集する。
+
+- **使用ツール**: `read_latex` / `set_latex` / `replace_in_latex` / `compile_check`
+- **モデル**: OpenAI **gpt-4.1**(高精度)/ **gpt-4.1-mini**(通常)/ **gpt-4.1-nano**(高速)
+- **SSE ストリーミング**: 思考ログと変更案がリアルタイムで表示
+- **依頼例**:
+  - 「問題を 3 問追加して、難度別に並べて」
+  - 「この解説をもっとわかりやすく書き直して」
+  - 「LaTeX エラーを直して」
+
+### OMR(画像 / PDF 解析)
+AIチャットパネルの📎ボタンから JPEG/PNG/GIF/WEBP/PDF をアップロード。
+OpenAI Vision (`gpt-4.1-mini`) が問題冊子・ノート・答案を解析して、
+構造化された raw LaTeX を文書に挿入する。
+
+### 採点モード(Grading Mode)
+4 ステップのウィザード形式 (`frontend/components/grading/`)。
+
+1. **ルーブリック確認** — 問題 LaTeX に埋め込まれた `%@rubric:` コメントを
+   AI が自動抽出 (`grading_service.py`)
+2. **答案アップロード** — 生徒の答案画像 / PDF を複数枚投入
+3. **AI 採点** — 観点別配点 (criterion / weight) ごとに自動採点 + コメント生成
+4. **結果表示** — 設問別カードで点数・コメント・該当箇所をハイライト
+
+ルーブリック記法(LaTeX コメントとして埋め込み):
+```latex
+%@rubric-begin: q1
+%@rubric: label="問1"
+%@rubric: points=20
+%@rubric: criterion="式の立て方"; weight=8
+%@rubric: criterion="計算過程の正確さ"; weight=7
+%@rubric: criterion="最終解答"; weight=5
+%@rubric-end
+```
+
+### 教材工場(バッチ生成)
+`{{変数}}` プレースホルダ + CSV/JSON → 大量 PDF を ZIP で一括出力。
+- 例: 生徒名簿 200 行から個人別プリントを一発生成
+- API: `POST /api/batch/generate`
+- バッチ上限は plan で管理(Pro: 50 行、Premium: 200 行)
+
+### 認証 + 課金
+- **認証**: NextAuth.js + Google OAuth (`frontend/auth.ts`)
+- **課金**: Stripe Subscription (`backend/app/stripe_service.py`)
+- **Webhook**: `POST /api/webhook/stripe` で plan 状態を Postgres に同期
+- **プラン管理**: `frontend/lib/plans.ts` で Free / Starter / Pro / Premium を定義
+
+### 多言語対応
+- `frontend/lib/i18n.tsx` で `ja` / `en` を完全サポート
+- ブラウザ言語を自動判定、ヘッダーの言語スイッチャで切替可能
 
 ### 上級者モード
-- カスタムプリアンブル・フック・コマンド定義
-- 100種類以上のパッケージプリセット（数学・図表・日本語・物理化学など）
+- カスタムプリアンブル / フック / コマンド定義
+- 100 種以上のパッケージプリセット(数学 / 図表 / 日本語 / 物理 / 化学)
+- セキュリティ: `backend/app/security.py` で許可パッケージと TikZ ライブラリをホワイトリスト化
 
-### 教材工場（バッチ生成）
-- `{{変数}}`プレースホルダー + CSV/JSON → 大量PDFを一括生成
-- 例: 生徒名簿から個人別プリントを200枚一括出力
+---
+
+## 価格プラン
+
+| プラン | 月額 | AI リクエスト/月 | 高精度モデル枠 | バッチ | OMR / 採点 |
+|--------|------|------------------|-----------------|--------|------------|
+| Free | ¥0 | 30 | — | × | × |
+| Starter | ¥980 | 200 | — | × | × |
+| **Pro** | **¥2,980** | **500** | **50** | **50 行** | **○** |
+| Premium | ¥12,800 | 1,500 | 200 | 200 行 | ○(優先) |
+
+詳細は `frontend/lib/plans.ts` を参照。
 
 ---
 
 ## アーキテクチャ
 
 ```
-Browser (Next.js)
+Browser (Next.js 16 + React 19)
     │
-    ├─ /api/generate-pdf ──→ FastAPI ──→ LuaLaTeX ──→ PDF
-    ├─ /api/ai/chat       ──→ FastAPI ──→ Anthropic Claude API
-    └─ /api/omr/analyze   ──→ FastAPI ──→ Anthropic Claude Vision
+    ├─ /api/preview-latex   ──→ FastAPI ──→ LaTeX 生成
+    ├─ /api/compile-raw     ──→ FastAPI ──→ LuaLaTeX ──→ PDF
+    ├─ /api/ai/chat/stream  ──→ FastAPI ──→ OpenAI gpt-4.1
+    ├─ /api/omr/analyze     ──→ FastAPI ──→ OpenAI Vision
+    ├─ /api/grading/*       ──→ FastAPI ──→ OpenAI (rubric / 採点)
+    ├─ /api/batch/generate  ──→ FastAPI ──→ LuaLaTeX × N → ZIP
+    └─ /api/webhook/stripe  ──→ FastAPI ──→ Postgres (plan 同期)
 
 データフロー:
-  GUI操作 → JSON (DocumentModel) → LaTeX生成 → LuaLaTeXコンパイル → PDF
-  AI依頼  → Claude (文書コンテキスト付き) → パッチ (DocumentPatch) → GUI反映
-  画像アップ → Claude Vision → 構造化ブロック → GUI取り込み
+  テンプレ選択 → raw LaTeX → コンパイル → PDF
+  AI 依頼 → tool call → raw LaTeX 編集 → 承認 → 反映
+  画像アップ → Vision → raw LaTeX 抽出 → 挿入
+  答案画像 → 採点 AI → 観点別スコア + コメント
 ```
 
-**Frontend:** Next.js 16 + React 19 + TypeScript + Tailwind CSS 4 + Zustand + KaTeX
-**Backend:** FastAPI + Python 3.11+ + Uvicorn
-**AI:** Anthropic Claude API (`claude-sonnet-4-6` for chat, `claude-opus-4-6` for OMR)
-**Typesetting:** LuaLaTeX + luatexja (Noto CJK fonts)
+**Frontend:** Next.js 16 / React 19 / TypeScript / Tailwind CSS 4 / Zustand / KaTeX / NextAuth.js
+**Backend:** FastAPI / Python 3.11+ / SQLAlchemy / Stripe SDK
+**AI:** OpenAI API (`gpt-4.1` / `gpt-4.1-mini` / `gpt-4.1-nano`)
+**Typesetting:** LuaLaTeX + luatexja + Harano Aji フォント
+**DB:** PostgreSQL (Neon)
+**Auth:** Google OAuth 2.0
+**Payments:** Stripe Subscription + Webhook
 
 ---
 
@@ -78,10 +158,11 @@ Browser (Next.js)
 
 ### 前提条件
 
-- **Node.js** 18以上
-- **Python** 3.11以上
-- **TeX Live** with LuaLaTeX + luatexja（PDF生成に必要）
-- **Anthropic API Key**（AI・OMR機能に必要）
+- **Node.js** 18 以上
+- **Python** 3.11 以上
+- **TeX Live** with LuaLaTeX + luatexja(PDF 生成に必要)
+- **OpenAI API Key**(AI / OMR / 採点機能に必要)
+- **PostgreSQL**(認証 + 課金を使う場合 — Neon 推奨)
 
 ### 1. バックエンド
 
@@ -92,10 +173,18 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-環境変数を設定（`backend/.env` を作成）:
+環境変数(`backend/.env`):
 ```
-ANTHROPIC_API_KEY=sk-ant-...    # AI・OMR機能に必要
+OPENAI_API_KEY=sk-...
 ALLOWED_ORIGINS=http://localhost:3000
+DATABASE_URL=postgresql://...
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID_STARTER=price_...
+STRIPE_PRICE_ID_PRO=price_...
+STRIPE_PRICE_ID_PREMIUM=price_...
+INTERNAL_API_SECRET=<ランダム文字列>
+FRONTEND_URL=http://localhost:3000
 ```
 
 起動:
@@ -111,9 +200,20 @@ npm install
 npm run dev
 ```
 
+環境変数(`frontend/.env.local`):
+```
+API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
+AUTH_SECRET=<openssl rand -base64 32>
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+INTERNAL_API_SECRET=<バックエンドと同じ値>
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
 ブラウザで `http://localhost:3000` を開く。
 
-### Docker（ローカルテスト）
+### Docker(ローカルテスト)
 
 ```bash
 docker-compose up --build
@@ -123,103 +223,110 @@ docker-compose up --build
 
 ## 環境変数
 
-### バックエンド（Koyeb / `.env`）
+### バックエンド
 
 | 変数名 | 説明 | 必須 |
 |--------|------|------|
-| `ANTHROPIC_API_KEY` | Claude APIキー（AI・OMR機能） | AI機能を使う場合 |
-| `ALLOWED_ORIGINS` | CORSオリジン（カンマ区切り） | 本番環境 |
-| `COMPILE_TIMEOUT_SECONDS` | LaTeXコンパイルタイムアウト（秒） | 任意（デフォルト120） |
+| `OPENAI_API_KEY` | OpenAI API キー | AI / OMR / 採点を使う場合 |
+| `OPENAI_MODEL_CHAT` | チャット用モデル(デフォルト `gpt-4.1`) | 任意 |
+| `OPENAI_MODEL_VISION` | OMR / 採点用(デフォルト `gpt-4.1-mini`) | 任意 |
+| `OPENAI_MODEL_FAST` | 高速処理用(デフォルト `gpt-4.1-nano`) | 任意 |
+| `ALLOWED_ORIGINS` | CORS 許可オリジン(カンマ区切り) | 本番 |
+| `DATABASE_URL` | PostgreSQL 接続文字列 | 認証/課金 |
+| `STRIPE_SECRET_KEY` | Stripe シークレットキー | 課金 |
+| `STRIPE_WEBHOOK_SECRET` | Stripe Webhook 署名検証 | 課金 |
+| `STRIPE_PRICE_ID_*` | Starter / Pro / Premium の Price ID | 課金 |
+| `INTERNAL_API_SECRET` | フロント↔バック間の内部認証 | 推奨 |
+| `FRONTEND_URL` | Stripe Checkout のリダイレクト先 | 課金 |
+| `COMPILE_TIMEOUT_SECONDS` | LaTeX コンパイルタイムアウト(秒) | 任意 |
 
-### フロントエンド（Vercel / `.env.local`）
+### フロントエンド
 
 | 変数名 | 説明 |
 |--------|------|
-| `API_URL` | バックエンドURL（サーバーサイド専用） |
-| `NEXT_PUBLIC_API_URL` | バックエンドURL（ローカル開発用） |
+| `API_URL` | バックエンド URL(サーバーサイド専用) |
+| `NEXT_PUBLIC_API_URL` | バックエンド URL(クライアント) |
+| `AUTH_SECRET` | NextAuth セッション暗号化キー |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth |
+| `INTERNAL_API_SECRET` | バックエンドと同じ値 |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe 公開キー |
 
-> `ANTHROPIC_API_KEY` はフロントエンドには不要。バックエンドのみで管理。
+> `OPENAI_API_KEY` はフロントエンドには不要。バックエンドのみで管理。
 
 ---
 
 ## デプロイ
 
-### バックエンド（Koyeb）
+### バックエンド(Koyeb)
 
-1. Docker モードでデプロイ（buildpackは不可 — TeX Liveが必要）
-2. メモリ: 512MB以上
-3. 環境変数: `ANTHROPIC_API_KEY`, `ALLOWED_ORIGINS`（VercelのURL）
+1. **Docker モードでデプロイ**(buildpack は不可 — TeX Live が必要)
+2. メモリ: 1GB 以上推奨(LuaLaTeX が安定する)
+3. 環境変数: 上記すべて
+4. Webhook: Stripe ダッシュボードで `https://<koyeb-url>/api/webhook/stripe` を登録
 
-### フロントエンド（Vercel）
+### フロントエンド(Vercel)
 
-1. Git連携で自動デプロイ
-2. 環境変数: `API_URL`（KoyebのURL）
+1. **Vercel Pro プラン**(商用 self-serve のため)
+2. Git 連携で自動デプロイ
+3. 環境変数: 上記すべて
+4. NextAuth コールバック: `https://<vercel-url>/api/auth/callback/google`
 
----
+### DB(Neon)
 
-## AI機能の使い方
-
-### チャットで文書を編集する
-
-1. エディタ右上の **Bot** アイコン → AI タブを開く
-2. 入力欄に依頼を入力して送信
-
-**依頼の例:**
-- `「はじめに」「本論」「まとめ」の3章を追加して`
-- `この問題の解説をもっとわかりやすく書き直して`
-- `表のヘッダーを太字にして見やすくして`
-- `数式ブロックを追加して、2次方程式の解の公式を入れて`
-
-3. AIが変更案を返したら「◯件の変更を確認・適用」をクリック
-4. 変更内容を確認して「**適用する**」→ 文書に反映
-
-適用後に後悔したら `Cmd+Z` でundo可能。
-
-### OMR（画像読み取り）
-
-1. AI タブの📎ボタンをクリック
-2. 試験問題・ノート・答案用紙などの画像を選択（JPEG/PNG/GIF/WEBP、5MB以下）
-3. AIが画像を解析してブロックとして提案
-4. 「適用する」で文書に取り込む
+1. Neon でプロジェクト作成、`DATABASE_URL` を取得
+2. 起動時に `Base.metadata.create_all` が実行され、自動でテーブル生成
 
 ---
 
-## ブロック種別
+## API リファレンス(主要)
 
-| 種別 | 説明 | LaTeX変換 |
-|------|------|-----------|
-| 見出し | セクション見出し（レベル1-3） | `\section`, `\subsection` |
-| テキスト | 本文（インライン数式対応） | `\par` |
-| 数式 | LaTeX数式（日本語入力対応） | `\[...\]` / `$...$` |
-| リスト | 箇条書き・番号リスト | `itemize` / `enumerate` |
-| 表 | データ表組み | `tabular` + booktabs |
-| 画像 | 外部URL画像 | `\includegraphics` |
-| コード | プログラムコード | `lstlisting` |
-| 引用 | 引用・コールアウト | `tcolorbox` |
-| 回路図 | 電子回路（circuitikz） | `circuitikz` |
-| ダイアグラム | フローチャート・状態図（TikZ） | `tikzpicture` |
-| 化学式 | 化学反応式（mhchem） | `\ce{}` |
-| グラフ | データ可視化（pgfplots） | `pgfplots` |
-| 区切り線 | 水平線 | `\hrule` |
+### PDF 生成
+- `POST /api/preview-latex` — `DocumentModel` から LaTeX を生成して返す
+- `POST /api/generate-pdf` — `DocumentModel` をコンパイルして PDF を返す
+- `POST /api/compile-raw` — 生 LaTeX 文字列を直接コンパイル
+
+### AI チャット
+- `POST /api/ai/chat` — 単発レスポンス
+- `POST /api/ai/chat/stream` — SSE ストリーミング(推奨)
+
+### OMR
+- `POST /api/omr/analyze` — 画像 / PDF から raw LaTeX を抽出
+- `POST /api/omr/analyze/stream` — SSE 版
+
+### 採点モード
+- `POST /api/grading/extract-rubric/stream` — LaTeX からルーブリック抽出
+- `POST /api/grading/grade/stream` — 答案画像を採点
+
+### 教材工場(バッチ)
+- `POST /api/batch/detect-variables` — `{{変数}}` を検出
+- `POST /api/batch/preview` — 1 行目のプレビュー
+- `POST /api/batch/generate` — 全行を ZIP で一括出力
+
+### サブスクリプション
+- `GET /api/subscription/status` — 現在のプラン取得
+- `POST /api/subscription/checkout` — Stripe Checkout URL を返す
+- `POST /api/subscription/portal` — Stripe Customer Portal URL
+- `POST /api/webhook/stripe` — Stripe Webhook 受信
 
 ---
 
 ## 開発ロードマップ
 
-- [x] ブロックベースGUI編集
-- [x] LuaLaTeX + 日本語組版
-- [x] 日本語数式入力（「ルートx」→ `\sqrt{x}`）
-- [x] 教材工場（バッチPDF生成）
-- [x] 上級者モード（カスタムプリアンブル）
-- [x] AI チャット + 文書パッチ（Claude API）
-- [x] OMR 画像解析（Claude Vision）
-- [x] LaTeXソースビューア
-- [x] スラッシュコマンドパレット
-- [ ] リアルタイムプレビュー（PDF / HTML）
-- [ ] クラウド保存 / ユーザー認証
+- [x] テンプレ駆動 raw LaTeX エディタ(12 テンプレ)
+- [x] LuaLaTeX + 日本語組版(luatexja + Harano Aji)
+- [x] 日本語数式入力(「ルートx」→ `\sqrt{x}`)
+- [x] Visual + LaTeX デュアルペイン
+- [x] AI チャット + tool call(`read_latex` / `set_latex` / `replace_in_latex`)
+- [x] OMR 画像 / PDF 解析
+- [x] 採点モード(rubric → AI 採点)
+- [x] 教材工場(CSV バッチ生成)
+- [x] Google OAuth + Stripe Subscription
+- [x] EN / JA バイリンガル UI
+- [x] 上級者モード(カスタムプリアンブル)
+- [ ] 採点モード v2(手書き OCR 強化)
 - [ ] テンプレートマーケットプレイス
-- [ ] モバイル対応（PWA）
-- [ ] コラボレーション編集
+- [ ] Slack / Google Classroom 連携
+- [ ] PWA / モバイル対応
 
 ---
 
