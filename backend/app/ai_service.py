@@ -23,6 +23,31 @@ MODEL_VISION = os.environ.get("OPENAI_MODEL_VISION", "gpt-4.1-mini")
 MODEL_FAST = os.environ.get("OPENAI_MODEL_FAST", "gpt-4.1-nano")
 
 
+# ─── Per-model parameter compatibility ──────────────────────────────────────
+# 新しい "reasoning" 系モデル (gpt-5*, o1*, o3*, o4*) は OpenAI API で
+#   max_tokens を拒否し、代わりに max_completion_tokens を要求する。
+# 旧モデル (gpt-4*, gpt-3.5*) は逆に max_completion_tokens を受け付けない場合がある。
+# モデル名から適切なキー名を選び、kwargs として呼び出し側に渡せる dict を返す。
+
+def max_tokens_param(model: str, n: int) -> dict:
+    """Return the correct max-tokens kwarg dict for the given model.
+
+    Usage:
+        client.chat.completions.create(
+            model=MODEL_CHAT,
+            messages=...,
+            **max_tokens_param(MODEL_CHAT, 16384),
+        )
+    """
+    lower = (model or "").lower()
+    needs_completion_tokens = any(
+        lower.startswith(prefix) for prefix in ("gpt-5", "o1", "o3", "o4")
+    )
+    if needs_completion_tokens:
+        return {"max_completion_tokens": n}
+    return {"max_tokens": n}
+
+
 # ─── Tool Definitions ────────────────────────────────────────────────────────
 
 AGENT_TOOLS = {
@@ -626,7 +651,7 @@ async def chat_stream(messages: list[dict], document: dict):
                             tools=tools,
                             stream=True,
                             temperature=0.7,
-                            max_tokens=16384,
+                            **max_tokens_param(MODEL_CHAT, 16384),
                         )
                         for chunk in stream:
                             _items.append(chunk)
@@ -862,7 +887,7 @@ async def chat(messages: list[dict], document: dict) -> dict:
                     messages=openai_messages,
                     tools=tools,
                     temperature=0.7,
-                    max_tokens=16384,
+                    **max_tokens_param(MODEL_CHAT, 16384),
                 )
 
             response = await asyncio.get_event_loop().run_in_executor(None, _call)

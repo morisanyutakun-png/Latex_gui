@@ -12,7 +12,7 @@ import os
 import subprocess
 import tempfile
 
-from .ai_service import get_client, MODEL_VISION
+from .ai_service import get_client, MODEL_VISION, max_tokens_param
 
 logger = logging.getLogger(__name__)
 
@@ -342,7 +342,7 @@ async def _detect_handwriting(client, data_url: str) -> bool:
                     }
                 ],
                 temperature=0,
-                max_tokens=8,
+                **max_tokens_param(MODEL_VISION, 8),
             )
         resp = await asyncio.to_thread(_call)
         ans = (resp.choices[0].message.content or "").strip().lower()
@@ -434,7 +434,7 @@ async def analyze_image_stream(
                     tools=tools,
                     tool_choice={"type": "function", "function": {"name": "set_latex"}},
                     temperature=0.3,
-                    max_tokens=16384,
+                    **max_tokens_param(MODEL_VISION, 16384),
                 )
             response = await asyncio.to_thread(_call)
         except Exception as e:
@@ -546,7 +546,7 @@ async def _analyze_pdf_stream(
                     tools=tools,
                     tool_choice={"type": "function", "function": {"name": "set_latex"}},
                     temperature=0.3,
-                    max_tokens=16384,
+                    **max_tokens_param(MODEL_VISION, 16384),
                 )
             response = await asyncio.to_thread(_call)
         except Exception as e:

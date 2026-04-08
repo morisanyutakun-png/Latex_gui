@@ -17,7 +17,7 @@ from typing import AsyncGenerator
 
 import re
 
-from .ai_service import get_client, MODEL_CHAT, MODEL_VISION
+from .ai_service import get_client, MODEL_CHAT, MODEL_VISION, max_tokens_param
 from .grading_models import (
     AnswerPage,
     BBox,
@@ -264,7 +264,7 @@ async def extract_rubric_with_ai_stream(latex: str) -> AsyncGenerator[str, None]
                     tools=tools,
                     tool_choice={"type": "function", "function": {"name": "set_latex"}},
                     temperature=0.4,
-                    max_tokens=16384,
+                    **max_tokens_param(MODEL_CHAT, 16384),
                 )
             response = await asyncio.to_thread(_call)
         except Exception as e:
@@ -842,7 +842,7 @@ async def grade_answer_stream(
                     tools=tools,
                     tool_choice={"type": "function", "function": {"name": "submit_grading"}},
                     temperature=0.2,
-                    max_tokens=8192,
+                    **max_tokens_param(MODEL_VISION, 8192),
                 )
             response = await asyncio.to_thread(_call)
         except Exception as e:

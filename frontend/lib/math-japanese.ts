@@ -200,15 +200,30 @@ export function normalizeForMatch(s: string): string {
 /**
  * ひらがな数字 → 半角数字
  * 数式モードで「いち」「に」「さん」等と入力されたとき半角数字に変換
+ *
+ * 設計方針: 助詞・接続詞と衝突しやすいひらがな (に, し, ご) は
+ *   「明確に数字文脈にある場合」のみ変換する。
+ *   - 「に」 → 2:  直後が ぶんの/分の/乗/じょう/数演算記号/空白末尾 のときだけ
+ *               (例: にぶんの1 / に+3)。
+ *               「xに近づく」「xに等しい」のような助詞用法は保持。
+ *   - 「し」 → 4:  直前が非アルファベットで直後がぶんの/乗/数演算記号のとき
+ *   - 「ご」 → 5:  直前が非アルファベットで直後がぶんの/乗/数演算記号のとき
  */
 const HIRAGANA_DIGITS: [RegExp, string][] = [
   [/じゅう/g, "10"],
   [/ひゃく/g, "100"],
   [/せん/g, "1000"],
   [/まん/g, "10000"],
-  [/いち/g, "1"], [/に(?![じゅうかいかかいぶ])/g, "2"], [/さん(?![かく])/g, "3"],
-  [/よん/g, "4"], [/し(?![ー])/g, "4"],
-  [/ご(?![う])/g, "5"], [/ろく/g, "6"], [/なな/g, "7"],
+  [/いち/g, "1"],
+  // に → 2:  ぶんの/分の/乗/じょう/たす/ひく/かける/わる または演算記号 or 末尾の前のみ
+  [/に(?=ぶんの|分の|乗|じょう|たす|ひく|かける|わる|[+\-*/^=]|\s*$)/g, "2"],
+  [/さん(?![かく])/g, "3"],
+  [/よん/g, "4"],
+  // し → 4:  ぶんの/乗/演算記号の前のみ (「しょ」「した」「しま」等の動詞語幹を保持)
+  [/し(?=ぶんの|分の|乗|じょう|[+\-*/^=]|\s*$)/g, "4"],
+  // ご → 5:  ぶんの/乗/演算記号の前のみ (「ごう」「ごと」等を保持)
+  [/ご(?=ぶんの|分の|乗|じょう|[+\-*/^=]|\s*$)/g, "5"],
+  [/ろく/g, "6"], [/なな/g, "7"],
   [/はち/g, "8"], [/きゅう/g, "9"], [/れい/g, "0"], [/ぜろ/g, "0"],
 ];
 
@@ -1825,33 +1840,96 @@ function isPureArithmetic(s: string): boolean {
 
 /**
  * Unicode数学記号 → LaTeX変換マップ
+ *
+ * latexToJapanese (逆変換) との round-trip を保つことを目的とする。
+ * 新しい記号を追加するときは LATEX_SYMBOL_MAP にも対応エントリを入れること。
  */
 const UNICODE_TO_LATEX: [RegExp, string][] = [
-  [/Σ/g, "\\Sigma"],
-  [/Π/g, "\\Pi"],
-  [/∫/g, "\\int"],
-  [/∞/g, "\\infty"],
+  // ── ギリシャ文字 (小文字) ──
   [/α/g, "\\alpha"], [/β/g, "\\beta"], [/γ/g, "\\gamma"], [/δ/g, "\\delta"],
   [/ε/g, "\\epsilon"], [/ζ/g, "\\zeta"], [/η/g, "\\eta"], [/θ/g, "\\theta"],
   [/ι/g, "\\iota"], [/κ/g, "\\kappa"], [/λ/g, "\\lambda"], [/μ/g, "\\mu"],
   [/ν/g, "\\nu"], [/ξ/g, "\\xi"], [/π/g, "\\pi"], [/ρ/g, "\\rho"],
   [/σ/g, "\\sigma"], [/τ/g, "\\tau"], [/υ/g, "\\upsilon"], [/φ/g, "\\phi"],
   [/χ/g, "\\chi"], [/ψ/g, "\\psi"], [/ω/g, "\\omega"],
+  // ── ギリシャ文字 (大文字) ──
   [/Γ/g, "\\Gamma"], [/Δ/g, "\\Delta"], [/Θ/g, "\\Theta"],
-  [/Λ/g, "\\Lambda"], [/Φ/g, "\\Phi"], [/Ψ/g, "\\Psi"], [/Ω/g, "\\Omega"],
-  [/≤/g, "\\leq"], [/≥/g, "\\geq"], [/≠/g, "\\neq"], [/≈/g, "\\approx"],
+  [/Λ/g, "\\Lambda"], [/Ξ/g, "\\Xi"], [/Π/g, "\\Pi"], [/Σ/g, "\\Sigma"],
+  [/Υ/g, "\\Upsilon"], [/Φ/g, "\\Phi"], [/Ψ/g, "\\Psi"], [/Ω/g, "\\Omega"],
+  // ── 大型演算子 ──
+  [/∫/g, "\\int"], [/∬/g, "\\iint"], [/∭/g, "\\iiint"], [/∮/g, "\\oint"],
+  [/⋃/g, "\\bigcup"], [/⋂/g, "\\bigcap"], [/⋁/g, "\\bigvee"], [/⋀/g, "\\bigwedge"],
+  [/⨄/g, "\\biguplus"], [/⨆/g, "\\bigsqcup"], [/⨀/g, "\\bigodot"],
+  [/⨁/g, "\\bigoplus"], [/⨂/g, "\\bigotimes"], [/∐/g, "\\coprod"],
+  // ── 二項演算 ──
   [/±/g, "\\pm"], [/∓/g, "\\mp"], [/×/g, "\\times"], [/÷/g, "\\div"],
-  [/·/g, "\\cdot"], [/∂/g, "\\partial"], [/∇/g, "\\nabla"],
-  [/∀/g, "\\forall"], [/∃/g, "\\exists"], [/∅/g, "\\emptyset"], [/∧/g, "\\land"], [/∨/g, "\\lor"],
-  [/∈/g, "\\in"], [/∉/g, "\\notin"], [/⊂/g, "\\subset"], [/⊃/g, "\\supset"],
-  [/∪/g, "\\cup"], [/∩/g, "\\cap"], [/⊕/g, "\\oplus"], [/⊗/g, "\\otimes"],
-  [/⇒/g, "\\Rightarrow"], [/⇔/g, "\\Leftrightarrow"],
-  [/→/g, "\\to"], [/←/g, "\\leftarrow"], [/↦/g, "\\mapsto"],
-  [/⊥/g, "\\perp"], [/∥/g, "\\parallel"],
-  [/∴/g, "\\therefore"], [/∵/g, "\\because"],
-  [/…/g, "\\cdots"], [/℃/g, "^{\\circ}\\text{C}"],
-  [/ℏ/g, "\\hbar"], [/ℝ/g, "\\mathbb{R}"], [/ℤ/g, "\\mathbb{Z}"],
+  [/·/g, "\\cdot"], [/∗/g, "\\ast"], [/⋆/g, "\\star"], [/∘/g, "\\circ"],
+  [/•/g, "\\bullet"], [/†/g, "\\dagger"], [/‡/g, "\\ddagger"],
+  [/⊕/g, "\\oplus"], [/⊖/g, "\\ominus"], [/⊗/g, "\\otimes"],
+  [/⊘/g, "\\oslash"], [/⊙/g, "\\odot"],
+  [/∖/g, "\\setminus"], [/⊔/g, "\\sqcup"], [/⊓/g, "\\sqcap"], [/⊎/g, "\\uplus"],
+  // ── 関係子 (順序・等価) ──
+  [/≤/g, "\\leq"], [/≦/g, "\\leqq"], [/≥/g, "\\geq"], [/≧/g, "\\geqq"],
+  [/≠/g, "\\neq"], [/≈/g, "\\approx"], [/≃/g, "\\simeq"], [/≅/g, "\\cong"],
+  [/≡/g, "\\equiv"], [/≍/g, "\\asymp"], [/≐/g, "\\doteq"], [/≊/g, "\\approxeq"],
+  [/∼/g, "\\sim"], [/∝/g, "\\propto"],
+  [/≪/g, "\\ll"], [/≫/g, "\\gg"], [/⋘/g, "\\lll"], [/⋙/g, "\\ggg"],
+  [/≺/g, "\\prec"], [/≻/g, "\\succ"], [/⪯/g, "\\preceq"], [/⪰/g, "\\succeq"],
+  [/⊏/g, "\\sqsubset"], [/⊐/g, "\\sqsupset"],
+  [/⊑/g, "\\sqsubseteq"], [/⊒/g, "\\sqsupseteq"],
+  // ── 関係子 (集合・論理) ──
+  [/∈/g, "\\in"], [/∉/g, "\\notin"], [/∋/g, "\\ni"],
+  [/⊂/g, "\\subset"], [/⊃/g, "\\supset"],
+  [/⊆/g, "\\subseteq"], [/⊇/g, "\\supseteq"],
+  [/⊈/g, "\\nsubseteq"], [/⊉/g, "\\nsupseteq"],
+  [/∪/g, "\\cup"], [/∩/g, "\\cap"], [/∅/g, "\\emptyset"],
+  [/∧/g, "\\land"], [/∨/g, "\\lor"], [/¬/g, "\\neg"],
+  [/∀/g, "\\forall"], [/∃/g, "\\exists"], [/∄/g, "\\nexists"],
+  [/⊤/g, "\\top"],
+  [/⊨/g, "\\models"], [/⊢/g, "\\vdash"], [/⊣/g, "\\dashv"],
+  // ── 関係子 (幾何) ──
+  [/⊥/g, "\\perp"], [/∥/g, "\\parallel"], [/∦/g, "\\nparallel"],
+  [/∣/g, "\\mid"], [/∤/g, "\\nmid"], [/‖/g, "\\Vert"],
+  // ── 矢印 ──
+  [/⇒/g, "\\Rightarrow"], [/⇐/g, "\\Leftarrow"], [/⇔/g, "\\Leftrightarrow"],
+  [/→/g, "\\to"], [/←/g, "\\leftarrow"], [/↔/g, "\\leftrightarrow"],
+  [/↦/g, "\\mapsto"], [/⟼/g, "\\longmapsto"],
+  [/⟶/g, "\\longrightarrow"], [/⟵/g, "\\longleftarrow"], [/⟷/g, "\\longleftrightarrow"],
+  [/⟹/g, "\\Longrightarrow"], [/⟸/g, "\\Longleftarrow"], [/⟺/g, "\\Longleftrightarrow"],
+  [/↑/g, "\\uparrow"], [/↓/g, "\\downarrow"], [/↕/g, "\\updownarrow"],
+  [/⇑/g, "\\Uparrow"], [/⇓/g, "\\Downarrow"], [/⇕/g, "\\Updownarrow"],
+  [/↪/g, "\\hookrightarrow"], [/↩/g, "\\hookleftarrow"],
+  [/⇄/g, "\\rightleftarrows"], [/⇆/g, "\\leftrightarrows"], [/⇌/g, "\\rightleftharpoons"],
+  [/⇝/g, "\\rightsquigarrow"],
+  // ── 幾何記号 ──
+  [/△/g, "\\triangle"], [/▽/g, "\\bigtriangledown"],
+  [/◁/g, "\\triangleleft"], [/▷/g, "\\triangleright"],
+  [/□/g, "\\square"], [/■/g, "\\blacksquare"],
+  [/◊/g, "\\lozenge"], [/◯/g, "\\bigcirc"],
+  [/∠/g, "\\angle"], [/∡/g, "\\measuredangle"], [/∢/g, "\\sphericalangle"],
+  // ── 集合系特殊 ──
+  [/ℵ/g, "\\aleph"], [/ℶ/g, "\\beth"], [/ℷ/g, "\\gimel"], [/ℸ/g, "\\daleth"],
+  [/ℜ/g, "\\Re"], [/ℑ/g, "\\Im"], [/℘/g, "\\wp"], [/ℓ/g, "\\ell"],
+  // ── 特殊・数集合 ──
+  [/∞/g, "\\infty"], [/∂/g, "\\partial"], [/∇/g, "\\nabla"],
+  [/ℏ/g, "\\hbar"], [/ı/g, "\\imath"], [/ȷ/g, "\\jmath"],
+  [/ℝ/g, "\\mathbb{R}"], [/ℤ/g, "\\mathbb{Z}"],
   [/ℕ/g, "\\mathbb{N}"], [/ℚ/g, "\\mathbb{Q}"], [/ℂ/g, "\\mathbb{C}"],
+  [/′/g, "'"], [/″/g, "''"], [/‴/g, "'''"],
+  // ── 接続詞・点線 ──
+  [/∴/g, "\\therefore"], [/∵/g, "\\because"],
+  [/⋯/g, "\\cdots"], [/⋮/g, "\\vdots"], [/⋱/g, "\\ddots"], [/…/g, "\\ldots"],
+  // ── 単位 ──
+  [/℃/g, "^{\\circ}\\text{C}"], [/℉/g, "^{\\circ}\\text{F}"], [/°/g, "^{\\circ}"],
+  // ── 括弧デリミタ ──
+  [/⟨/g, "\\langle"], [/⟩/g, "\\rangle"],
+  [/⌈/g, "\\lceil"], [/⌉/g, "\\rceil"],
+  [/⌊/g, "\\lfloor"], [/⌋/g, "\\rfloor"],
+  // ── 音符・トランプ (低頻度) ──
+  [/♯/g, "\\sharp"], [/♭/g, "\\flat"], [/♮/g, "\\natural"],
+  [/♠/g, "\\spadesuit"], [/♡/g, "\\heartsuit"],
+  [/♢/g, "\\diamondsuit"], [/♣/g, "\\clubsuit"],
+  [/√/g, "\\surd"], [/✓/g, "\\checkmark"],
 ];
 
 /**
@@ -2069,24 +2147,25 @@ export function parseJapanesemath(input: string): string {
 
   // ルート / 平方根 / 根号 → \sqrt{}
   // 【引数取得ルール】
-  //   1. 括弧付き: るーと(x+1) → \sqrt{(x+1)}  — 括弧内を引数とする
+  //   1. 括弧付き: るーと(x+1) → \sqrt{x+1}  — 括弧は外して中身を引数に
   //   2. 括弧なし: るーとx → \sqrt{x}  — 次のスペースまでを引数とする
   //   3. スペース1つまで許容: るーと x → \sqrt{x}
+  // ※ 旧版は \sqrt{(${x})} と内側の括弧を残していたが、視覚的に冗長だったので削除。
   result = result.replace(
     /(?:るーと|平方根|根号|√) ?\(([^)]+)\)/g,
-    (_, x) => `\\sqrt{(${x})}`
+    (_, x) => `\\sqrt{${x}}`
   );
   result = result.replace(
     /(?:るーと|平方根|根号|√) ?([^\s(]+)/g,
     (_, x) => `\\sqrt{${resolveTerm(x)}}`
   );
 
-  // 絶対値 → \left| ... \right|
-  result = result.replace(/(?:ぜったいち|絶対値) ?\(([^)]+)\)/g, (_, x) => `\\left| (${x}) \\right|`);
+  // 絶対値 → \left| ... \right|  (内側の括弧は外す)
+  result = result.replace(/(?:ぜったいち|絶対値) ?\(([^)]+)\)/g, (_, x) => `\\left| ${x} \\right|`);
   result = result.replace(/(?:ぜったいち|絶対値) ?([^\s(]+)/g, (_, x) => `\\left| ${resolveTerm(x)} \\right|`);
 
-  // ノルム → \left\| ... \right\|
-  result = result.replace(/(?:のるむ|ノルム) ?\(([^)]+)\)/g, (_, x) => `\\left\\| (${x}) \\right\\|`);
+  // ノルム → \left\| ... \right\|  (内側の括弧は外す)
+  result = result.replace(/(?:のるむ|ノルム) ?\(([^)]+)\)/g, (_, x) => `\\left\\| ${x} \\right\\|`);
   result = result.replace(/(?:のるむ|ノルム) ?([^\s(]+)/g, (_, x) => `\\left\\| ${resolveTerm(x)} \\right\\|`);
 
   // 太字 / ボールド → \mathbf{}
@@ -2489,40 +2568,93 @@ export function getDictionaryByCategory(category: string): MathDictEntry[] {
 // 既知でない LaTeX はそのまま残す (parseJapanesemath の Phase -1 / 0.5 で処理される)。
 //
 
-/** LaTeX コマンド名 → Unicode 記号 (parseJapanesemath が逆方向で受理できるもの) */
+/** LaTeX コマンド名 → Unicode 記号。
+ *  原則: ここに登録した記号は parseJapanesemath が UNICODE_TO_LATEX で逆方向にも変換できる
+ *  ことを保証する (この同じファイル内で対応する逆エントリも追加すること)。 */
 const LATEX_SYMBOL_MAP: Record<string, string> = {
-  // ── ギリシャ文字 ──
+  // ── ギリシャ文字 (小文字) ──
   alpha: "α", beta: "β", gamma: "γ", delta: "δ",
   epsilon: "ε", varepsilon: "ε", zeta: "ζ", eta: "η",
-  theta: "θ", vartheta: "θ", iota: "ι", kappa: "κ",
+  theta: "θ", vartheta: "θ", iota: "ι", kappa: "κ", varkappa: "κ",
   lambda: "λ", mu: "μ", nu: "ν", xi: "ξ", pi: "π",
-  varpi: "π", rho: "ρ", varrho: "ρ", sigma: "σ",
+  varpi: "π", rho: "ρ", varrho: "ρ", sigma: "σ", varsigma: "σ",
   tau: "τ", upsilon: "υ", phi: "φ", varphi: "φ",
   chi: "χ", psi: "ψ", omega: "ω",
+  // ── ギリシャ文字 (大文字) ──
   Gamma: "Γ", Delta: "Δ", Theta: "Θ", Lambda: "Λ",
   Xi: "Ξ", Pi: "Π", Sigma: "Σ", Upsilon: "Υ",
   Phi: "Φ", Psi: "Ψ", Omega: "Ω",
-  // ── 演算 ──
+  // ── 二項演算 ──
   times: "×", div: "÷", pm: "±", mp: "∓",
   cdot: "·", ast: "∗", star: "⋆", circ: "∘",
-  // ── 関係 ──
+  bullet: "•", dagger: "†", ddagger: "‡",
+  amalg: "⨿", uplus: "⊎", wr: "≀",
+  oplus: "⊕", ominus: "⊖", otimes: "⊗", oslash: "⊘", odot: "⊙",
+  setminus: "∖", smallsetminus: "∖",
+  sqcup: "⊔", sqcap: "⊓",
+  // ── 大型演算子 ──
+  sum: "∑", prod: "∏", coprod: "∐", int: "∫",
+  iint: "∬", iiint: "∭", oint: "∮",
+  bigcup: "⋃", bigcap: "⋂", bigvee: "⋁", bigwedge: "⋀",
+  biguplus: "⨄", bigsqcup: "⨆", bigodot: "⨀",
+  bigoplus: "⨁", bigotimes: "⨂",
+  // ── 関係子 (順序・等価) ──
   leq: "≤", le: "≤", geq: "≥", ge: "≥",
   neq: "≠", ne: "≠", approx: "≈", equiv: "≡",
   sim: "∼", simeq: "≃", cong: "≅", propto: "∝",
+  asymp: "≍", doteq: "≐", approxeq: "≊",
+  ll: "≪", gg: "≫", lll: "⋘", ggg: "⋙",
+  prec: "≺", succ: "≻", preceq: "⪯", succeq: "⪰",
+  sqsubset: "⊏", sqsupset: "⊐", sqsubseteq: "⊑", sqsupseteq: "⊒",
+  // ── 関係子 (集合・論理 述語) ──
+  in: "∈", notin: "∉", ni: "∋", owns: "∋",
+  subset: "⊂", supset: "⊃", subseteq: "⊆", supseteq: "⊇",
+  nsubseteq: "⊈", nsupseteq: "⊉",
+  cup: "∪", cap: "∩",
+  emptyset: "∅", varnothing: "∅",
+  // ── 関係子 (幾何) ──
+  perp: "⊥", parallel: "∥", nparallel: "∦",
+  mid: "∣", nmid: "∤", vert: "|", Vert: "‖",
   // ── 矢印 ──
-  to: "→", rightarrow: "→", leftarrow: "←",
+  to: "→", rightarrow: "→", gets: "←", leftarrow: "←",
   Rightarrow: "⇒", Leftarrow: "⇐", Leftrightarrow: "⇔",
   leftrightarrow: "↔", mapsto: "↦",
-  // ── 集合・論理 ──
-  in: "∈", notin: "∉", subset: "⊂", supset: "⊃",
-  subseteq: "⊆", supseteq: "⊇", cup: "∪", cap: "∩",
-  emptyset: "∅", varnothing: "∅",
+  longrightarrow: "⟶", longleftarrow: "⟵", longleftrightarrow: "⟷",
+  Longrightarrow: "⟹", Longleftarrow: "⟸", Longleftrightarrow: "⟺",
+  uparrow: "↑", downarrow: "↓", updownarrow: "↕",
+  Uparrow: "⇑", Downarrow: "⇓", Updownarrow: "⇕",
+  hookrightarrow: "↪", hookleftarrow: "↩",
+  rightleftarrows: "⇄", leftrightarrows: "⇆", rightleftharpoons: "⇌",
+  leadsto: "⇝", rightsquigarrow: "⇝",
+  longmapsto: "⟼", iff: "⇔", implies: "⇒", impliedby: "⇐",
+  // ── 論理 ──
   land: "∧", wedge: "∧", lor: "∨", vee: "∨",
-  neg: "¬", lnot: "¬", forall: "∀", exists: "∃",
+  neg: "¬", lnot: "¬", forall: "∀", exists: "∃", nexists: "∄",
   therefore: "∴", because: "∵",
-  // ── 特殊 ──
-  infty: "∞", partial: "∂", nabla: "∇",
-  ldots: "…", cdots: "⋯",
+  top: "⊤", bot: "⊥",
+  models: "⊨", vDash: "⊨", vdash: "⊢", dashv: "⊣",
+  // ── 幾何記号 ──
+  triangle: "△", bigtriangleup: "△", bigtriangledown: "▽",
+  triangledown: "▽", triangleleft: "◁", triangleright: "▷",
+  square: "□", Box: "□", blacksquare: "■", lozenge: "◊",
+  bigcirc: "◯", angle: "∠", measuredangle: "∡", sphericalangle: "∢",
+  // ── 集合系特殊 ──
+  aleph: "ℵ", beth: "ℶ", gimel: "ℷ", daleth: "ℸ",
+  Re: "ℜ", Im: "ℑ", wp: "℘", ell: "ℓ",
+  // ── 特殊記号 ──
+  infty: "∞", partial: "∂", nabla: "∇", hbar: "ℏ", imath: "ı", jmath: "ȷ",
+  prime: "′", backprime: "‵",
+  ldots: "…", cdots: "⋯", vdots: "⋮", ddots: "⋱",
+  surd: "√", checkmark: "✓",
+  // ── 括弧 (デリミタ) ──
+  langle: "⟨", rangle: "⟩",
+  lceil: "⌈", rceil: "⌉", lfloor: "⌊", rfloor: "⌋",
+  lbrace: "{", rbrace: "}", lbrack: "[", rbrack: "]",
+  // ── 角度記号 (\degree) ──
+  degree: "°",
+  // ── 音符・トランプ (頻度低だが頻出記号集) ──
+  sharp: "♯", flat: "♭", natural: "♮",
+  spadesuit: "♠", heartsuit: "♡", diamondsuit: "♢", clubsuit: "♣",
 };
 
 /** バックスラッシュを外して名前のまま出してよい関数群 (latexToJapanese 用) */
@@ -2688,21 +2820,33 @@ function convertLatexToJapaneseInner(s: string): string {
         const name = cmd.name;
         let pos = cmd.end;
 
-        // ── \frac{A}{B} → BぶんのA ──
+        // ── \frac{A}{B} → BぶんのA  (単純な場合のみ。複雑なら LaTeX のまま) ──
+        // parser の "ぶんの" パターンはスペース区切りトークンしか扱えないので、
+        // 引数に空白や演算子が含まれる場合は LaTeX 形式で残し round-trip を保証する。
         if (name === "frac") {
           const a = readBrace(s, pos);
           if (a) {
             const b = readBrace(s, a.end);
             if (b) {
-              const num = convertLatexToJapaneseInner(a.content.trim());
-              const den = convertLatexToJapaneseInner(b.content.trim());
+              const numRaw = a.content.trim();
+              const denRaw = b.content.trim();
+              const num = convertLatexToJapaneseInner(numRaw);
+              const den = convertLatexToJapaneseInner(denRaw);
               // \frac{d}{dx} → "xで微分"
               if (num === "d" && /^d[a-zA-Z]$/.test(den)) {
                 result += `${den.slice(1)}で微分`;
               } else if (num === "\\partial" && /^\\partial [a-zA-Z]$/.test(den)) {
                 result += `${den.slice("\\partial ".length)}で偏微分`;
               } else {
-                result += `${den}ぶんの${num}`;
+                // 単純トークンチェック: 空白なし & 単純な英数字/ギリシャ/Unicode 記号のみ
+                const isSimple = (t: string) =>
+                  !/[\s\\{}]/.test(t) && t.length <= 8;
+                if (isSimple(num) && isSimple(den)) {
+                  result += `${den}ぶんの${num}`;
+                } else {
+                  // 複雑 → LaTeX 形式のまま (parser 経由で完璧に round-trip)
+                  result += `\\frac{${numRaw}}{${denRaw}}`;
+                }
               }
               i = b.end;
               continue;
@@ -2711,15 +2855,19 @@ function convertLatexToJapaneseInner(s: string): string {
         }
 
         // ── \sqrt[n]{x} or \sqrt{x} ──
+        // 単純な引数 → "ルートx" 形式
+        // 複雑な引数 (空白/演算子を含む) → "ルート(...)" 形式 (parser が括弧を消費)
         if (name === "sqrt") {
           const opt = readBracket(s, pos);
           if (opt) pos = opt.end;
           const arg = readBrace(s, pos);
           if (arg) {
-            const inner = convertLatexToJapaneseInner(arg.content.trim());
+            const innerJa = convertLatexToJapaneseInner(arg.content.trim());
+            const needsParen = /[\s+\-*/=<>]/.test(innerJa) && !innerJa.startsWith("(");
+            const wrapped = needsParen ? `(${innerJa})` : innerJa;
             result += opt
-              ? `${convertLatexToJapaneseInner(opt.content.trim())}乗根${inner}`
-              : `ルート${inner}`;
+              ? `${convertLatexToJapaneseInner(opt.content.trim())}乗根${wrapped}`
+              : `ルート${wrapped}`;
             i = arg.end;
             continue;
           }
@@ -2762,31 +2910,208 @@ function convertLatexToJapaneseInner(s: string): string {
           continue;
         }
 
-        // ── 装飾系: \vec{X}, \hat{X}, \bar{X}, … ──
+        // ── 装飾系: \vec{X}, \hat{X}, \bar{X}, \widehat, \widetilde, \overrightarrow … ──
+        // 単一文字 (\vec{a}) の場合だけ "ベクトルa" のような日本語表現に展開する。
+        // 多文字 (\vec{AB}, \overrightarrow{AB}) は parser の単一文字パターンと衝突するので
+        // LaTeX 形式のまま温存する (parser の Phase -1 / passthrough で round-trip)。
         const decoMap: Record<string, string> = {
-          vec: "ベクトル", hat: "ハット", bar: "バー",
-          dot: "ドット", ddot: "ダブルドット", tilde: "チルダ",
+          vec: "ベクトル",
+          hat: "ハット",
+          bar: "バー",
+          dot: "ドット",
+          ddot: "ダブルドット",
+          tilde: "チルダ",
+          check: "チェック",
+          breve: "ブレーブ",
+          acute: "アキュート",
+          grave: "グレイブ",
           mathbf: "太字",
+          boldsymbol: "太字",
+          mathit: "斜体",
+          textbf: "太字",
+          textit: "斜体",
         };
         if (name in decoMap) {
           const arg = readBrace(s, pos);
           if (arg) {
-            const inner = convertLatexToJapaneseInner(arg.content.trim());
-            result += `${decoMap[name]}${inner}`;
+            const innerRaw = arg.content.trim();
+            if (/^[a-zA-Zα-ωΑ-Ω]$/.test(innerRaw)) {
+              // 単一文字 → 日本語デコレータ
+              result += `${decoMap[name]}${innerRaw}`;
+            } else {
+              // 多文字 → LaTeX のまま
+              result += `\\${name}{${innerRaw}}`;
+            }
             i = arg.end;
             continue;
           }
         }
 
-        // ── \mathrm{X}, \text{X}, \operatorname{X}, \mathbb{X}, … 中身そのまま ──
+        // ── \overline / \underline / \widehat / \widetilde / \overrightarrow / \overleftarrow ──
+        // 単一文字 → \bar / \hat / \tilde / \vec の単一文字版に変換し、
+        // 多文字 → 元の LaTeX 形式のまま温存する。
+        const wideDecoMap: Record<string, string> = {
+          overline: "bar",
+          widehat: "hat",
+          widetilde: "tilde",
+          overrightarrow: "vec",
+          overleftarrow: "vec",
+          underline: "underline",
+        };
+        if (name in wideDecoMap) {
+          const arg = readBrace(s, pos);
+          if (arg) {
+            const innerRaw = arg.content.trim();
+            if (/^[a-zA-Zα-ωΑ-Ω]$/.test(innerRaw) && wideDecoMap[name] in decoMap) {
+              result += `${decoMap[wideDecoMap[name]]}${innerRaw}`;
+            } else {
+              // 多文字: 元の LaTeX を保持 (parser passthrough)
+              result += `\\${name}{${innerRaw}}`;
+            }
+            i = arg.end;
+            continue;
+          }
+        }
+
+        // ── \binom{n}{k} → 元の LaTeX 形式で保持 ──
+        // 「コンビネーション」と書くと parser のひらがな数字変換 (し→4 等) で壊れる。
+        // round-trip を保証するため LaTeX 形式のまま温存。
+        if (name === "binom" || name === "tbinom" || name === "dbinom") {
+          const a = readBrace(s, pos);
+          if (a) {
+            const b = readBrace(s, a.end);
+            if (b) {
+              const n = a.content.trim();
+              const k = b.content.trim();
+              result += `\\${name}{${n}}{${k}}`;
+              i = b.end;
+              continue;
+            }
+          }
+        }
+
+        // ── \boxed{X} → そのまま X (装飾だけ落とす) ──
+        if (name === "boxed") {
+          const arg = readBrace(s, pos);
+          if (arg) {
+            result += convertLatexToJapaneseInner(arg.content.trim());
+            i = arg.end;
+            continue;
+          }
+        }
+
+        // ── \stackrel{a}{=}, \overset{a}{=}, \underset{a}{=} → b の上(下)に a ──
+        if (name === "stackrel" || name === "overset") {
+          const a = readBrace(s, pos);
+          if (a) {
+            const b = readBrace(s, a.end);
+            if (b) {
+              result += `${convertLatexToJapaneseInner(b.content.trim())}の上に${convertLatexToJapaneseInner(a.content.trim())}`;
+              i = b.end;
+              continue;
+            }
+          }
+        }
+        if (name === "underset") {
+          const a = readBrace(s, pos);
+          if (a) {
+            const b = readBrace(s, a.end);
+            if (b) {
+              result += `${convertLatexToJapaneseInner(b.content.trim())}の下に${convertLatexToJapaneseInner(a.content.trim())}`;
+              i = b.end;
+              continue;
+            }
+          }
+        }
+
+        // ── \xrightarrow{a}^{b} → 「a の矢印」 ──
+        if (name === "xrightarrow" || name === "xleftarrow" || name === "xrightleftharpoons") {
+          // optional [under] と {over} を読み飛ばす
+          let cur = pos;
+          const opt = readBracket(s, cur);
+          if (opt) cur = opt.end;
+          const arg = readBrace(s, cur);
+          if (arg) {
+            const dir = name === "xleftarrow" ? "←" : "→";
+            const label = convertLatexToJapaneseInner(arg.content.trim());
+            result += `${dir}[${label}]`;
+            i = arg.end;
+            continue;
+          }
+          result += name === "xleftarrow" ? "←" : "→";
+          i = pos;
+          continue;
+        }
+
+        // ── \overbrace{X}, \underbrace{X} → 中身だけ ──
+        if (name === "overbrace" || name === "underbrace") {
+          const arg = readBrace(s, pos);
+          if (arg) {
+            result += convertLatexToJapaneseInner(arg.content.trim());
+            i = arg.end;
+            continue;
+          }
+        }
+
+        // ── \mathbb{R/N/Z/Q/C} → 黒板太字 Unicode (parser も逆方向対応済み) ──
+        if (name === "mathbb") {
+          const arg = readBrace(s, pos);
+          if (arg) {
+            const inner = arg.content.trim();
+            const blackboard: Record<string, string> = {
+              R: "ℝ", N: "ℕ", Z: "ℤ", Q: "ℚ", C: "ℂ",
+              P: "ℙ", H: "ℍ", F: "ℽ", K: "𝕂",
+            };
+            if (inner in blackboard) {
+              result += blackboard[inner];
+              i = arg.end;
+              continue;
+            }
+            // 単発文字でない場合は中身をそのまま
+            result += inner;
+            i = arg.end;
+            continue;
+          }
+        }
+
+        // ── \mathrm{X}, \text{X}, \operatorname{X}, \mathcal/\mathfrak/\mathscr → 中身そのまま ──
         if (
           name === "mathrm" || name === "text" || name === "operatorname" ||
-          name === "mathbb" || name === "mathcal" || name === "mathfrak" || name === "mathscr"
+          name === "mathcal" || name === "mathfrak" || name === "mathscr" ||
+          name === "mathsf" || name === "mathtt" || name === "textnormal" ||
+          name === "textsf" || name === "textrm" || name === "texttt"
         ) {
           const arg = readBrace(s, pos);
           if (arg) {
             result += arg.content;
             i = arg.end;
+            continue;
+          }
+        }
+
+        // ── \color{red}{X} / \textcolor{red}{X} → X だけ ──
+        if (name === "textcolor" || name === "color" || name === "colorbox" || name === "fcolorbox") {
+          const skip1 = readBrace(s, pos);
+          if (skip1) {
+            // \color{red} は引数 1 つで中身がない (グループ全体に色を適用)。
+            // 後続の {X} があればそれを採用、なければ何も出さない。
+            const arg = readBrace(s, skip1.end);
+            if (arg) {
+              if (name === "fcolorbox") {
+                // \fcolorbox{frame}{back}{X} の 3 引数版
+                const arg2 = readBrace(s, arg.end);
+                if (arg2) {
+                  result += convertLatexToJapaneseInner(arg2.content.trim());
+                  i = arg2.end;
+                  continue;
+                }
+              }
+              result += convertLatexToJapaneseInner(arg.content.trim());
+              i = arg.end;
+              continue;
+            }
+            // \color{red} だけ → 何も出さず読み飛ばす
+            i = skip1.end;
             continue;
           }
         }
