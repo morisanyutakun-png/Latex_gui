@@ -1,0 +1,891 @@
+\documentclass{article}
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage[top=20mm,bottom=20mm,left=18mm,right=18mm]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows.meta,positioning,calc,fit,shadows,backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{colorbrewer}
+
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+
+% カラー定義
+\definecolor{cVercel}{HTML}{0F172A}
+\definecolor{cKoyeb}{HTML}{7C3AED}
+\definecolor{cNeon}{HTML}{059669}
+\definecolor{cAI}{HTML}{10A37F}
+\definecolor{cUser}{HTML}{2563EB}
+\definecolor{cLow}{HTML}{F59E0B}
+\definecolor{cMid}{HTML}{2563EB}
+\definecolor{cHigh}{HTML}{059669}
+\definecolor{cAlert}{HTML}{B91C1C}
+\definecolor{cUS}{HTML}{1D4ED8}
+\definecolor{cJP}{HTML}{DC2626}
+\definecolor{cInk}{HTML}{0F172A}
+\definecolor{cAd}{HTML}{EA580C}
+
+% 強調マクロ
+\newcommand{\hl}[1]{\textcolor{cAlert}{\textbf{#1}}}
+
+\title{\textbf{Eddivom 1人 SaaS 事業計画}\\\large
+英語圏 EdTech self-serve 主軸 + 日本補助市場\\
+P-Max + LP で回す AI 教材作成 IDE}
+\author{}
+\date{2026年4月}
+
+\begin{document}
+\maketitle
+
+% =====================================================
+\begin{tcolorbox}[colback=blue!5,colframe=blue!50!black,title=\textbf{エグゼクティブサマリ}]
+\begin{itemize}[leftmargin=1.4em,itemsep=3pt]
+  \item \textbf{プロダクト}: \texttt{Eddivom} ― AI 教材作成 IDE。
+        テンプレ駆動の raw LaTeX エディタ・AI チャット編集・OMR(画像→LaTeX)・
+        \hl{採点モード(rubric → AI 答案採点)}・教材工場(CSV バッチ生成)を備える self-serve SaaS。
+  \item \textbf{主戦場}: \hl{英語圏(US 中心)EdTech self-serve} ―
+        worksheet creator・independent tutor・test prep 制作者・homeschool 親・TPT seller。
+  \item \textbf{補助市場}: 日本の個人塾・家庭教師・小規模教室。
+        日本語数式入力(「ルートx」$\to$ \verb|\sqrt{x}|)と日本語組版で差別化。
+  \item \textbf{価格}(現行 \texttt{plans.ts} 準拠): Free / Starter \textbf{¥980} /
+        Pro \hl{¥2,980} / Premium \textbf{¥12,800}(JPY 基準・USD 切替で US 表示)。
+  \item \textbf{販売導線}: \hl{SNS 運用は行わない}。\hl{Google P-Max}(英語圏向け)+
+        用途別 LP + 無料デモ + Stripe Checkout で自動回収。
+  \item \textbf{月額固定費}: Vercel Pro 必須 + バックエンド + DB + ドメインで
+        \hl{¥9,140/月}。広告は別枠で\textbf{月 ¥50,000}を初期予算。
+  \item \textbf{損益分岐}: Pro プランで \hl{広告込み 25 人}/インフラのみ \textbf{4 人}。
+  \item \textbf{ユニットエコノミクス}: Pro の LTV $\approx$ ¥30,000、
+        P-Max 想定 CAC ¥4,000--¥6,000、ペイバック 3 ヶ月以内。
+  \item \textbf{18 ヶ月目標}: Pro 200 人 / MRR 約 60 万円 / 年間営業利益 \hl{約 442 万円}。
+\end{itemize}
+\end{tcolorbox}
+
+% =====================================================
+\section{プロダクト概要}
+
+\subsection*{プロダクトの本質}
+\texttt{Eddivom} は \hl{AI 教材作成 IDE}。LaTeX を知らないユーザーが
+\textbf{テンプレを選んで $\to$ AI に依頼して $\to$ 即 PDF で出す}ことができる
+self-serve SaaS。出力品質は LuaLaTeX のプロ組版そのもの、編集体験は
+Notion と Cursor の中間。
+
+\subsection*{システム構成(現行コードベース準拠)}
+
+\begin{center}
+\begin{tikzpicture}[
+    node distance=1.0cm and 1.3cm,
+    box/.style={draw, rounded corners=4pt, minimum width=2.6cm, minimum height=1.2cm,
+                align=center, font=\small, drop shadow},
+    arrow/.style={-{Stealth[length=3mm]}, thick, gray!70!black},
+    label/.style={font=\scriptsize\itshape, gray!50!black}
+]
+  \node[box, fill=cUser!20, draw=cUser] (user) {\textbf{ユーザー}\\ブラウザ};
+  \node[box, fill=cVercel!15, draw=cVercel, right=of user] (vercel) {\textbf{Vercel Pro}\\Next.js 16\\NextAuth};
+  \node[box, fill=cKoyeb!20, draw=cKoyeb, right=of vercel] (koyeb) {\textbf{Koyeb}\\FastAPI\\+ LuaLaTeX};
+  \node[box, fill=cNeon!20, draw=cNeon, right=of koyeb] (neon) {\textbf{Neon}\\Postgres};
+  \node[box, fill=cAI!15, draw=cAI, below=1.1cm of koyeb] (ai) {\textbf{OpenAI API}\\gpt-4.1 family};
+  \node[box, fill=yellow!20, draw=orange!70!black, below=1.1cm of vercel] (stripe) {\textbf{Stripe}\\Subscription\\+ Webhook};
+
+  \draw[arrow] (user) -- node[label, above]{HTTPS} (vercel);
+  \draw[arrow] (vercel) -- node[label, above]{API} (koyeb);
+  \draw[arrow] (koyeb) -- node[label, above]{SQL} (neon);
+  \draw[arrow] (koyeb) -- node[label, right]{Chat / OMR / 採点} (ai);
+  \draw[arrow] (vercel) -- (stripe);
+\end{tikzpicture}
+\end{center}
+
+\subsection*{既に実装されているコア機能}
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item \textbf{テンプレ駆動エディタ}: 12 種テンプレ(共通テスト風 / 国公立二次風 /
+        学校テスト / 塾プリント / 解説ノート / 演習プリント / 英語ワークシート /
+        レポート / 技術報告書 / プレゼン / 手紙 / 白紙)。
+  \item \textbf{Visual + LaTeX デュアルエディタ}: KaTeX で数式を即時レンダリングする
+        WYSIWYG ペインと、生 LaTeX ペインを切り替え可能。日本語数式入力対応。
+  \item \textbf{AI Chat エージェント}: ツール
+        \texttt{read\_latex / set\_latex / replace\_in\_latex / compile\_check} で
+        AI が \textbf{raw LaTeX を直接編集} $\to$ ストリーミングで提案 $\to$ ユーザー承認。
+  \item \textbf{OMR(Vision)}: 試験問題・ノート・答案画像 / PDF を OpenAI Vision で
+        構造化 LaTeX に変換して挿入。
+  \item \hl{採点モード(Grading Mode)}: 4 ステップウィザード
+        ― ルーブリック AI 自動抽出 $\to$ 答案画像アップロード $\to$ AI 採点 $\to$ 結果表示。
+  \item \textbf{教材工場}: \verb|{{変数}}| プレースホルダ + CSV/JSON で複数 PDF を
+        ZIP 一括出力。
+  \item \textbf{LuaLaTeX + luatexja + Harano Aji フォント}で日英バイリンガル組版。
+  \item \textbf{認証 + 課金}: NextAuth(Google OAuth)+ Stripe Subscription
+        + Webhook で plan 状態を Postgres に同期。
+  \item \textbf{i18n}: ja / en 完全対応(\texttt{frontend/lib/i18n.tsx})。
+\end{itemize}
+
+\subsection*{今後 12 ヶ月で伸ばす方向(プロダクトロードマップ)}
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item \hl{採点モードの SaaS 化}(差別化の最大の伸びしろ)―
+        TPT seller / tutor の業務時間の \textbf{30\% は採点}。AI 採点は
+        \textbf{月単価上げの最強カード}。
+  \item テンプレートマーケットプレイス(米国カリキュラム準拠テンプレ)
+  \item 答案の手書き OCR 強化(現状 Vision のみ → 専用前処理パイプラインに)
+  \item Slack / Google Classroom 連携(教材配布の自動化)
+  \item PWA / モバイル対応(homeschool 親の利用シーンに合わせる)
+\end{itemize}
+
+% =====================================================
+\section{市場機会}
+
+\subsection*{TAM / SAM / SOM}
+
+\begin{center}
+\begin{tikzpicture}[
+    node distance=0.1cm,
+    funnel/.style={draw, fill=#1, minimum height=0.95cm, align=center, font=\small}
+]
+  \node[funnel=cMid!15, minimum width=13cm] (tam) {\textbf{TAM} ― 英語圏教育コンテンツ制作者(全世界)\quad \hl{1,000 万人超}};
+  \node[funnel=cMid!30, minimum width=11cm, below=of tam] (sam) {\textbf{SAM} ― US の TPT seller / 独立 tutor / homeschool / curriculum 制作 \quad \hl{約 300 万人}};
+  \node[funnel=cMid!50, minimum width=9cm, below=of sam] (som3) {\textbf{SOM(3 年)} ― 上記の 0.03\%\quad \hl{約 900 人(Pro 換算)}};
+  \node[funnel=cMid!75, text=white, minimum width=7cm, below=of som3] (som1) {\textbf{18 ヶ月目標} ― Pro \hl{200 人 / MRR ¥60 万}};
+\end{tikzpicture}
+\end{center}
+
+\noindent
+TAM の根拠(公開統計の概数):
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item TPT(Teachers Pay Teachers)登録教師: \textbf{700 万人超}
+  \item US 独立系 tutor: 推定 \textbf{100--200 万人}(時給 \$40--\$120)
+  \item US homeschool 世帯: \textbf{300--500 万世帯}
+  \item 試験対策(SAT/ACT/GRE/ESL)制作者: 数十万人
+\end{itemize}
+
+\subsection*{なぜ英語圏 self-serve を主戦場にするのか}
+\begin{enumerate}[leftmargin=1.4em,itemsep=3pt]
+  \item \hl{支払い意欲が高い}: 独立系 tutor の時給 \$40--\$120。
+        Pro ¥2,980($\approx$ \$19)は \textbf{時給の 1/4 以下}で即決レンジ。
+  \item \hl{self-serve 文化が成熟}: Canva / Notion / Figma の延長で、営業 0 で
+        \textbf{広告 $\to$ LP $\to$ 課金}が回る。1人運営に最も適合。
+  \item \hl{Google P-Max が効きやすい}: ``worksheet generator'',
+        ``LaTeX worksheet template'', ``SAT practice generator'' など
+        \textbf{検索意図が言語化}されたキーワードが豊富。
+  \item \hl{時差を味方にできる}: US の昼に広告 $\to$ 日本の夜に CV が立つ。
+        1 人運営でも \textbf{自動回収のサイクルが寝ている間に回る}。
+\end{enumerate}
+
+\subsection*{日本を補助市場として残す理由}
+\begin{itemize}[leftmargin=1.4em,itemsep=3pt]
+  \item \textbf{日本語組版}(luatexja + Harano Aji)が既にデフォルト実装済 ―
+        追加コスト 0。
+  \item \textbf{個人塾・家庭教師}は SaaS 価格耐性が低い分競合が薄く、
+        \hl{日本語数式入力}が他にない差別化要素。
+  \item \textbf{採点モード}は日本の塾にとって即効性の高い機能 ― 月謝モデルとの相性が良い。
+\end{itemize}
+
+% =====================================================
+\section{顧客セグメント(優先順)}
+
+\begin{tcolorbox}[colback=green!5,colframe=green!50!black,title=\textbf{主戦場: 英語圏 self-serve EdTech}]
+\begin{enumerate}[leftmargin=1.4em,itemsep=4pt]
+  \item \hl{TPT(Teachers Pay Teachers)worksheet seller}\\
+        \textbf{業務}: 同じテンプレで科目・学年違いを量産し販売。\\
+        \textbf{刺さる機能}: 教材工場(バッチ) / テンプレ駆動 / LaTeX 数式品質。\\
+        \textbf{価格}: Pro(¥2,980)or Premium(¥12,800)。月 1 本販売で元が取れる。
+  \item \hl{独立系 tutor(SAT / ACT / GRE / ESL)}\\
+        \textbf{業務}: 生徒別に微調整したプリント + 採点。\\
+        \textbf{刺さる機能}: AI チャット編集 / OMR / \hl{採点モード} / 数式組版。\\
+        \textbf{価格}: Pro(¥2,980)。
+  \item \hl{Homeschool parents}\\
+        \textbf{業務}: 自宅学習用の週次プリントを科目別に自作。\\
+        \textbf{刺さる機能}: テンプレから 1 分で生成。\\
+        \textbf{価格}: Starter(¥980)中心、ボリュームで取る。
+  \item \hl{小規模 curriculum 制作者・Substack 教育ライター}\\
+        \textbf{業務}: PDF 商材の販売・配布。\\
+        \textbf{刺さる機能}: LaTeX 品質 / カスタムプリアンブル。\\
+        \textbf{価格}: Pro / Premium。
+\end{enumerate}
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=blue!5,colframe=blue!50!black,title=\textbf{補助市場: 日本の小規模教育事業者}]
+\begin{itemize}[leftmargin=1.4em,itemsep=3pt]
+  \item \textbf{個人塾・家庭教師(月謝 1--3 万円 / 生徒 5--30 名)}:
+        \hl{採点モード + 日本語数式入力}が決定的差別化。
+  \item \textbf{フリーランス講師・試験対策ブロガー}:
+        note 有料記事 / Gumroad の PDF 商材制作に使う。
+  \item \textbf{学校の部活顧問・非常勤講師}: Free 経由で口コミ拡散の入口。
+\end{itemize}
+\end{tcolorbox}
+
+% =====================================================
+\section{競合ポジショニング}
+
+横軸を「使いやすさ」、縦軸を「教育用 PDF の品質 + AI 編集力」として置く。
+
+\begin{center}
+\begin{tikzpicture}[font=\small]
+  \draw[->, thick, gray!60] (0,0) -- (10,0) node[right, black]{使いやすさ $\to$};
+  \draw[->, thick, gray!60] (0,0) -- (0,7) node[above, black]{$\uparrow$ 教育 PDF 品質 + AI};
+
+  \fill[green!8] (5,3.5) rectangle (10,7);
+
+  \node[draw, fill=gray!15, rounded corners, font=\scriptsize, align=center] at (1.8,5.8) {Overleaf\\(LaTeX 直書き)};
+  \node[draw, fill=gray!15, rounded corners, font=\scriptsize, align=center] at (8.0,1.5) {Canva};
+  \node[draw, fill=gray!15, rounded corners, font=\scriptsize, align=center] at (7.0,1.0) {Word /\\Google Docs};
+  \node[draw, fill=gray!15, rounded corners, font=\scriptsize, align=center] at (5.5,2.3) {Twee /\\MagicSchool};
+  \node[draw, fill=gray!15, rounded corners, font=\scriptsize, align=center] at (3.0,1.3) {無料 worksheet\\generator};
+  \node[draw, fill=gray!15, rounded corners, font=\scriptsize, align=center] at (5.5,4.5) {Quizizz / Kahoot\\(出題 only)};
+
+  \node[draw=cAlert, fill=red!15, ultra thick, rounded corners, font=\scriptsize\bfseries, align=center] at (8.0,5.7) {\textcolor{cAlert}{Eddivom}\\\textcolor{cAlert}{(本プロダクト)}};
+
+  \node[font=\scriptsize\itshape, green!50!black] at (8.5,6.6) {勝ち筋};
+\end{tikzpicture}
+\end{center}
+
+\noindent
+\textbf{勝ち筋の根拠}:
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item Overleaf は LaTeX 知識必須 ― \textbf{制作者の 95\% が触れない}。
+  \item Canva / Word は使いやすいが \textbf{数式と一括生成が壊滅的に弱い}。
+  \item Twee / MagicSchool は AI が強いが、出力が \textbf{HTML / Word}で印刷品質が出ない。
+  \item 無料 worksheet generator は \textbf{品質と AI 編集機能がない}。
+  \item \hl{Eddivom は「ブロック UI の使いやすさ」と「LaTeX 品質」の交点}を独占し、
+        さらに \hl{採点モードまで包括}するため模倣コストが高い。
+\end{itemize}
+
+% =====================================================
+\section{価格プラン(現行実装準拠)}
+
+価格は現行 \texttt{frontend/lib/plans.ts} の値をそのまま使用(JPY 基準)。
+US 表示は為替 \textbf{1 USD = 155 円}で換算。
+
+\begin{table}[h]
+\centering
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{lcccc}
+\toprule
+ & \textcolor{gray}{\textbf{Free}} &
+   \textcolor{cLow}{\textbf{Starter}} &
+   \textcolor{cMid}{\textbf{Pro}} &
+   \textcolor{cHigh}{\textbf{Premium}} \\
+\midrule
+月額(JPY)           & ¥0   & ¥980     & \hl{¥2,980}    & ¥12,800 \\
+月額(USD 換算)      & \$0  & \$6.3    & \hl{\$19}      & \$83 \\
+AI リクエスト/月    & 30   & 200      & 500            & 1,500 \\
+高精度モデル枠      & ―    & ―        & 50             & 200 \\
+教材工場(バッチ)  & ×    & ×        & \hl{50 行}     & 200 行 \\
+OMR / 採点モード    & ×    & ―        & \checkmark     & \checkmark(優先) \\
+PDF 出力            & 通常 & 通常     & 優先キュー      & 最優先 \\
+想定顧客            & 入口 & homeschool / 個人講師 & \hl{TPT seller / tutor / 塾} & curriculum 制作 \\
+AI 想定コスト/人月  & ¥21  & ¥140     & ¥485           & ¥1,590 \\
+Stripe 手数料(3.6\%)& ¥0   & ¥35      & ¥107           & ¥461 \\
+\midrule
+\textbf{月間粗利/人}  & --    & \textbf{¥805} & \hl{¥2,388} & \textbf{¥10,749} \\
+\textbf{粗利率}       & --    & 82\%          & 80\%        & 84\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{粗利の前提}
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+  \item \textbf{AI 実費}: OpenAI gpt-4.1-mini 通常時 \$0.0088/req($\approx$ ¥1.4)+
+        gpt-4.1 高精度時 \$0.044/req($\approx$ ¥6.8)。
+  \item \textbf{平均稼働率 50\% 想定}(自分の plan の上限を毎月使い切るユーザーは少数)。
+  \item \textbf{Stripe}: 日本国内カードは 3.6\%(固定費なし)。
+\end{itemize}
+
+\noindent
+粗利の定義:
+\[
+  \text{粗利}
+  = \text{月額料金}
+  - 0.036 \times \text{月額料金}
+  - C^{\text{AI}}_{\text{実消費}}
+\]
+
+\subsection*{料金 vs 粗利}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    width=13cm, height=6cm,
+    bar width=0.55cm,
+    ymin=0, ymax=14000,
+    ylabel={\small 円/月},
+    symbolic x coords={Starter,Pro,Premium},
+    xtick=data,
+    nodes near coords,
+    nodes near coords style={font=\scriptsize, /pgf/number format/.cd, use comma, 1000 sep={,}},
+    enlarge x limits=0.3,
+    legend style={at={(0.5,-0.18)},anchor=north,legend columns=2,font=\small},
+    tick label style={font=\small},
+    ymajorgrids=true,
+    grid style=dashed,
+]
+\addplot[fill=cMid!40, draw=cMid] coordinates {(Starter,980) (Pro,2980) (Premium,12800)};
+\addplot[fill=cLow!60, draw=cLow] coordinates {(Starter,805) (Pro,2388) (Premium,10749)};
+\legend{月額料金,粗利}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+% =====================================================
+\section{コスト構造(Vercel Pro 必須前提)}
+
+商用 SaaS のため Vercel Hobby は規約上不可。\textbf{Vercel Pro を初月から}積む。
+
+\subsection*{月額固定費(インフラ)}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+    xbar,
+    width=13cm, height=6.5cm,
+    bar width=0.45cm,
+    xmin=0, xmax=4000,
+    xlabel={\small 月額(円)},
+    symbolic y coords={{ドメイン},{Resend\\(Free)},{Neon\\(Free→Launch)},{Koyeb\\(Eco nano)},{Vercel\\Pro \$20}},
+    ytick=data,
+    yticklabel style={font=\scriptsize, align=right},
+    nodes near coords,
+    nodes near coords style={font=\scriptsize, /pgf/number format/.cd, use comma, 1000 sep={,}},
+    enlarge y limits=0.18,
+    tick label style={font=\small},
+    xmajorgrids=true,
+    grid style=dashed,
+]
+\addplot[fill=cVercel!40, draw=cVercel] coordinates {
+    (3100,{Vercel\\Pro \$20})
+    (1500,{Koyeb\\(Eco nano)})
+    (0,{Neon\\(Free→Launch)})
+    (0,{Resend\\(Free)})
+    (150,{ドメイン})
+};
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrl}
+\toprule
+\textbf{項目} & \textbf{月額(円)} & \textbf{備考} \\
+\midrule
+\hl{Vercel Pro}     & 3,100  & \$20/月。商用化必須 / 帯域 1TB / 100k Image Optimizations。 \\
+Koyeb Eco nano      & 1,500  & \$9.6/月。LuaLaTeX を動かす最小常駐(MVP--100 ユーザー期)。 \\
+Neon Free $\to$ Launch & 0 $\to$ 2,945 & \$19/月。300 ユーザー超で昇格。 \\
+Resend Free         & 0      & 3,000 通/月。トランザクション通知のみ。 \\
+独自ドメイン        & 150    & 年 1,800 円程度を月割。 \\
+\midrule
+\hl{インフラ合計(初期)} & \hl{4,750} & 0 から 100 ユーザーまではこの構成で耐える。 \\
+\hl{インフラ合計(成長)} & \hl{9,140} & Koyeb Starter + Neon Launch に昇格(200 ユーザー前後)。 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{広告予算(P-Max)}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrl}
+\toprule
+\textbf{フェーズ} & \textbf{月予算} & \textbf{方針} \\
+\midrule
+0--3 ヶ月(学習)   & ¥30,000  & 入札・LP・クリエイティブの試行錯誤。CAC 高め前提。 \\
+3--6 ヶ月(最適化)  & ¥50,000  & 効くアセットに集約。CAC ¥6,000 を目標。 \\
+6--12 ヶ月(拡大)   & ¥80,000  & ROAS 安定後に増額。CAC ¥4,500--6,000。 \\
+12--18 ヶ月(規模化)& ¥100,000 & Pro 200 人規模を目指す。 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{月額総コスト(初期 / 成長)}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+    ybar stacked,
+    width=13cm, height=5cm,
+    bar width=0.9cm,
+    ymin=0,
+    ylabel={\small 月額(円)},
+    symbolic x coords={初期(MVP),3-6ヶ月,6-12ヶ月,12-18ヶ月},
+    xtick=data,
+    legend style={at={(0.5,-0.22)},anchor=north,legend columns=2,font=\small},
+    tick label style={font=\small},
+    nodes near coords,
+    nodes near coords style={font=\tiny\bfseries, /pgf/number format/.cd, use comma, 1000 sep={,}},
+    point meta=explicit symbolic,
+    enlarge x limits=0.18,
+]
+\addplot[fill=cVercel!40, draw=cVercel] coordinates {
+    (初期(MVP),4750)  []
+    (3-6ヶ月,4750)    []
+    (6-12ヶ月,9140)   []
+    (12-18ヶ月,9140)  []
+};
+\addplot[fill=cAd!60, draw=cAd] coordinates {
+    (初期(MVP),30000)  [34,750]
+    (3-6ヶ月,50000)    [54,750]
+    (6-12ヶ月,80000)   [89,140]
+    (12-18ヶ月,100000) [109,140]
+};
+\legend{インフラ,P-Max 広告}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+% =====================================================
+\section{ユニットエコノミクスと P-Max の経済性}
+
+\subsection*{LTV と許容 CAC}
+
+月次チャーン率を保守的に \hl{8\%}(US self-serve EdTech の中央値)と置き、
+平均継続 \textbf{12.5 ヶ月}と仮定する。
+\[
+  \text{LTV} = \text{月粗利} \times 12.5,
+  \quad
+  \text{許容 CAC} = \frac{\text{LTV}}{3} \quad (\text{LTV/CAC} = 3 \text{ ルール})
+\]
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    width=13cm, height=6cm,
+    bar width=0.55cm,
+    ymin=0,
+    ylabel={\small 円},
+    symbolic x coords={Starter,Pro,Premium},
+    xtick=data,
+    nodes near coords,
+    nodes near coords style={font=\scriptsize, /pgf/number format/.cd, use comma, 1000 sep={,}},
+    enlarge x limits=0.3,
+    legend style={at={(0.5,-0.18)},anchor=north,legend columns=2,font=\small},
+    tick label style={font=\small},
+    ymajorgrids=true,
+    grid style=dashed,
+]
+\addplot[fill=cHigh!50, draw=cHigh] coordinates {(Starter,10063) (Pro,29850) (Premium,134363)};
+\addplot[fill=cAI!50, draw=cAI] coordinates {(Starter,3354) (Pro,9950) (Premium,44788)};
+\legend{LTV(12.5 ヶ月),許容 CAC(LTV $\div$ 3)}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+\subsection*{P-Max CAC の試算}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrl}
+\toprule
+\textbf{指標} & \textbf{値} & \textbf{備考} \\
+\midrule
+US worksheet / tutor 系 CPC      & \$0.8--\$1.5     & Google P-Max の英語 EdTech 平均 \\
+LP $\to$ 無料登録 CVR           & 8--15\%          & 用途別 LP + ログイン不要デモが効く \\
+無料 $\to$ Pro 課金 CVR         & 5--10\%          & self-serve SaaS 中央値 \\
+1 課金あたり必要クリック数      & 約 100--250 件    & 上記を掛け合わせた逆算 \\
+\hl{P-Max CAC(目標)}           & \hl{¥4,000--6,000} & 学習期は ¥10,000--12,000 \\
+ペイバック期間                  & 2--3 ヶ月         & Pro 月粗利 ¥2,388 で割る \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5,colframe=green!50!black,title=\textbf{P-Max ユニット経済性の読み}]
+\begin{itemize}[leftmargin=1.4em,itemsep=3pt]
+  \item Pro の許容 CAC は \hl{約 ¥9,950}。P-Max 目標 CAC ¥4,000--6,000 は
+        \textbf{許容範囲の 40--60\%}に収まり健全。
+  \item 学習期 CAC ¥10,000--12,000 は \textbf{許容ギリギリ}。0--3 ヶ月は赤字許容、
+        4 ヶ月目以降に最適化で押し下げる前提。
+  \item Premium の許容 CAC は約 ¥44,788。\hl{個別営業をかけても回収できる}水準だが、
+        self-serve 方針のため積極営業はしない。
+  \item Starter は許容 CAC ¥3,354。\textbf{P-Max では取りに行かない}。
+        Pro LP 経由のダウンセル受け皿として使う。
+\end{itemize}
+\end{tcolorbox}
+
+% =====================================================
+\section{損益分岐点}
+
+固定費 = インフラ \hl{¥9,140}(成長モード)+ P-Max \hl{¥50,000}(基準シナリオ)
+$=$ \textbf{¥59,140/月}を損益分岐点の基準に置く。
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+    width=14cm, height=8cm,
+    xlabel={\small 有料ユーザー数(人)},
+    ylabel={\small 月間営業利益(円)},
+    xmin=0, xmax=80,
+    ymin=-80000, ymax=140000,
+    legend pos=north west,
+    legend style={font=\small},
+    grid=major,
+    grid style=dashed,
+    tick label style={font=\small},
+    scaled y ticks=false,
+    yticklabel style={/pgf/number format/fixed, /pgf/number format/use comma, /pgf/number format/1000 sep={,}},
+    xtick={0,10,20,30,40,50,60,70,80},
+    extra y ticks={0},
+    extra y tick style={grid=major, grid style={black, thick}},
+]
+\addplot[cLow, ultra thick, domain=0:80, samples=2] {805*x - 59140};
+\addlegendentry{Starter (広告込み)}
+\addplot[cMid, ultra thick, domain=0:80, samples=2] {2388*x - 59140};
+\addlegendentry{Pro (広告込み)}
+\addplot[cHigh, ultra thick, domain=0:80, samples=2] {10749*x - 59140};
+\addlegendentry{Premium (広告込み)}
+\addplot[cMid, dashed, thick, domain=0:80, samples=2] {2388*x - 9140};
+\addlegendentry{Pro (インフラのみ)}
+
+\node[circle, fill=cLow, inner sep=2pt] at (axis cs:73,0) {};
+\node[font=\scriptsize, above left, cLow] at (axis cs:73,0) {73人};
+\node[circle, fill=cMid, inner sep=2pt] at (axis cs:25,0) {};
+\node[font=\scriptsize, above right, cMid] at (axis cs:25,0) {25人};
+\node[circle, fill=cHigh, inner sep=2pt] at (axis cs:6,0) {};
+\node[font=\scriptsize, above right, cHigh] at (axis cs:6,0) {6人};
+\node[circle, fill=cMid, inner sep=2pt] at (axis cs:4,0) {};
+\node[font=\scriptsize, below right, cMid] at (axis cs:4,0) {4人(広告0)};
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+ & \textcolor{cLow}{\textbf{Starter}} & \textcolor{cMid}{\textbf{Pro}} & \textcolor{cHigh}{\textbf{Premium}} \\
+\midrule
+損益分岐(インフラのみ ¥9,140)        & 12人  & \hl{4人}  & 1人 \\
+損益分岐(広告込み ¥59,140)            & 73人  & \hl{25人} & 6人 \\
+100 人時の月間営業利益(広告込み)       & 21,360円 & \hl{179,660円} & 1,015,760円 \\
+100 人時の年間営業利益(広告込み)       & 約26万円 & \hl{約216万円} & 約1,219万円 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=yellow!10,colframe=orange!60!black,title=\textbf{ここを覚えておく}]
+\hl{Pro 25 人}が広告込みの黒字化ライン。\hl{Pro 100 人}で月利約 18 万円。\\
+P-Max を ¥50,000/月で回しながら 25 人を集めれば\textbf{損益トントン}、
+そこから先は\textbf{純粋な自動利益機械}になる。
+\end{tcolorbox}
+
+% =====================================================
+\section{売上シナリオ(100 / 200 / 300 人)}
+
+P-Max 予算は規模に応じて段階増額(¥50k $\to$ ¥80k $\to$ ¥120k)。
+インフラは成長モード(¥9,140)で計算。
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    width=13cm, height=7cm,
+    bar width=0.55cm,
+    ymin=0,
+    ylabel={\small 年間営業利益(万円)},
+    symbolic x coords={100人,200人,300人},
+    xtick=data,
+    nodes near coords,
+    nodes near coords style={font=\small\bfseries},
+    enlarge x limits=0.3,
+    legend style={at={(0.5,-0.18)},anchor=north,legend columns=3,font=\small},
+    tick label style={font=\small},
+    ymajorgrids=true,
+    grid style=dashed,
+]
+\addplot[fill=cLow!50, draw=cLow] coordinates {(100人,-45) (200人,82) (300人,193)};
+\addplot[fill=cMid!50, draw=cMid] coordinates {(100人,216) (200人,479) (300人,716)};
+\addplot[fill=cHigh!50, draw=cHigh] coordinates {(100人,1219) (200人,2502) (300人,3753)};
+\legend{Starter,Pro,Premium}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+ & \textbf{Starter} & \textbf{Pro} & \textbf{Premium} \\
+\midrule
+月商(100人)         & 98,000円  & 298,000円 & 1,280,000円 \\
+月間粗利(100人)     & 80,500円  & 238,800円 & 1,074,900円 \\
+月間営業利益(100人) & 21,360円  & \hl{179,660円} & 1,015,760円 \\
+年間営業利益(100人) & 約26万円  & \hl{約216万円} & 約1,219万円 \\
+\midrule
+月商(200人)         & 196,000円 & 596,000円 & 2,560,000円 \\
+年間営業利益(200人) & 約82万円  & \hl{約479万円(生活ライン)} & 約2,502万円 \\
+\midrule
+月商(300人)         & 294,000円 & 894,000円 & 3,840,000円 \\
+年間営業利益(300人) & 約193万円 & \hl{約716万円} & 約3,753万円 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\hl{Pro 200 人}(月商 60 万円・年利約 479 万円)が \hl{1人運営の生活ライン}。
+SAM 300 万人の \textbf{0.007\%}でしかない。P-Max + LP の組み合わせで十分到達可能。
+
+% =====================================================
+\section{販売戦略 ― P-Max + LP 中心(SNS 運用なし)}
+
+\subsection*{大原則}
+\hl{SNS 運用は行わない}。\textbf{時間が一番のコスト}だから、SNS 投稿に
+1 日 1 時間使うくらいなら、その時間でプロダクトを良くするか LP を改善する。
+代わりに \hl{Google P-Max を 24 時間自動で回す}。
+
+\subsection*{流入チャネル配分}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+    xbar stacked,
+    width=13cm, height=2.8cm,
+    bar width=1.0cm,
+    xmin=0, xmax=100,
+    xlabel={\small 流入シェア(\%)},
+    symbolic y coords={{改訂計画}},
+    ytick=data,
+    legend style={at={(0.5,-0.55)},anchor=north,legend columns=4,font=\scriptsize},
+    tick label style={font=\small},
+    xmajorgrids=true,
+    grid style=dashed,
+    nodes near coords,
+    nodes near coords style={font=\tiny, white, /pgf/number format/fixed},
+    point meta=explicit symbolic,
+    enlarge y limits=0.5,
+]
+\addplot[fill=cAd!70, draw=cAd] coordinates {(70,{改訂計画}) [70\%]};
+\addplot[fill=cMid!60, draw=cMid] coordinates {(15,{改訂計画}) [15\%]};
+\addplot[fill=cHigh!60, draw=cHigh] coordinates {(10,{改訂計画}) [10\%]};
+\addplot[fill=gray!40, draw=gray] coordinates {(5,{改訂計画}) [5\%]};
+\legend{Google P-Max,LP 直接 / 指名検索,オーガニック SEO,口コミ}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+\subsection*{Google P-Max の運用設計}
+
+\begin{enumerate}[leftmargin=1.4em,itemsep=3pt]
+  \item \hl{用途別アセットグループを 4 つ作る}: worksheet creator / independent tutor /
+        homeschool / TPT seller。それぞれに別 LP を紐付ける。
+  \item \textbf{オーディエンスシグナル}: ``Teachers Pay Teachers'',
+        ``LaTeX'', ``Khan Academy creator'', ``homeschool curriculum''
+        などを入れて学習を助ける。
+  \item \textbf{コンバージョン定義}: \hl{Stripe Checkout 完了}を
+        メインコンバージョン(値: \$19 = ¥2,945)。
+        無料登録は副次コンバージョン(値: \$2)。
+  \item \textbf{除外キーワード}: ``free'', ``reddit'', ``cracked'', ``download'' などを
+        負のシグナルとして埋め込む。
+  \item \textbf{予算シーリング}: 日予算 = 月予算 / 30。学習期は CAC のみ監視、
+        \textbf{4 週間は触らない}。
+  \item \textbf{LP は最小 4 種、A/B テストは 1 軸ずつ}。1 人運営なので
+        テスト多重化は禁止。
+  \item \textbf{自動拡張は最初オフ}: 検索ターム取得 $\to$ 効くものを後から手動で広げる。
+  \item \textbf{ROAS が想定の 70\%を切ったら即予算 50\%カット}。1 人運営の止血ルール。
+\end{enumerate}
+
+\subsection*{LP 設計(用途別 4 種)}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{p{3cm}p{4.5cm}p{5.5cm}}
+\toprule
+\textbf{LP} & \textbf{ヘッドライン} & \textbf{デモ動線} \\
+\midrule
+\texttt{/worksheets} & \emph{``Generate beautiful worksheets in 30 seconds''} &
+30 秒デモ $\to$ メールで PDF を受け取る $\to$ 7 日トライアル \\
+\texttt{/tutor}      & \emph{``Custom test prep, AI-graded''} &
+\hl{採点モード}のデモ動画 $\to$ 無料登録 \\
+\texttt{/homeschool} & \emph{``Weekly worksheets, zero design time''} &
+学年テンプレを選ぶだけのデモ $\to$ Starter 訴求 \\
+\texttt{/tpt}        & \emph{``10x your TPT output with batch generation''} &
+教材工場(CSV)のデモ $\to$ Pro 訴求 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{販売ファネル}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.15cm, font=\small]
+  \node[draw, fill=cAd!20, draw=cAd, minimum width=12cm, minimum height=0.85cm, align=center] (ad) {\textbf{1. Google P-Max(検索 / Display / YouTube / Gmail)}};
+  \node[draw, fill=cAd!35, draw=cAd, minimum width=10.5cm, minimum height=0.85cm, align=center, below=of ad] (lp) {\textbf{2. 用途別 LP に到着(30 秒デモ + 価格表)}};
+  \node[draw, fill=cAd!50, draw=cAd, minimum width=9cm, minimum height=0.85cm, align=center, below=of lp] (demo) {\textbf{3. ログイン不要デモで 1 枚 PDF 作成}};
+  \node[draw, fill=cAd!65, draw=cAd, minimum width=7.5cm, minimum height=0.85cm, align=center, below=of demo] (free) {\textbf{4. Google でサインアップ → Free プラン}};
+  \node[draw, fill=cAd!80, draw=cAd, text=white, minimum width=6cm, minimum height=0.85cm, align=center, below=of free] (drip) {\textbf{5. 7 日ドリップ + アップグレード訴求}};
+  \node[draw, fill=cAd, draw=cAd, text=white, minimum width=4.5cm, minimum height=0.85cm, align=center, below=of drip] (paid) {\textbf{6. Stripe Checkout で Pro 課金}};
+
+  \foreach \a/\b in {ad/lp, lp/demo, demo/free, free/drip, drip/paid}
+    \draw[-{Stealth[length=3mm]}, thick, gray] (\a.south) -- (\b.north);
+\end{tikzpicture}
+\end{center}
+
+\subsection*{各段階のコンバージョン仮定}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrl}
+\toprule
+\textbf{段階} & \textbf{率} & \textbf{備考} \\
+\midrule
+P-Max インプ $\to$ クリック  & 4\%   & EdTech 系 P-Max の中央値 \\
+クリック $\to$ デモ起動      & 35\%  & ログイン不要が効く \\
+デモ起動 $\to$ Free 登録     & 25\%  & ``Save your work'' ゲート \\
+Free $\to$ Pro 課金          & 8\%   & 7 日ドリップ + 採点モードでアップセル \\
+Free $\to$ Starter ダウンセル & 6\%   & 価格抵抗のある層の受け皿 \\
+\midrule
+\hl{純合計 Free $\to$ 課金}  & \hl{14\%} & Pro + Starter 合計 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{逆算}: P-Max で月 ¥50,000 を投下、CPC ¥150(\$1.0)で \textbf{333 クリック}。
+$\to$ デモ 117 件 $\to$ Free 29 件 $\to$ \hl{Pro 約 2.3 人 / Starter 約 1.7 人 = 月 4 人新規}。
+最適化が進めば CPC が下がり \textbf{月 6--10 人新規}まで伸びる。
+
+% =====================================================
+\section{18 ヶ月マイルストーン}
+
+US 主軸で P-Max を回しながら、補助で日本 LP を維持。
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+    width=14cm, height=6cm,
+    xlabel={\small 経過月},
+    ylabel={\small 累計 Pro ユーザー(人)},
+    xmin=0, xmax=18,
+    ymin=0, ymax=220,
+    legend pos=north west,
+    legend style={font=\small},
+    grid=major,
+    grid style=dashed,
+    tick label style={font=\small},
+    xtick={0,3,6,9,12,15,18},
+]
+\addplot[cUS, ultra thick, mark=square*] coordinates {
+    (0,0) (3,12) (6,32) (9,58) (12,95) (15,140) (18,200)
+};
+\addlegendentry{US(P-Max主軸)}
+\addplot[cJP, ultra thick, mark=*] coordinates {
+    (0,0) (3,3) (6,8) (9,15) (12,22) (15,28) (18,33)
+};
+\addlegendentry{日本(補助・口コミ)}
+\addplot[cInk, dashed, thick] coordinates {
+    (0,0) (3,15) (6,40) (9,73) (12,117) (15,168) (18,233)
+};
+\addlegendentry{合計 Pro 換算}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+\begin{table}[h]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lp{4.5cm}p{6cm}p{2.3cm}}
+\toprule
+\textbf{期間} & \textbf{プロダクト} & \textbf{販売} & \textbf{累計目標} \\
+\midrule
+0--3 ヶ月  & LP 4 種公開 / 採点モード安定化 / 英語 onboarding 整備。 & P-Max 学習期 ¥30k/月。CAC 高め容認。Pro 12 人。 & MRR ¥3.6 万 \\
+3--6 ヶ月  & テンプレ追加(US カリキュラム準拠 5 種)。 & P-Max ¥50k/月に増額。LP A/B テスト。Pro 32 人(\hl{黒字化}). & MRR ¥9.5 万 \\
+6--9 ヶ月  & 採点モード v2(手書き OCR 強化)。 & ROAS 安定。Pro 58 人。インフラ\hl{成長モード}昇格。 & MRR ¥17 万 \\
+9--12 ヶ月 & テンプレマーケットプレイス β。 & P-Max ¥80k/月。Pro 95 人。 & MRR ¥28 万 \\
+12--15 ヶ月& Slack / Classroom 連携。 & P-Max ¥100k/月。Pro 140 人。 & MRR ¥42 万 \\
+15--18 ヶ月& PWA / モバイル最適化。 & \hl{Pro 200 人}。年利 \hl{約 479 万円}。 & \hl{MRR ¥60 万} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =====================================================
+\section{リスクと対策}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{p{4.5cm}p{4cm}p{6.5cm}}
+\toprule
+\textbf{リスク} & \textbf{影響} & \textbf{対策} \\
+\midrule
+\hl{P-Max 学習期に CAC が高止まり} & 高 & 4 週間は触らない / それでも改善しなければアセット 2 軸入替 / 最悪 30\%減額 \\
+\midrule
+P-Max のブラックボックス化      & 中  & 検索ターム週次レビュー / コンバージョン値の手動キャリブレーション \\
+\midrule
+OpenAI API コスト急増           & 中--高 & gpt-4.1-nano フォールバック / プロンプトキャッシュ / レート制限 \\
+\midrule
+チャーン率が想定 8\% を上回る   & 中  & 採点モードのオンボーディング動画 / 学期節目の休眠通知メール \\
+\midrule
+OpenAI API 障害                 & 中  & 編集 UI は AI なしでも動作 / gpt-4.1 $\to$ gpt-4.1-mini フォールバック \\
+\midrule
+Vercel / Koyeb の値上げ         & 低  & 年間プラン化 / 競合(Render / Fly.io)へ移植性を保つ \\
+\midrule
+為替変動(円高方向)            & 中  & USD 価格を主軸にして円換算は連動。コストは USD 連動 \\
+\midrule
+1 人運営の身体リスク            & 高  & インフラ自動デプロイ / カスタマー対応はヘルプ記事で資産化 / 障害時は P-Max 自動停止 \\
+\midrule
+Canva / Notion の機能追随        & 中  & 採点モード + 教材工場 + LaTeX 品質の \textbf{3 点同時}は模倣コストが高い \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% =====================================================
+\section{やらないこと(1人運営の鉄則)}
+
+\begin{tcolorbox}[colback=red!5,colframe=red!50!black,title=\textbf{\textcolor{cAlert}{意識的に避ける施策}}]
+\begin{itemize}[leftmargin=1.4em,itemsep=3pt]
+  \item \hl{SNS 運用(X / Instagram / TikTok)}: 1 人運営の時間が一番のコスト。
+        投稿に費やす時間はプロダクト改善か LP 改善に回す。
+  \item \hl{Reddit / Discord での製品アピール投稿}: アカウント BAN リスクが
+        広告 ROI に対して見合わない。
+  \item \hl{学校 / 学校区(District)向けエンタープライズ営業}: 契約サイクルが長く
+        1 人運営を殺す。\textbf{self-serve 率 100\%}を維持。
+  \item \hl{個別カスタマイズ対応}: 単発の売上が運営を止める。テンプレ化できる範囲のみ。
+  \item \hl{Freemium の無制限化}: 無料枠は \textbf{月 30 リクエスト + 透かし}で固定。
+  \item \hl{P-Max の手動入札・調整中毒}: アルゴリズムを信用する。週 1 のレビュー以外は触らない。
+  \item \hl{大量の言語ローカライズ}: 英語と日本語の 2 言語のみ。他言語は MRR ¥100 万円超まで凍結。
+  \item \hl{自前の決済システム実装}: Stripe にすべてを任せる。Webhook 1 本だけ守る。
+\end{itemize}
+\end{tcolorbox}
+
+% =====================================================
+\section*{KPI 早見表}
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{ll}
+\toprule
+ブランド                                       & \texttt{Eddivom}(AI 教材作成 IDE) \\
+主戦場                                         & 英語圏(US 中心)self-serve EdTech \\
+補助市場                                       & 日本の個人塾 / 家庭教師 / 小規模教室 \\
+主力プラン                                     & \hl{Pro ¥2,980/月($\approx$ \$19)} \\
+販売エンジン                                   & \hl{Google P-Max + 用途別 LP + Stripe} \\
+SNS 運用                                       & \hl{なし}(時間コストを切る) \\
+インフラ固定費(初期 / 成長)                  & ¥4,750 / \hl{¥9,140} \\
+P-Max 月予算(基準)                           & \hl{¥50,000}(段階的に ¥100k まで) \\
+Pro 月間粗利 / 人                              & ¥2,388(粗利率 80\%) \\
+Pro LTV(チャーン 8\% 想定)                   & 約 ¥29,850 \\
+Pro 許容 CAC(LTV/CAC = 3)                    & 約 ¥9,950 \\
+P-Max CAC 目標(最適化後)                     & \hl{¥4,000--¥6,000} \\
+損益分岐(Pro / インフラのみ)                 & \hl{4 人} \\
+損益分岐(Pro / 広告込み ¥59,140)             & \hl{25 人} \\
+6 ヶ月目標(Pro 累計)                         & 32 人 \\
+12 ヶ月目標(Pro 累計)                        & 95 人 \\
+\hl{18 ヶ月目標(Pro 累計)}                   & \hl{200 人 / MRR ¥60 万} \\
+Pro $\times$ 100 人時の年間営業利益            & 約 216 万円 \\
+\hl{Pro $\times$ 200 人時の年間営業利益}       & \hl{約 479 万円(生活ライン)} \\
+Pro $\times$ 300 人時の年間営業利益            & 約 716 万円 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

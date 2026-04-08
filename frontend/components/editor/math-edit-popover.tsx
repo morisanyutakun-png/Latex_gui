@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { JapaneseMathInput } from "./math-japanese-input";
 import { MathRenderer } from "./math-editor";
 import { useI18n } from "@/lib/i18n";
+import { latexToJapanese } from "@/lib/math-japanese";
 import { X } from "lucide-react";
 
 interface MathEditPopoverProps {
@@ -17,12 +18,17 @@ interface MathEditPopoverProps {
 /**
  * 数式編集ポップアップ
  *
- * 制約: 既存 LaTeX → 日本語読みの逆引きはできないため、
- * 既存数式は KaTeX プレビューで表示するだけ。入力欄は空で、新規入力で上書きする方式。
+ * 既存数式を編集する場合は、`latexToJapanese` で日本語訳を生成して入力欄に
+ * 初期表示する。同時に元の LaTeX を override として保持しておくことで、
+ * ユーザーが何も編集せずに apply しても元の LaTeX がそのまま戻る。
+ * (ユーザーが入力欄に触ると override は自動でクリアされ、日本語が再パースされる)
  */
 export function MathEditPopover({ initialLatex, onApply, onClose }: MathEditPopoverProps) {
   const { t } = useI18n();
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  const initialJapanese = useMemo(() => latexToJapanese(initialLatex), [initialLatex]);
+  const hasInitial = initialLatex.trim().length > 0;
 
   // Esc で閉じる
   useEffect(() => {
@@ -69,8 +75,8 @@ export function MathEditPopover({ initialLatex, onApply, onClose }: MathEditPopo
           </button>
         </div>
 
-        {/* 現在の数式プレビュー */}
-        {initialLatex.trim() && (
+        {/* 現在の数式プレビュー (新規挿入なら表示しない) */}
+        {hasInitial && (
           <div className="px-4 py-3 border-b border-border/40 bg-muted/20">
             <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1.5">
               {t("doc.editor.math.popover.current")}
@@ -78,15 +84,14 @@ export function MathEditPopover({ initialLatex, onApply, onClose }: MathEditPopo
             <div className="flex justify-center py-1 overflow-auto">
               <MathRenderer latex={initialLatex} displayMode={true} />
             </div>
-            <div className="text-[10px] text-amber-600/80 dark:text-amber-400/80 mt-1.5 text-center">
-              {t("doc.editor.math.popover.hint")}
-            </div>
           </div>
         )}
 
-        {/* JapaneseMathInput 本体 */}
+        {/* JapaneseMathInput 本体 — 既存式の場合は日本語訳がデフォルトで入力済み */}
         <div className="p-3 max-h-[60vh] overflow-y-auto">
           <JapaneseMathInput
+            initialSourceText={hasInitial ? initialJapanese : ""}
+            initialOverrideLatex={hasInitial ? initialLatex : null}
             onApply={(latex) => {
               handleApply(latex);
               onClose();

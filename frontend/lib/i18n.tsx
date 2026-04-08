@@ -257,6 +257,8 @@ const ja = {
   "doc.editor.math.popover.current": "現在の数式",
   "doc.editor.math.popover.hint": "新しい入力で上書きされます。空のまま閉じれば変更されません。",
   "doc.editor.math.popover.cancel": "キャンセル",
+  "doc.editor.math.insert": "数式を挿入",
+  "doc.editor.math.insert.tooltip": "カーソル位置に数式を挿入 (Cmd+M / Ctrl+M)",
 
   // Editor sidebar / page
   "side.tooltip.ai": "AIアシスタント",
@@ -639,6 +641,8 @@ const en = {
   "doc.editor.math.popover.current": "Current formula",
   "doc.editor.math.popover.hint": "Anything you type will replace the current formula. Close empty to leave it untouched.",
   "doc.editor.math.popover.cancel": "Cancel",
+  "doc.editor.math.insert": "Insert formula",
+  "doc.editor.math.insert.tooltip": "Insert a formula at the cursor (Cmd+M / Ctrl+M)",
 
   // Editor sidebar / page
   "side.tooltip.ai": "AI Assistant",

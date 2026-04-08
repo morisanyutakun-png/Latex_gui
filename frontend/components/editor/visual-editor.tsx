@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import "katex/contrib/mhchem";
+import { Sigma } from "lucide-react";
 import {
   parseLatexToSegments,
   replaceRange,
@@ -15,6 +16,13 @@ import {
 } from "@/lib/latex-segments";
 import { useI18n } from "@/lib/i18n";
 import { MathEditPopover } from "./math-edit-popover";
+
+// 数式チップ挿入後にホスト editable へ「内容を commit せよ」と通知するためのカスタムイベント名。
+// 各 editable block (ContentEditableBlock / TrailingEditableParagraph) はこのイベントを購読し、
+// シリアライズして親の onCommit (paragraph) または onInsert (trailing) を発火する。
+// この仕組みのおかげで FAB / ショートカット等、コンポーネントツリー外から発火する経路でも
+// 一様に commit を起こせる。
+const COMMIT_EVENT = "latex-gui:commit-now";
 
 // ─────────────────────────────────────
 // MathEditorContext — 数式編集ポップオーバーを開くための DI。
@@ -92,6 +100,51 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
     setMathEditRequest(req);
   }, []);
 
+  // ─── 「数式を挿入」ボタン用: 最後にフォーカスがあった editable を追跡 ───
+  // ボタンを mousedown.preventDefault で押すと選択範囲が消えないので、ボタンクリック時に
+  // window.getSelection() を読めば十分だが、念のためフォールバック先として保持しておく。
+  const lastFocusedEditableRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      let el = e.target as HTMLElement | null;
+      while (el && el !== window.document.body) {
+        if (el.isContentEditable && el.getAttribute("contenteditable") === "true") {
+          lastFocusedEditableRef.current = el;
+          return;
+        }
+        el = el.parentElement;
+      }
+    };
+    window.document.addEventListener("focusin", onFocusIn);
+    return () => window.document.removeEventListener("focusin", onFocusIn);
+  }, []);
+
+  /** ツールバー / FAB から「カーソル位置に数式を挿入」を発動する */
+  const requestInsertMath = useCallback(() => {
+    let target: HTMLElement | null = lastFocusedEditableRef.current;
+    if (!target || !window.document.body.contains(target)) {
+      target = trailingRef.current;
+    }
+    if (!target) return;
+
+    // 現在の選択範囲が target の中になければ末尾に caret を置く
+    const sel = window.getSelection();
+    const inside =
+      sel && sel.anchorNode && target.contains(sel.anchorNode);
+    if (!inside) {
+      target.focus();
+      const range = window.document.createRange();
+      range.selectNodeContents(target);
+      range.collapse(false);
+      const sel2 = window.getSelection();
+      if (sel2) {
+        sel2.removeAllRanges();
+        sel2.addRange(range);
+      }
+    }
+    insertEmptyMathChipAndEdit(target, openMathEditor);
+  }, [openMathEditor]);
+
   // Edit を発行するヘルパー: range と新スニペットを受け取り、onChange を呼ぶ
   const applyRangeEdit = useCallback(
     (range: Range, newSnippet: string) => {
@@ -151,27 +204,41 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
 
   return (
     <MathEditorContext.Provider value={openMathEditor}>
-      <div className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin">
-        <div className="mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
-          <div
-            className="px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)] cursor-text"
-            onMouseDown={handlePageMouseDown}
-          >
-            {visibleSegments.map((seg, idx) => (
-              <SegmentRenderer
-                key={`${idx}-${seg.kind}`}
-                segment={seg}
-                latex={latex}
-                applyRangeEdit={applyRangeEdit}
+      <div className="relative h-full w-full">
+        <div className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin">
+          <div className="mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
+            <div
+              className="px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)] cursor-text"
+              onMouseDown={handlePageMouseDown}
+            >
+              {visibleSegments.map((seg, idx) => (
+                <SegmentRenderer
+                  key={`${idx}-${seg.kind}`}
+                  segment={seg}
+                  latex={latex}
+                  applyRangeEdit={applyRangeEdit}
+                />
+              ))}
+              <TrailingEditableParagraph
+                innerRef={trailingRef}
+                placeholder={t("doc.editor.visual.type_here")}
+                onInsert={handleInsertNewParagraph}
               />
-            ))}
-            <TrailingEditableParagraph
-              innerRef={trailingRef}
-              placeholder={t("doc.editor.visual.type_here")}
-              onInsert={handleInsertNewParagraph}
-            />
+            </div>
           </div>
         </div>
+        {/* 「数式を挿入」フローティングボタン — スクロールに追従せず常に右下に表示 */}
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={requestInsertMath}
+          title={t("doc.editor.math.insert.tooltip")}
+          aria-label={t("doc.editor.math.insert")}
+          className="absolute bottom-6 right-6 z-10 flex items-center gap-1.5 rounded-full bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-600/30 hover:bg-violet-700 hover:shadow-violet-600/40 active:scale-95 transition-all"
+        >
+          <Sigma className="h-4 w-4" />
+          {t("doc.editor.math.insert")}
+        </button>
       </div>
       {mathEditRequest && (
         <MathEditPopover
@@ -532,8 +599,8 @@ function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }:
   }, [initialHTML, segment.body]);
 
   // 数式チップは contentEditable=false なので、クリックしてもキャレットは動かない。
-  // mousedown を捕まえてポップオーバーを開き、apply 時に data-source とプレビューを書き換え、
-  // 親段落の commit を呼んで LaTeX ソースに反映する。
+  // mousedown を捕まえてポップオーバーを開き、apply 時に data-source とプレビューを書き換える。
+  // commit は COMMIT_EVENT を介して下記の listener が拾う。
   // (生 LaTeX は画面に一切出さない: 「テンプレ駆動 + 自然言語 → LaTeX」方針)
   useEffect(() => {
     const node = ref.current;
@@ -547,22 +614,28 @@ function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }:
         initialLatex: chip.dataset.source ?? "",
         onApply: (newLatex) => {
           renderChipPreview(chip, newLatex);
-          const target = ref.current;
-          if (target) {
-            const serialized = serializeContentEditableDOM(target);
-            lastSerialized.current = serialized;
-            onCommitRef.current(target);
-          }
+          node.dispatchEvent(new CustomEvent(COMMIT_EVENT, { bubbles: false }));
         },
       });
     };
+    const onCommitNow = () => {
+      const target = ref.current;
+      if (!target) return;
+      const serialized = serializeContentEditableDOM(target);
+      if (serialized !== lastSerialized.current) {
+        lastSerialized.current = serialized;
+        onCommitRef.current(target);
+      }
+    };
     node.addEventListener("mousedown", onMouseDown);
+    node.addEventListener(COMMIT_EVENT, onCommitNow);
     return () => {
       node.removeEventListener("mousedown", onMouseDown);
+      node.removeEventListener(COMMIT_EVENT, onCommitNow);
     };
   }, [openMathEditor]);
 
-  // Cmd/Ctrl+M で空チップを挿入してポップオーバーを開く
+  // Cmd/Ctrl+M で空チップを挿入してポップオーバーを開く (commit は COMMIT_EVENT 経由)
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLElement>) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "m") return;
@@ -570,14 +643,7 @@ function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }:
       e.stopPropagation();
       const node = ref.current;
       if (!node) return;
-      insertEmptyMathChipAndEdit(node, openMathEditor, () => {
-        const target = ref.current;
-        if (target) {
-          const serialized = serializeContentEditableDOM(target);
-          lastSerialized.current = serialized;
-          onCommitRef.current(target);
-        }
-      });
+      insertEmptyMathChipAndEdit(node, openMathEditor);
     },
     [openMathEditor]
   );
@@ -713,21 +779,20 @@ function findEnclosingChip(node: Node | null): HTMLElement | null {
 
 /**
  * 現在のキャレット位置に空の数式チップを挿入し、即座にポップオーバーを開く。
- * apply 時に afterCommit を呼んで親の commit をトリガーする。
- * cancel 時はチップを取り除く (commit はしないので LaTeX ソースは触らない)。
+ * apply 時には containerEl に COMMIT_EVENT を発火し、ホストの editable block 側で
+ * シリアライズ + commit を行う (どこから呼ばれても commit パスが一本化される)。
+ * cancel 時はチップを取り除くだけで commit はしない (元の LaTeX ソースに反映されていないため)。
  */
 function insertEmptyMathChipAndEdit(
   containerEl: HTMLElement,
   openMathEditor: (req: MathEditRequest) => void,
-  afterCommit: () => void,
 ): void {
   if (typeof window === "undefined") return;
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
-  const range = sel.getRangeAt(0);
 
-  // キャレットがこの container の外にある場合は末尾に置く
-  if (!containerEl.contains(range.startContainer)) {
+  // キャレットがこの container の外にある場合は末尾に置き直す
+  if (!containerEl.contains(sel.getRangeAt(0).startContainer)) {
     const fallback = window.document.createRange();
     fallback.selectNodeContents(containerEl);
     fallback.collapse(false);
@@ -758,12 +823,10 @@ function insertEmptyMathChipAndEdit(
     initialLatex: "",
     onApply: (newLatex) => {
       renderChipPreview(span, newLatex);
-      afterCommit();
+      containerEl.dispatchEvent(new CustomEvent(COMMIT_EVENT, { bubbles: false }));
     },
     onCancel: () => {
       span.remove();
-      // commit しない: 元の LaTeX ソースに新規チップは反映されていないので、
-      // DOM から消すだけで整合する。
     },
   });
 }
@@ -826,7 +889,14 @@ interface TrailingEditableParagraphProps {
 function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: TrailingEditableParagraphProps) {
   const openMathEditor = useMathEditor();
 
+  // onInsert は親の closure で毎回作り直されがち。listener を一度だけ取り付けるため ref 経由で参照する。
+  const onInsertRef = useRef(onInsert);
+  useEffect(() => {
+    onInsertRef.current = onInsert;
+  }, [onInsert]);
+
   // 数式チップ click → ポップオーバー (生 LaTeX を見せない)
+  // FAB / Cmd+M 経由で挿入された新規チップの commit も COMMIT_EVENT で受ける
   useEffect(() => {
     const node = innerRef.current;
     if (!node) return;
@@ -839,16 +909,26 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
         initialLatex: chip.dataset.source ?? "",
         onApply: (newLatex) => {
           renderChipPreview(chip, newLatex);
+          node.dispatchEvent(new CustomEvent(COMMIT_EVENT, { bubbles: false }));
         },
       });
     };
+    const onCommitNow = () => {
+      const text = serializeContentEditableDOM(node).replace(/\u200B/g, "").trim();
+      if (text) {
+        node.textContent = "";
+        onInsertRef.current(text);
+      }
+    };
     node.addEventListener("mousedown", onMouseDown);
+    node.addEventListener(COMMIT_EVENT, onCommitNow);
     return () => {
       node.removeEventListener("mousedown", onMouseDown);
+      node.removeEventListener(COMMIT_EVENT, onCommitNow);
     };
   }, [innerRef, openMathEditor]);
 
-  // Cmd/Ctrl+M で空チップ挿入 → ポップオーバー
+  // Cmd/Ctrl+M で空チップ挿入 → ポップオーバー (commit は COMMIT_EVENT 経由)
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLElement>) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "m") return;
@@ -856,9 +936,7 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
       e.stopPropagation();
       const node = innerRef.current;
       if (!node) return;
-      insertEmptyMathChipAndEdit(node, openMathEditor, () => {
-        // trailing 段落は blur で onInsert を呼ぶので、ここでは特に何もしなくてよい
-      });
+      insertEmptyMathChipAndEdit(node, openMathEditor);
     },
     [innerRef, openMathEditor]
   );

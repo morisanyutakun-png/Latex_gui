@@ -119,6 +119,12 @@ const CATEGORY_ICONS: Record<string, string> = {
 interface JapaneseMathInputProps {
   onApply: (latex: string, sourceText: string) => void;
   initialSourceText?: string;
+  /**
+   * 入力欄の表示文字列とは別に「内部 LaTeX を強制」したい場合に渡す。
+   * 既存数式の編集時に「日本語訳を表示しつつ、ユーザーが触らずに apply したら
+   * 元の LaTeX をそのまま戻す」用途。ユーザーが入力欄を編集すると自動でクリアされる。
+   */
+  initialOverrideLatex?: string | null;
   className?: string;
   /** 入力欄の先頭/末尾で矢印キーが押された時のブロック脱出コールバック */
   onNavigateOut?: (dir: "prev" | "next") => void;
@@ -164,12 +170,14 @@ function addToHistory(latex: string, display: string) {
   } catch { /* ignore */ }
 }
 
-export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMathInputProps>(function JapaneseMathInput({ onApply, initialSourceText = "", className = "", onNavigateOut }, ref) {
+export const JapaneseMathInput = forwardRef<JapaneseMathInputHandle, JapaneseMathInputProps>(function JapaneseMathInput({ onApply, initialSourceText = "", initialOverrideLatex = null, className = "", onNavigateOut }, ref) {
   const [inputText, setInputText] = useState(initialSourceText);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [browserCategory, setBrowserCategory] = useState("すべて");
   const [spacings, setSpacings] = useState<string[]>([]);
-  const [overrideLatex, setOverrideLatex] = useState<string | null>(null);
+  // 既存数式編集時は元の LaTeX を override で持っておき、ユーザーが触らずに apply
+  // した場合は元のまま戻す。入力欄を編集すると自動でクリアされる (既存挙動)。
+  const [overrideLatex, setOverrideLatex] = useState<string | null>(initialOverrideLatex);
   const [showGuide, setShowGuide] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 

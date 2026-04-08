@@ -2478,6 +2478,357 @@ export function getDictionaryByCategory(category: string): MathDictEntry[] {
   return MATH_DICTIONARY.filter((e) => e.category === category);
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §6. LaTeX → 日本語 (逆変換 / ベストエフォート)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// 既存数式をポップオーバーで開く際、ユーザーには生 LaTeX を見せず
+// 「日本語訳されたデフォルト入力」を表示するための逆変換器。
+// 完全な可逆性は目指さない: よく使う構造 (\frac, \sqrt, ^{}, ギリシャ文字, …)
+// を辞書ベースで日本語化し、ユーザーがその上から自然に追記/修正できる状態を作る。
+// 既知でない LaTeX はそのまま残す (parseJapanesemath の Phase -1 / 0.5 で処理される)。
+//
+
+/** LaTeX コマンド名 → Unicode 記号 (parseJapanesemath が逆方向で受理できるもの) */
+const LATEX_SYMBOL_MAP: Record<string, string> = {
+  // ── ギリシャ文字 ──
+  alpha: "α", beta: "β", gamma: "γ", delta: "δ",
+  epsilon: "ε", varepsilon: "ε", zeta: "ζ", eta: "η",
+  theta: "θ", vartheta: "θ", iota: "ι", kappa: "κ",
+  lambda: "λ", mu: "μ", nu: "ν", xi: "ξ", pi: "π",
+  varpi: "π", rho: "ρ", varrho: "ρ", sigma: "σ",
+  tau: "τ", upsilon: "υ", phi: "φ", varphi: "φ",
+  chi: "χ", psi: "ψ", omega: "ω",
+  Gamma: "Γ", Delta: "Δ", Theta: "Θ", Lambda: "Λ",
+  Xi: "Ξ", Pi: "Π", Sigma: "Σ", Upsilon: "Υ",
+  Phi: "Φ", Psi: "Ψ", Omega: "Ω",
+  // ── 演算 ──
+  times: "×", div: "÷", pm: "±", mp: "∓",
+  cdot: "·", ast: "∗", star: "⋆", circ: "∘",
+  // ── 関係 ──
+  leq: "≤", le: "≤", geq: "≥", ge: "≥",
+  neq: "≠", ne: "≠", approx: "≈", equiv: "≡",
+  sim: "∼", simeq: "≃", cong: "≅", propto: "∝",
+  // ── 矢印 ──
+  to: "→", rightarrow: "→", leftarrow: "←",
+  Rightarrow: "⇒", Leftarrow: "⇐", Leftrightarrow: "⇔",
+  leftrightarrow: "↔", mapsto: "↦",
+  // ── 集合・論理 ──
+  in: "∈", notin: "∉", subset: "⊂", supset: "⊃",
+  subseteq: "⊆", supseteq: "⊇", cup: "∪", cap: "∩",
+  emptyset: "∅", varnothing: "∅",
+  land: "∧", wedge: "∧", lor: "∨", vee: "∨",
+  neg: "¬", lnot: "¬", forall: "∀", exists: "∃",
+  therefore: "∴", because: "∵",
+  // ── 特殊 ──
+  infty: "∞", partial: "∂", nabla: "∇",
+  ldots: "…", cdots: "⋯",
+};
+
+/** バックスラッシュを外して名前のまま出してよい関数群 (latexToJapanese 用) */
+const REVERSE_FUNCTION_SET = new Set([
+  "sin", "cos", "tan", "csc", "sec", "cot",
+  "arcsin", "arccos", "arctan",
+  "sinh", "cosh", "tanh",
+  "log", "ln", "lg", "exp",
+  "max", "min", "sup", "inf",
+  "det", "deg", "dim", "ker", "gcd", "arg",
+]);
+
+interface ReadResult {
+  content: string;
+  end: number;
+}
+
+/** s[start..] が "{...}" であれば中身と直後位置を返す */
+function readBrace(s: string, start: number): ReadResult | null {
+  let i = start;
+  while (i < s.length && (s[i] === " " || s[i] === "\t")) i++;
+  if (s[i] !== "{") return null;
+  const open = i;
+  let depth = 1;
+  i++;
+  while (i < s.length && depth > 0) {
+    const ch = s[i];
+    if (ch === "\\") { i += 2; continue; }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return { content: s.slice(open + 1, i), end: i + 1 };
+    }
+    i++;
+  }
+  return null;
+}
+
+/** s[start..] が "[...]" であれば中身と直後位置を返す */
+function readBracket(s: string, start: number): ReadResult | null {
+  let i = start;
+  while (i < s.length && (s[i] === " " || s[i] === "\t")) i++;
+  if (s[i] !== "[") return null;
+  const open = i;
+  let depth = 1;
+  i++;
+  while (i < s.length && depth > 0) {
+    if (s[i] === "[") depth++;
+    else if (s[i] === "]") {
+      depth--;
+      if (depth === 0) return { content: s.slice(open + 1, i), end: i + 1 };
+    }
+    i++;
+  }
+  return null;
+}
+
+/** {X} なら中身、そうでなければ次の 1 文字 */
+function readBraceOrChar(s: string, start: number): ReadResult | null {
+  if (s[start] === "{") return readBrace(s, start);
+  if (start < s.length) return { content: s[start], end: start + 1 };
+  return null;
+}
+
+/** \command を読む。記号系コマンド (\,, \!, \\) も 1 文字コマンドとして扱う */
+function readCommand(s: string, start: number): { name: string; end: number } | null {
+  if (s[start] !== "\\") return null;
+  if (start + 1 >= s.length) return null;
+  const next = s[start + 1];
+  if (!/[a-zA-Z]/.test(next)) {
+    return { name: next, end: start + 2 };
+  }
+  let i = start + 1;
+  while (i < s.length && /[a-zA-Z]/.test(s[i])) i++;
+  return { name: s.slice(start + 1, i), end: i };
+}
+
+/** _{lower} ^{upper} (順不同) を読む */
+function readSubSup(s: string, start: number): { lower?: string; upper?: string; end: number } | null {
+  let i = start;
+  let lower: string | undefined;
+  let upper: string | undefined;
+  let consumed = false;
+  for (let pass = 0; pass < 2; pass++) {
+    while (i < s.length && (s[i] === " " || s[i] === "\t")) i++;
+    if (s[i] === "_" && lower === undefined) {
+      const inner = readBraceOrChar(s, i + 1);
+      if (inner) { lower = inner.content; i = inner.end; consumed = true; continue; }
+    }
+    if (s[i] === "^" && upper === undefined) {
+      const inner = readBraceOrChar(s, i + 1);
+      if (inner) { upper = inner.content; i = inner.end; consumed = true; continue; }
+    }
+    break;
+  }
+  return consumed ? { lower, upper, end: i } : null;
+}
+
+/**
+ * LaTeX 文字列を「日本語混じりの parseJapanesemath で受理可能な表現」に変換する。
+ * 例:
+ *   \frac{1}{2}        → 2ぶんの1
+ *   \sqrt{x+1}         → ルートx+1
+ *   x^{2}              → xの2乗
+ *   \int_{0}^{\pi}     → 0からπまで積分
+ *   \sum_{i=1}^{n} a_i → i=1からnまで総和 a_{i}
+ *   \alpha + \beta     → α + β
+ */
+export function latexToJapanese(latex: string): string {
+  const trimmed = latex.trim();
+  if (!trimmed) return "";
+  let s = convertLatexToJapaneseInner(trimmed);
+
+  // 後処理: 単純な x^{n} → xのn乗 (n が単独英数のときだけ)
+  s = s.replace(/([a-zA-Zα-ωΑ-Ω0-9)\]])\^\{([a-zA-Z0-9])\}/g, (_, base, exp) => `${base}の${exp}乗`);
+  s = s.replace(/([a-zA-Zα-ωΑ-Ω0-9)\]])\^([a-zA-Z0-9])(?![a-zA-Z0-9])/g, (_, base, exp) => `${base}の${exp}乗`);
+  // 余分な空白をまとめる
+  s = s.replace(/[ \t]{2,}/g, " ").trim();
+  return s;
+}
+
+function convertLatexToJapaneseInner(s: string): string {
+  let result = "";
+  let i = 0;
+
+  while (i < s.length) {
+    const ch = s[i];
+
+    // ── \left| X \right|  → 絶対値X ──
+    if (s.startsWith("\\left|", i)) {
+      const close = s.indexOf("\\right|", i + 6);
+      if (close >= 0) {
+        const inner = s.slice(i + 6, close);
+        result += `絶対値${convertLatexToJapaneseInner(inner.trim())}`;
+        i = close + "\\right|".length;
+        continue;
+      }
+    }
+    // ── \left\| X \right\|  → ノルムX ──
+    if (s.startsWith("\\left\\|", i)) {
+      const close = s.indexOf("\\right\\|", i + 7);
+      if (close >= 0) {
+        const inner = s.slice(i + 7, close);
+        result += `ノルム${convertLatexToJapaneseInner(inner.trim())}`;
+        i = close + "\\right\\|".length;
+        continue;
+      }
+    }
+    // ── \left( X \right) → ( X ) (装飾を外して括弧だけ残す) ──
+    if (s.startsWith("\\left(", i)) {
+      const close = s.indexOf("\\right)", i + 6);
+      if (close >= 0) {
+        const inner = s.slice(i + 6, close);
+        result += `(${convertLatexToJapaneseInner(inner.trim())})`;
+        i = close + "\\right)".length;
+        continue;
+      }
+    }
+
+    if (ch === "\\") {
+      const cmd = readCommand(s, i);
+      if (cmd) {
+        const name = cmd.name;
+        let pos = cmd.end;
+
+        // ── \frac{A}{B} → BぶんのA ──
+        if (name === "frac") {
+          const a = readBrace(s, pos);
+          if (a) {
+            const b = readBrace(s, a.end);
+            if (b) {
+              const num = convertLatexToJapaneseInner(a.content.trim());
+              const den = convertLatexToJapaneseInner(b.content.trim());
+              // \frac{d}{dx} → "xで微分"
+              if (num === "d" && /^d[a-zA-Z]$/.test(den)) {
+                result += `${den.slice(1)}で微分`;
+              } else if (num === "\\partial" && /^\\partial [a-zA-Z]$/.test(den)) {
+                result += `${den.slice("\\partial ".length)}で偏微分`;
+              } else {
+                result += `${den}ぶんの${num}`;
+              }
+              i = b.end;
+              continue;
+            }
+          }
+        }
+
+        // ── \sqrt[n]{x} or \sqrt{x} ──
+        if (name === "sqrt") {
+          const opt = readBracket(s, pos);
+          if (opt) pos = opt.end;
+          const arg = readBrace(s, pos);
+          if (arg) {
+            const inner = convertLatexToJapaneseInner(arg.content.trim());
+            result += opt
+              ? `${convertLatexToJapaneseInner(opt.content.trim())}乗根${inner}`
+              : `ルート${inner}`;
+            i = arg.end;
+            continue;
+          }
+        }
+
+        // ── \int_{a}^{b} \sum_{a}^{b} \prod_{a}^{b} ──
+        if (name === "int" || name === "sum" || name === "prod") {
+          const sub = readSubSup(s, pos);
+          const opName = name === "int" ? "積分" : name === "sum" ? "総和" : "総乗";
+          if (sub) {
+            const lower = sub.lower !== undefined ? convertLatexToJapaneseInner(sub.lower.trim()) : "";
+            const upper = sub.upper !== undefined ? convertLatexToJapaneseInner(sub.upper.trim()) : "";
+            if (lower && upper) result += `${lower}から${upper}まで${opName} `;
+            else if (lower) result += `${lower}から${opName} `;
+            else if (upper) result += `${upper}まで${opName} `;
+            else result += `${opName} `;
+            i = sub.end;
+            continue;
+          }
+          result += opName;
+          i = pos;
+          continue;
+        }
+
+        // ── \lim_{x \to a} → xがaに近づく極限 ──
+        if (name === "lim") {
+          const sub = readSubSup(s, pos);
+          if (sub && sub.lower) {
+            const m = sub.lower.match(/^\s*([a-zA-Z])\s*\\to\s*(.+?)\s*$/);
+            if (m) {
+              const x = m[1];
+              const a = convertLatexToJapaneseInner(m[2].trim());
+              result += `${x}が${a}に近づく極限 `;
+              i = sub.end;
+              continue;
+            }
+          }
+          result += "極限";
+          i = pos;
+          continue;
+        }
+
+        // ── 装飾系: \vec{X}, \hat{X}, \bar{X}, … ──
+        const decoMap: Record<string, string> = {
+          vec: "ベクトル", hat: "ハット", bar: "バー",
+          dot: "ドット", ddot: "ダブルドット", tilde: "チルダ",
+          mathbf: "太字",
+        };
+        if (name in decoMap) {
+          const arg = readBrace(s, pos);
+          if (arg) {
+            const inner = convertLatexToJapaneseInner(arg.content.trim());
+            result += `${decoMap[name]}${inner}`;
+            i = arg.end;
+            continue;
+          }
+        }
+
+        // ── \mathrm{X}, \text{X}, \operatorname{X}, \mathbb{X}, … 中身そのまま ──
+        if (
+          name === "mathrm" || name === "text" || name === "operatorname" ||
+          name === "mathbb" || name === "mathcal" || name === "mathfrak" || name === "mathscr"
+        ) {
+          const arg = readBrace(s, pos);
+          if (arg) {
+            result += arg.content;
+            i = arg.end;
+            continue;
+          }
+        }
+
+        // ── 関数 \sin → sin ──
+        if (REVERSE_FUNCTION_SET.has(name)) {
+          result += name;
+          i = pos;
+          continue;
+        }
+
+        // ── シンボル \alpha → α ──
+        if (name in LATEX_SYMBOL_MAP) {
+          result += LATEX_SYMBOL_MAP[name];
+          i = pos;
+          continue;
+        }
+
+        // 不明コマンド: そのまま温存 (parseJapanesemath の Phase -1 で素通し)
+        result += s.slice(i, pos);
+        i = pos;
+        continue;
+      }
+    }
+
+    // ブレース { ... } はそのまま中身を再帰展開して波括弧を残す
+    if (ch === "{") {
+      const arg = readBrace(s, i);
+      if (arg) {
+        result += `{${convertLatexToJapaneseInner(arg.content)}}`;
+        i = arg.end;
+        continue;
+      }
+    }
+
+    result += ch;
+    i++;
+  }
+
+  return result;
+}
+
 /**
  * 全文検索 (正規化マッチ対応)
  * ひらがな/カタカナ/漢字/英語 どの形式で検索してもヒットする
