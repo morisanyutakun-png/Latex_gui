@@ -388,6 +388,21 @@ const ja = {
   "chat.file.applied": "ファイルを解析しました。",
   "chat.assistant.updated": "LaTeXソースを更新しました。",
 
+  // ── Compile / security errors (Phase 2 構造化エラー対応) ──
+  "error.security.title": "セキュリティポリシー違反",
+  "error.security.intro": "この LaTeX は許可リスト外の要素を使っているため、コンパイルできません:",
+  "error.security.package_not_allowed": "未許可パッケージ: {package}",
+  "error.security.tikz_library_not_allowed": "未許可 TikZ ライブラリ: {library}",
+  "error.security.forbidden_command": "禁止コマンド: {command}",
+  "error.security.dangerous_command": "危険コマンド: {command}",
+  "error.security.file_access": "ファイルアクセス: {command}",
+  "error.security.hint": "AI に「許可リスト内のパッケージだけで書き直して」と頼むか、ソースから該当行を削除してください。",
+  "error.network.timeout": "PDF サーバーの応答が遅すぎます。サーバーが起動中の可能性があるので、少し待ってから再試行してください。",
+  "error.network.unreachable": "PDF コンパイルサーバーに接続できません。ネットワーク接続を確認してください。",
+  "error.latex_too_large": "LaTeX ソースがサイズ上限を超えています。",
+  "error.pdf_generation_failed": "PDF 生成に失敗しました。",
+  "error.compile.retry": "もう一度試す",
+
   // Last AI action
   "action.latex.updated.prefix": "LaTeXソースを更新（",
   "action.latex.updated.suffix": "文字）",
@@ -771,6 +786,21 @@ const en = {
   "error.compile": "Compile error",
   "chat.file.applied": "File analyzed.",
   "chat.assistant.updated": "LaTeX source updated.",
+
+  // ── Compile / security errors (Phase 2 structured error responses) ──
+  "error.security.title": "Security policy violation",
+  "error.security.intro": "This LaTeX uses elements outside the allowlist and cannot be compiled:",
+  "error.security.package_not_allowed": "Package not allowed: {package}",
+  "error.security.tikz_library_not_allowed": "TikZ library not allowed: {library}",
+  "error.security.forbidden_command": "Forbidden command: {command}",
+  "error.security.dangerous_command": "Dangerous command: {command}",
+  "error.security.file_access": "File access: {command}",
+  "error.security.hint": "Ask the AI to rewrite using only allowed packages, or remove the offending line from the source.",
+  "error.network.timeout": "PDF server is taking longer than usual. The server may be starting up — please wait a moment and try again.",
+  "error.network.unreachable": "Could not reach the PDF compile server. Please check your network connection.",
+  "error.latex_too_large": "The LaTeX source exceeds the size limit.",
+  "error.pdf_generation_failed": "PDF generation failed.",
+  "error.compile.retry": "Try again",
 
   // Last AI action
   "action.latex.updated.prefix": "LaTeX source updated (",

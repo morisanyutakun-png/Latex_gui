@@ -25,7 +25,7 @@ from .tex_env import (
 )
 from .security import (
     validate_latex_security, validate_latex_size,
-    get_compile_args,
+    get_compile_args, format_violations,
 )
 from .cache_service import (
     get_cached_pdf, store_cached_pdf,
@@ -54,10 +54,27 @@ def _log_memory(label: str) -> None:
 
 
 class PDFGenerationError(Exception):
-    """PDF生成時のエラー（ユーザー向けメッセージ付き）"""
-    def __init__(self, user_message: str, detail: str = ""):
+    """PDF生成時のエラー（ユーザー向けメッセージ付き）
+
+    Phase 2 改修:
+      - code / params / violations フィールドを追加
+      - フロントエンドが i18n でローカライズできるよう、機械可読な形でも情報を保持
+      - user_message は **フォールバック** 文字列 (ロケール解決できないクライアント用)
+    """
+    def __init__(
+        self,
+        user_message: str,
+        detail: str = "",
+        *,
+        code: str | None = None,
+        params: dict | None = None,
+        violations: list | None = None,
+    ):
         self.user_message = user_message
         self.detail = detail
+        self.code = code
+        self.params = params or {}
+        self.violations = violations or []
         super().__init__(user_message)
 
 
@@ -89,9 +106,13 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
     violations = validate_latex_security(latex_source)
     if violations:
         log_security_event(violations, action="blocked")
+        # user_message は **英語のフォールバック** にする (locale-aware なクライアントは
+        # violations[] と code を見て自前で i18n するため、ここの文字列は最後の砦)
         raise PDFGenerationError(
-            f"セキュリティポリシー違反: {'; '.join(violations[:3])}",
-            detail=str(violations)
+            f"Security policy violation: {format_violations(violations, lang='en')}",
+            detail=str(violations),
+            code="security_violation",
+            violations=violations,
         )
 
     # PDFキャッシュチェック
@@ -233,12 +254,15 @@ def _compile_raw_latex_sync(latex_source: str) -> bytes:
     """同期版: 生LaTeXソースをコンパイル"""
     size_error = validate_latex_size(latex_source)
     if size_error:
-        raise PDFGenerationError(size_error)
+        raise PDFGenerationError(size_error, code="latex_too_large")
     violations = validate_latex_security(latex_source)
     if violations:
+        log_security_event(violations, action="blocked")
         raise PDFGenerationError(
-            f"セキュリティポリシー違反: {'; '.join(violations[:3])}",
+            f"Security policy violation: {format_violations(violations, lang='en')}",
             detail=str(violations),
+            code="security_violation",
+            violations=violations,
         )
     gc.collect()
     timeout = COMPILE_TIMEOUT

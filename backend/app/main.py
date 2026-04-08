@@ -188,6 +188,10 @@ async def generate_pdf(doc: DocumentModel):
             "success": False,
             "message": e.user_message,
             "detail": e.detail[:2000] if e.detail else None,
+            # Phase 2: 構造化エラー情報をフロントへ渡す
+            "code": e.code,
+            "params": e.params or None,
+            "violations": e.violations or None,
         })
     except Exception as e:
         logger.exception("Unexpected error during PDF generation")
@@ -224,6 +228,10 @@ async def compile_raw(req: RawLatexRequest):
         raise HTTPException(status_code=422, detail={
             "success": False,
             "message": e.user_message,
+            # Phase 2: 構造化エラー情報をフロントへ渡す
+            "code": e.code,
+            "params": e.params or None,
+            "violations": e.violations or None,
         })
     except Exception as e:
         logger.exception("Unexpected error during raw LaTeX compilation")
@@ -388,6 +396,9 @@ async def audit_logs(limit: int = 100):
 class ChatRequest(pydantic.BaseModel):
     messages: list[dict] = []
     document: dict = {}
+    # Phase 3: UI ロケール ("ja" / "en") を AI システムプロンプトの言語切替に使う。
+    # 省略時は "ja" (デフォルト) で従来動作。
+    locale: str = "ja"
 
 
 @app.post("/api/ai/chat")
@@ -406,7 +417,7 @@ async def ai_chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=400, detail={"message": "messages が空です"})
 
     try:
-        result = await ai_chat(request.messages, request.document)
+        result = await ai_chat(request.messages, request.document, locale=request.locale)
         return {"success": True, **result}
     except ValueError as e:
         raise HTTPException(status_code=503, detail={"message": str(e)})
@@ -437,7 +448,7 @@ async def ai_chat_stream_endpoint(request: ChatRequest):
     logger.info("[stream] Starting SSE stream: %d messages", len(request.messages))
 
     return StreamingResponse(
-        ai_chat_stream(request.messages, request.document),
+        ai_chat_stream(request.messages, request.document, locale=request.locale),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

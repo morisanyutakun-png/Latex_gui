@@ -653,31 +653,49 @@ export const MATH_DICTIONARY: MathDictEntry[] = [
     latex: "\\binom{A}{B}", kind: "binary", description: "二項係数 C(n,r)", category: "確率統計" },
 
   // ══════════════════════════════════════
-  // 環境
+  // 環境 (※ 自然言語入力構文: ENV{ セル ; セル } / ENV{ a, b ; c, d })
   // ══════════════════════════════════════
-  { reading: "行列", aliases: ["ぎょうれつ", "マトリックス", "matrix"],
+  { reading: "行列", aliases: ["ぎょうれつ", "マトリックス", "matrix", "pmatrix"],
     latex: "\\begin{pmatrix} A \\end{pmatrix}", kind: "environment",
-    description: "行列環境",
-    category: "環境" },
-  { reading: "角括弧行列", aliases: ["かくかっこぎょうれつ"],
+    description: "丸括弧行列 — 入力例: 行列{1, 2; 3, 4}",
+    category: "環境",
+    example: { input: "行列{1, 2; 3, 4}", output: "\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}" } },
+  { reading: "角行列", aliases: ["かくぎょうれつ", "角括弧行列", "かくかっこぎょうれつ", "bmatrix"],
     latex: "\\begin{bmatrix} A \\end{bmatrix}", kind: "environment",
-    description: "角括弧行列",
-    category: "環境" },
-  { reading: "行列式記号", aliases: ["ぎょうれつしききごう"],
+    description: "角括弧行列 — 入力例: 角行列{a, b; c, d}",
+    category: "環境",
+    example: { input: "角行列{a, b; c, d}", output: "\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}" } },
+  { reading: "絶対行列", aliases: ["ぜったいぎょうれつ", "絶対値行列", "ぜったいちぎょうれつ", "行列式", "ぎょうれつしき", "vmatrix"],
     latex: "\\begin{vmatrix} A \\end{vmatrix}", kind: "environment",
-    description: "行列式環境",
+    description: "縦棒行列 (行列式表記) — 入力例: 絶対行列{1, 0; 0, 1}",
+    category: "環境",
+    example: { input: "絶対行列{1, 0; 0, 1}", output: "\\begin{vmatrix} 1 & 0 \\\\ 0 & 1 \\end{vmatrix}" } },
+  { reading: "大括弧行列", aliases: ["おおかっこぎょうれつ", "Bmatrix"],
+    latex: "\\begin{Bmatrix} A \\end{Bmatrix}", kind: "environment",
+    description: "波括弧行列 — 入力例: 大括弧行列{1, 2; 3, 4}",
     category: "環境" },
-  { reading: "連立方程式", aliases: ["れんりつほうていしき", "cases"],
+  { reading: "大行列式", aliases: ["おおぎょうれつしき", "Vmatrix"],
+    latex: "\\begin{Vmatrix} A \\end{Vmatrix}", kind: "environment",
+    description: "二重縦棒行列 — 入力例: 大行列式{1, 2; 3, 4}",
+    category: "環境" },
+  { reading: "連立", aliases: ["連立方程式", "れんりつ", "れんりつほうていしき", "cases"],
     latex: "\\begin{cases} A \\end{cases}", kind: "environment",
-    description: "連立方程式",
-    category: "環境" },
+    description: "連立方程式 — 入力例: 連立{2x+y=7; x-y=1}",
+    category: "環境",
+    example: { input: "連立{2x+y=7; x-y=1}", output: "\\begin{cases} 2x+y=7 \\\\ x-y=1 \\end{cases}" } },
   { reading: "場合分け", aliases: ["ばあいわけ"],
     latex: "\\begin{cases} A \\end{cases}", kind: "environment",
-    description: "場合分け",
-    category: "環境" },
-  { reading: "整列数式", aliases: ["せいれつすうしき", "align"],
+    description: "場合分け — 入力例: 場合分け{x>0; x≤0}",
+    category: "環境",
+    example: { input: "場合分け{x>0 ならば 1; それ以外 ならば 0}", output: "\\begin{cases} x > 0 \\Rightarrow 1 \\\\ \\text{それ以外} \\Rightarrow 0 \\end{cases}" } },
+  { reading: "整列", aliases: ["整列数式", "せいれつ", "せいれつすうしき", "そろえる", "align", "aligned"],
     latex: "\\begin{aligned} A \\end{aligned}", kind: "environment",
-    description: "複数行数式の整列",
+    description: "複数行数式の整列 — 入力例: 整列{x = 1; y = 2}",
+    category: "環境",
+    example: { input: "整列{x = 1; y = 2}", output: "\\begin{aligned} x = 1 \\\\ y = 2 \\end{aligned}" } },
+  { reading: "中央", aliases: ["中央揃え", "ちゅうおう", "gathered", "gather"],
+    latex: "\\begin{gathered} A \\end{gathered}", kind: "environment",
+    description: "複数行数式の中央揃え — 入力例: 中央{x = 1; y = 2}",
     category: "環境" },
 
   // ══════════════════════════════════════
@@ -1319,6 +1337,11 @@ export const LATEX_TRANSLATIONS: LatexTranslation[] = [
   { latex: "\\infty", japanese: "無限大", category: "特殊" },
   { latex: "\\partial", japanese: "偏微分記号 / パーシャル", category: "特殊" },
   { latex: "\\nabla", japanese: "ナブラ", category: "特殊" },
+  { latex: "\\begin{cases} A \\\\ B \\end{cases}", japanese: "連立{A; B} （連立方程式）", category: "環境" },
+  { latex: "\\begin{aligned} A \\\\ B \\end{aligned}", japanese: "整列{A; B} （整列数式）", category: "環境" },
+  { latex: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}", japanese: "行列{a, b; c, d} （丸括弧行列）", category: "環境" },
+  { latex: "\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}", japanese: "角行列{a, b; c, d}", category: "環境" },
+  { latex: "\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix}", japanese: "絶対行列{a, b; c, d}", category: "環境" },
   { latex: "\\,", japanese: "小スペース（3/18em ≈ 1.7pt）", category: "スペーシング" },
   { latex: "\\:", japanese: "中スペース（4/18em ≈ 2.2pt）", category: "スペーシング" },
   { latex: "\\;", japanese: "大スペース（5/18em ≈ 2.8pt）", category: "スペーシング" },
@@ -1367,39 +1390,85 @@ function resolveTerm(term: string): string {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
 // ═══════════════════════════════════════════════════════════════
-//  演算子の項数 (Operator Arity) — スペース区切り厳密ルール
+//  Eddivom 数式入力 構文規則 (Math Input Grammar)
 // ═══════════════════════════════════════════════════════════════
 //
+// 数式モードに入力する文字列は、次の文法に従って LaTeX に変換される。
+// 演算子は **項数 (arity)** によって厳密に分類され、それぞれ
+// 「引数をどこから取るか」が決まっている。
+//
+// ───────────────────────────────────────────────────────
+// 用語: TOKEN = スペース以外の文字列 (1 つの「項」を表す)
+//       SP    = 1 つ以上の半角スペース (区切り記号)
+//       BODY  = `{` と `}` で囲まれた範囲 (環境本体)
+//       ROW_SEP = `;` (行区切り) ・ COL_SEP = `,` (列区切り)
+// ───────────────────────────────────────────────────────
+//
 // 【0項 (symbol)】 記号をそのまま出力。引数なし。
-//   例: パイ → π,  無限大 → ∞,  アルファ → α
+//   形式: OP                                  (BNF: <symbol>)
+//   例 : パイ            → π
+//        無限大          → ∞
+//        アルファ        → α
 //
-// 【1項 (unary / 前置)】 演算子の直後の1トークンを引数に取る。
-//   形式: OP arg
-//   例: ルート x → \sqrt{x}
-//       ベクトル a → \vec{a}
-//       絶対値 x+1 → |x+1|
+// 【1項 (unary, 前置)】 演算子の直後の 1 トークンを引数に取る。
+//   形式: OP arg                              (BNF: <unary> <token>)
+//        OP SP arg
+//   例 : ルート x        → \sqrt{x}
+//        ルート x+1      → \sqrt{x+1}
+//        ベクトル a      → \vec{a}
+//        絶対値 x        → |x|
+//        ハット a        → \hat{a}
+//   ※ 引数が複雑な場合は `かっこ` で囲む:
+//        ルート かっこa+b → \sqrt{(a+b)}
 //
-// 【2項 (binary)】
-//   ├ 中置 (operator/relation): 左右のトークンを引数に取る。
-//   │ 形式: arg1 OP arg2
-//   │ 例: a たす b → a + b
-//   │     x イコール 0 → x = 0
+// 【2項 (binary)】 — 2 種類ある:
+//
+//   ┌ 中置 (operator / relation)
+//   │   形式: arg1 SP OP SP arg2              (BNF: <token> <op> <token>)
+//   │   例  : a たす b           → a + b
+//   │        x イコール 0        → x = 0
+//   │        x 以上 0           → x \geq 0
 //   │
-//   └ 構造 (binary): 直後の2トークンを引数に取る。
-//     形式: OP arg1 arg2  (※ 日本語パターン "Aぶんの B" も継続サポート)
-//     例: 分数 a b → \frac{a}{b}
-//         組合せ n r → \binom{n}{r}
+//   └ 構造 (binary structure)
+//       形式: OP SP arg1 SP arg2              (BNF: <op> <token> <token>)
+//        または日本語助詞パターン (Aぶんの B など)
+//       例  : 分数 a b           → \frac{a}{b}
+//             2ぶんの1            → \frac{1}{2}
+//             組合せ n r         → \binom{n}{r}
 //
-// 【3項 (ternary)】 直前の2トークン + 直後の1トークンを引数に取る。
-//   形式: arg1 arg2 OP arg3
-//   例: 0 パイ 積分 sinx → \int_{0}^{\pi} sinx
-//       i=1 n 総和 a_i → \sum_{i=1}^{n} a_i
-//       x 0 極限 f(x) → \lim_{x \to 0} f(x)
-//   ※ 2引数のみ (本体なし) も許容:
-//       0 パイ 積分 → \int_{0}^{\pi}
+// 【3項 (ternary)】 直前の 2 トークン + 直後の 1 トークンを引数に取る。
+//   形式: arg1 SP arg2 SP OP SP arg3          (BNF: <t> <t> <op> <t>)
+//   例  : 0 π 積分 sinx          → \int_{0}^{\pi} \sin x
+//        i=1 n 総和 a_i          → \sum_{i=1}^{n} a_i
+//        x 0 極限 f(x)           → \lim_{x \to 0} f(x)
+//   ※ 2 引数のみ (本体なし) も許容: 0 π 積分 → \int_{0}^{\pi}
+//
+// 【環境 (environment)】 行・列構造を持つ複合構文。
+//   形式: ENV { cell ROW_SEP cell ROW_SEP ... }            (行型)
+//        ENV { cell COL_SEP cell ROW_SEP cell COL_SEP ... } (行列型)
+//
+//   行型 ENV (連立 / 整列 など — 行のみ):
+//     連立{ 2x+y=7 ; x-y=1 }
+//       → \begin{cases} 2x+y=7 \\ x-y=1 \end{cases}
+//     整列{ x = 1 ; y = 2 }
+//       → \begin{aligned} x = 1 \\ y = 2 \end{aligned}
+//
+//   行列型 ENV (行列 / 角行列 / 絶対行列 など — 行 × 列):
+//     行列{ 1, 2 ; 3, 4 }
+//       → \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}
+//     角行列{ a, b ; c, d }
+//       → \begin{bmatrix} a & b \\ c & d \end{bmatrix}
+//     絶対行列{ 1, 0 ; 0, 1 }
+//       → \begin{vmatrix} 1 & 0 \\ 0 & 1 \end{vmatrix}
+//
+//   区切り記号は 全角 (；、) も許容: `行列{1、2；3、4}` → 同じ
+//   ネストも可: `連立{ y = ルート x ; y = xの2乗 }` のように、
+//   各セルは内部で再帰的に通常の数式パーサーに通される。
+//
+// ───────────────────────────────────────────────────────
 //
 // スペースは **演算子と引数の区切り** として機能する。
-// スペースなしで連結された文字列は1つのトークンとして扱う。
+// スペースなしで連結された文字列は 1 つのトークンとして扱う。
 //
 
 /** 演算子の正規化名 → 演算情報のルックアップテーブル */
@@ -1668,6 +1737,213 @@ export function highlightMathTokens(input: string): MathHighlightToken[] {
   }
 
   return result;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// §4d. 環境構文パーサー (Environment Syntax Parser)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// 入力: ENV { セル ROW_SEP セル ... }
+// 出力: \begin{<latex env>} セル \\ セル ... \end{<latex env>}
+//
+// - ROW_SEP: ;  ；  改行
+// - COL_SEP: ,  、  (行列型のみ)
+// - 各セルは parseJapanesemath を再帰呼び出しして処理する。
+// - {} はネストを許容 (\frac{...}{...} 等を含むセルも安全に分割)。
+
+/** ROW_SEP / COL_SEP に使える文字 */
+const ROW_SEP_CHARS = new Set([";", "；", "\n"]);
+const COL_SEP_CHARS = new Set([",", "、"]);
+
+/**
+ * `{` の位置 openIdx に対して対応する `}` の位置を返す。
+ * 文字列内の `\{` `\}` はエスケープとして無視する。
+ * 見つからなければ -1。
+ */
+function findMatchingBrace(s: string, openIdx: number): number {
+  if (s[openIdx] !== "{") return -1;
+  let depth = 1;
+  let i = openIdx + 1;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === "\\" && i + 1 < s.length) {
+      // \{ や \} はエスケープなのでスキップ
+      i += 2;
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+    i++;
+  }
+  return -1;
+}
+
+/**
+ * 環境本体を「行」に分割する (ROW_SEP_CHARS で分割)
+ * トップレベルのみを見て、{...} 内部の区切り文字は無視する。
+ */
+function splitTopLevelByRow(body: string): string[] {
+  const rows: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "\\" && i + 1 < body.length) { i++; continue; }
+    if (ch === "{") depth++;
+    else if (ch === "}") depth--;
+    else if (depth === 0 && ROW_SEP_CHARS.has(ch)) {
+      rows.push(body.slice(start, i));
+      start = i + 1;
+    }
+  }
+  rows.push(body.slice(start));
+  return rows.map(r => r.trim()).filter(r => r.length > 0);
+}
+
+/**
+ * 行を「列」に分割する (COL_SEP_CHARS で分割)
+ * トップレベルのみを見て、{...} 内部の区切り文字は無視する。
+ */
+function splitTopLevelByCol(row: string): string[] {
+  const cells: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === "\\" && i + 1 < row.length) { i++; continue; }
+    if (ch === "{") depth++;
+    else if (ch === "}") depth--;
+    else if (depth === 0 && COL_SEP_CHARS.has(ch)) {
+      cells.push(row.slice(start, i));
+      start = i + 1;
+    }
+  }
+  cells.push(row.slice(start));
+  return cells.map(c => c.trim()).filter(c => c.length > 0);
+}
+
+/**
+ * 環境名 → LaTeX 環境名 + 種別
+ *   "row"    : 行のみ (cases / aligned / gathered)
+ *   "matrix" : 行 × 列 (pmatrix / bmatrix / vmatrix / matrix / Bmatrix / Vmatrix)
+ *
+ * 入力パターンは正規化済み (カタカナ→ひらがな, 全角→半角) を前提とする。
+ */
+const ENVIRONMENT_PATTERNS: Array<{
+  re: RegExp;
+  envName: string;
+  type: "row" | "matrix";
+}> = [
+  // ── 連立方程式 / 場合分け → cases ──
+  { re: /(?:連立(?:方程式)?|れんりつ(?:ほうていしき)?|場合分け|ばあいわけ|cases)\s*\{/u,
+    envName: "cases", type: "row" },
+  // ── 整列数式 → aligned ──
+  { re: /(?:整列(?:数式)?|せいれつ(?:すうしき)?|そろえる|揃える|aligned|align)\s*\{/u,
+    envName: "aligned", type: "row" },
+  // ── 集合数式 → gathered (中央揃え複数行) ──
+  { re: /(?:中央(?:揃え)?|ちゅうおう|gathered|gather)\s*\{/u,
+    envName: "gathered", type: "row" },
+  // ── 行列バリエーション (長いキーワード優先) ──
+  { re: /(?:角(?:括弧)?行列|かくぎょうれつ|bmatrix)\s*\{/u,
+    envName: "bmatrix", type: "matrix" },
+  { re: /(?:絶対(?:値)?行列|ぜったい(?:ち)?ぎょうれつ|行列式|ぎょうれつしき|vmatrix)\s*\{/u,
+    envName: "vmatrix", type: "matrix" },
+  { re: /(?:大括弧行列|Bmatrix)\s*\{/u,
+    envName: "Bmatrix", type: "matrix" },
+  { re: /(?:大行列式|Vmatrix)\s*\{/u,
+    envName: "Vmatrix", type: "matrix" },
+  // ── pmatrix (デフォルトの「行列」) ──
+  { re: /(?:行列|ぎょうれつ|まとりっくす|matrix|pmatrix)\s*\{/u,
+    envName: "pmatrix", type: "matrix" },
+];
+
+/** 環境ブロックを後段パスから保護するためのセンチネル文字
+ *  U+E000 (Private Use Area) はユーザー入力に出現しないことを前提とする */
+const ENV_SENTINEL_OPEN = "\uE000";
+const ENV_SENTINEL_CLOSE = "\uE001";
+
+/**
+ * 入力文字列の中から環境構文を探して LaTeX に展開する。
+ *
+ * 例:
+ *   "連立{ 2x+y=7; x-y=1 }"
+ *     → "\begin{cases} 2x+y=7 \\ x-y=1 \end{cases}"
+ *   "行列{1, 2; 3, 4}"
+ *     → "\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}"
+ *
+ * 展開した LaTeX は **入力文字列に直接挿入せず**、`sentinels` 配列に
+ * 蓄えてセンチネル文字 (U+E000…U+E001) で参照する。これにより後段の
+ * Phase 1〜4 が `\begin{cases}` の中の "cases" を辞書 alias として
+ * 再マッチして壊す問題を防ぐ。最終フェーズで `restoreEnvironments` が
+ * センチネルを実際の LaTeX に置換する。
+ *
+ * @param input         元の文字列 (正規化済み)
+ * @param renderCell    各セルを再帰的に処理する関数 (parseJapanesemath を呼ぶ)
+ * @param sentinels     展開済み LaTeX の蓄積先 (副作用)
+ */
+function parseEnvironments(
+  input: string,
+  renderCell: (s: string) => string,
+  sentinels: string[],
+): string {
+  let s = input;
+  // ネストや複数環境を順次展開する。1 回のループで先頭の 1 環境を展開し、
+  // 展開後の文字列に対して再度走査する。無限ループ防止のため最大 64 回。
+  for (let iter = 0; iter < 64; iter++) {
+    let bestMatch: { idx: number; openIdx: number; envName: string; type: "row" | "matrix" } | null = null;
+
+    for (const pat of ENVIRONMENT_PATTERNS) {
+      const m = pat.re.exec(s);
+      if (!m) continue;
+      const openIdx = m.index + m[0].length - 1;
+      if (s[openIdx] !== "{") continue;
+      // 一番手前で見つかった環境を採用
+      if (bestMatch === null || m.index < bestMatch.idx) {
+        bestMatch = { idx: m.index, openIdx, envName: pat.envName, type: pat.type };
+      }
+    }
+
+    if (!bestMatch) break;
+
+    const closeIdx = findMatchingBrace(s, bestMatch.openIdx);
+    if (closeIdx < 0) break; // ブレース不一致 — そのまま放置
+
+    const body = s.slice(bestMatch.openIdx + 1, closeIdx);
+    const rows = splitTopLevelByRow(body);
+
+    let rendered: string;
+    if (rows.length === 0) {
+      rendered = `\\begin{${bestMatch.envName}} \\end{${bestMatch.envName}}`;
+    } else if (bestMatch.type === "matrix") {
+      const matRows = rows.map(row => {
+        const cells = splitTopLevelByCol(row);
+        return cells.map(c => renderCell(c)).join(" & ");
+      });
+      rendered = `\\begin{${bestMatch.envName}} ${matRows.join(" \\\\ ")} \\end{${bestMatch.envName}}`;
+    } else {
+      const renderedRows = rows.map(row => renderCell(row));
+      rendered = `\\begin{${bestMatch.envName}} ${renderedRows.join(" \\\\ ")} \\end{${bestMatch.envName}}`;
+    }
+
+    // 展開済み LaTeX をセンチネルで隠す
+    const sentinelIdx = sentinels.length;
+    sentinels.push(rendered);
+    const placeholder = `${ENV_SENTINEL_OPEN}${sentinelIdx}${ENV_SENTINEL_CLOSE}`;
+    s = s.slice(0, bestMatch.idx) + placeholder + s.slice(closeIdx + 1);
+  }
+  return s;
+}
+
+/** parseEnvironments で挿入したセンチネルを実際の LaTeX に戻す */
+function restoreEnvironments(s: string, sentinels: string[]): string {
+  if (sentinels.length === 0) return s;
+  return s.replace(
+    new RegExp(`${ENV_SENTINEL_OPEN}(\\d+)${ENV_SENTINEL_CLOSE}`, "g"),
+    (_, idx) => sentinels[Number(idx)] ?? "",
+  );
 }
 
 /**
@@ -2089,6 +2365,18 @@ export function parseJapanesemath(input: string): string {
   // テキスト矢印変換
   result = convertArrows(result);
 
+  // ── Phase 0.8: 環境構文 (連立 / 行列 / 整列 など) ──
+  // ENV{ cell ; cell }   → \begin{env} cell \\ cell \end{env}
+  // ENV{ a, b ; c, d }   → \begin{env} a & b \\ c & d \end{env}
+  // 各セルは parseJapanesemath で再帰的に処理する。
+  // 展開後の LaTeX は U+E000…U+E001 のセンチネルで隠し、後段の Phase 1〜4 が
+  // 環境内部の "cases" "matrix" 等を辞書 alias として誤マッチして壊すのを防ぐ。
+  // Phase 5 末尾で restoreEnvironments により実 LaTeX に置換する。
+  const envSentinels: string[] = [];
+  if (result.includes("{")) {
+    result = parseEnvironments(result, (cell) => parseJapanesemath(cell), envSentinels);
+  }
+
   // ── Phase 0.9: 厳密な演算規則 (スペース区切りトークン解析) ──
   // スペースが含まれる入力に対して、演算子の項数に基づく厳密解析を適用。
   // 0項=記号, 1項=前置(ルート x), 2項=中置(a たす b), 3項(0 π 積分 sinx)
@@ -2329,6 +2617,8 @@ export function parseJapanesemath(input: string): string {
   result = convertBrackets(result);
   // 冗長なスペース整理
   result = result.replace(/ +/g, " ").trim();
+  // 環境センチネル復元 (Phase 0.8 で隠した \begin{env}...\end{env} を戻す)
+  result = restoreEnvironments(result, envSentinels);
 
   return result;
 }
@@ -2776,12 +3066,117 @@ export function latexToJapanese(latex: string): string {
   return s;
 }
 
+/**
+ * LaTeX 環境名 → 日本語名 + 種別マップ (逆変換用)
+ * forward 側 ENVIRONMENT_PATTERNS と対称になるように維持すること。
+ */
+const ENVIRONMENT_REVERSE: Record<string, { ja: string; type: "row" | "matrix" }> = {
+  cases:    { ja: "連立",       type: "row" },
+  aligned:  { ja: "整列",       type: "row" },
+  align:    { ja: "整列",       type: "row" },
+  alignat:  { ja: "整列",       type: "row" },
+  gathered: { ja: "中央",       type: "row" },
+  gather:   { ja: "中央",       type: "row" },
+  pmatrix:  { ja: "行列",       type: "matrix" },
+  matrix:   { ja: "行列",       type: "matrix" },
+  bmatrix:  { ja: "角行列",     type: "matrix" },
+  vmatrix:  { ja: "絶対行列",   type: "matrix" },
+  Bmatrix:  { ja: "大括弧行列", type: "matrix" },
+  Vmatrix:  { ja: "大行列式",   type: "matrix" },
+  smallmatrix: { ja: "行列",   type: "matrix" },
+};
+
+/**
+ * `\\` (LaTeX 行区切り) でトップレベル分割。
+ * `\frac{a \\ b}{c}` のような波括弧内部の `\\` は無視する。
+ */
+function splitLatexRows(body: string): string[] {
+  const rows: string[] = [];
+  let depth = 0;
+  let start = 0;
+  let i = 0;
+  while (i < body.length) {
+    const ch = body[i];
+    if (ch === "{") { depth++; i++; continue; }
+    if (ch === "}") { depth--; i++; continue; }
+    if (ch === "\\" && body[i + 1] === "\\") {
+      if (depth === 0) {
+        rows.push(body.slice(start, i));
+        i += 2;
+        start = i;
+        continue;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === "\\" && i + 1 < body.length) { i += 2; continue; }
+    i++;
+  }
+  rows.push(body.slice(start));
+  return rows.map(r => r.trim()).filter(r => r.length > 0);
+}
+
+/**
+ * `&` でトップレベル分割 (LaTeX 行列の列区切り)。波括弧内部は無視。
+ */
+function splitLatexCells(row: string): string[] {
+  const cells: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === "\\" && i + 1 < row.length) { i++; continue; }
+    if (ch === "{") depth++;
+    else if (ch === "}") depth--;
+    else if (depth === 0 && ch === "&") {
+      cells.push(row.slice(start, i));
+      start = i + 1;
+    }
+  }
+  cells.push(row.slice(start));
+  return cells.map(c => c.trim()).filter(c => c.length > 0);
+}
+
 function convertLatexToJapaneseInner(s: string): string {
   let result = "";
   let i = 0;
 
   while (i < s.length) {
     const ch = s[i];
+
+    // ── \begin{env} ... \end{env} → 環境構文 (連立 / 行列 / 整列 など) ──
+    if (s.startsWith("\\begin{", i)) {
+      const nameEnd = s.indexOf("}", i + 7);
+      if (nameEnd > 0) {
+        const envName = s.slice(i + 7, nameEnd);
+        const endTag = `\\end{${envName}}`;
+        const endIdx = s.indexOf(endTag, nameEnd + 1);
+        if (endIdx > 0) {
+          const info = ENVIRONMENT_REVERSE[envName];
+          if (info) {
+            const body = s.slice(nameEnd + 1, endIdx);
+            const rows = splitLatexRows(body);
+            let rendered: string;
+            if (info.type === "matrix") {
+              const matRows = rows.map(r =>
+                splitLatexCells(r).map(c => convertLatexToJapaneseInner(c)).join(", ")
+              );
+              rendered = `${info.ja}{ ${matRows.join("; ")} }`;
+            } else {
+              const renderedRows = rows.map(r => convertLatexToJapaneseInner(r));
+              rendered = `${info.ja}{ ${renderedRows.join("; ")} }`;
+            }
+            result += rendered;
+            i = endIdx + endTag.length;
+            continue;
+          }
+          // 未知の環境はそのまま LaTeX を残す (parser の Phase -1 で素通し)
+          result += s.slice(i, endIdx + endTag.length);
+          i = endIdx + endTag.length;
+          continue;
+        }
+      }
+    }
 
     // ── \left| X \right|  → 絶対値X ──
     if (s.startsWith("\\left|", i)) {

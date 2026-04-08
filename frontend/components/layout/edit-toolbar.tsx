@@ -9,7 +9,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
-import { generatePDF } from "@/lib/api";
+import { generatePDF, CompileError, formatCompileError } from "@/lib/api";
 import { createFromTemplate } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
 import { TemplatePicker } from "@/components/editor/template-picker";
@@ -67,7 +67,14 @@ export function EditToolbar() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert(e instanceof Error ? e.message : t("edit.toolbar.pdf.error"));
+      // Phase 2: 構造化エラーを i18n でローカライズして表示
+      if (e instanceof CompileError) {
+        const view = formatCompileError(e, t);
+        const body = [view.title, ...view.lines, view.hint].filter(Boolean).join("\n");
+        alert(body);
+      } else {
+        alert(e instanceof Error ? e.message : t("edit.toolbar.pdf.error"));
+      }
     } finally {
       setDownloading(false);
     }

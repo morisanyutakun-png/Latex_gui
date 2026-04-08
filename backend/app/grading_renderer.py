@@ -358,18 +358,20 @@ def _compile_with_images_sync(
     セキュリティ: compile_raw_latex 相当の security 検査を走らせた後、
     tmpdir 内で `lualatex` を直接起動する。
     """
-    from .security import validate_latex_security, validate_latex_size
+    from .security import validate_latex_security, validate_latex_size, format_violations
     from .tex_env import TEX_ENV, LUALATEX_CMD
     from .security import get_compile_args
 
     size_error = validate_latex_size(latex_source)
     if size_error:
-        raise PDFGenerationError(size_error)
+        raise PDFGenerationError(size_error, code="latex_too_large")
     violations = validate_latex_security(latex_source)
     if violations:
         raise PDFGenerationError(
-            f"セキュリティポリシー違反: {'; '.join(violations[:3])}",
+            f"Security policy violation: {format_violations(violations, lang='en')}",
             detail=str(violations),
+            code="security_violation",
+            violations=violations,
         )
 
     with tempfile.TemporaryDirectory() as tmpdir:

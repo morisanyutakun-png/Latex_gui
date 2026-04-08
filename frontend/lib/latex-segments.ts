@@ -209,6 +209,30 @@ const INLINE_DROP_ARG_CMDS = new Set([
   "fontsize", "color",
 ]);
 
+/** インライン中で「**引数を取らず**そのまま消滅させる」命令。
+ *  視覚的にスペース/罫線を描く LaTeX プリミティブだが、
+ *  ビジュアルエディタ上では何も出さない。
+ *
+ *  ※ INLINE_DROP_CMDS と分けている理由:
+ *     INLINE_DROP_CMDS は \large などの「直後の本文に効く」スイッチ。
+ *     こちらは \hfill のように「単独で完結する」コマンド。
+ *     どちらも消費するだけだが、意味論を明示するために別 set。
+ *     ここに無いと parseBody パスで「単独命令認識」も「1引数命令認識」も
+ *     失敗し、最終的に段落本文として `\hfill` という生 LaTeX が描画される。 */
+const INLINE_NO_ARG_HIDDEN_CMDS = new Set([
+  // 水平・垂直の「埋め草」スペース
+  "hfill", "vfill", "hfil", "vfil", "hfilneg", "vfilneg",
+  // 罫線・点線フィラー
+  "hrulefill", "dotfill", "leftarrowfill", "rightarrowfill",
+  // 行送り / ページ調整
+  "smallskip", "medskip", "bigskip", "linebreak", "nolinebreak",
+  "pagebreak", "nopagebreak", "newline", "allowbreak",
+  "break", "nobreak", "goodbreak", "filbreak",
+  "samepage", "nopagebreak",
+  // ストレッチ系
+  "stretch",
+]);
+
 /** 段落テキスト [start, end) からインラインを抽出する。 */
 export function extractInlines(src: string, start: number, end: number): Inline[] {
   const inlines: Inline[] = [];
@@ -316,6 +340,17 @@ export function extractInlines(src: string, start: number, end: number): Inline[
             range: { start: i, end: consumeEnd },
             body: "\u00A0",
           });
+          cursor = consumeEnd;
+          i = consumeEnd;
+          continue;
+        }
+
+        // 0a') 引数なしの「消すだけ」コマンド (\hfill / \vfill / \smallskip / \linebreak …)
+        //     何も描画しない。インラインなら直前/直後の単一スペースも巻き取る。
+        if (INLINE_NO_ARG_HIDDEN_CMDS.has(cmd.name)) {
+          let consumeEnd = cmd.nextPos;
+          if (src[consumeEnd] === " " || src[consumeEnd] === "\t") consumeEnd++;
+          pushText(cursor, i);
           cursor = consumeEnd;
           i = consumeEnd;
           continue;
@@ -450,12 +485,26 @@ export function extractInlines(src: string, start: number, end: number): Inline[
   }
 
   pushText(cursor, end);
-  return inlines.length > 0 ? inlines : [{
-    id: nextId("inl"),
-    kind: "text",
-    range: { start, end },
-    body: src.slice(start, end),
-  }];
+
+  if (inlines.length > 0) return inlines;
+
+  // ── Fallback: 何も recognize されなかった ──
+  // 範囲がプレーンテキスト (LaTeX コマンドを含まない) なら、それを 1 つの text inline として返す。
+  // LaTeX コマンドだけで構成されていた (例: `\hspace{6mm}\rule{15mm}{0.4pt}`) 場合は、
+  // 中身を生 LaTeX のまま画面に出すと「コードが本文に漏れた」状態になるので、
+  // 代わりに **空配列** を返して呼び出し側で「空のセグメント」として扱わせる。
+  // これにより `{\textcolor{red}{\hspace...\rule...}}` が画面に raw LaTeX として
+  // 表示されるバグを防ぐ。
+  const slice = src.slice(start, end);
+  if (!slice.includes("\\")) {
+    return [{
+      id: nextId("inl"),
+      kind: "text",
+      range: { start, end },
+      body: slice,
+    }];
+  }
+  return [];
 }
 
 // ─────────────────────────────────────
@@ -899,6 +948,23 @@ function parseBody(src: string, start: number, end: number): Segment[] {
       continue;
     }
 
+    // 引数なしの「消すだけ」命令 (\hfill / \vfill / \smallskip など) を hidden raw として消費
+    // ※ STANDALONE_CMD_RE に追加してもよかったが、用途上「インラインでも段落でも同じ意味」
+    //    なので INLINE_NO_ARG_HIDDEN_CMDS と単一情報源で扱いたい。
+    const noArgMatch = remaining.match(/^\\([a-zA-Z@]+)(?![a-zA-Z@])/);
+    if (noArgMatch && INLINE_NO_ARG_HIDDEN_CMDS.has(noArgMatch[1])) {
+      const cmdEnd = i + noArgMatch[0].length;
+      segments.push({
+        id: nextId("seg"),
+        kind: "raw",
+        range: { start: i, end: cmdEnd },
+        body: src.slice(i, cmdEnd),
+        meta: { isStandalone: "true", cmd: noArgMatch[1], hidden: "true" },
+      });
+      i = cmdEnd;
+      continue;
+    }
+
     // 1〜2 引数の「表示上は無視する」命令 (\vspace{6mm} / \setcounter{x}{1} 等)
     const hiddenCmdMatch = remaining.match(/^\\([a-zA-Z@]+)\*?\s*\{/);
     if (hiddenCmdMatch) {
@@ -932,46 +998,97 @@ function parseBody(src: string, start: number, end: number): Segment[] {
     }
 
     // それ以外 → 段落として次の改行2つまで読む (ただし、上記の構文に当たったら停止)
+    //
+    // ★ braceDepth 追跡:
+    //   `{\textcolor{red}{\n\n}}` のように波括弧の中に空行を含むケースで段落が
+    //   分断され「{\textcolor{red}{」と「}}」が別ボックスとして表示されるバグを防ぐ。
+    //   段落終端トリガ (空行 / 構造命令 / 行送り) は **トップレベル(braceDepth=0)** のみ
+    //   有効にする。
     const paraStart = i;
     let paraEnd = end;
     let scan = i;
+    let braceDepth = 0;
     while (scan < end) {
-      // 構文の境界 (見出し / \begin / \[ / $$ / 各種非表示コマンド) に当たったら停止
-      if (
-        src.startsWith("\\section{", scan) ||
-        src.startsWith("\\section*{", scan) ||
-        src.startsWith("\\subsection{", scan) ||
-        src.startsWith("\\subsection*{", scan) ||
-        src.startsWith("\\subsubsection{", scan) ||
-        src.startsWith("\\subsubsection*{", scan) ||
-        src.startsWith("\\paragraph{", scan) ||
-        src.startsWith("\\begin{", scan) ||
-        src.startsWith("\\[", scan) ||
-        src.startsWith("$$", scan)
-      ) {
+      const ch = src[scan];
+
+      // \\ (escape) はそのまま 2 文字スキップ。\{ \} \\ もここで一括処理する。
+      if (ch === "\\" && scan + 1 < end) {
+        const next = src[scan + 1];
+        // `\\` (LaTeX line break) — トップレベルかつ 1 文字以上進んだ位置でだけ段落終端
+        if (next === "\\") {
+          if (braceDepth === 0 && scan > paraStart) {
+            paraEnd = scan;
+            break;
+          }
+          scan += 2;
+          continue;
+        }
+        // \{ \} は depth に影響しない。エスケープとしてスキップ。
+        if (next === "{" || next === "}") {
+          scan += 2;
+          continue;
+        }
+        // 構造的境界 / hidden 命令 / 単独命令はトップレベルでのみ段落を打ち切る
+        if (braceDepth === 0) {
+          if (
+            src.startsWith("\\section{", scan) ||
+            src.startsWith("\\section*{", scan) ||
+            src.startsWith("\\subsection{", scan) ||
+            src.startsWith("\\subsection*{", scan) ||
+            src.startsWith("\\subsubsection{", scan) ||
+            src.startsWith("\\subsubsection*{", scan) ||
+            src.startsWith("\\paragraph{", scan) ||
+            src.startsWith("\\begin{", scan) ||
+            src.startsWith("\\[", scan)
+          ) {
+            paraEnd = scan;
+            break;
+          }
+          if (scan > paraStart) {
+            const tail = src.slice(scan, Math.min(scan + 40, end));
+            if (STANDALONE_CMD_RE.test(tail)) {
+              paraEnd = scan;
+              break;
+            }
+            const mNoArg = tail.match(/^\\([a-zA-Z@]+)(?![a-zA-Z@])/);
+            if (mNoArg && INLINE_NO_ARG_HIDDEN_CMDS.has(mNoArg[1])) {
+              paraEnd = scan;
+              break;
+            }
+            const m = tail.match(/^\\([a-zA-Z@]+)\*?\s*\{/);
+            if (m && (ONE_ARG_HIDDEN_CMDS.has(m[1]) || TWO_ARG_HIDDEN_CMDS.has(m[1]))) {
+              paraEnd = scan;
+              break;
+            }
+          }
+        }
+        // 通常のコマンド: 命令名末尾までスキップして depth を進めない
+        let j = scan + 1;
+        while (j < end && /[a-zA-Z@]/.test(src[j])) j++;
+        scan = j;
+        continue;
+      }
+
+      // 波括弧の depth 追跡
+      if (ch === "{") {
+        braceDepth++;
+        scan++;
+        continue;
+      }
+      if (ch === "}") {
+        if (braceDepth > 0) braceDepth--;
+        scan++;
+        continue;
+      }
+
+      // $$...$$ 表示数式境界 (トップレベルのみ)
+      if (braceDepth === 0 && ch === "$" && src[scan + 1] === "$") {
         paraEnd = scan;
         break;
       }
-      // 単独命令 / 1引数命令 / `\\` (line break) を見つけたら段落を打ち切る
-      if (src[scan] === "\\" && scan > paraStart) {
-        // `\\` (line break, optionally with [Nmm] arg) — 段落終端
-        if (src[scan + 1] === "\\") {
-          paraEnd = scan;
-          break;
-        }
-        const tail = src.slice(scan, Math.min(scan + 40, end));
-        if (STANDALONE_CMD_RE.test(tail)) {
-          paraEnd = scan;
-          break;
-        }
-        const m = tail.match(/^\\([a-zA-Z@]+)\*?\s*\{/);
-        if (m && (ONE_ARG_HIDDEN_CMDS.has(m[1]) || TWO_ARG_HIDDEN_CMDS.has(m[1]))) {
-          paraEnd = scan;
-          break;
-        }
-      }
-      // \n\n で段落終端
-      if (src[scan] === "\n") {
+
+      // \n\n で段落終端 (トップレベルのみ)
+      if (ch === "\n" && braceDepth === 0) {
         let j = scan + 1;
         while (j < end && (src[j] === " " || src[j] === "\t")) j++;
         if (j >= end || src[j] === "\n") {
@@ -979,11 +1096,7 @@ function parseBody(src: string, start: number, end: number): Segment[] {
           break;
         }
       }
-      // \\ (escape) はスキップして次へ
-      if (src[scan] === "\\" && scan + 1 < end) {
-        scan += 2;
-        continue;
-      }
+
       scan++;
     }
     if (scan >= end) paraEnd = end;
@@ -994,13 +1107,27 @@ function parseBody(src: string, start: number, end: number): Segment[] {
 
     if (realEnd > paraStart) {
       const inlines = extractInlines(src, paraStart, realEnd);
-      segments.push({
-        id: nextId("seg"),
-        kind: "paragraph",
-        range: { start: paraStart, end: realEnd },
-        body: src.slice(paraStart, realEnd),
-        inlines,
-      });
+      if (inlines.length > 0) {
+        segments.push({
+          id: nextId("seg"),
+          kind: "paragraph",
+          range: { start: paraStart, end: realEnd },
+          body: src.slice(paraStart, realEnd),
+          inlines,
+        });
+      } else {
+        // 中身が hidden/drop コマンドだけだった (\hspace{...}\rule{...} 等)
+        // → 段落を作らず、hidden raw として控えめに保持する。
+        //   こうすれば「raw LaTeX が画面に漏れる」症状を完全に防ぎつつ、
+        //   元 LaTeX を range として保存するので serialize 経路を壊さない。
+        segments.push({
+          id: nextId("seg"),
+          kind: "raw",
+          range: { start: paraStart, end: realEnd },
+          body: src.slice(paraStart, realEnd),
+          meta: { hidden: "true", reason: "no-visible-content" },
+        });
+      }
       i = paraEnd;
     } else {
       // 進捗ゼロの保険

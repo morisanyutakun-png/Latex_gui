@@ -154,12 +154,14 @@ def log_compile_event(
 
 
 def log_security_event(
-    violations: list[str],
+    violations: list,  # list[str] (legacy) or list[dict] (Phase 2 構造化)
     *,
     block_type: Optional[str] = None,
     action: str = "blocked",
 ):
-    """セキュリティイベント用のショートカット"""
+    """セキュリティイベント用のショートカット。
+    Phase 2 改修後 violations は構造化辞書のリストになるが、ここでは
+    後方互換のため list[str] / list[dict] のどちらも受け取れるようにしている。"""
     log_audit(
         AuditEvent.SECURITY_VIOLATION if action == "detected" else AuditEvent.SECURITY_BLOCKED,
         details={

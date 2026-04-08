@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { compileRawLatex } from "@/lib/api";
+import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
 import { useResizePanel } from "@/hooks/use-resize-panel";
 import { useI18n } from "@/lib/i18n";
 import { FileText, Loader2, AlertTriangle, RefreshCw, Code2, X } from "lucide-react";
@@ -157,11 +157,18 @@ interface PdfPreviewPanelProps {
   onClose: () => void;
 }
 
+/** Structured error returned by compileRawLatex, already split into title/lines */
+interface CompileErrorView {
+  title: string;
+  lines: string[];
+  hint?: string;
+}
+
 function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps) {
   const { t } = useI18n();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
-  const [compileError, setCompileError] = useState<string | null>(null);
+  const [compileError, setCompileError] = useState<CompileErrorView | null>(null);
   const compileSeqRef = useRef(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -186,8 +193,14 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
       setCompileError(null);
     } catch (e) {
       if (seq !== compileSeqRef.current) return;
-      const msg = e instanceof Error ? e.message : t("doc.editor.compile_error");
-      setCompileError(msg);
+      // Phase 2: 構造化された CompileError を i18n でローカライズ
+      if (e instanceof CompileError) {
+        setCompileError(formatCompileError(e, t));
+      } else if (e instanceof Error) {
+        setCompileError({ title: t("error.compile"), lines: [e.message] });
+      } else {
+        setCompileError({ title: t("error.compile"), lines: [t("doc.editor.compile_error")] });
+      }
     } finally {
       if (seq === compileSeqRef.current) setCompiling(false);
     }
@@ -246,10 +259,22 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
       </div>
       <div className="relative flex-1 overflow-hidden">
         {compileError && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-rose-50/90 p-6 text-center dark:bg-rose-950/40">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-rose-50/90 p-6 text-center dark:bg-rose-950/40 overflow-auto">
             <AlertTriangle className="h-8 w-8 text-rose-500" />
-            <div className="max-w-md text-sm text-rose-700 dark:text-rose-300">
-              {compileError}
+            <div className="max-w-md space-y-2">
+              <div className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+                {compileError.title}
+              </div>
+              <div className="text-xs text-rose-700/90 dark:text-rose-300/90 space-y-1 text-left">
+                {compileError.lines.map((line, idx) => (
+                  <div key={idx}>{line}</div>
+                ))}
+              </div>
+              {compileError.hint && (
+                <div className="text-[11px] italic text-rose-600/80 dark:text-rose-400/80 pt-1 border-t border-rose-300/40 dark:border-rose-700/40">
+                  {compileError.hint}
+                </div>
+              )}
             </div>
             <button
               onClick={handleManualCompile}

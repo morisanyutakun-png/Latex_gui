@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
-import { generatePDF } from "@/lib/api";
+import { generatePDF, CompileError, formatCompileError } from "@/lib/api";
 import { saveToLocalStorage, downloadAsJSON } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
@@ -138,10 +138,21 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
       setPdfFilename(defaultName);
       setShowSaveDialog(true);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t("header.pdf.error.unknown");
-      if (message.includes("接続できません") || message.includes("起動中") || message.includes("connect") || message.includes("starting")) {
-        toast.error(message, { duration: 10000, description: t("toast.pdf.retry") });
+      // Phase 2: 構造化された CompileError は i18n でローカライズ
+      if (err instanceof CompileError) {
+        const view = formatCompileError(err, t);
+        const description = view.lines.length > 0 ? view.lines.join(" · ") : undefined;
+        // ネットワーク系は再試行ヒントを別 description で出す
+        if (err.code === "network_timeout" || err.code === "network_unreachable") {
+          toast.error(view.title, {
+            duration: 10000,
+            description: description ? `${description} — ${t("toast.pdf.retry")}` : t("toast.pdf.retry"),
+          });
+        } else {
+          toast.error(view.title, { duration: 10000, description });
+        }
       } else {
+        const message = err instanceof Error ? err.message : t("header.pdf.error.unknown");
         toast.error(`${t("toast.pdf.fail")}: ${message}`, { duration: 8000 });
       }
     } finally {

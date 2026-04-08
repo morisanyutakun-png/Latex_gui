@@ -20,7 +20,7 @@ import { UsageBar } from "./usage-bar";
 import { InputArea } from "./input-area";
 
 export function AIChatPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const document = useDocumentStore((s) => s.document);
   const applyAiLatex = useDocumentStore((s) => s.applyAiLatex);
   const {
@@ -151,7 +151,7 @@ export function AIChatPanel() {
     const startTime = Date.now();
 
     const feedbackCtx = buildFeedbackContext();
-    const docContext = document ? buildDocumentContext(document) : "";
+    const docContext = document ? buildDocumentContext(document, locale) : "";
     const enhancedContent = docContext
       ? `${docContext}\n\n${userMsg.content}${feedbackCtx}`
       : `${userMsg.content}${feedbackCtx}`;
@@ -255,7 +255,7 @@ export function AIChatPanel() {
               lastStreamError = event.message;
               break;
           }
-        }, controller.signal);
+        }, controller.signal, locale);
       } catch (streamErr) {
         if (!streamSucceeded) {
           const currentContent = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId)?.content || "";
@@ -276,7 +276,7 @@ export function AIChatPanel() {
               setCurrentTool(null);
 
               try {
-                const result = await sendAIMessage(history, document);
+                const result = await sendAIMessage(history, document, locale);
                 const duration = Date.now() - startTime;
                 incrementUsage();
 

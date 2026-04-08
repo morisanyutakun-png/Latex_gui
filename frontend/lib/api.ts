@@ -11,6 +11,147 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
  */
 const AI_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
+// ═══ Phase 2: 構造化エラー型 ═══════════════════════════════
+//
+// バックエンドの PDFGenerationError は { message, code, params, violations }
+// 形式の HTTPException detail を返す。フロントエンドはこれを CompileError に
+// 詰め替えて throw し、UI 層 (document-editor / app-header) が i18n を使って
+// `code` ベースでローカライズする。
+//
+// 旧 API: throw new Error("セキュリティポリシー違反: 未許可パッケージ: minted")
+// 新 API: throw new CompileError({code: "security_violation",
+//                                 violations: [{code: "package_not_allowed", package: "minted"}],
+//                                 fallbackMessage: "セキュリティポリシー違反: ..."})
+
+export interface SecurityViolationItem {
+  code:
+    | "package_not_allowed"
+    | "tikz_library_not_allowed"
+    | "forbidden_command"
+    | "dangerous_command"
+    | "file_access";
+  package?: string;
+  library?: string;
+  command?: string;
+}
+
+export interface CompileErrorDetail {
+  code?: string | null;
+  params?: Record<string, unknown> | null;
+  violations?: SecurityViolationItem[] | null;
+  fallbackMessage: string;
+  status: number;
+}
+
+export class CompileError extends Error {
+  readonly code?: string | null;
+  readonly params: Record<string, unknown>;
+  readonly violations: SecurityViolationItem[];
+  readonly status: number;
+
+  constructor(detail: CompileErrorDetail) {
+    super(detail.fallbackMessage);
+    this.name = "CompileError";
+    this.code = detail.code ?? null;
+    this.params = detail.params ?? {};
+    this.violations = detail.violations ?? [];
+    this.status = detail.status;
+  }
+}
+
+/**
+ * 1 つのプレースホルダ ({package}, {command}, {library}) を埋める軽量フォーマッタ。
+ * i18n の t() で取り出した raw 文字列に対して使う。
+ */
+function fillPlaceholders(template: string, params: Record<string, unknown>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => {
+    const v = params[key];
+    return v == null ? `{${key}}` : String(v);
+  });
+}
+
+/**
+ * CompileError を i18n でローカライズして「タイトル」と「詳細リスト」のペアにする。
+ * UI 側はこれを使って Alert / Toast を組み立てる。
+ *
+ * @param error  throw された CompileError (api.ts 経由なら必ずこの型)
+ * @param t      i18n の翻訳関数 ((key) => string)
+ * @returns      { title, lines }  title はヘッダ用、lines は本文の各行
+ */
+export function formatCompileError(
+  error: CompileError,
+  t: (key: string) => string,
+): { title: string; lines: string[]; hint?: string } {
+  // セキュリティ違反 → 構造化リストを 1 行ずつ翻訳
+  if (error.code === "security_violation" && error.violations.length > 0) {
+    const lines = error.violations.map((v) => {
+      const key = `error.security.${v.code}`;
+      const template = t(key);
+      // 翻訳キーが見つからなかった (t がキーをそのまま返す) ときは fallback
+      if (template === key) return v.command || v.package || v.library || v.code;
+      return fillPlaceholders(template, {
+        package: v.package ?? "",
+        library: v.library ?? "",
+        command: v.command ?? "",
+      });
+    });
+    return {
+      title: t("error.security.title"),
+      lines: [t("error.security.intro"), ...lines],
+      hint: t("error.security.hint"),
+    };
+  }
+
+  // その他の既知エラー code
+  if (error.code === "network_timeout") {
+    return { title: t("error.compile"), lines: [t("error.network.timeout")] };
+  }
+  if (error.code === "network_unreachable") {
+    return { title: t("error.compile"), lines: [t("error.network.unreachable")] };
+  }
+  if (error.code === "latex_too_large") {
+    return { title: t("error.compile"), lines: [t("error.latex_too_large")] };
+  }
+  if (error.code === "pdf_generation_failed") {
+    return { title: t("error.compile"), lines: [t("error.pdf_generation_failed")] };
+  }
+
+  // 未知の code → fallbackMessage をそのまま見せる (バックエンドのコンパイルエラーなど)
+  return { title: t("error.compile"), lines: [error.message] };
+}
+
+/**
+ * fetch のレスポンスが !ok のとき、構造化エラーを抽出して CompileError を作る。
+ * バックエンドの shape:
+ *   { detail: { message, code, params, violations } }
+ * 旧サーバや 502/504 などで detail が無い場合は code 無しの fallback メッセージのみ。
+ */
+async function buildCompileError(res: Response, fallback: string): Promise<CompileError> {
+  let detail: Record<string, unknown> | null = null;
+  try {
+    const body = await res.json();
+    detail = (body && typeof body === "object" && "detail" in body)
+      ? (body.detail as Record<string, unknown>)
+      : (body as Record<string, unknown>);
+  } catch {
+    /* ignore parse error */
+  }
+  const detailMessage = detail && typeof detail === "object" && typeof detail.message === "string"
+    ? detail.message
+    : null;
+  return new CompileError({
+    code: detail && typeof detail.code === "string" ? detail.code : null,
+    params: detail && detail.params && typeof detail.params === "object"
+      ? (detail.params as Record<string, unknown>)
+      : null,
+    violations: detail && Array.isArray(detail.violations)
+      ? (detail.violations as SecurityViolationItem[])
+      : null,
+    fallbackMessage: detailMessage || fallback,
+    status: res.status,
+  });
+}
+
 export async function generatePDF(doc: DocumentModel): Promise<Blob> {
   const maxAttempts = 2;
   let lastError: Error | null = null;
@@ -25,22 +166,22 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        const detail = err?.detail;
-        const message = typeof detail === "string"
-          ? detail
-          : detail?.message || `PDF生成に失敗しました (HTTP ${res.status})`;
-
+        const err = await buildCompileError(
+          res,
+          `PDF generation failed (HTTP ${res.status})`,
+        );
+        // 502/504 はインフラ起因の一時障害なのでリトライ
         if ((res.status === 502 || res.status === 504) && attempt < maxAttempts) {
-          lastError = new Error(message);
+          lastError = err;
           continue;
         }
-        throw new Error(message);
+        throw err;
       }
 
       return await res.blob();
     } catch (networkErr) {
-      if (networkErr instanceof Error && networkErr.message?.startsWith("PDF")) {
+      // CompileError はそのまま伝播
+      if (networkErr instanceof CompileError) {
         throw networkErr;
       }
 
@@ -48,19 +189,29 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
         (networkErr.name === "TimeoutError" || networkErr.name === "AbortError");
 
       if (isTimeout && attempt < maxAttempts) {
-        lastError = new Error("PDF生成サーバーが応答待ちです。再試行中...");
+        lastError = new CompileError({
+          code: "network_timeout",
+          fallbackMessage: "PDF server is taking longer than usual; retrying…",
+          status: 0,
+        });
         continue;
       }
 
-      throw new Error(
-        isTimeout
-          ? "PDF生成に時間がかかりすぎています。サーバーが起動中の可能性があるため、しばらく待ってから再度お試しください。"
-          : "PDF生成サーバーへのリクエストに失敗しました。\nネットワーク接続を確認してください。"
-      );
+      throw new CompileError({
+        code: isTimeout ? "network_timeout" : "network_unreachable",
+        fallbackMessage: isTimeout
+          ? "PDF generation is taking too long. The server may be starting up — please wait a moment and try again."
+          : "Could not reach the PDF compile server. Please check your network connection.",
+        status: 0,
+      });
     }
   }
 
-  throw lastError || new Error("PDF生成に失敗しました");
+  throw lastError || new CompileError({
+    code: "pdf_generation_failed",
+    fallbackMessage: "PDF generation failed",
+    status: 0,
+  });
 }
 
 export async function previewLatex(doc: DocumentModel): Promise<string> {
@@ -85,9 +236,7 @@ export async function compileRawLatex(latex: string, filename?: string): Promise
     body: JSON.stringify({ latex, filename: filename ?? "document" }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const detail = (err as { detail?: { message?: string } })?.detail;
-    throw new Error(detail?.message ?? "LaTeXコンパイルに失敗しました");
+    throw await buildCompileError(res, `LaTeX compile failed (HTTP ${res.status})`);
   }
   return res.blob();
 }
@@ -156,9 +305,16 @@ export interface AIChatResponse {
   usage: { inputTokens: number; outputTokens: number };
 }
 
+/**
+ * UI ロケール (`useI18n().locale`) を AI バックエンドへ渡す型。
+ * Phase 3: バックエンドはこれを使って system prompt の言語を切り替える。
+ */
+export type AILocale = "ja" | "en";
+
 export async function sendAIMessage(
   messages: Pick<ChatMessage, "role" | "content">[],
   doc: DocumentModel,
+  locale: AILocale = "ja",
 ): Promise<AIChatResponse> {
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/ai/chat`
@@ -166,13 +322,16 @@ export async function sendAIMessage(
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, document: doc }),
+    body: JSON.stringify({ messages, document: doc, locale }),
     signal: AbortSignal.timeout(180000),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    const msg = err?.detail?.message || err?.detail || `AIの応答取得に失敗しました (HTTP ${res.status})`;
+    const msg = err?.detail?.message || err?.detail
+      || (locale === "en"
+        ? `Failed to fetch AI response (HTTP ${res.status})`
+        : `AIの応答取得に失敗しました (HTTP ${res.status})`);
     throw new Error(msg);
   }
 
@@ -208,6 +367,7 @@ export async function streamAIMessage(
   doc: DocumentModel,
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
+  locale: AILocale = "ja",
 ): Promise<StreamDiagnostics> {
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/ai/chat/stream`
@@ -215,17 +375,24 @@ export async function streamAIMessage(
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, document: doc }),
+    body: JSON.stringify({ messages, document: doc, locale }),
     signal: signal || AbortSignal.timeout(300000),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    const msg = err?.detail?.message || err?.detail || `AIの応答取得に失敗しました (HTTP ${res.status})`;
+    const msg = err?.detail?.message || err?.detail
+      || (locale === "en"
+        ? `Failed to fetch AI response (HTTP ${res.status})`
+        : `AIの応答取得に失敗しました (HTTP ${res.status})`);
     throw new Error(msg);
   }
 
-  if (!res.body) throw new Error("ストリーミングレスポンスが空です");
+  if (!res.body) {
+    throw new Error(locale === "en"
+      ? "Streaming response is empty"
+      : "ストリーミングレスポンスが空です");
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
