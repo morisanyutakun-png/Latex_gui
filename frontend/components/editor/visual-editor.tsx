@@ -440,6 +440,51 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
       );
     }
 
+    case "container": {
+      // 未知環境 (tcolorbox / kihon / ouyou / teigi / passage / note / frame …) の透過コンテナ。
+      // {title} 引数があれば見出しとして編集可能に出し、子セグメントを再帰描画する。
+      // 「📎tcolorbox」のような生 env 名は表示しない。
+      const titleStart = Number(segment.meta?.titleStart);
+      const titleEnd = Number(segment.meta?.titleEnd);
+      const hasTitleRange = Number.isFinite(titleStart) && titleStart >= 0 && Number.isFinite(titleEnd) && titleStart < titleEnd;
+      const titleSegment: Segment | null = hasTitleRange ? {
+        id: segment.id + "-title",
+        kind: "paragraph",
+        range: { start: titleStart, end: titleEnd },
+        body: latex.slice(titleStart, titleEnd),
+        inlines: extractInlines(latex, titleStart, titleEnd),
+      } : null;
+      const onContainerTitleCommit = (el: HTMLElement) => {
+        if (!hasTitleRange) return;
+        const newBody = serializeContentEditableDOM(el);
+        if (newBody.trim() === (titleSegment?.body ?? "").trim()) return;
+        applyRangeEdit({ start: titleStart, end: titleEnd }, newBody);
+      };
+      return (
+        <div className="container-block my-4 rounded-md border border-foreground/10 bg-foreground/[0.015] dark:bg-white/[0.02] overflow-hidden">
+          {titleSegment && (
+            <ContentEditableBlock
+              segment={titleSegment}
+              latex={latex}
+              onCommit={onContainerTitleCommit}
+              tag="h4"
+              className="container-block-title px-4 py-1.5 text-[13px] font-semibold text-foreground/75 bg-foreground/[0.04] dark:bg-white/[0.04] m-0 border-b border-foreground/10"
+            />
+          )}
+          <div className="px-4 py-3 space-y-2">
+            {(segment.children ?? []).map((child, idx) => (
+              <SegmentRenderer
+                key={`${idx}-${child.kind}`}
+                segment={child}
+                latex={latex}
+                applyRangeEdit={applyRangeEdit}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     case "raw":
       return <RawPlaceholder segment={segment} />;
 
@@ -839,29 +884,56 @@ function insertEmptyMathChipAndEdit(
 
 const ENV_LABEL_JA: Record<string, string> = {
   table: "表",
+  "table*": "表",
   tabular: "表",
+  "tabular*": "表",
+  tabularx: "表",
+  longtable: "表",
+  array: "行列",
+  matrix: "行列",
   figure: "図",
+  "figure*": "図",
+  wrapfigure: "図",
+  wraptable: "表",
   tikzpicture: "図",
-  verbatim: "コードブロック",
-  lstlisting: "コードブロック",
-  minted: "コードブロック",
-  abstract: "概要",
-  center: "中央寄せブロック",
+  pgfpicture: "図",
+  verbatim: "コード",
+  "verbatim*": "コード",
+  Verbatim: "コード",
+  lstlisting: "コード",
+  minted: "コード",
+  alltt: "コード",
+  thebibliography: "参考文献",
+  filecontents: "外部ファイル",
+  "filecontents*": "外部ファイル",
+};
+
+const ENV_LABEL_ICON: Record<string, string> = {
+  table: "▦", "table*": "▦", tabular: "▦", "tabular*": "▦",
+  tabularx: "▦", longtable: "▦", array: "▦", matrix: "▦",
+  wraptable: "▦",
+  figure: "❖", "figure*": "❖", wrapfigure: "❖",
+  tikzpicture: "❖", pgfpicture: "❖",
+  verbatim: "</>", "verbatim*": "</>", Verbatim: "</>",
+  lstlisting: "</>", minted: "</>", alltt: "</>",
+  thebibliography: "❡",
+  filecontents: "▣", "filecontents*": "▣",
 };
 
 function RawPlaceholder({ segment }: { segment: Segment }) {
   const isStandalone = segment.meta?.isStandalone === "true";
   const isEnv = segment.meta?.isEnvironment === "true";
 
-  // \maketitle / \tableofcontents / \newpage 等は完全に非表示。
+  // \maketitle / \tableofcontents / \newpage / `\\[10mm]` 等は完全に非表示。
   if (isStandalone) return null;
 
   if (isEnv) {
     const envName = segment.meta?.envName ?? "";
     const label = ENV_LABEL_JA[envName] ?? envName;
+    const icon = ENV_LABEL_ICON[envName] ?? "▣";
     return (
-      <div className="my-4 px-4 py-3 rounded-md border border-dashed border-foreground/15 bg-foreground/[0.015] flex items-center gap-2 text-foreground/45 italic text-[12.5px]">
-        <span className="text-[14px]">📎</span>
+      <div className="my-3 px-3 py-2 rounded border border-dashed border-foreground/12 bg-foreground/[0.015] inline-flex items-center gap-2 text-foreground/40 text-[11.5px] tracking-wide">
+        <span className="font-mono text-[10px]">{icon}</span>
         <span>{label}</span>
       </div>
     );

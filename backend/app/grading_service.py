@@ -15,6 +15,8 @@ import json
 import logging
 from typing import AsyncGenerator
 
+import re
+
 from .ai_service import get_client, MODEL_CHAT, MODEL_VISION
 from .grading_models import (
     AnswerPage,
@@ -23,10 +25,12 @@ from .grading_models import (
     GradedQuestion,
     GradingResult,
     Mark,
+    Rubric,
     RubricBundle,
+    RubricCriterion,
 )
 from .omr_service import _extract_pdf_content, _image_to_data_url
-from .rubric_parser import parse_rubrics
+from .rubric_parser import parse_rubrics, serialize_rubrics_into_latex
 
 logger = logging.getLogger(__name__)
 
@@ -73,16 +77,63 @@ RUBRIC_EXTRACTOR_SYSTEM_PROMPT = r"""\
   - 「論点の理解」「論拠の提示」「結論の妥当性」
   - 「定義を正しく書いている」「具体例が適切」
 
+# 設問の見つけ方 (重要)
+入力 LaTeX 内では設問は次のような形で現れます。**いずれにも対応してください**:
+1. `\begin{daimon}{大問1 ...}` 〜 `\end{daimon}` のような独自環境
+2. `\daimonhead{1}{...}` のようなマクロ
+3. `\section{第1問 ...}` `\section*{大問1}` のような見出し
+4. `\begin{kihon}{基本問題 ...}` `\begin{ouyou}{...}` `\begin{reidai}{...}` のような独自環境
+5. 段落先頭の素テキストで「問1.」「(1)」「[1]」など
+6. `\begin{enumerate}` 内の `\item` が連続している場合も、各 `\item` を 1 設問とみなしてよい
+
+問題が短い場合や、設問区切りが曖昧でも、**最低でも 1 つは** `%@rubric-begin..end`
+ブロックを生成してください。空の応答は禁止です(問題本文が完全に空の場合を除く)。
+
+# 完全な入出力例
+
+入力 LaTeX (抜粋):
+```latex
+\section*{第1問}
+次の連立方程式を解け。
+\begin{align*}
+2x + 3y &= 7 \\
+x - y &= 1
+\end{align*}
+\section*{第2問}
+$f(x) = x^2 - 4x + 3$ について、頂点の座標を求めよ。
+```
+
+期待される **正しい** 出力 (該当箇所のみ抜粋):
+```latex
+%@rubric-begin: q1
+%@rubric: label="第1問"
+%@rubric: points=10
+%@rubric: criterion="加減法または代入法を選択し正しく式を変形している"; weight=4
+%@rubric: criterion="計算過程に符号ミス・計算ミスがない"; weight=3
+%@rubric: criterion="x, y の最終解答が明示されている"; weight=3
+%@rubric-end
+
+%@rubric-begin: q2
+%@rubric: label="第2問"
+%@rubric: points=8
+%@rubric: criterion="平方完成または微分により頂点を求める方針が立っている"; weight=3
+%@rubric: criterion="計算過程が正しい"; weight=3
+%@rubric: criterion="頂点の座標 (x, y) を明示している"; weight=2
+%@rubric-end
+```
+
 # 絶対禁止事項
 - プリアンブル(`\documentclass`, `\usepackage`, `\title`, `\author` 等)を変更しない
 - `\begin{document}` 〜 `\end{document}` の中身(本文)を変更しない
 - 既存の `%@rubric-begin..end` ブロックがあれば残す or 改善する(削除しない)
-- 問題が見当たらないテンプレや空文書には新規ルーブリックを作らず、空のままで構わない
-- LaTeX 構文を壊さない
+- LaTeX 構文を壊さない (波括弧の対応、改行位置など)
+- **`%@rubric-begin..end` を 1 つも入れない**(=本文をそのまま返す)のは禁止
+  問題が読み取りづらくても、最低 1 つは推測で生成してください。
 
 # 応答方法
 **必ず `set_latex` ツールを呼び出して**、ルーブリックコメントを追加した完全な
 LaTeX ソースを `latex` 引数として渡してください。チャット応答は不要です。
+ルーブリックブロックの挿入位置は **`\begin{document}` の直後** が推奨です。
 """
 
 
@@ -136,6 +187,13 @@ def _extract_latex_from_tool_call(response) -> str | None:
 async def extract_rubric_with_ai_stream(latex: str) -> AsyncGenerator[str, None]:
     """SSEストリーム版 — 問題LaTeX に %@rubric コメントブロックを追加する。
 
+    強化点 (2026-04 改修):
+    - 最大 3 回まで AI を再試行する
+    - 各試行で前回失敗の理由 (tool_call なし / parse 結果が空 / API エラー) を
+      ユーザーメッセージとして追加し、AI に修正を促す
+    - すべての試行が失敗しても、LaTeX 内の設問パターンから雛形ルーブリックを
+      自動生成する fallback を持つ。完全な失敗 ("作れない") を避ける。
+
     yields:
       data: {"type": "progress", "phase": "...", "message": "..."}
       data: {"type": "done", "latex": "...", "rubrics": <RubricBundle>}
@@ -158,7 +216,7 @@ async def extract_rubric_with_ai_stream(latex: str) -> AsyncGenerator[str, None]
         return
 
     tools = _build_rubric_extractor_tool()
-    messages = [
+    base_messages: list[dict] = [
         {"role": "system", "content": RUBRIC_EXTRACTOR_SYSTEM_PROMPT},
         {
             "role": "user",
@@ -179,16 +237,24 @@ async def extract_rubric_with_ai_stream(latex: str) -> AsyncGenerator[str, None]
         "message": "AIが採点観点を考えています…",
     })
 
-    MAX_RETRIES = 2
+    MAX_AI_ATTEMPTS = 3
     new_latex: str | None = None
+    bundle: RubricBundle | None = None
+    correction_feedback: str | None = None
+    last_error: str | None = None
 
-    for attempt in range(1, MAX_RETRIES + 1):
+    for attempt in range(1, MAX_AI_ATTEMPTS + 1):
         if attempt > 1:
             yield _sse({
                 "type": "progress",
                 "phase": "retrying",
-                "message": f"再試行中… ({attempt}/{MAX_RETRIES})",
+                "message": f"再試行中… ({attempt}/{MAX_AI_ATTEMPTS})",
             })
+
+        # 修正フィードバックがあれば末尾に追加してから呼び出す
+        messages = list(base_messages)
+        if correction_feedback:
+            messages.append({"role": "user", "content": correction_feedback})
 
         try:
             def _call():
@@ -200,28 +266,93 @@ async def extract_rubric_with_ai_stream(latex: str) -> AsyncGenerator[str, None]
                     temperature=0.4,
                     max_tokens=16384,
                 )
-
             response = await asyncio.to_thread(_call)
         except Exception as e:
             logger.error("rubric extract API error (attempt %d): %s", attempt, e)
-            if attempt < MAX_RETRIES:
-                continue
-            yield _sse({
-                "type": "error",
-                "message": f"AI呼び出しエラー: {type(e).__name__}: {str(e)[:200]}",
-            })
-            return
+            last_error = f"{type(e).__name__}: {str(e)[:200]}"
+            correction_feedback = (
+                f"前回の API 呼び出しに失敗しました ({last_error})。"
+                "**必ず set_latex ツールを呼び出して** 完全な LaTeX を `latex` 引数で返してください。"
+            )
+            continue
 
-        new_latex = _extract_latex_from_tool_call(response)
-        if new_latex:
+        candidate_latex = _extract_latex_from_tool_call(response)
+        if not candidate_latex:
+            logger.warning("rubric extract attempt %d: tool_call missing", attempt)
+            correction_feedback = (
+                "前回の応答では `set_latex` ツールが正しく呼ばれませんでした。"
+                "チャット文ではなく、**必ず `set_latex` ツールを呼び出して** "
+                "ルーブリックコメント付きの完全な LaTeX ソースを `latex` 引数として返してください。"
+            )
+            continue
+
+        candidate_bundle = parse_rubrics(candidate_latex)
+        if candidate_bundle.rubrics:
+            new_latex = candidate_latex
+            bundle = candidate_bundle
             break
 
-    if not new_latex:
+        # tool_call は成功したが %@rubric ブロックが 0 個 → 修正フィードバックして再試行
+        logger.warning(
+            "rubric extract attempt %d: parsed 0 rubrics from %d chars",
+            attempt, len(candidate_latex),
+        )
+        correction_feedback = (
+            "前回の応答には `%@rubric-begin..end` ブロックが **1 つも含まれていませんでした**。\n"
+            "問題LaTeX に何らかの設問が含まれているはずです。もう一度よく読んで、"
+            "少なくとも 1 つの `%@rubric-begin..end` ブロックを必ず生成してください。\n\n"
+            "次の最小例を参考にしてください:\n\n"
+            "```\n"
+            "%@rubric-begin: q1\n"
+            "%@rubric: label=\"問1\"\n"
+            "%@rubric: points=10\n"
+            "%@rubric: criterion=\"立式・問題の理解\"; weight=3\n"
+            "%@rubric: criterion=\"計算過程の正しさ\"; weight=4\n"
+            "%@rubric: criterion=\"最終解答の明示\"; weight=3\n"
+            "%@rubric-end\n"
+            "```\n\n"
+            "このブロックを `\\begin{document}` の **直後** に挿入してください。"
+            "プリアンブルや本文は一切変更せず、`set_latex` ツールを呼んでください。"
+        )
+
+    # ── すべての AI 試行が失敗 → ヒューリスティクス fallback ──
+    if not bundle or not bundle.rubrics:
         yield _sse({
-            "type": "error",
-            "message": "AIがルーブリックを生成できませんでした。問題が短すぎないか確認してください。",
+            "type": "progress",
+            "phase": "fallback",
+            "message": "AI の生成に失敗したので、問題構造から採点基準の雛形を作成しています…",
         })
-        return
+        try:
+            fallback_rubrics = _heuristic_rubric_fallback(latex)
+        except Exception as e:
+            logger.exception("heuristic fallback failed: %s", e)
+            fallback_rubrics = []
+
+        if fallback_rubrics:
+            try:
+                new_latex = serialize_rubrics_into_latex(latex, fallback_rubrics)
+                bundle = parse_rubrics(new_latex)
+            except Exception as e:
+                logger.exception("fallback serialize failed: %s", e)
+                bundle = None
+
+            if bundle and bundle.rubrics:
+                bundle.parse_warnings.append(
+                    "AI による採点基準の生成に失敗したため、問題構造から自動で雛形を作成しました。"
+                    "観点の文言と配点を必ずあなた自身で調整してください。"
+                )
+
+        if not bundle or not bundle.rubrics:
+            err_detail = f" (最後のエラー: {last_error})" if last_error else ""
+            yield _sse({
+                "type": "error",
+                "message": (
+                    "採点基準を生成できませんでした。問題LaTeX に「問1」「大問1」"
+                    "「\\begin{daimon}」など設問を識別できる手がかりが含まれているか確認してください。"
+                    + err_detail
+                ),
+            })
+            return
 
     yield _sse({
         "type": "progress",
@@ -229,20 +360,80 @@ async def extract_rubric_with_ai_stream(latex: str) -> AsyncGenerator[str, None]
         "message": "生成された採点基準を検証中…",
     })
 
-    bundle = parse_rubrics(new_latex)
-
-    if not bundle.rubrics:
-        yield _sse({
-            "type": "error",
-            "message": "AIが %@rubric ブロックを正しく挿入できませんでした。もう一度お試しください。",
-        })
-        return
-
     yield _sse({
         "type": "done",
         "latex": new_latex,
         "rubrics": bundle.model_dump(by_alias=True),
     })
+
+
+# ──────────── ヒューリスティクス fallback ────────────
+
+# 「問題っぽい構造」を検知する正規表現群。長いパターンから優先する。
+_DAIMON_ENV_RE = re.compile(r"\\begin\{daimon\}")
+_DAIMONHEAD_RE = re.compile(r"\\daimonhead\s*\{")
+_KIHON_OUYOU_RE = re.compile(r"\\begin\{(?:kihon|ouyou|reidai|teiri|teigi|hatten)\}")
+_SECTION_QUESTION_RE = re.compile(
+    r"\\section\*?\s*\{[^}]*?(?:大問|第\s*[\d一二三四五六七八九十百]+\s*問|問\s*\d+)[^}]*?\}"
+)
+_BARE_QUESTION_RE = re.compile(
+    r"(?m)^\s*(?:大問\s*\d+|問\s*\d+|第\s*\d+\s*問|【\s*問\s*\d+\s*】|\(\s*\d+\s*\))"
+)
+_ENUMERATE_RE = re.compile(r"\\begin\{enumerate\}")
+
+
+def _heuristic_rubric_fallback(latex: str) -> list[Rubric]:
+    """LaTeX 内の設問らしき構造を数えて、placeholder ルーブリックを生成する。
+
+    AI が空応答を返した時の最後の砦。完璧である必要はないが、ユーザーが
+    UI 上で観点と配点を調整できる「叩き台」を必ず返すことを目的とする。
+    """
+    if not latex.strip():
+        return []
+
+    # 戦略 1: \begin{daimon}
+    count = len(_DAIMON_ENV_RE.findall(latex))
+
+    # 戦略 2: \daimonhead{N}
+    if count == 0:
+        count = len(_DAIMONHEAD_RE.findall(latex))
+
+    # 戦略 3: 塾系テンプレの kihon/ouyou/reidai 等
+    if count == 0:
+        count = len(_KIHON_OUYOU_RE.findall(latex))
+
+    # 戦略 4: \section{第1問} 等
+    if count == 0:
+        count = len(_SECTION_QUESTION_RE.findall(latex))
+
+    # 戦略 5: 行頭の素テキスト (大問N / 問N / (1) 等)
+    if count == 0:
+        count = len(_BARE_QUESTION_RE.findall(latex))
+
+    # 最終フォールバック: enumerate がある or section が 1 つでもあるなら 1 問とみなす
+    if count == 0:
+        if _ENUMERATE_RE.search(latex) or re.search(r"\\section\*?\s*\{", latex):
+            count = 1
+
+    if count == 0:
+        return []
+
+    # 暴走防止: 上限 20 問
+    count = min(count, 20)
+
+    rubrics: list[Rubric] = []
+    for n in range(1, count + 1):
+        rubrics.append(Rubric(
+            question_id=f"q{n}",
+            question_label=f"問{n}",
+            max_points=10,
+            criteria=[
+                RubricCriterion(description="立式・問題の理解", weight=3),
+                RubricCriterion(description="計算過程の正しさ", weight=4),
+                RubricCriterion(description="最終解答の明示", weight=3),
+            ],
+        ))
+    return rubrics
 
 
 # ════════════════ Phase 5: AI 採点 (grade_answer_stream) ════════════════

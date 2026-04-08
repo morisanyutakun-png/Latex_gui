@@ -30,6 +30,7 @@ export type SegmentKind =
   | "item"
   | "daimon"      // \begin{daimon}{title}...\end{daimon} (テンプレ独自・大問ボックス)
   | "center"      // \begin{center}...\end{center} (中身を再帰展開して中央寄せ)
+  | "container"   // 未知環境を透過的に展開する汎用コンテナ (tcolorbox / kihon / ouyou / teigi など)
   | "raw"
   | "documentEnd"; // \end{document} 以降の trailing 部分 (非表示)
 
@@ -543,6 +544,19 @@ const HEADING_PATTERNS: ReadonlyArray<{
 /** 単独命令 ( \maketitle 等 ) の正規表現 — 引数なし */
 const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|newpage|clearpage|pagebreak|linebreak|hline|midrule|toprule|bottomrule|noindent|smallskip|medskip|bigskip|par|centering|raggedright|raggedleft|onehalfspacing|doublespacing|singlespacing|null|@empty)\b/;
 
+/**
+ * 「これらの環境はビジュアルエディタで `container` 化せず raw に残す」リスト。
+ * 表/figure/コード/TikZ など、本文として再帰パースしても意味のある要素にならないもの。
+ * これ以外の未知環境は container として中身を再帰パースして表示する。
+ */
+const PRESERVE_AS_RAW_ENVS = new Set([
+  "tabular", "tabular*", "tabularx", "longtable", "array", "matrix",
+  "tikzpicture", "pgfpicture", "scope",
+  "verbatim", "verbatim*", "lstlisting", "minted", "alltt", "Verbatim",
+  "figure", "figure*", "table", "table*", "wrapfigure", "wraptable",
+  "thebibliography", "filecontents", "filecontents*",
+]);
+
 /** 1 つの引数 {…} を取って表示上は無視する命令 (vspace / hspace / setcounter / addtocounter 等)
  *  さらに * 付き variant (\vspace*) も自動でマッチさせる。 */
 const ONE_ARG_HIDDEN_CMDS = new Set([
@@ -599,6 +613,39 @@ function parseBody(src: string, start: number, end: number): Segment[] {
         i = braceEnd + 1;
         continue;
       }
+    }
+
+    // 改行コマンド: \\  または  \\[10mm] 等の縦スペース付き改行
+    // 注意: src 内では `\\` (本物の 2 文字バックスラッシュ) で表現される。
+    // これを paragraph パスに流すと「\\[10mm]」のような生 LaTeX が画面に出てしまうため、
+    // ここで hidden raw として消費する。
+    if (src.startsWith("\\\\", i)) {
+      let cmdEnd = i + 2;
+      // 任意の `*` (\\*[10mm] などの no-page-break variant)
+      if (src[cmdEnd] === "*") cmdEnd++;
+      // 任意の [<長さ>] 引数
+      if (src[cmdEnd] === "[") {
+        let depth = 1;
+        let j = cmdEnd + 1;
+        while (j < end) {
+          if (src[j] === "\\" && j + 1 < end) { j += 2; continue; }
+          if (src[j] === "[") depth++;
+          else if (src[j] === "]") {
+            depth--;
+            if (depth === 0) { cmdEnd = j + 1; break; }
+          }
+          j++;
+        }
+      }
+      segments.push({
+        id: nextId("seg"),
+        kind: "raw",
+        range: { start: i, end: cmdEnd },
+        body: src.slice(i, cmdEnd),
+        meta: { isStandalone: "true", cmd: "linebreak", hidden: "true" },
+      });
+      i = cmdEnd;
+      continue;
     }
 
     // 表示数式: \[...\]
@@ -755,16 +802,83 @@ function parseBody(src: string, start: number, end: number): Segment[] {
             i = envEnd;
             continue;
           }
-          // raw 環境 (table/figure/tabular/...)
-          segments.push({
-            id: nextId("seg"),
-            kind: "raw",
-            range: { start: i, end: envEnd },
-            body: src.slice(i, envEnd),
-            meta: { envName, isEnvironment: "true" },
-          });
-          i = envEnd;
-          continue;
+          // 「中身を覗かない」と決めている環境 (table/figure/tabular/tikz/verbatim/…)
+          // → これだけは raw 扱い (RawPlaceholder で控えめに表示)
+          if (PRESERVE_AS_RAW_ENVS.has(envName)) {
+            segments.push({
+              id: nextId("seg"),
+              kind: "raw",
+              range: { start: i, end: envEnd },
+              body: src.slice(i, envEnd),
+              meta: { envName, isEnvironment: "true" },
+            });
+            i = envEnd;
+            continue;
+          }
+
+          // それ以外の未知環境 (tcolorbox / kihon / ouyou / teigi / passage / note / frame など)
+          // → 透過的な container として中身を再帰パースして表示する。
+          // \begin{name}[opt]{title} などの引数列はスキップしてから body をパースする。
+          // {title} 引数があれば、それを container.body に保持して見出し風に出す。
+          {
+            const beginLen = `\\begin{${envName}}`.length;
+            const endLen = `\\end{${envName}}`.length;
+            let cursor = i + beginLen;
+            let titleStart = -1;
+            let titleEnd = -1;
+
+            // 任意の [opt] と {arg} を任意個スキップ。最初の {arg} を title として保持する。
+            while (cursor < envEnd) {
+              while (cursor < envEnd && (src[cursor] === " " || src[cursor] === "\t")) cursor++;
+              if (src[cursor] === "[") {
+                let depth = 1;
+                let j = cursor + 1;
+                let found = false;
+                while (j < envEnd) {
+                  if (src[j] === "\\" && j + 1 < envEnd) { j += 2; continue; }
+                  if (src[j] === "[") depth++;
+                  else if (src[j] === "]") {
+                    depth--;
+                    if (depth === 0) { cursor = j + 1; found = true; break; }
+                  }
+                  j++;
+                }
+                if (!found) break;
+                continue;
+              }
+              if (src[cursor] === "{") {
+                const close = findMatchingBrace(src, cursor, envEnd);
+                if (close === -1) break;
+                if (titleStart === -1) {
+                  titleStart = cursor + 1;
+                  titleEnd = close;
+                }
+                cursor = close + 1;
+                continue;
+              }
+              break;
+            }
+
+            const innerStart = cursor;
+            const innerEnd = envEnd - endLen;
+            const children = parseBody(src, innerStart, innerEnd);
+            segments.push({
+              id: nextId("seg"),
+              kind: "container",
+              range: { start: i, end: envEnd },
+              body: titleStart !== -1 ? src.slice(titleStart, titleEnd) : "",
+              children,
+              meta: {
+                envName,
+                titleStart: String(titleStart),
+                titleEnd: String(titleEnd),
+                innerStart: String(innerStart),
+                innerEnd: String(innerEnd),
+              },
+            });
+            i = envEnd;
+            continue;
+          }
         }
       }
     }
@@ -838,8 +952,13 @@ function parseBody(src: string, start: number, end: number): Segment[] {
         paraEnd = scan;
         break;
       }
-      // 単独命令 / 1引数命令を見つけたらそこで段落を打ち切る (scan が paraStart より進んでいるときのみ)
+      // 単独命令 / 1引数命令 / `\\` (line break) を見つけたら段落を打ち切る
       if (src[scan] === "\\" && scan > paraStart) {
+        // `\\` (line break, optionally with [Nmm] arg) — 段落終端
+        if (src[scan + 1] === "\\") {
+          paraEnd = scan;
+          break;
+        }
         const tail = src.slice(scan, Math.min(scan + 40, end));
         if (STANDALONE_CMD_RE.test(tail)) {
           paraEnd = scan;
@@ -963,7 +1082,8 @@ export function serializeSegment(segment: Segment, newBody: string, originalSrc:
       return newBody;
     case "daimon":
     case "center":
-      // daimon/center は子セグメントを通じて編集する。
+    case "container":
+      // daimon / center / container は子セグメントを通じて編集する。
       // 直接 body を置換することはないので、original を返す。
       return original;
     default:

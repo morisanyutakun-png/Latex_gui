@@ -386,6 +386,25 @@ const JUKU_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20
 \fancyhead[R]{\small\textcolor{jkink}{二次関数\,/\,Lesson 03}}
 \renewcommand{\headrulewidth}{0.4pt}
 
+% ── ヒント / 復習 / 解答 用の小ボックス ──
+\newtcolorbox{hintbox}{
+  enhanced,breakable,
+  colback=jkpale!50,colframe=jkmain!40,
+  sharp corners,arc=0mm,boxrule=0.4pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+  fontupper=\small,
+}
+\newtcolorbox{kakuninbox}{
+  enhanced,breakable,
+  colback=white,colframe=jknavy!30,
+  borderline west={2.5pt}{0pt}{jknavy!70},
+  sharp corners,arc=0mm,boxrule=0.3pt,
+  left=10pt,right=10pt,top=6pt,bottom=6pt,
+}
+
+\newcommand{\juKey}[1]{\textcolor{jkmain}{\textbf{#1}}}
+\newcommand{\juHint}[1]{\textcolor{jkink!70}{\small\textit{ヒント:\,#1}}}
+
 \begin{document}
 
 \jukutitle{二次関数 完全マスター}{Lesson 03 ・ 中3〜高1 ・ 全 90 分}
@@ -393,11 +412,28 @@ const JUKU_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20
 \smallskip
 \noindent
 \nlevel{★☆☆}\quad\nlevel{★★☆}\quad\nlevel{★★★}\hfill
-\textcolor{jkink!70}{\small 目標時間: 60 分\quad 目安到達点: 70点}
+\textcolor{jkink!70}{\small 目標時間: 60 分\quad 目安到達点: 70 / 100 点}
+
+\medskip
+
+\begin{kakuninbox}
+  \textcolor{jknavy}{\textbf{今日のゴール}}\quad
+  二次関数の頂点・軸を 30 秒で言える / 解の配置を 3 条件で記述できる /
+  文字定数を含む最大最小を場合分けで図示できる。
+\end{kakuninbox}
 
 \bigskip
 
-\begin{kihon}{基本問題\quad ★☆☆\quad ウォームアップ}
+\noindent\textcolor{jkink!70}{\small\textbf{――  前回の復習チェック  ――}}\\[1pt]
+\noindent\textcolor{jkink!85}{\small
+\juKey{① 平方完成} $\;ax^2+bx+c=a\!\left(x+\dfrac{b}{2a}\right)^{\!2}-\dfrac{b^2-4ac}{4a}$\quad
+\juKey{② 判別式} $\;D=b^2-4ac$\quad
+\juKey{③ 解と係数の関係} $\;\alpha+\beta=-\dfrac{b}{a},\ \alpha\beta=\dfrac{c}{a}$
+}
+
+\bigskip
+
+\begin{kihon}{基本問題\quad ★☆☆\quad ウォームアップ \haiten{15}}
   次の二次関数のグラフの頂点と軸を求めよ。
 
   \begin{enumerate}
@@ -405,33 +441,65 @@ const JUKU_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20
     \item $y = -2 x^2 + 8 x - 3$
     \item $y = 3 (x - 1)^2 + 4$
   \end{enumerate}
+
+  \juHint{(1)(2) は平方完成、(3) は標準形のままでよい。}
 \end{kihon}
 
 \medskip
 
-\begin{kihon}{標準問題\quad ★★☆\quad 解の配置}
+\begin{kihon}{標準問題\quad ★★☆\quad 解の配置 \haiten{30}}
   二次関数 $f(x) = x^2 + a x + 2$ について、次の問いに答えよ。
 
   \begin{enumerate}
     \item $f(x) = 0$ が異なる 2 つの実数解をもつような $a$ の値の範囲を求めよ。
     \item $f(x) = 0$ の 2 つの解がともに正となるような $a$ の値の範囲を求めよ。
+    \item $f(x) = 0$ の 2 つの解が $-1 < x < 3$ の範囲にあるような $a$ の値の範囲を求めよ。
   \end{enumerate}
+
+  \begin{hintbox}
+  \juKey{解の配置 3 条件}\\
+  ・判別式 $D > 0$ (相異なる実数解)\\
+  ・軸 $x = -\dfrac{a}{2}$ の位置\\
+  ・区間端での値 $f(\alpha),\,f(\beta)$ の符号
+  \end{hintbox}
 \end{kihon}
 
 \medskip
 
-\begin{ouyou}{応用問題\quad ★★★\quad 文字を含む最大最小}
+\begin{ouyou}{応用問題\quad ★★★\quad 文字を含む最大最小 \haiten{40}}
   二次関数 $f(x) = x^2 - 2 a x + 3$ について、$0 \leq x \leq 2$ における最大値 $M(a)$ と
-  最小値 $m(a)$ を求め、それぞれを $a$ の関数として図示せよ。
+  最小値 $m(a)$ を、$a$ の値で場合分けして求め、それぞれを $a$ の関数として図示せよ。
+
+  \juHint{軸 $x=a$ が区間 $[0,2]$ の左外・内・右外の 3 通りに分けて考える。}
+\end{ouyou}
+
+\medskip
+
+\begin{ouyou}{チャレンジ\quad ★★★\quad 思考力問題 \haiten{15}}
+  二次関数 $y = x^2 - 4x + k$ のグラフが $x$ 軸と異なる 2 点 $\mathrm{P},\,\mathrm{Q}$ で交わり、
+  $\mathrm{PQ} = 2\sqrt{3}$ となるとき、定数 $k$ の値を求めよ。
 \end{ouyou}
 
 \bigskip
 
 \noindent
-\textcolor{jkink}{\small\textbf{今日の Point}}\\[2pt]
-\textcolor{jkink!85}{\small ・ 二次関数の最大最小は「定義域の端」と「軸の位置」で場合分け\\
-・ 解の配置は「判別式 $D$」「軸の位置」「区間端での符号」の 3 条件で決まる\\
-・ 文字定数を含むときは、必ず軸の位置で場合分けして図を描く}
+\textcolor{jkink}{\small\textbf{■ 今日の Point}}
+\begin{kakuninbox}
+\textcolor{jkink!90}{\small
+・ 二次関数の最大最小は「\juKey{定義域の端}」と「\juKey{軸の位置}」で場合分け\\
+・ 解の配置は「\juKey{判別式 $D$}」「\juKey{軸の位置}」「\juKey{区間端の符号}」の 3 条件で決まる\\
+・ 文字定数を含むときは、必ず軸の位置で場合分けして図を描く\\
+・ $\mathrm{PQ}$ の長さは「2 解の差」$|\alpha - \beta| = \sqrt{(\alpha+\beta)^2 - 4\alpha\beta}$ で計算
+}
+\end{kakuninbox}
+
+\bigskip
+
+\noindent\textcolor{jkink!60}{\footnotesize
+$\square$ 完答できた問題数: \underline{\hspace{2em}} / 4 問\quad
+$\square$ 自己採点: \underline{\hspace{2em}} / 100 点\quad
+$\square$ 次回までに復習する問題番号: \underline{\hspace{6em}}
+}
 
 \end{document}
 `;
@@ -602,49 +670,101 @@ const WORKSHEET_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=18mm,bott
   \end{tcolorbox}\par\smallskip
 }
 
+% ── 答案スペース (横罫線) ── TeX \loop で実装。pgffor 等の依存なし。
+\newcounter{anslinecnt}
+\newcommand{\anslines}[1]{%
+  \par\nobreak\vspace{2pt}%
+  \setcounter{anslinecnt}{0}%
+  \loop\ifnum\value{anslinecnt}<#1\relax
+    \noindent\rule{\linewidth}{0.3pt}\par\vspace{6pt}%
+    \stepcounter{anslinecnt}%
+  \repeat
+}
+
+% ── 公式カード ──
+\newtcolorbox{formulacard}[1]{
+  enhanced,breakable,
+  colback=wspale,colframe=wsteal,
+  sharp corners,arc=0mm,
+  fonttitle=\bfseries\small,coltitle=white,colbacktitle=wsteal,
+  title={#1},
+  attach boxed title to top left={xshift=8mm,yshift=-2mm},
+  boxed title style={sharp corners,size=small,boxrule=0pt},
+  left=10pt,right=10pt,top=10pt,bottom=8pt,
+  boxrule=0.5pt,
+}
+
 \setlist[enumerate,1]{leftmargin=2em,label=\textbf{(\arabic*)},itemsep=0.7em}
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\color{wsink}演習プリント}
-\fancyhead[R]{\small\color{wsink}\rule{40mm}{0.4pt}}
-\renewcommand{\headrulewidth}{0pt}
+\fancyhead[L]{\small\color{wsink}\textbf{演習プリント}}
+\fancyhead[C]{\small\color{wsink!60}三角比}
+\fancyhead[R]{\small\color{wsink}No.\,\rule{15mm}{0.4pt}}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyfoot[C]{\small\color{wsink!50}-\,\thepage\,-}
 
 \begin{document}
 
 \begin{center}
-  {\Large\bfseries\color{wsink}三角比 演習プリント}
+  {\Large\bfseries\color{wsink}三角比 演習プリント}\\[2pt]
+  \textcolor{wsink!60}{\small 数学I\,/\,Worksheet 04}
 \end{center}
 
 \medskip
 \noindent
 {\small 学年・組\,\rule{15mm}{0.4pt}\quad 番号\,\rule{8mm}{0.4pt}\quad
-氏名\,\rule{45mm}{0.4pt}}
+氏名\,\rule{45mm}{0.4pt}\hfill 提出日\,\rule{20mm}{0.4pt}}
 
 \bigskip
 
 \unit{三角比の定義 / 正弦定理 / 余弦定理}
 
-\level{【基本】}{角の値が分かっているケース}
+\begin{formulacard}{今日使う公式}
+\small
+$\displaystyle \sin^2\theta+\cos^2\theta=1,\quad \tan\theta=\frac{\sin\theta}{\cos\theta}$\\[3pt]
+\textbf{正弦定理}\quad $\dfrac{a}{\sin A}=\dfrac{b}{\sin B}=\dfrac{c}{\sin C}=2R$\\[3pt]
+\textbf{余弦定理}\quad $a^2=b^2+c^2-2bc\cos A$\\[3pt]
+\textbf{面積}\quad $S=\dfrac{1}{2}bc\sin A$
+\end{formulacard}
+
+\medskip
+
+\level{【基本】}{角の値が分かっているケース\hfill 配点 各 5 点}
 \begin{enumerate}
   \item $\sin 30^\circ + \cos 60^\circ$ の値を求めよ。
+  \anslines{2}
   \item $\tan 45^\circ \cdot \sin 60^\circ$ の値を求めよ。
+  \anslines{2}
+  \item $\sin^2 30^\circ + \sin^2 45^\circ + \sin^2 60^\circ$ の値を求めよ。
+  \anslines{2}
 \end{enumerate}
 
-\level{【標準】}{正弦定理・余弦定理}
+\level{【標準】}{正弦定理・余弦定理\hfill 配点 各 8 点}
 \begin{enumerate}
   \item $\triangle ABC$ で $a = 7$, $b = 5$, $C = 60^\circ$ のとき、$c$ の値を求めよ。
+  \anslines{3}
   \item $\triangle ABC$ で $a = 8$, $b = 7$, $c = 5$ のとき、$\cos A$ の値を求めよ。
+  \anslines{3}
   \item $\triangle ABC$ の外接円の半径が $R = 5$, $a = 6$ のとき、$\sin A$ の値を求めよ。
+  \anslines{2}
 \end{enumerate}
 
-\level{【発展】}{場合分け・図形応用}
+\level{【発展】}{場合分け・図形応用\hfill 配点 各 13 点}
 \begin{enumerate}
   \item $\triangle ABC$ で $a = 5$, $b = 7$, $A = 30^\circ$ のとき、$B$ の値を求めよ。
         ただし、解が複数ある場合はすべて求めること。
+  \anslines{4}
   \item $\triangle ABC$ で $AB = 6$, $AC = 4$, $\angle BAC = 60^\circ$ のとき、
         $\triangle ABC$ の面積 $S$ と外接円の半径 $R$ を求めよ。
+  \anslines{4}
 \end{enumerate}
+
+\bigskip
+
+\noindent\textcolor{wsink!60}{\footnotesize
+チェック: $\square$ 公式を見ずに解けた\quad $\square$ 図を必ず描いた\quad $\square$ 単位・$\circ$ をつけた
+}
 
 \end{document}
 `;
