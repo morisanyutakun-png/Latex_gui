@@ -36,7 +36,7 @@ function Sep() {
 }
 
 export function EditToolbar() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const document = useDocumentStore((s) => s.document);
   const setDocument = useDocumentStore((s) => s.setDocument);
   const { paperSize, setPaperSize } = useUIStore();
@@ -51,7 +51,8 @@ export function EditToolbar() {
     if (document && document.latex.trim() && !confirm(t("edit.toolbar.template.confirm_overwrite"))) {
       return;
     }
-    setDocument(createFromTemplate(id));
+    // 現在の UI ロケールに合わせて ja / en 版テンプレを選択
+    setDocument(createFromTemplate(id, locale));
   };
 
   const handleDownloadPDF = async () => {

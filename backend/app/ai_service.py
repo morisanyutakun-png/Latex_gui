@@ -14,7 +14,11 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # ─── Model Configuration ────────────────────────────────────────────────────
-MODEL_CHAT = os.environ.get("OPENAI_MODEL_CHAT", "gpt-4.1")
+# 2026-04 改修: 運用コスト削減のため、メインの chat 用モデルを gpt-4.1 から
+# gpt-5.4-mini に切り替え。Vision 用 (画像解析) と Fast 用 (短い補完) はそのまま。
+# モデル名はすべて環境変数で上書き可能。本番で別モデルに差し替えたい場合は
+# OPENAI_MODEL_CHAT / _VISION / _FAST を設定する。
+MODEL_CHAT = os.environ.get("OPENAI_MODEL_CHAT", "gpt-5.4-mini")
 MODEL_VISION = os.environ.get("OPENAI_MODEL_VISION", "gpt-4.1-mini")
 MODEL_FAST = os.environ.get("OPENAI_MODEL_FAST", "gpt-4.1-nano")
 
