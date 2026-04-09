@@ -294,7 +294,14 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
       // プリアンブルは完全に非表示。ユーザーは LaTeX を見ない。
       return null;
 
-    case "section":
+    case "section": {
+      // 空 \section{} (autoLabel) は \titleformat により PDF 側で「第N問」「Problem N」が
+      // 注入されているケース。ビジュアル側で同じ番号付きラベルを描く。
+      const isAuto = segment.meta?.autoLabel === "true";
+      const sectionNumber = segment.meta?.sectionNumber;
+      if (isAuto && sectionNumber) {
+        return <SectionAutoLabel number={sectionNumber} />;
+      }
       return (
         <EditableHeading
           tag="h2"
@@ -303,6 +310,7 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
           className="text-2xl font-bold text-foreground border-b border-foreground/10 pb-1.5 mt-6"
         />
       );
+    }
 
     case "subsection":
       return (
@@ -473,6 +481,9 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
         </div>
       );
     }
+
+    case "table":
+      return <TableSegmentRenderer segment={segment} latex={latex} />;
 
     case "raw":
       return <RawPlaceholder segment={segment} />;
@@ -904,6 +915,129 @@ const ENV_LABEL_ICON: Record<string, string> = {
   filecontents: "▣", "filecontents*": "▣",
 };
 
+// ─────────────────────────────────────
+// SectionAutoLabel — 空 \section{} 用に「第N問」「Problem N」を自動生成
+//
+// 大学入試系のテンプレでは titleformat により "第\thesection 問" が自動挿入される
+// (PDF 上では \fbox + 罫線で出る)。ビジュアルエディタは titleformat を解釈できないので、
+// 番号付きラベルを箱で包んで PDF に近い見た目にする。
+// ─────────────────────────────────────
+
+function SectionAutoLabel({ number }: { number: string }) {
+  const { locale } = useI18n();
+  const label = locale === "en" ? `Problem ${number}` : `第 ${number} 問`;
+  return (
+    <div className="my-6 select-none">
+      <div className="flex items-baseline gap-3">
+        <span className="inline-block px-3 py-1 border border-foreground/70 text-foreground font-bold text-[16px] tracking-wide leading-none">
+          {label}
+        </span>
+        <div className="flex-1 h-px bg-foreground/30" />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────
+// TableSegmentRenderer — \begin{tabular}{...}...\end{tabular} を HTML テーブルに描画
+//
+// 設計:
+//   - parser が cells/rows/cols を meta に JSON で保存している。
+//   - 各セルは extractInlines で再パースして本文のインラインを描画する。
+//   - 編集は v1 では readonly。テーブルは template で boilerplate (試験時間表/氏名欄) として
+//     使われがちなので、見た目さえ揃えば編集できなくても許容される。
+//     編集したいユーザーは LaTeX ソースパネルで直接書き換えられる。
+// ─────────────────────────────────────
+
+interface TableCellMeta {
+  start: number;
+  end: number;
+}
+interface TableRowMeta {
+  topRule: boolean;
+  bottomRule: boolean;
+  cells: TableCellMeta[];
+}
+interface TableColMeta {
+  align: "left" | "center" | "right";
+  borderLeft: boolean;
+  borderRight: boolean;
+  stretch: boolean;
+}
+
+function TableSegmentRenderer({ segment, latex }: { segment: Segment; latex: string }) {
+  // parser のメタを安全に復元
+  let cols: TableColMeta[] = [];
+  let rows: TableRowMeta[] = [];
+  try {
+    cols = JSON.parse(segment.meta?.cols ?? "[]") as TableColMeta[];
+    rows = JSON.parse(segment.meta?.rows ?? "[]") as TableRowMeta[];
+  } catch {
+    return <RawPlaceholder segment={segment} />;
+  }
+  if (rows.length === 0) return <RawPlaceholder segment={segment} />;
+
+  // 列数 (cols がスペックから取れた数 / 行から推定の最大値)
+  const maxCols = Math.max(cols.length, ...rows.map((r) => r.cells.length));
+
+  return (
+    <table className="latex-table-render my-3 border-collapse" contentEditable={false} suppressContentEditableWarning>
+      <tbody>
+        {rows.map((row, ri) => {
+          const isFirst = ri === 0;
+          const prevHadBottom = ri > 0 && rows[ri - 1].bottomRule;
+          const showTop = row.topRule || (isFirst && false);
+          return (
+            <tr
+              key={ri}
+              style={{
+                borderTop: showTop || prevHadBottom ? "1px solid currentColor" : undefined,
+                borderBottom: row.bottomRule ? "1px solid currentColor" : undefined,
+              }}
+            >
+              {Array.from({ length: maxCols }).map((_, ci) => {
+                const cell = row.cells[ci];
+                const col = cols[ci];
+                const align = col?.align ?? "left";
+                const borderLeft = col?.borderLeft ? "1px solid currentColor" : undefined;
+                const borderRight = col?.borderRight ? "1px solid currentColor" : undefined;
+                if (!cell) {
+                  return (
+                    <td
+                      key={ci}
+                      style={{
+                        textAlign: align,
+                        borderLeft,
+                        borderRight,
+                        padding: "4px 8px",
+                      }}
+                    />
+                  );
+                }
+                const inlines = extractInlines(latex, cell.start, cell.end);
+                const html = buildInlinesHTML(inlines, latex);
+                return (
+                  <td
+                    key={ci}
+                    style={{
+                      textAlign: align,
+                      borderLeft,
+                      borderRight,
+                      padding: "4px 8px",
+                      verticalAlign: "middle",
+                    }}
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 function RawPlaceholder({ segment }: { segment: Segment }) {
   const isStandalone = segment.meta?.isStandalone === "true";
   const isEnv = segment.meta?.isEnvironment === "true";
@@ -1047,6 +1181,30 @@ function buildMathChipHTML(source: string, wrapper: string): string {
   return `<span data-math-chip="1" data-wrapper="${wrapper}" data-source="${safeSource}" contenteditable="false" class="math-chip">${inner}</span>`;
 }
 
+/** sized inline (\Large \bfseries 等) の CSS スタイル文字列を作る。
+ *  size と weight/shape は data 属性で round-trip するので class でも data 属性でも OK。
+ *  ここでは inline style で直接サイズを当てる (CSS class より優先順位が分かりやすい)。 */
+function sizedInlineStyle(meta: Record<string, string> | undefined): string {
+  if (!meta) return "";
+  const sizeMap: Record<string, string> = {
+    tiny: "0.6em",
+    scriptsize: "0.72em",
+    footnotesize: "0.83em",
+    small: "0.92em",
+    normalsize: "1em",
+    large: "1.18em",
+    Large: "1.36em",
+    LARGE: "1.6em",
+    huge: "1.92em",
+    Huge: "2.3em",
+  };
+  const parts: string[] = [];
+  if (meta.size && sizeMap[meta.size]) parts.push(`font-size:${sizeMap[meta.size]}`);
+  if (meta.weight === "bold") parts.push("font-weight:700");
+  if (meta.shape === "italic") parts.push("font-style:italic");
+  return parts.join(";");
+}
+
 /** Inline 配列から contentEditable 用の初期 HTML を組み立てる。
  *  scoreBadge など「表示と原 LaTeX が異なる」種類は src から原文をそのまま data 属性に埋め込む。 */
 function buildInlinesHTML(inlines: Inline[], src: string): string {
@@ -1065,10 +1223,69 @@ function buildInlinesHTML(inlines: Inline[], src: string): string {
     } else if (inline.kind === "scoreBadge") {
       const orig = src.slice(inline.range.start, inline.range.end);
       html += `<span class="haiten-badge" contenteditable="false" data-haiten-source="${escapeHtml(orig)}">${escapeHtml(inline.body)}</span>`;
+    } else if (inline.kind === "linebreak") {
+      html += `<br data-latex-linebreak="1"/>`;
+    } else if (inline.kind === "rule") {
+      const w = inline.meta?.width ?? "1em";
+      const h = inline.meta?.height ?? "0.4pt";
+      // 横ルール (PDF の \rule{...}{...} と同じく文字列ライン)
+      html += `<span class="latex-rule" contenteditable="false" data-rule-width="${escapeHtml(w)}" data-rule-height="${escapeHtml(h)}" style="display:inline-block;vertical-align:middle;width:${escapeHtml(cssLength(w))};height:${escapeHtml(cssLength(h))};background:currentColor;margin:0 0.2em;">&nbsp;</span>`;
+    } else if (inline.kind === "framed") {
+      const cmdName = inline.meta?.cmd ?? "fbox";
+      html += `<span class="latex-fbox" data-fbox-cmd="${escapeHtml(cmdName)}" style="display:inline-block;border:1px solid currentColor;padding:0 0.35em;border-radius:1px;">${escapeHtml(inline.body)}</span>`;
+    } else if (inline.kind === "colored") {
+      const color = inline.meta?.color ?? "inherit";
+      const css = colorNameToCss(color);
+      html += `<span class="latex-color" data-color="${escapeHtml(color)}" style="color:${css};">${escapeHtml(inline.body)}</span>`;
+    } else if (inline.kind === "sized") {
+      const style = sizedInlineStyle(inline.meta);
+      const dataAttrs = Object.entries(inline.meta ?? {})
+        .map(([k, v]) => `data-sized-${k}="${escapeHtml(v)}"`)
+        .join(" ");
+      html += `<span class="latex-sized" ${dataAttrs} style="${style}">${escapeHtml(inline.body)}</span>`;
     }
   }
   if (!html) html = "&#8203;"; // 空段落でもカレットを出すための ZWSP
   return html;
+}
+
+/** LaTeX の長さ表記 (12mm, 0.4pt, 0.8\textwidth, 6em ...) を CSS の長さに変換する。
+ *  完全な変換は不可能なので、よく出るケースだけ覚えておく。 */
+function cssLength(latex: string): string {
+  const s = latex.trim();
+  if (!s) return "0";
+  // 0.8\textwidth → 80%
+  const tw = s.match(/^([\d.]+)\\textwidth$/);
+  if (tw) return `${parseFloat(tw[1]) * 100}%`;
+  const lw = s.match(/^([\d.]+)\\linewidth$/);
+  if (lw) return `${parseFloat(lw[1]) * 100}%`;
+  // \textwidth 単独 → 100%
+  if (s === "\\textwidth" || s === "\\linewidth") return "100%";
+  // 数値 + 単位 (mm/cm/pt/em/ex/in/px) → そのまま
+  const m = s.match(/^([-\d.]+)(mm|cm|pt|em|ex|in|px|%)?$/);
+  if (m) {
+    const v = m[1];
+    const u = m[2] || "pt";
+    return `${v}${u}`;
+  }
+  return "0";
+}
+
+/** 既知のテンプレ色名 → CSS 色 (RGB) のマップ。未知の色は currentColor で逃がす。 */
+const NAMED_COLORS: Record<string, string> = {
+  black: "#000", white: "#fff",
+  red: "#dc2626", blue: "#2563eb", green: "#16a34a", yellow: "#facc15",
+  cyan: "#06b6d4", magenta: "#d946ef", orange: "#ea580c", purple: "#9333ea",
+  gray: "#6b7280", lightgray: "#d1d5db", darkgray: "#374151",
+  // テンプレで定義される色は 16 進だが、ここでは認識できないので無視 (currentColor)
+};
+function colorNameToCss(name: string): string {
+  const trimmed = name.trim();
+  if (NAMED_COLORS[trimmed]) return NAMED_COLORS[trimmed];
+  // \color{red!75!black} のような表現は基底色だけ拾う
+  const base = trimmed.split("!")[0];
+  if (NAMED_COLORS[base]) return NAMED_COLORS[base];
+  return "currentColor";
 }
 
 /** contentEditable な要素から LaTeX 文字列をシリアライズする */
@@ -1099,6 +1316,49 @@ export function serializeContentEditableDOM(el: HTMLElement): string {
       else result += `$${body}$`;
       continue;
     }
+
+    // \rule{w}{h} を data 属性で round-trip
+    if (child.dataset.ruleWidth) {
+      const w = child.dataset.ruleWidth;
+      const h = child.dataset.ruleHeight ?? "0.4pt";
+      result += `\\rule{${w}}{${h}}`;
+      continue;
+    }
+
+    // \fbox{...} / \framebox{...}
+    if (child.dataset.fboxCmd) {
+      const cmd = child.dataset.fboxCmd;
+      result += `\\${cmd}{${serializeContentEditableDOM(child)}}`;
+      continue;
+    }
+
+    // \textcolor{name}{...}
+    if (child.dataset.color) {
+      const color = child.dataset.color;
+      result += `\\textcolor{${color}}{${serializeContentEditableDOM(child)}}`;
+      continue;
+    }
+
+    // {\Large\bfseries ...}
+    if (child.dataset.sizedSize !== undefined || child.dataset.sizedWeight !== undefined || child.dataset.sizedShape !== undefined) {
+      const size = child.dataset.sizedSize;
+      const weight = child.dataset.sizedWeight;
+      const shape = child.dataset.sizedShape;
+      const parts: string[] = [];
+      if (size) parts.push(`\\${size}`);
+      if (weight === "bold") parts.push(`\\bfseries`);
+      if (shape === "italic") parts.push(`\\itshape`);
+      const prefix = parts.join("");
+      result += `{${prefix}${prefix ? " " : ""}${serializeContentEditableDOM(child)}}`;
+      continue;
+    }
+
+    // \\ (LaTeX line break)
+    if (child.dataset.latexLinebreak === "1") {
+      result += `\\\\`;
+      continue;
+    }
+
     if (tag === "strong" || tag === "b") {
       result += `\\textbf{${child.textContent || ""}}`;
       continue;

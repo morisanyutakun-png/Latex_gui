@@ -31,6 +31,7 @@ export type SegmentKind =
   | "daimon"      // \begin{daimon}{title}...\end{daimon} (テンプレ独自・大問ボックス)
   | "center"      // \begin{center}...\end{center} (中身を再帰展開して中央寄せ)
   | "container"   // 未知環境を透過的に展開する汎用コンテナ (tcolorbox / kihon / ouyou / teigi など)
+  | "table"       // \begin{tabular|tabularx|tabular*}{...}...\end{...} を HTML テーブルとして描画
   | "raw"
   | "documentEnd"; // \end{document} 以降の trailing 部分 (非表示)
 
@@ -40,7 +41,12 @@ export type InlineKind =
   | "bold"
   | "italic"
   | "code"
-  | "scoreBadge"; // \haiten{N} 等、表示は装飾バッジ・元 LaTeX は保存
+  | "scoreBadge"   // \haiten{N} 等、表示は装飾バッジ・元 LaTeX は保存
+  | "rule"         // \rule{width}{height} → 見える線
+  | "linebreak"    // \\ → <br/>
+  | "framed"       // \fbox{...} → 枠付きスパン
+  | "colored"      // \textcolor{name}{...} → 色付きスパン
+  | "sized";       // {\Large\bfseries ...} → 大きな太字スパン
 
 export interface Range {
   start: number;
@@ -54,6 +60,12 @@ export interface Inline {
   range: Range;
   /** 編集対象になる中身。inlineMath なら $...$ の中身、bold なら \textbf{} の中身 */
   body: string;
+  /** kind に応じた補助情報。
+   *  - rule: { width, height }
+   *  - colored: { color }
+   *  - framed: (なし)
+   *  - sized: { size: tiny|scriptsize|small|normal|large|Large|LARGE|huge|Huge, weight?: bold } */
+  meta?: Record<string, string>;
 }
 
 export interface Segment {
@@ -195,18 +207,129 @@ const INLINE_UNWRAP_1: Record<string, "bold" | "italic" | "code" | "text"> = {
   mathrm: "text",
 };
 
-/** インライン中の 2 引数命令 → 第二引数だけ取り出す (\textcolor{red}{XYZ} の "XYZ") */
-const INLINE_UNWRAP_2_SECOND = new Set([
-  "textcolor", "colorbox", "fcolorbox", "fbox",
-]);
+/** インライン中の 2 引数命令 → 第二引数だけ取り出す。
+ *  textcolor / fbox / framebox / fcolorbox / colorbox は専用ハンドラ (rule の隣)
+ *  で扱うので、こちらには残さない (色や枠を保持するため)。 */
+const INLINE_UNWRAP_2_SECOND = new Set<string>([]);
 
-/** インライン中で第一引数も第二引数も全部捨てる命令 */
+/** Inline[] から「ユーザに見えるテキスト」を取り出す。
+ *  inlineMath は `$..$` の形で残し、bold/italic 等は中身だけ。
+ *  色付き / 枠付き / サイズ付きスパンは中身だけ取り出す (再帰的に)。
+ *  シリアライズ用ではなく、表示用の文字列を作るときに使う。 */
+function inlinesToVisible(inlines: Inline[]): string {
+  let out = "";
+  for (const it of inlines) {
+    if (it.kind === "inlineMath") out += `$${it.body}$`;
+    else if (it.kind === "linebreak") out += "\n";
+    else if (it.kind === "rule") out += " ";
+    else out += it.body;
+  }
+  return out;
+}
+
+const SCOPE_SIZE_CMDS = new Set([
+  "tiny", "scriptsize", "footnotesize", "small", "normalsize",
+  "large", "Large", "LARGE", "huge", "Huge",
+]);
+const SCOPE_WEIGHT_CMDS = new Set(["bfseries", "mdseries"]);
+const SCOPE_SHAPE_CMDS = new Set(["itshape", "slshape", "scshape", "upshape", "em"]);
+const SCOPE_FAMILY_CMDS = new Set(["rmfamily", "sffamily", "ttfamily"]);
+/** スコープ先頭で許可される (読み飛ばす) フォーマット系命令。
+ *  これらと \color{...} だけを連続して読み、最後にコンテンツ開始位置を返す。 */
+function readScopeFormatting(
+  src: string,
+  start: number,
+  end: number,
+): { size?: string; weight?: string; shape?: string; bodyStart: number } | null {
+  let i = start;
+  let size: string | undefined;
+  let weight: string | undefined;
+  let shape: string | undefined;
+  let any = false;
+  while (i < end) {
+    while (i < end && /[ \t\n]/.test(src[i])) i++;
+    if (i >= end) break;
+    if (src[i] !== "\\") break;
+    let j = i + 1;
+    if (j >= end || !/[a-zA-Z@]/.test(src[j])) break;
+    while (j < end && /[a-zA-Z@]/.test(src[j])) j++;
+    const name = src.slice(i + 1, j);
+    if (SCOPE_SIZE_CMDS.has(name)) {
+      size = name;
+      i = j;
+      // 直後の単一スペースを食う
+      if (src[i] === " ") i++;
+      any = true;
+      continue;
+    }
+    if (SCOPE_WEIGHT_CMDS.has(name)) {
+      weight = name === "bfseries" ? "bold" : "normal";
+      i = j;
+      if (src[i] === " ") i++;
+      any = true;
+      continue;
+    }
+    if (SCOPE_SHAPE_CMDS.has(name)) {
+      shape = name === "upshape" ? "normal" : "italic";
+      i = j;
+      if (src[i] === " ") i++;
+      any = true;
+      continue;
+    }
+    if (SCOPE_FAMILY_CMDS.has(name)) {
+      // family は visual editor では区別しない (本文 serif で十分)
+      i = j;
+      if (src[i] === " ") i++;
+      any = true;
+      continue;
+    }
+    if (name === "color" && src[j] === "{") {
+      // \color{name} を読み飛ばす
+      const close = findMatchingBrace(src, j, end);
+      if (close === -1) break;
+      i = close + 1;
+      if (src[i] === " ") i++;
+      any = true;
+      continue;
+    }
+    if (name === "fontsize" && src[j] === "{") {
+      // \fontsize{14pt}{18pt}\selectfont を読み飛ばす
+      const close = findMatchingBrace(src, j, end);
+      if (close === -1) break;
+      let k = close + 1;
+      while (k < end && /\s/.test(src[k])) k++;
+      if (src[k] === "{") {
+        const close2 = findMatchingBrace(src, k, end);
+        if (close2 !== -1) k = close2 + 1;
+      }
+      // optional \selectfont
+      while (k < end && /\s/.test(src[k])) k++;
+      if (src.startsWith("\\selectfont", k)) k += "\\selectfont".length;
+      i = k;
+      if (src[i] === " ") i++;
+      any = true;
+      // \fontsize は size を強制的に Large 扱いにする (厳密ではないが)
+      size = size ?? "Large";
+      continue;
+    }
+    break;
+  }
+  if (!any) return null;
+  return { size, weight, shape, bodyStart: i };
+}
+
+/** インライン中で第一引数も第二引数も全部捨てる命令 (\rule は別途 inline-rule として扱う) */
 const INLINE_DROP_ARG_CMDS = new Set([
   "vspace", "hspace", "vskip", "hskip",
   "label", "ref", "pageref", "eqref", "cite",
-  "rule", "phantom", "vphantom", "hphantom",
-  "setcounter", "addtocounter", "stepcounter", "refstepcounter",
+  "phantom", "vphantom", "hphantom",
+  "stepcounter", "refstepcounter",
   "fontsize", "color",
+]);
+
+/** インライン中で 2 引数を取って捨てる命令 (両方の {…} を消費する) */
+const INLINE_DROP_2ARG_CMDS = new Set([
+  "setcounter", "addtocounter",
 ]);
 
 /** インライン中で「**引数を取らず**そのまま消滅させる」命令。
@@ -306,6 +429,33 @@ export function extractInlines(src: string, start: number, end: number): Inline[
       }
     }
 
+    // \\ (LaTeX line break) 任意の * + 任意の [Nmm]
+    if (ch === "\\" && src[i + 1] === "\\") {
+      let cmdEnd = i + 2;
+      if (src[cmdEnd] === "*") cmdEnd++;
+      if (src[cmdEnd] === "[") {
+        let depth = 1;
+        let j = cmdEnd + 1;
+        while (j < end && depth > 0) {
+          if (src[j] === "\\" && j + 1 < end) { j += 2; continue; }
+          if (src[j] === "[") depth++;
+          else if (src[j] === "]") depth--;
+          j++;
+        }
+        cmdEnd = j;
+      }
+      pushText(cursor, i);
+      inlines.push({
+        id: nextId("inl"),
+        kind: "linebreak",
+        range: { start: i, end: cmdEnd },
+        body: "",
+      });
+      cursor = cmdEnd;
+      i = cmdEnd;
+      continue;
+    }
+
     // バックスラッシュ + 記号 1 文字の空白系コマンド (\,  \;  \:  \!  \ )
     // これらは readCmdName で letter を要求するため捕まえられない。
     if (ch === "\\" && i + 1 < end && INLINE_SYMBOL_SPACE.has(src[i + 1])) {
@@ -379,6 +529,96 @@ export function extractInlines(src: string, start: number, end: number): Inline[
             void last;
             cursor = braceEnd + 1;
             i = braceEnd + 1;
+            continue;
+          }
+        }
+
+        // 0c) \rule{width}{height} → 可視ライン inline
+        if (cmd.name === "rule" && src[nameAfter] === "{") {
+          const firstClose = findMatchingBrace(src, nameAfter, end);
+          if (firstClose !== -1) {
+            const next2 = skipWS(firstClose + 1);
+            if (src[next2] === "{") {
+              const secondClose = findMatchingBrace(src, next2, end);
+              if (secondClose !== -1) {
+                const w = src.slice(nameAfter + 1, firstClose).trim();
+                const h = src.slice(next2 + 1, secondClose).trim();
+                pushText(cursor, i);
+                inlines.push({
+                  id: nextId("inl"),
+                  kind: "rule",
+                  range: { start: i, end: secondClose + 1 },
+                  body: "",
+                  meta: { width: w, height: h },
+                });
+                cursor = secondClose + 1;
+                i = secondClose + 1;
+                continue;
+              }
+            }
+          }
+        }
+
+        // 0d) \textcolor{name}{TEXT} → colored inline (色を保持)
+        if (cmd.name === "textcolor" && src[nameAfter] === "{") {
+          const firstClose = findMatchingBrace(src, nameAfter, end);
+          if (firstClose !== -1) {
+            const second = skipWS(firstClose + 1);
+            if (src[second] === "{") {
+              const secondClose = findMatchingBrace(src, second, end);
+              if (secondClose !== -1) {
+                const colorName = src.slice(nameAfter + 1, firstClose).trim();
+                const inner = extractInlines(src, second + 1, secondClose);
+                const visible = inlinesToVisible(inner);
+                pushText(cursor, i);
+                inlines.push({
+                  id: nextId("inl"),
+                  kind: "colored",
+                  range: { start: i, end: secondClose + 1 },
+                  body: visible,
+                  meta: { color: colorName },
+                });
+                cursor = secondClose + 1;
+                i = secondClose + 1;
+                continue;
+              }
+            }
+          }
+        }
+
+        // 0e) \fbox{TEXT} / \framebox{TEXT} → framed inline (枠を保持。1 引数)
+        if ((cmd.name === "fbox" || cmd.name === "framebox") && src[nameAfter] === "{") {
+          const braceEnd = findMatchingBrace(src, nameAfter, end);
+          if (braceEnd !== -1) {
+            const inner = extractInlines(src, nameAfter + 1, braceEnd);
+            const visible = inlinesToVisible(inner);
+            pushText(cursor, i);
+            inlines.push({
+              id: nextId("inl"),
+              kind: "framed",
+              range: { start: i, end: braceEnd + 1 },
+              body: visible,
+              meta: { cmd: cmd.name },
+            });
+            cursor = braceEnd + 1;
+            i = braceEnd + 1;
+            continue;
+          }
+        }
+
+        // 0f) 2 引数捨てコマンド (\setcounter{x}{y}, \addtocounter{x}{y})
+        if (INLINE_DROP_2ARG_CMDS.has(cmd.name) && src[nameAfter] === "{") {
+          const firstClose = findMatchingBrace(src, nameAfter, end);
+          if (firstClose !== -1) {
+            const next2 = skipWS(firstClose + 1);
+            let endPos = firstClose + 1;
+            if (src[next2] === "{") {
+              const secondClose = findMatchingBrace(src, next2, end);
+              if (secondClose !== -1) endPos = secondClose + 1;
+            }
+            pushText(cursor, i);
+            cursor = endPos;
+            i = endPos;
             continue;
           }
         }
@@ -468,13 +708,34 @@ export function extractInlines(src: string, start: number, end: number): Inline[
     }
 
     // 単独の { ... } グループ → 中身を再帰展開 (フォント切替などのスコープ)
-    // 例: {\bfseries\color{ctnavy} 数学} のようなフォント切替グループ
+    // 例: {\bfseries\color{ctnavy} 数学} → 太字
+    //    {\Large\bfseries タイトル} → 大きな太字
+    // スコープ先頭の \large \Large \LARGE \huge \bfseries 等を読み取って
+    // sized inline として保持する。フォーマット指示が無ければ素直に再帰展開。
     if (ch === "{") {
       const braceEnd = findMatchingBrace(src, i, end);
       if (braceEnd !== -1) {
+        // スコープ先頭のサイズ/字形コマンドを読み取る
+        const scopeFmt = readScopeFormatting(src, i + 1, braceEnd);
         pushText(cursor, i);
-        const inner = extractInlines(src, i + 1, braceEnd);
-        inlines.push(...inner);
+        if (scopeFmt && (scopeFmt.size || scopeFmt.weight)) {
+          const inner = extractInlines(src, scopeFmt.bodyStart, braceEnd);
+          const visible = inlinesToVisible(inner);
+          const meta: Record<string, string> = {};
+          if (scopeFmt.size) meta.size = scopeFmt.size;
+          if (scopeFmt.weight) meta.weight = scopeFmt.weight;
+          if (scopeFmt.shape) meta.shape = scopeFmt.shape;
+          inlines.push({
+            id: nextId("inl"),
+            kind: "sized",
+            range: { start: i, end: braceEnd + 1 },
+            body: visible,
+            meta,
+          });
+        } else {
+          const inner = extractInlines(src, i + 1, braceEnd);
+          inlines.push(...inner);
+        }
         cursor = braceEnd + 1;
         i = braceEnd + 1;
         continue;
@@ -514,6 +775,315 @@ export function extractInlines(src: string, start: number, end: number): Inline[
 // ─────────────────────────────────────
 // itemize/enumerate の中の \item 分割
 // ─────────────────────────────────────
+
+// ─────────────────────────────────────
+// tabular / tabularx の解析
+// ─────────────────────────────────────
+
+/** 列スペック文字列 (`{|c|X|c|}` の中身) から列定義の配列を作る。
+ *  - `l`/`c`/`r` → 左/中央/右寄せ
+ *  - `X` → 横方向ストレッチ (tabularx)
+ *  - `p{...}`/`m{...}`/`b{...}` → 固定幅列 (幅は捨てて左寄せ扱い)
+ *  - `|` → ボーダー (左/右に true を立てる)
+ *  - `@{...}` / `!{...}` → 区切り装飾 (中身ごとスキップ)
+ *  - `*{n}{cols}` → cols を n 回展開
+ */
+export interface TableColumn {
+  align: "left" | "center" | "right";
+  /** 直前の `|` の数 (表示用) */
+  borderLeft: boolean;
+  /** 直後の `|` の数 */
+  borderRight: boolean;
+  /** X 列 (ストレッチ) */
+  stretch: boolean;
+}
+
+function parseColumnSpec(spec: string): TableColumn[] {
+  const cols: TableColumn[] = [];
+  let pendingBorderLeft = false;
+  let i = 0;
+  // `*{n}{cols}` を再帰的に展開して spec を平坦化
+  // (大規模 spec はあまり来ないので素朴に書き換える)
+  let flat = spec;
+  // 単純な *{n}{cols} 展開 (ネストは未対応 — 教材テンプレでは出ない)
+  for (let pass = 0; pass < 3; pass++) {
+    flat = flat.replace(/\*\{(\d+)\}\{([^{}]*)\}/g, (_m, n, c) => c.repeat(parseInt(n, 10)));
+  }
+  while (i < flat.length) {
+    const ch = flat[i];
+    if (ch === " " || ch === "\t" || ch === "\n") { i++; continue; }
+    if (ch === "|") { pendingBorderLeft = true; i++; continue; }
+    // @{...} / !{...} は中身を読み飛ばす
+    if (ch === "@" || ch === "!") {
+      i++;
+      if (flat[i] === "{") {
+        let depth = 1;
+        i++;
+        while (i < flat.length && depth > 0) {
+          if (flat[i] === "{") depth++;
+          else if (flat[i] === "}") depth--;
+          i++;
+        }
+      }
+      continue;
+    }
+    // p{...} / m{...} / b{...} は幅指定をスキップして左寄せ
+    if (ch === "p" || ch === "m" || ch === "b") {
+      i++;
+      if (flat[i] === "{") {
+        let depth = 1;
+        i++;
+        while (i < flat.length && depth > 0) {
+          if (flat[i] === "{") depth++;
+          else if (flat[i] === "}") depth--;
+          i++;
+        }
+      }
+      cols.push({ align: "left", borderLeft: pendingBorderLeft, borderRight: false, stretch: false });
+      pendingBorderLeft = false;
+      continue;
+    }
+    if (ch === "l") {
+      cols.push({ align: "left", borderLeft: pendingBorderLeft, borderRight: false, stretch: false });
+      pendingBorderLeft = false;
+      i++; continue;
+    }
+    if (ch === "c") {
+      cols.push({ align: "center", borderLeft: pendingBorderLeft, borderRight: false, stretch: false });
+      pendingBorderLeft = false;
+      i++; continue;
+    }
+    if (ch === "r") {
+      cols.push({ align: "right", borderLeft: pendingBorderLeft, borderRight: false, stretch: false });
+      pendingBorderLeft = false;
+      i++; continue;
+    }
+    if (ch === "X") {
+      cols.push({ align: "left", borderLeft: pendingBorderLeft, borderRight: false, stretch: true });
+      pendingBorderLeft = false;
+      i++; continue;
+    }
+    // 未知の文字は黙ってスキップ
+    i++;
+  }
+  // 残った borderLeft は最後の列の borderRight に
+  if (pendingBorderLeft && cols.length > 0) {
+    cols[cols.length - 1].borderRight = true;
+  }
+  // `|c|c|` のような連続ボーダーで col[i+1].borderLeft が立っていたら
+  // col[i].borderRight も立てて見た目を合わせる
+  for (let k = 0; k < cols.length - 1; k++) {
+    if (cols[k + 1].borderLeft) cols[k].borderRight = true;
+  }
+  return cols;
+}
+
+/** tabular 本文 [innerStart, innerEnd) を行 (`\\`) → セル (`&`) に分解する。
+ *  ネスト ({...}, \begin..\end, $..$) 内の `&` `\\` は無視する。
+ *  各行は string[] (セルの slice) と、その行の前に \hline があるかどうかのフラグを返す。 */
+export interface TableRow {
+  cells: { start: number; end: number }[];
+  topRule: boolean;
+  bottomRule: boolean;
+}
+
+function splitTableBody(src: string, innerStart: number, innerEnd: number): TableRow[] {
+  const rows: TableRow[] = [];
+  let cursor = innerStart;
+  let pendingTopRule = false;
+
+  /** 1 行を読む。次の `\\` (トップレベル) の前まで進む。
+   *  return: { cells, nextCursor, hadRowBreak } */
+  const readRow = (from: number): { cells: { start: number; end: number }[]; nextCursor: number; hadRowBreak: boolean } => {
+    const cells: { start: number; end: number }[] = [];
+    let cellStart = from;
+    let i = from;
+    let depth = 0;
+    while (i < innerEnd) {
+      const ch = src[i];
+      // \\ で行終端 (トップレベル)
+      if (ch === "\\" && i + 1 < innerEnd) {
+        const next = src[i + 1];
+        if (next === "\\" && depth === 0) {
+          cells.push({ start: cellStart, end: i });
+          // \\ + 任意の * + 任意の [Nmm]
+          let after = i + 2;
+          if (src[after] === "*") after++;
+          if (src[after] === "[") {
+            let d = 1;
+            let j = after + 1;
+            while (j < innerEnd && d > 0) {
+              if (src[j] === "[") d++;
+              else if (src[j] === "]") d--;
+              j++;
+            }
+            after = j;
+          }
+          return { cells, nextCursor: after, hadRowBreak: true };
+        }
+        // \{ \} はエスケープ
+        if (next === "{" || next === "}") { i += 2; continue; }
+        // 通常コマンド: 名前末尾までスキップ (\hline 等はそのままセルに残る)
+        let j = i + 1;
+        while (j < innerEnd && /[a-zA-Z@]/.test(src[j])) j++;
+        i = j;
+        continue;
+      }
+      // {} のネスト
+      if (ch === "{") { depth++; i++; continue; }
+      if (ch === "}") { if (depth > 0) depth--; i++; continue; }
+      // $...$ math はスキップ
+      if (ch === "$" && depth === 0) {
+        let j = i + 1;
+        while (j < innerEnd) {
+          if (src[j] === "\\" && j + 1 < innerEnd) { j += 2; continue; }
+          if (src[j] === "$") break;
+          j++;
+        }
+        i = j + 1;
+        continue;
+      }
+      // セル区切り `&` (トップレベル)
+      if (ch === "&" && depth === 0) {
+        cells.push({ start: cellStart, end: i });
+        i++;
+        cellStart = i;
+        continue;
+      }
+      i++;
+    }
+    // 末尾 (最後の行で `\\` 無し)
+    cells.push({ start: cellStart, end: innerEnd });
+    return { cells, nextCursor: innerEnd, hadRowBreak: false };
+  };
+
+  while (cursor < innerEnd) {
+    // 先頭の空白をスキップ
+    while (cursor < innerEnd && /\s/.test(src[cursor])) cursor++;
+    if (cursor >= innerEnd) break;
+
+    // \hline / \toprule / \midrule / \bottomrule / \cline{...} / \specialrule / \cmidrule
+    // を行頭で連続的に消費して pendingTopRule を立てる
+    let consumedRule = false;
+    while (true) {
+      while (cursor < innerEnd && /\s/.test(src[cursor])) cursor++;
+      const tail = src.slice(cursor, Math.min(cursor + 24, innerEnd));
+      const m = tail.match(/^\\(hline|toprule|midrule|bottomrule)\b/);
+      if (m) {
+        cursor += m[0].length;
+        pendingTopRule = true;
+        consumedRule = true;
+        continue;
+      }
+      const m2 = tail.match(/^\\(cline|cmidrule|specialrule)\b/);
+      if (m2) {
+        cursor += m2[0].length;
+        // 引数 [opt]{arg} を雑にスキップ
+        while (cursor < innerEnd && /\s/.test(src[cursor])) cursor++;
+        if (src[cursor] === "[") {
+          let d = 1; let j = cursor + 1;
+          while (j < innerEnd && d > 0) { if (src[j] === "[") d++; else if (src[j] === "]") d--; j++; }
+          cursor = j;
+        }
+        if (src[cursor] === "{") {
+          const close = findMatchingBrace(src, cursor, innerEnd);
+          if (close !== -1) cursor = close + 1;
+        }
+        pendingTopRule = true;
+        consumedRule = true;
+        continue;
+      }
+      break;
+    }
+    if (cursor >= innerEnd) {
+      // 末尾の \hline 等は最後の行の bottomRule として扱う
+      if (consumedRule && rows.length > 0) rows[rows.length - 1].bottomRule = true;
+      break;
+    }
+
+    const { cells, nextCursor, hadRowBreak } = readRow(cursor);
+    // 全セルが空 (single empty cell with no whitespace) の行は無視
+    const isEmpty = cells.length === 1 && cells[0].end <= cells[0].start;
+    if (!isEmpty) {
+      rows.push({ cells, topRule: pendingTopRule, bottomRule: false });
+      pendingTopRule = false;
+    } else if (consumedRule && rows.length > 0) {
+      // 空行 + \hline → 直前行の bottomRule に
+      rows[rows.length - 1].bottomRule = true;
+    }
+    if (!hadRowBreak) break;
+    cursor = nextCursor;
+  }
+  // pendingTopRule が末尾に残っている場合は最後の行の bottomRule にする
+  if (pendingTopRule && rows.length > 0) {
+    rows[rows.length - 1].bottomRule = true;
+  }
+  return rows;
+}
+
+/** tabular 環境を 1 つの table セグメントに変換する。 */
+function parseTableEnvironment(
+  src: string,
+  envName: string,
+  envStart: number,
+  envEnd: number,
+): Segment | null {
+  const beginLen = `\\begin{${envName}}`.length;
+  let cursor = envStart + beginLen;
+
+  // tabularx は 1st arg が幅 ({\textwidth} 等) — スキップ
+  // tabular* も 1st arg が幅
+  if (envName === "tabularx" || envName === "tabular*") {
+    while (cursor < envEnd && /\s/.test(src[cursor])) cursor++;
+    if (src[cursor] === "{") {
+      const close = findMatchingBrace(src, cursor, envEnd);
+      if (close !== -1) cursor = close + 1;
+    }
+  }
+  // 任意の [pos] (位置指定) をスキップ
+  while (cursor < envEnd && /\s/.test(src[cursor])) cursor++;
+  if (src[cursor] === "[") {
+    let d = 1; let j = cursor + 1;
+    while (j < envEnd && d > 0) { if (src[j] === "[") d++; else if (src[j] === "]") d--; j++; }
+    cursor = j;
+  }
+
+  // 列スペック {col_spec}
+  while (cursor < envEnd && /\s/.test(src[cursor])) cursor++;
+  if (src[cursor] !== "{") return null;
+  const specClose = findMatchingBrace(src, cursor, envEnd);
+  if (specClose === -1) return null;
+  const colSpec = src.slice(cursor + 1, specClose);
+  cursor = specClose + 1;
+
+  const innerStart = cursor;
+  const innerEnd = envEnd - `\\end{${envName}}`.length;
+  const cols = parseColumnSpec(colSpec);
+  const rows = splitTableBody(src, innerStart, innerEnd);
+
+  // meta に列・行情報を JSON で持たせる (renderer で復元)
+  const cellsFlat: { start: number; end: number; row: number; col: number }[] = [];
+  rows.forEach((row, ri) => {
+    row.cells.forEach((c, ci) => cellsFlat.push({ start: c.start, end: c.end, row: ri, col: ci }));
+  });
+
+  return {
+    id: nextId("seg"),
+    kind: "table",
+    range: { start: envStart, end: envEnd },
+    body: src.slice(envStart, envEnd),
+    meta: {
+      envName,
+      colSpec,
+      cols: JSON.stringify(cols),
+      rows: JSON.stringify(rows.map((r) => ({
+        topRule: r.topRule,
+        bottomRule: r.bottomRule,
+        cells: r.cells,
+      }))),
+    },
+  };
+}
 
 function parseListChildren(src: string, innerStart: number, innerEnd: number): Segment[] {
   const items: Segment[] = [];
@@ -599,26 +1169,40 @@ const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|newpage|clearpage|pageb
  * これ以外の未知環境は container として中身を再帰パースして表示する。
  */
 const PRESERVE_AS_RAW_ENVS = new Set([
-  "tabular", "tabular*", "tabularx", "longtable", "array", "matrix",
+  "array", "matrix",
   "tikzpicture", "pgfpicture", "scope",
   "verbatim", "verbatim*", "lstlisting", "minted", "alltt", "Verbatim",
   "figure", "figure*", "table", "table*", "wrapfigure", "wraptable",
   "thebibliography", "filecontents", "filecontents*",
 ]);
 
-/** 1 つの引数 {…} を取って表示上は無視する命令 (vspace / hspace / setcounter / addtocounter 等)
- *  さらに * 付き variant (\vspace*) も自動でマッチさせる。 */
-const ONE_ARG_HIDDEN_CMDS = new Set([
-  "vspace", "hspace", "vskip", "hskip", "vfill", "hfill",
-  "setcounter", "addtocounter", "stepcounter", "refstepcounter",
-  "label", "ref", "pageref", "eqref", "cite",
-  "input", "include", "thispagestyle", "pagestyle",
-  "rule", "phantom", "vphantom", "hphantom",
+/** HTML テーブルとして可視化する表組環境 (tabular 系)。
+ *  ここに含めた環境は parseBody で「table」セグメントとして
+ *  HTML テーブルに展開される。
+ *  longtable / tabular* / tabularx も含む。 */
+const TABLE_ENVS = new Set([
+  "tabular", "tabular*", "tabularx", "tabulary", "longtable",
 ]);
 
-/** 2 つの引数 {…}{…} を取って表示上は無視する命令 */
+/** 1 つの引数 {…} を取って表示上は無視する命令 (vspace / hspace / 等)
+ *  さらに * 付き variant (\vspace*) も自動でマッチさせる。
+ *  ※ 2 引数を取るコマンド (rule / setcounter / addtocounter ...) は別 set にあり、
+ *    こちらに含めると第二引数 ({1} 等) が段落として漏れて画面に "1" と出るバグになる。 */
+const ONE_ARG_HIDDEN_CMDS = new Set([
+  "vspace", "hspace", "vskip", "hskip", "vfill", "hfill",
+  "stepcounter", "refstepcounter",
+  "label", "ref", "pageref", "eqref", "cite",
+  "input", "include", "thispagestyle", "pagestyle",
+  "phantom", "vphantom", "hphantom",
+]);
+
+/** 2 つの引数 {…}{…} を取って表示上は無視する命令。
+ *  setcounter / addtocounter は 2 引数を取るので必ずここに置く
+ *  (1 引数扱いだと第二引数 `{1}` が段落として漏れる)。
+ *  ※ \rule はビジュアル側で「可視ライン inline」として描画したいので、
+ *    ここには **入れない**。段落として読み取られ、extractInlines で rule inline になる。 */
 const TWO_ARG_HIDDEN_CMDS = new Set([
-  "rule",
+  "setcounter", "addtocounter",
 ]);
 
 function parseBody(src: string, start: number, end: number): Segment[] {
@@ -652,12 +1236,22 @@ function parseBody(src: string, start: number, end: number): Segment[] {
       const braceStart = i + headingHit.cmdLen;
       const braceEnd = findMatchingBrace(src, braceStart, end);
       if (braceEnd !== -1) {
+        const titleBody = src.slice(braceStart + 1, braceEnd);
+        const meta: Record<string, string> = {};
+        if (headingHit.starred) meta.starred = "true";
+        // 空 \section{} の場合は、テンプレ側で \titleformat により
+        // 「第N問」「Problem N」などが自動挿入されることが多い。
+        // ビジュアルエディタは titleformat を解釈できないが、空表示は最悪なので
+        // autoLabel フラグを立てて renderer 側で番号付きラベルを描く。
+        if (!headingHit.starred && titleBody.trim() === "") {
+          meta.autoLabel = "true";
+        }
         segments.push({
           id: nextId("seg"),
           kind: headingHit.kind,
           range: { start: i, end: braceEnd + 1 },
-          body: src.slice(braceStart + 1, braceEnd),
-          meta: headingHit.starred ? { starred: "true" } : undefined,
+          body: titleBody,
+          meta: Object.keys(meta).length > 0 ? meta : undefined,
         });
         i = braceEnd + 1;
         continue;
@@ -851,7 +1445,18 @@ function parseBody(src: string, start: number, end: number): Segment[] {
             i = envEnd;
             continue;
           }
-          // 「中身を覗かない」と決めている環境 (table/figure/tabular/tikz/verbatim/…)
+          // tabular 系 → table セグメントとして HTML テーブルに展開
+          if (TABLE_ENVS.has(envName)) {
+            const tableSeg = parseTableEnvironment(src, envName, i, envEnd);
+            if (tableSeg) {
+              segments.push(tableSeg);
+              i = envEnd;
+              continue;
+            }
+            // パース失敗時は raw にフォールバック
+          }
+
+          // 「中身を覗かない」と決めている環境 (figure/tikz/verbatim/…)
           // → これだけは raw 扱い (RawPlaceholder で控えめに表示)
           if (PRESERVE_AS_RAW_ENVS.has(envName)) {
             segments.push({
@@ -1147,6 +1752,7 @@ export function parseLatexToSegments(latex: string): Segment[] {
   if (beginDoc === -1) {
     // \begin{document} なし → 全体を body として扱う
     segments.push(...parseBody(latex, 0, latex.length));
+    assignSectionNumbers(segments);
     return segments;
   }
 
@@ -1172,7 +1778,28 @@ export function parseLatexToSegments(latex: string): Segment[] {
     });
   }
 
+  assignSectionNumbers(segments);
   return segments;
+}
+
+/** \section{} (starred 以外) に通し番号を振る。再帰的に container の中も走査する。
+ *  \titleformat により「第N問」「Problem N」が PDF に出ているテンプレで、
+ *  ビジュアル側でも同じ番号を表示するために使う。
+ *  ※ 厳密な LaTeX のセクションカウンタ挙動 (\setcounter / \addtocounter) は再現しない。
+ *    入門用テンプレでよくある「3 つの \section{}」を 1, 2, 3 と振るだけで十分。 */
+function assignSectionNumbers(segments: Segment[]): void {
+  let counter = 0;
+  const walk = (segs: Segment[]): void => {
+    for (const s of segs) {
+      if (s.kind === "section" && s.meta?.starred !== "true") {
+        counter++;
+        if (!s.meta) s.meta = {};
+        s.meta.sectionNumber = String(counter);
+      }
+      if (s.children) walk(s.children);
+    }
+  };
+  walk(segments);
 }
 
 // ─────────────────────────────────────
@@ -1226,6 +1853,31 @@ export function serializeInline(inline: Inline, newBody: string): string {
     case "bold": return `\\textbf{${newBody}}`;
     case "italic": return `\\textit{${newBody}}`;
     case "code": return `\\texttt{${newBody}}`;
+    case "linebreak": return "\\\\";
+    case "rule": {
+      const w = inline.meta?.width ?? "1em";
+      const h = inline.meta?.height ?? "0.4pt";
+      return `\\rule{${w}}{${h}}`;
+    }
+    case "framed": {
+      const cmdName = inline.meta?.cmd ?? "fbox";
+      return `\\${cmdName}{${newBody}}`;
+    }
+    case "colored": {
+      const color = inline.meta?.color ?? "black";
+      return `\\textcolor{${color}}{${newBody}}`;
+    }
+    case "sized": {
+      const size = inline.meta?.size;
+      const weight = inline.meta?.weight;
+      const shape = inline.meta?.shape;
+      const parts: string[] = [];
+      if (size) parts.push(`\\${size}`);
+      if (weight === "bold") parts.push(`\\bfseries`);
+      if (shape === "italic") parts.push(`\\itshape`);
+      const prefix = parts.join("");
+      return `{${prefix}${prefix ? " " : ""}${newBody}}`;
+    }
     default: return newBody;
   }
 }

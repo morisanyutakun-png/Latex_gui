@@ -1852,3 +1852,53 @@ html {
   border: 1px dashed hsl(220 70% 55% / 0.30);
   border-radius: 4px;
 }
+
+/* ══════════════════════════════════════════════════════════
+   VisualEditor: tabular / center / sized / colored / framed の追加描画
+   ══════════════════════════════════════════════════════════ */
+
+/* HTML テーブル化された tabular。黒のシンプルなテーブルで PDF (booktabs/罫線) と
+   見た目をある程度揃える。currentColor で本文色に追従。 */
+.visual-editor .latex-table-render {
+  font-size: 0.96em;
+  line-height: 1.5;
+  margin-left: auto;
+  margin-right: auto;
+}
+.visual-editor .latex-table-render td {
+  border-collapse: collapse;
+}
+
+/* 中央寄せブロック (\begin{center}…\end{center}) は本当に中央に。 */
+.visual-editor .daimon-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin: 12px auto;
+}
+.visual-editor .daimon-center > * {
+  text-align: center;
+  max-width: 100%;
+}
+.visual-editor .daimon-center .editable-text-box {
+  display: inline-block;
+  text-align: center;
+}
+
+/* sized inline (\Large \bfseries 等) を本文テキストに揃えて表示 */
+.visual-editor .latex-sized {
+  display: inline;
+  line-height: 1.3;
+}
+
+/* fbox の中の行送りを少し詰める */
+.visual-editor .latex-fbox {
+  line-height: 1.2;
+}
+
+/* 罫線 (\rule{w}{h})。寸法は inline style で渡し、色は currentColor で本文に追従。 */
+.visual-editor .latex-rule {
+  user-select: none;
+  pointer-events: none;
+}
