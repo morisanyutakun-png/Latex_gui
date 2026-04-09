@@ -11,6 +11,7 @@ PDF生成サービス: raw LaTeX → LuaLaTeX コンパイル → PDF返却
 import asyncio
 import gc
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -31,6 +32,7 @@ from .cache_service import (
     get_cached_pdf, store_cached_pdf,
 )
 from .audit import log_compile_event, log_security_event, AuditEvent
+from .latex_autofix import autofix_latex, autofix_after_failure
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +180,44 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
 
 
 def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
-    """LuaLaTeX でコンパイルしPDFバイト列を返す"""
+    """LuaLaTeX でコンパイルしPDFバイト列を返す。
+
+    AI 出力や手書き LaTeX の細かいミスを救うため、ここでは
+      1. autofix_latex() で先に軽量サニタイズ + 不足パッケージ補完
+      2. それでも失敗したら、コンパイルログを autofix_after_failure() に渡し、
+         不足パッケージが推定できたら **1 回だけ** 追加修復してリトライ
+    の 2 段構えで挑戦する。最後まで失敗したら従来通り PDFGenerationError を投げる。
+    """
+    # 1) コンパイル前サニタイズ
+    fixed_source = autofix_latex(latex_source)
+
+    pdf_bytes, log_output = _try_compile_once(fixed_source, timeout)
+    if pdf_bytes is not None:
+        gc.collect()
+        return pdf_bytes
+
+    # 2) 失敗ログから不足パッケージを推定して 1 回リトライ
+    retried_source = autofix_after_failure(fixed_source, log_output or "")
+    if retried_source and retried_source != fixed_source:
+        logger.info("[autofix] retrying compile after package injection")
+        retry_pdf, retry_log = _try_compile_once(retried_source, timeout)
+        if retry_pdf is not None:
+            gc.collect()
+            return retry_pdf
+        # リトライも失敗 → リトライのログを最終エラーとして使う
+        log_output = retry_log or log_output
+
+    # ここまで来たら救えない — 元のエラー扱いで投げ直す
+    user_msg = _parse_latex_error(log_output or "")
+    raise PDFGenerationError(user_msg, detail=(log_output or "")[-2000:])
+
+
+def _try_compile_once(latex_source: str, timeout: int) -> tuple[bytes | None, str | None]:
+    """1 回だけ lualatex を呼ぶ。成功なら (bytes, None)、失敗なら (None, log)。
+
+    タイムアウトや FileNotFoundError は救済不能なので即 PDFGenerationError を投げる。
+    シグナル kill (returncode<0) もメモリ不足が疑われるため救済しない。
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = Path(tmpdir) / "document.tex"
         pdf_path = Path(tmpdir) / "document.pdf"
@@ -227,8 +266,7 @@ def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
                     detail=f"Process killed by {sig_name}. Log: {log_output[-1000:]}"
                 )
 
-            user_msg = _parse_latex_error(log_output)
-            raise PDFGenerationError(user_msg, detail=log_output[-2000:])
+            return None, log_output
 
         if not pdf_path.exists():
             raise PDFGenerationError(
@@ -236,10 +274,7 @@ def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
                 detail="PDF not found after lualatex compilation"
             )
 
-        pdf_bytes = pdf_path.read_bytes()
-
-    gc.collect()
-    return pdf_bytes
+        return pdf_path.read_bytes(), None
 
 
 async def compile_raw_latex(latex_source: str) -> bytes:
@@ -271,6 +306,25 @@ def _compile_raw_latex_sync(latex_source: str) -> bytes:
     return pdf
 
 
+def _strip_temp_paths(text: str) -> str:
+    """エラーメッセージからテンポラリファイルのパス断片を除去する。
+
+    例: '/var/folders/.../tmpabc/document.tex:118:' → '(line 118):'
+        '/tmp/tmpevc2ejh1/document.tex:118: ==> Fatal' → '(line 118): ==> Fatal'
+    """
+    if not text:
+        return text
+    # tmpXXX/document.tex:NNN: パターン → (line NNN):
+    text = re.sub(
+        r"(?:/[^\s/]+)*?/tmp[^/\s]*/document\.tex:(\d+):?",
+        r"(line \1):",
+        text,
+    )
+    # 残った /tmp/.../foo.sty などの絶対パスは末尾だけ残す
+    text = re.sub(r"/(?:tmp|var)/[^\s'\"]*/", "", text)
+    return text
+
+
 def _parse_latex_error(log: str) -> str:
     """LaTeXログからユーザー向けエラーメッセージを推定"""
     log_lower = log.lower()
@@ -285,6 +339,9 @@ def _parse_latex_error(log: str) -> str:
                 if 10 < len(line_s) < 200:
                     error_detail = line_s
                     break
+
+    # テンポラリパスを除去してユーザー向けに整形
+    error_detail = _strip_temp_paths(error_detail)
 
     if "undefined control sequence" in log_lower:
         return f"未定義のコマンドがあります。入力内容を確認してください。({error_detail})"

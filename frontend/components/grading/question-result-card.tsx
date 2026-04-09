@@ -4,8 +4,11 @@
  * 採点モード Step 4 — 1 設問の採点結果カード
  */
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, CheckCircle2, MinusCircle, XCircle } from "lucide-react";
-import type { GradedQuestion } from "@/lib/grading-types";
+import {
+  ChevronDown, ChevronRight, CheckCircle2, MinusCircle, XCircle,
+  AlertTriangle, FileQuestion, EyeOff,
+} from "lucide-react";
+import type { GradedQuestion, AnswerStatus } from "@/lib/grading-types";
 
 interface Props {
   question: GradedQuestion;
@@ -27,9 +30,50 @@ function StatusIcon({ s }: { s: "ok" | "partial" | "ng" }) {
   return <XCircle className="h-4 w-4 text-red-500" />;
 }
 
+// answerStatus → 注意バナー (answered 以外のときだけ表示)
+function AnswerStatusBanner({ status }: { status: AnswerStatus }) {
+  if (status === "answered") return null;
+  const meta: Record<Exclude<AnswerStatus, "answered">, {
+    icon: React.ReactNode;
+    title: string;
+    body: string;
+    cls: string;
+  }> = {
+    off_topic: {
+      icon: <AlertTriangle className="h-3.5 w-3.5" />,
+      title: "問題と無関係な画像",
+      body: "アップロードされた画像はこの問題への答案ではないようです。問題に対応する答案を再度アップロードしてください。",
+      cls: "bg-rose-50 text-rose-700 border-rose-300/50 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-700/40",
+    },
+    blank: {
+      icon: <FileQuestion className="h-3.5 w-3.5" />,
+      title: "答案記述なし",
+      body: "この設問に対する答案記述が見つかりませんでした。",
+      cls: "bg-amber-50 text-amber-700 border-amber-300/50 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-700/40",
+    },
+    illegible: {
+      icon: <EyeOff className="h-3.5 w-3.5" />,
+      title: "判読不能",
+      body: "答案を読み取れませんでした。鮮明な画像で再アップロードしてください。",
+      cls: "bg-slate-100 text-slate-700 border-slate-300/60 dark:bg-slate-800/40 dark:text-slate-200 dark:border-slate-600/50",
+    },
+  };
+  const m = meta[status];
+  return (
+    <div className={`flex items-start gap-2 px-2.5 py-1.5 mt-2 text-[11px] rounded-md border ${m.cls}`}>
+      <span className="mt-0.5 shrink-0">{m.icon}</span>
+      <div>
+        <div className="font-semibold">{m.title}</div>
+        <div className="opacity-90 mt-0.5">{m.body}</div>
+      </div>
+    </div>
+  );
+}
+
 export function QuestionResultCard({ question, selected = false, onClick }: Props) {
   const [open, setOpen] = useState(true);
   const status = statusOf(question.awardedPoints, question.maxPoints);
+  const answerStatus: AnswerStatus = question.answerStatus ?? "answered";
 
   return (
     <div
@@ -65,6 +109,9 @@ export function QuestionResultCard({ question, selected = false, onClick }: Prop
 
       {open && (
         <div className="px-3 pb-3 pt-1 space-y-2 border-t border-border/30 bg-muted/10">
+          {/* answer status バナー (off_topic / blank / illegible のときだけ) */}
+          <AnswerStatusBanner status={answerStatus} />
+
           {/* 観点別 */}
           {question.criteriaResults.length > 0 && (
             <ul className="space-y-1">

@@ -82,12 +82,22 @@ class CriterionResult(CamelModel):
     comment: str = ""
 
 
+AnswerStatus = Literal["answered", "blank", "off_topic", "illegible"]
+
+
 class GradedQuestion(CamelModel):
     """1 設問分の採点結果"""
     question_id: str
     question_label: str = ""
     max_points: int
     awarded_points: int
+    # 答案ステータス: AI が答案画像をどう判定したかの相互チェック用ラベル
+    #  - "answered"  : この設問への解答試行があった (正誤を問わず)
+    #  - "blank"     : 空白
+    #  - "off_topic" : 関係ない画像 / 別問題 / 印刷文書 など
+    #  - "illegible" : 判読不能
+    # blank / off_topic / illegible のときはサーバ側で全観点を 0 点にフォースする。
+    answer_status: AnswerStatus = "answered"
     transcribed_answer: str = ""                      # AI が画像から読み取った答案 (LaTeX)
     overall_comment: str = ""
     criteria_results: list[CriterionResult] = Field(default_factory=list)

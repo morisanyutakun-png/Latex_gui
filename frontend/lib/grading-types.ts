@@ -69,11 +69,22 @@ export interface CriterionResult {
   comment: string;
 }
 
+/**
+ * 答案ステータス — AI が答案画像をどう判定したか。
+ *  - "answered"  : 解答を試みている (正誤を問わず)
+ *  - "blank"     : 空白
+ *  - "off_topic" : 関係ない画像 / 別問題 / 印刷文書 等
+ *  - "illegible" : 判読不能
+ * answered 以外はサーバ側で全観点を強制的に 0 点にしている。
+ */
+export type AnswerStatus = "answered" | "blank" | "off_topic" | "illegible";
+
 export interface GradedQuestion {
   questionId: string;
   questionLabel: string;
   maxPoints: number;
   awardedPoints: number;
+  answerStatus?: AnswerStatus;
   transcribedAnswer: string;
   overallComment: string;
   criteriaResults: CriterionResult[];

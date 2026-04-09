@@ -452,7 +452,12 @@ def _execute_replace_in_latex(document: dict, args: dict) -> dict:
 
 
 def _execute_compile_check(document: dict, args: dict) -> dict:
-    """LuaLaTeX で実際にコンパイル検証する。"""
+    """LuaLaTeX で実際にコンパイル検証する。
+
+    本番の compile_pdf と同じパッケージ補完 (autofix) を適用してから検証するため、
+    AI が「\\dfrac を使ったが amsmath を読み込んでいない」など軽微な不足を指摘するより、
+    コンパイル成功と判定して次のステップに進める。
+    """
     import subprocess
     import tempfile
     from pathlib import Path
@@ -460,8 +465,10 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
     try:
         from .tex_env import TEX_ENV, LUALATEX_CMD
         from .security import get_compile_args
+        from .latex_autofix import autofix_latex, autofix_after_failure
 
-        latex_source = document.get("latex", "") or ""
+        raw_latex_source = document.get("latex", "") or ""
+        latex_source = autofix_latex(raw_latex_source)
 
         # ── Phase 1: 構文チェック ──
         issues = []
@@ -503,10 +510,11 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
             }
 
         # ── Phase 2: 実コンパイル ──
-        try:
+        # 内部ヘルパ: 1 回コンパイル → (success, pdf_size or 0, log)
+        def _run_once(source: str) -> tuple[bool, int, str]:
             with tempfile.TemporaryDirectory() as tmpdir:
                 tex_path = Path(tmpdir) / "check.tex"
-                tex_path.write_text(latex_source, encoding="utf-8")
+                tex_path.write_text(source, encoding="utf-8")
 
                 cmd_args = get_compile_args(LUALATEX_CMD, str(tmpdir), str(tex_path))
                 result = subprocess.run(
@@ -519,48 +527,61 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
                 )
 
                 pdf_path = Path(tmpdir) / "check.pdf"
-                pdf_exists = pdf_path.exists()
+                if result.returncode == 0 and pdf_path.exists():
+                    return True, pdf_path.stat().st_size, result.stdout
+                return False, 0, result.stdout + "\n" + result.stderr
 
-                if result.returncode == 0 and pdf_exists:
-                    pdf_size = pdf_path.stat().st_size
-                    warnings = []
-                    for line in result.stdout.split("\n"):
-                        if "Warning" in line or "Overfull" in line or "Underfull" in line:
-                            clean = line.strip()[:120]
-                            if clean and clean not in warnings:
-                                warnings.append(clean)
-                    return {
-                        "success": True,
-                        "phase": "compile",
-                        "issues": warnings[:5] if warnings else [],
-                        "pdf_size": pdf_size,
-                        "latex_length": len(latex_source),
-                        "message": f"コンパイル成功 ✓（PDF {pdf_size//1024}KB）"
-                                   + (f" — 警告{len(warnings)}件" if warnings else ""),
-                    }
-                else:
-                    log = result.stdout + "\n" + result.stderr
-                    errors = []
-                    for line in log.split("\n"):
-                        stripped = line.strip()
-                        if stripped.startswith("!"):
-                            errors.append(stripped[:150])
-                        elif "error" in stripped.lower() and len(stripped) < 200:
-                            errors.append(stripped[:150])
-                    if not errors:
-                        errors = ["不明なコンパイルエラー"]
+        try:
+            ok, pdf_size, log = _run_once(latex_source)
 
-                    line_match = _re.search(r'l\.(\d+)', log)
-                    error_line = int(line_match.group(1)) if line_match else None
+            # autofix リトライ — 不足パッケージを 1 回だけ補ってリトライ
+            if not ok:
+                retry_source = autofix_after_failure(latex_source, log)
+                if retry_source and retry_source != latex_source:
+                    ok, pdf_size, log = _run_once(retry_source)
+                    if ok:
+                        latex_source = retry_source
+                        # AI が次の編集で同じ問題を起こさないよう、補完済みのソースを document に反映
+                        document["latex"] = retry_source
 
-                    return {
-                        "success": False,
-                        "phase": "compile",
-                        "issues": errors[:8],
-                        "errors": errors[:8],
-                        "error_line": error_line,
-                        "message": f"コンパイル失敗 ✗ — {errors[0][:100]}",
-                    }
+            if ok:
+                warnings = []
+                for line in log.split("\n"):
+                    if "Warning" in line or "Overfull" in line or "Underfull" in line:
+                        clean = line.strip()[:120]
+                        if clean and clean not in warnings:
+                            warnings.append(clean)
+                return {
+                    "success": True,
+                    "phase": "compile",
+                    "issues": warnings[:5] if warnings else [],
+                    "pdf_size": pdf_size,
+                    "latex_length": len(latex_source),
+                    "message": f"コンパイル成功 ✓（PDF {pdf_size//1024}KB）"
+                               + (f" — 警告{len(warnings)}件" if warnings else ""),
+                }
+
+            errors = []
+            for line in log.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith("!"):
+                    errors.append(stripped[:150])
+                elif "error" in stripped.lower() and len(stripped) < 200:
+                    errors.append(stripped[:150])
+            if not errors:
+                errors = ["不明なコンパイルエラー"]
+
+            line_match = _re.search(r'l\.(\d+)', log)
+            error_line = int(line_match.group(1)) if line_match else None
+
+            return {
+                "success": False,
+                "phase": "compile",
+                "issues": errors[:8],
+                "errors": errors[:8],
+                "error_line": error_line,
+                "message": f"コンパイル失敗 ✗ — {errors[0][:100]}",
+            }
 
         except subprocess.TimeoutExpired:
             return {

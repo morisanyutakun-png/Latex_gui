@@ -439,7 +439,7 @@ def _heuristic_rubric_fallback(latex: str) -> list[Rubric]:
 # ════════════════ Phase 5: AI 採点 (grade_answer_stream) ════════════════
 
 GRADING_SYSTEM_PROMPT = r"""\
-あなたは熟練した採点者です。提示された問題、採点ルーブリック(JSON)、生徒の答案画像を読み、
+あなたは厳格で正確な採点者です。提示された問題、採点ルーブリック(JSON)、生徒の答案画像を読み、
 各設問について部分点・コメント・赤入れ位置を判定します。
 
 # 入力
@@ -447,7 +447,57 @@ GRADING_SYSTEM_PROMPT = r"""\
 2. 採点ルーブリック (JSON)
 3. 答案画像 (1 ページ以上)
 
-# あなたの仕事 (絶対遵守)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 採点の基本姿勢 — 「読む → 判定する → 採点する」の順序を守れ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+採点は **必ず以下の順序** で行う。順序を飛ばして配点だけ埋めることは禁止。
+
+### Step 1: 答案を読み取る (transcription)
+画像の中に書かれている内容を **そのまま** `transcribedAnswer` に書き写す。
+- 文字、数式、図、グラフ、表、走り書き、何でも書き写す
+- 走り書きや判読不能な部分は「(判読不能)」と書く
+- **答案画像が空白 / 印刷文書 / 関係ない別の文書 だった場合もそのまま記述する**
+  例: 「答案ではない印刷文書 (新聞記事のスクリーンショット)」
+       「ほぼ空白のページ。右上に名前のみ」
+       「問題文と思われる数式のみ。生徒の解答記述なし」
+- transcribedAnswer が空文字 ("") のままになることは禁止。
+  読み取り結果がない場合でも 「空白」「読み取れなかった」と明示する。
+
+### Step 2: 答案がこの問題に対する解答かどうかを判定する (relevance check)
+`answerStatus` フィールドに以下のいずれかを設定する:
+- `"answered"` : 生徒がこの設問に対して **明確に解答を試みている** (正誤を問わず)
+- `"blank"`    : この設問に対する解答記述が **まったく無い** (空白・名前だけ等)
+- `"off_topic"`: 答案が **この問題と関係ない** (別の問題、別の科目、メモ、無関係な画像等)
+- `"illegible"`: 文字が判読できず、解答内容が読み取れない
+
+### Step 3: ステータスに応じて配点する
+- **`answered` の場合のみ**、ルーブリックの観点に従って `weight` を上限に `awarded` を割り当てる
+  - 完全に正解 → `weight` 全部
+  - 部分的に正解 → 観点を読んで適度な部分点
+  - 完全に不正解 → 0
+- **`blank` / `off_topic` / `illegible` の場合は、すべての観点で `awarded = 0` を設定**
+  - "答案が無いのに『立式は正しい』と判定する" のような **ハルシネーションは絶対禁止**
+  - コメント欄に「答案なし」「無関係な画像」「判読不能」と明示する
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 重要 — ハルシネーション禁止
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+過去に「画像に何も書いていないのに満点をつけた」「無関係な画像なのに『よく理解できています』
+とコメントした」という重大事故が発生している。次を厳守すること:
+
+- **画像から読み取れない内容を採点根拠にしない**
+- 「答案らしきもの」が画像に **存在しない** なら必ず `awarded = 0` + 該当ステータス
+- "全問正解" を返すのは、**全設問について明確に正解を読み取った場合のみ**
+- 迷ったら点数を下げる (生徒に不利な方ではなく、ハルシネーション側に厳しく)
+- 答案が問題と無関係なら、`overallFeedback` に **「アップロードされた画像はこの問題に対する
+  答案ではないようです」と明記** すること
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## ツール呼び出し
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 **必ず `submit_grading` ツールを呼び出して** 結果を返してください。
 チャット応答だけでは無効です。
 
@@ -460,23 +510,21 @@ GRADING_SYSTEM_PROMPT = r"""\
 - `questionLabel`: ルーブリックの label
 - `maxPoints`: ルーブリックの points
 - `awardedPoints`: 部分点合計 (各観点の awarded を加算)
-- `transcribedAnswer`: 答案画像から読み取った答案 (LaTeX 形式の数式含む)
+- `answerStatus`: "answered" | "blank" | "off_topic" | "illegible"  ← **必須**
+- `transcribedAnswer`: 答案画像から読み取った答案 (LaTeX 形式の数式含む) ← **必須・空文字禁止**
 - `overallComment`: 設問講評 (1〜2 文)
 - `criteriaResults`: 観点ごとの採点
    - `description`: 観点
    - `weight`: 配点
-   - `awarded`: 与えた点
+   - `awarded`: 与えた点 (status≠"answered" の場合は必ず 0)
    - `comment`: 短いコメント
 - `marks`: 答案画像上の赤入れマーク (配列。なくても可)
    - `kind`: "circle" | "cross" | "triangle" | "comment" | "score"
    - `bbox`: 答案画像上の正規化座標 { pageIndex, x, y, w, h } (0..1, left-top 原点)
    - `text`: 数値や短いコメント (任意)
 
-# 採点ポリシー
+# 採点ポリシー (answered の場合の細則)
 - ルーブリックの観点を順番に判定し、`weight` を上限として `awarded` を割り当てる
-- 完全に正解 → `weight` 全部
-- 部分的 → 半分など適度に
-- 全く違う or 無回答 → 0
 - 計算過程の符号ミスなど軽微な間違いは部分点を惜しまない
 - コメントは「何が正しい / 何が違う / どう改善すべきか」を簡潔に書く
 - `awardedPoints` は `criteriaResults` の `awarded` の合計と必ず一致させる
@@ -511,7 +559,24 @@ def _build_grading_tools() -> list[dict]:
                                     "questionLabel": {"type": "string"},
                                     "maxPoints": {"type": "integer"},
                                     "awardedPoints": {"type": "integer"},
-                                    "transcribedAnswer": {"type": "string"},
+                                    "answerStatus": {
+                                        "type": "string",
+                                        "enum": ["answered", "blank", "off_topic", "illegible"],
+                                        "description": (
+                                            "Must reflect what the rubric finds in the answer image. "
+                                            "'answered' = student attempted this question (right or wrong). "
+                                            "'blank' = nothing written for this question. "
+                                            "'off_topic' = uploaded image is unrelated to the problem. "
+                                            "'illegible' = handwriting cannot be read at all."
+                                        ),
+                                    },
+                                    "transcribedAnswer": {
+                                        "type": "string",
+                                        "description": (
+                                            "Required. Verbatim text/math the student wrote, "
+                                            "or '空白' / '無関係な画像' / '判読不能' if not answered."
+                                        ),
+                                    },
                                     "overallComment": {"type": "string"},
                                     "criteriaResults": {
                                         "type": "array",
@@ -554,6 +619,7 @@ def _build_grading_tools() -> list[dict]:
                                 },
                                 "required": [
                                     "questionId", "maxPoints", "awardedPoints",
+                                    "answerStatus", "transcribedAnswer",
                                     "criteriaResults",
                                 ],
                             },
@@ -593,14 +659,76 @@ def _parse_grading_tool_call(response, rubrics: RubricBundle) -> GradingResult |
             for q in questions_in:
                 qid = q.get("questionId") or ""
                 rubric = rubric_map.get(qid)
+
+                # ── answerStatus を解釈 ──
+                raw_status = (q.get("answerStatus") or "answered").strip().lower()
+                if raw_status not in {"answered", "blank", "off_topic", "illegible"}:
+                    raw_status = "answered"
+
+                transcribed = (q.get("transcribedAnswer") or "").strip()
+
+                # ── 自衛的フォールバック判定 ──
+                # AI が answerStatus="answered" と言っても、transcribedAnswer が
+                # 空 or "空白" / "no answer" 系の文言なら blank に矯正する。
+                # ハルシネーション (空答案に満点) を最後の砦で塞ぐ。
+                blank_markers = (
+                    "", "空白", "なし", "無し", "無回答", "未記入", "未回答",
+                    "(空白)", "（空白）", "blank", "no answer", "n/a", "none",
+                )
+                if transcribed.lower() in {m.lower() for m in blank_markers}:
+                    if raw_status == "answered":
+                        logger.warning(
+                            "[grading] AI claimed 'answered' but transcribed='%s' — coerce to blank (qid=%s)",
+                            transcribed, qid,
+                        )
+                    raw_status = "blank"
+
+                # 関係なさそうな画像のヒント (印刷文書、無関係、別問題)
+                offtopic_keywords = (
+                    "無関係", "関係ない", "別の問題", "別問題", "別の科目",
+                    "印刷文書", "印刷物", "印刷された", "新聞", "広告",
+                    "this question", "unrelated", "different problem", "off topic", "off-topic",
+                    "答案ではな", "答案ではない", "解答ではな",
+                )
+                lowered_trans = transcribed.lower()
+                if any(k in transcribed or k in lowered_trans for k in offtopic_keywords):
+                    if raw_status == "answered":
+                        logger.warning(
+                            "[grading] off-topic markers in transcript — coerce to off_topic (qid=%s, trans=%s)",
+                            qid, transcribed[:80],
+                        )
+                        raw_status = "off_topic"
+
+                # ── 観点別採点 ──
                 criteria_results = []
                 for c in q.get("criteriaResults") or []:
+                    desc = c.get("description", "")
+                    weight = int(c.get("weight", 0))
+                    raw_awarded = int(c.get("awarded", 0))
+                    comment = c.get("comment", "") or ""
+
+                    # answered 以外は強制ゼロ + コメント上書き
+                    if raw_status != "answered":
+                        if raw_awarded > 0:
+                            logger.warning(
+                                "[grading] forcing awarded=0 because status=%s (qid=%s, criterion=%s, was=%d)",
+                                raw_status, qid, desc, raw_awarded,
+                            )
+                        raw_awarded = 0
+                        if not comment:
+                            comment = {
+                                "blank": "答案記述なし",
+                                "off_topic": "答案がこの問題と無関係",
+                                "illegible": "判読不能",
+                            }.get(raw_status, "")
+
                     criteria_results.append(CriterionResult(
-                        description=c.get("description", ""),
-                        weight=int(c.get("weight", 0)),
-                        awarded=int(c.get("awarded", 0)),
-                        comment=c.get("comment", "") or "",
+                        description=desc,
+                        weight=weight,
+                        awarded=raw_awarded,
+                        comment=comment,
                     ))
+
                 # AI が awardedPoints を間違えても合計値を信頼する
                 awarded = sum(c.awarded for c in criteria_results)
                 if not criteria_results and "awardedPoints" in q:
@@ -608,6 +736,9 @@ def _parse_grading_tool_call(response, rubrics: RubricBundle) -> GradingResult |
                         awarded = int(q["awardedPoints"])
                     except (TypeError, ValueError):
                         awarded = 0
+                # answered 以外なら最終的にも 0 に固定
+                if raw_status != "answered":
+                    awarded = 0
 
                 marks: list[Mark] = []
                 for m in q.get("marks") or []:
@@ -636,13 +767,27 @@ def _parse_grading_tool_call(response, rubrics: RubricBundle) -> GradingResult |
                 # max_points は rubric を信頼
                 max_points = rubric.max_points if rubric else int(q.get("maxPoints", awarded))
 
+                # overall_comment: off_topic 等の場合はコメントを上書き
+                overall_comment = q.get("overallComment", "") or ""
+                if raw_status != "answered":
+                    status_msg = {
+                        "blank": "この設問に対する答案記述が見つかりませんでした。",
+                        "off_topic": "アップロードされた画像はこの問題への解答ではないようです。問題と一致する答案をアップロードしてください。",
+                        "illegible": "答案を判読できませんでした。再度撮影してアップロードしてください。",
+                    }.get(raw_status, "")
+                    if status_msg:
+                        overall_comment = (
+                            f"{status_msg}\n{overall_comment}".strip() if overall_comment else status_msg
+                        )
+
                 graded_questions.append(GradedQuestion(
                     question_id=qid,
                     question_label=q.get("questionLabel") or (rubric.question_label if rubric else ""),
                     max_points=max_points,
                     awarded_points=min(awarded, max_points),
-                    transcribed_answer=q.get("transcribedAnswer", "") or "",
-                    overall_comment=q.get("overallComment", "") or "",
+                    answer_status=raw_status,  # type: ignore[arg-type]
+                    transcribed_answer=transcribed,
+                    overall_comment=overall_comment,
                     criteria_results=criteria_results,
                     marks=marks,
                 ))
@@ -650,6 +795,19 @@ def _parse_grading_tool_call(response, rubrics: RubricBundle) -> GradingResult |
             total_awarded = sum(q.awarded_points for q in graded_questions)
             total_max = sum(q.max_points for q in graded_questions)
             percentage = round(total_awarded / total_max * 100, 1) if total_max > 0 else 0.0
+
+            # 全設問が off_topic / blank / illegible なら overall_feedback を上書き
+            if graded_questions and all(q.answer_status != "answered" for q in graded_questions):
+                statuses = {q.answer_status for q in graded_questions}
+                if "off_topic" in statuses:
+                    overall_fb = (
+                        "アップロードされた画像はこの問題への解答ではないようです。"
+                        "問題と一致する答案をアップロードしてください。"
+                    )
+                elif "blank" in statuses:
+                    overall_fb = "答案画像から有効な解答記述が見つかりませんでした。"
+                elif "illegible" in statuses:
+                    overall_fb = "答案を判読できませんでした。鮮明な画像で再度アップロードしてください。"
 
             return GradingResult(
                 total_points=total_awarded,
@@ -735,6 +893,8 @@ def _build_grading_messages(
             f"{json.dumps(rubrics.model_dump(by_alias=True), ensure_ascii=False, indent=2)}\n"
             "```\n\n"
             "## 答案画像 (左上原点、座標は 0..1 の正規化)\n"
+            "下に添付されているのが **生徒の答案画像** です。"
+            "この画像が本当に上記の問題に対する解答なのか、まず必ず確認してください。\n"
         ),
     })
 
@@ -749,8 +909,20 @@ def _build_grading_messages(
     content_parts.append({
         "type": "text",
         "text": (
-            "上記の答案を採点して、`submit_grading` ツールで結果を返してください。"
-            "ルーブリックの全設問に対して採点結果を返してください。"
+            "## 採点指示\n"
+            "上記の答案を採点して、`submit_grading` ツールで結果を返してください。\n\n"
+            "**手順 (必ず守る):**\n"
+            "1. まず答案画像をよく見て、何が書かれているか `transcribedAnswer` に正確に書き写す。\n"
+            "2. その内容が **問題LaTeX に対する解答かどうか** を判断し、`answerStatus` を設定する:\n"
+            "   - `answered`  : この問題への解答を試みている (正誤を問わない)\n"
+            "   - `blank`     : 解答記述がない (空白・名前のみ等)\n"
+            "   - `off_topic` : 別の問題・無関係な画像・印刷文書・スクリーンショット等\n"
+            "   - `illegible` : 判読できない\n"
+            "3. `answered` の場合のみルーブリックに従って観点別に採点する。\n"
+            "   それ以外の場合は **必ず全観点 awarded=0**。点数を捏造しない。\n"
+            "4. 画像と問題が一致しないと感じたら、ためらわず `off_topic` を選択する。\n"
+            "   ハルシネーション (空答案や無関係画像に部分点) は重大事故扱い。\n\n"
+            "ルーブリックの **全設問** に対して採点結果を返してください。"
         ),
     })
 

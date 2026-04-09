@@ -10,7 +10,7 @@
  *   - 全体講評 (下)
  */
 import React, { useEffect, useState } from "react";
-import { FileDown, Image as ImageIcon, Loader2 } from "lucide-react";
+import { FileDown, Image as ImageIcon, Loader2, AlertTriangle } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useI18n } from "@/lib/i18n";
 import { renderFeedbackPdf, renderMarkedPdf } from "@/lib/api";
@@ -99,8 +99,33 @@ export function Step4Result() {
 
   const totalPct = result.percentage;
 
+  // 全設問が answered 以外なら、答案が問題と一致しなかった可能性が高い
+  const allInvalid =
+    result.questions.length > 0 &&
+    result.questions.every((q) => (q.answerStatus ?? "answered") !== "answered");
+  const allOffTopic =
+    allInvalid && result.questions.every((q) => q.answerStatus === "off_topic");
+
   return (
     <div className="flex-1 min-h-0 flex flex-col px-6 py-4 gap-3 overflow-hidden">
+      {/* 全設問が無関係/空白だった場合の警告バナー */}
+      {allInvalid && (
+        <div className="flex items-start gap-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-300/60 dark:border-rose-700/50 rounded-lg px-4 py-3">
+          <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+          <div className="text-sm text-rose-800 dark:text-rose-200 leading-relaxed">
+            <div className="font-semibold mb-0.5">
+              {allOffTopic
+                ? "アップロードされた画像は、この問題への答案ではないようです"
+                : "この答案からは有効な解答記述が読み取れませんでした"}
+            </div>
+            <div className="text-[12px] text-rose-700/85 dark:text-rose-300/85">
+              採点を行うため、問題と一致する答案画像を Step 2 から再アップロードしてください。
+              （AI が無関係なファイルに点数を付けてしまうのを防ぐため、自動的に 0 点としています。）
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ヘッダ: 合計スコア */}
       <div className="flex items-center justify-between bg-gradient-to-r from-emerald-50 to-sky-50 dark:from-emerald-950/20 dark:to-sky-950/20 border border-emerald-200/40 dark:border-emerald-800/40 rounded-lg px-4 py-3">
         <div className="flex items-center gap-2">
