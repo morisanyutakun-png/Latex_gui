@@ -76,7 +76,7 @@ export function DocumentEditor() {
 
       {/* ── Visual editor (常時, 中央, flex で残りを埋める) ── */}
       <div className="flex flex-1 min-w-0 flex-col">
-        <VisualEditor latex={latex} onChange={setLatex} />
+        <VisualEditor latex={latex} onChange={setLatex} template={document.template} />
       </div>
 
       {/* ── PDF preview panel (opt-in, 右, リサイズ可) ── */}

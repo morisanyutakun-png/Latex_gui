@@ -57,6 +57,9 @@ function useMathEditor(): (req: MathEditRequest) => void {
 interface VisualEditorProps {
   latex: string;
   onChange: (newLatex: string) => void;
+  /** ドキュメントのテンプレ ID。data-template として root に出力し、
+   *  CSS でテンプレ別の色 / コンテナ枠 / 見出し装飾を適用する。 */
+  template?: string;
 }
 
 /**
@@ -71,9 +74,10 @@ interface VisualEditorProps {
  * - Cmd/Ctrl+M でカーソル位置に math chip を挿入 / chip 内なら exit
  * - 未対応構文 (raw / preamble) は静的バッジで表示
  */
-export function VisualEditor({ latex, onChange }: VisualEditorProps) {
+export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
   const { t } = useI18n();
   const segments = useMemo(() => parseLatexToSegments(latex), [latex]);
+  const templateId = template ?? "blank";
 
   // 末尾の常時編集可能な段落 (Word ライクな「白紙の上にカーソル」感)
   const trailingRef = useRef<HTMLParagraphElement | null>(null);
@@ -194,8 +198,11 @@ export function VisualEditor({ latex, onChange }: VisualEditorProps) {
   return (
     <MathEditorContext.Provider value={openMathEditor}>
       <div className="relative h-full w-full">
-        <div className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin">
-          <div className="mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
+        <div
+          className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin"
+          data-template={templateId}
+        >
+          <div className="visual-editor-paper mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
             <div
               className="px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)] cursor-text"
               onMouseDown={handlePageMouseDown}
@@ -398,17 +405,17 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
         applyRangeEdit({ start: titleStart, end: titleEnd }, newBody);
       };
       return (
-        <div className="my-6 rounded-md overflow-hidden border border-[#1e3a8a]/40 bg-[#1e3a8a]/[0.025] dark:border-[#93c5fd]/30 dark:bg-[#1e3a8a]/15 shadow-[0_1px_0_rgba(30,58,138,0.08)]">
+        <div className="container-block daimon-block my-6 overflow-hidden" data-env="daimon">
           {titleSegment && (
             <ContentEditableBlock
               segment={titleSegment}
               latex={latex}
               onCommit={onDaimonTitleCommit}
               tag="h3"
-              className="daimon-title bg-[#1e3a8a] text-white px-4 py-2 text-[15px] font-bold tracking-wide m-0 rounded-none border-0"
+              className="daimon-title m-0"
             />
           )}
-          <div className="px-5 py-4 space-y-2">
+          <div className="container-block-body">
             {(segment.children ?? []).map((child, idx) => (
               <SegmentRenderer
                 key={`${idx}-${child.kind}`}
@@ -458,17 +465,17 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
         applyRangeEdit({ start: titleStart, end: titleEnd }, newBody);
       };
       return (
-        <div className="container-block my-4 rounded-md border border-foreground/10 bg-foreground/[0.015] dark:bg-white/[0.02] overflow-hidden">
+        <div className="container-block my-4 overflow-hidden" data-env={segment.meta?.envName ?? "container"}>
           {titleSegment && (
             <ContentEditableBlock
               segment={titleSegment}
               latex={latex}
               onCommit={onContainerTitleCommit}
               tag="h4"
-              className="container-block-title px-4 py-1.5 text-[13px] font-semibold text-foreground/75 bg-foreground/[0.04] dark:bg-white/[0.04] m-0 border-b border-foreground/10"
+              className="container-block-title m-0"
             />
           )}
-          <div className="px-4 py-3 space-y-2">
+          <div className="container-block-body">
             {(segment.children ?? []).map((child, idx) => (
               <SegmentRenderer
                 key={`${idx}-${child.kind}`}
@@ -926,14 +933,11 @@ const ENV_LABEL_ICON: Record<string, string> = {
 function SectionAutoLabel({ number }: { number: string }) {
   const { locale } = useI18n();
   const label = locale === "en" ? `Problem ${number}` : `第 ${number} 問`;
+  // 装飾はテンプレ別に CSS で行う (data-template が祖先 .visual-editor にある)
   return (
-    <div className="my-6 select-none">
-      <div className="flex items-baseline gap-3">
-        <span className="inline-block px-3 py-1 border border-foreground/70 text-foreground font-bold text-[16px] tracking-wide leading-none">
-          {label}
-        </span>
-        <div className="flex-1 h-px bg-foreground/30" />
-      </div>
+    <div className="section-auto-label select-none" data-section-number={number}>
+      <span className="section-auto-label-badge">{label}</span>
+      <span className="section-auto-label-divider" />
     </div>
   );
 }
@@ -1181,6 +1185,140 @@ function buildMathChipHTML(source: string, wrapper: string): string {
   return `<span data-math-chip="1" data-wrapper="${wrapper}" data-source="${safeSource}" contenteditable="false" class="math-chip">${inner}</span>`;
 }
 
+/** テキスト系 LaTeX コマンドの Unicode 置換テーブル。
+ *  「テキストモードの装飾コマンド」を visible body 内で見つけたとき、生 LaTeX を出さずに
+ *  Unicode に置き換えて表示する。 */
+const TEXT_CMD_UNICODE: Record<string, string> = {
+  textbullet: "\u2022",
+  textbackslash: "\\",
+  textbar: "|",
+  textless: "<",
+  textgreater: ">",
+  textquoteleft: "\u2018",
+  textquoteright: "\u2019",
+  textquotedblleft: "\u201C",
+  textquotedblright: "\u201D",
+  textregistered: "\u00AE",
+  texttrademark: "\u2122",
+  textcopyright: "\u00A9",
+  textdegree: "\u00B0",
+  textperiodcentered: "\u00B7",
+  textellipsis: "\u2026",
+  textendash: "\u2013",
+  textemdash: "\u2014",
+  bullet: "\u2022",
+  cdot: "\u00B7",
+  cdots: "\u22EF",
+  ldots: "\u2026",
+  dots: "\u2026",
+  square: "\u25A1",
+  blacksquare: "\u25A0",
+  bigstar: "\u2605",
+  star: "\u2606",
+  circ: "\u25CB",
+  bullet2: "\u2022",
+  triangle: "\u25B3",
+  blacktriangleright: "\u25B6",
+  blacktriangle: "\u25B2",
+  P: "\u00B6",
+  S: "\u00A7",
+  ldots2: "\u2026",
+};
+
+/** \textcircled{X} を Unicode 〇 + X 風に置換する (簡易) */
+function processTextCircled(body: string): string {
+  return body.replace(/\\textcircled\s*\{([^{}]*)\}/g, (_m, x) => {
+    const t = (x ?? "").trim();
+    if (/^[1-9]$/.test(t)) {
+      return String.fromCharCode(0x2460 + parseInt(t, 10) - 1);
+    }
+    if (t === "0") return "\u24EA";
+    if (/^[A-Z]$/.test(t)) return String.fromCharCode(0x24B6 + t.charCodeAt(0) - 65);
+    if (/^[a-z]$/.test(t)) return String.fromCharCode(0x24D0 + t.charCodeAt(0) - 97);
+    return `(${t})`;
+  });
+}
+
+/** リッチな inline テキスト (sized/colored/framed/templateCmd の body) を HTML 化する。
+ *  ・`$..$` / `\(..\)` の数式を math chip に変換 (KaTeX 経由、生 LaTeX を出さない)
+ *  ・既知のテキストモード LaTeX コマンドを Unicode に置換
+ *  ・残る `\cmd{...}` 形のテンプレ独自コマンドは中身だけ取り出す (簡易展開)
+ *  ・最後に escape して安全な HTML を返す */
+function renderRichInlineHTML(body: string): string {
+  if (!body) return "";
+  let s = body;
+  // \textcircled{X} → 丸数字 / 丸文字
+  s = processTextCircled(s);
+  // \unicode{0xNNNN} → 文字 (KaTeX が \unicode をマクロ展開する形だが念のため)
+  s = s.replace(/\\unicode\{0x([0-9a-fA-F]+)\}/g, (_m, hex) => String.fromCodePoint(parseInt(hex, 16)));
+  // 既知のテキストモード命令 → Unicode
+  s = s.replace(/\\([a-zA-Z@]+)(?![a-zA-Z@])/g, (m, name) => {
+    const repl = TEXT_CMD_UNICODE[name];
+    if (repl !== undefined) return repl;
+    return m;
+  });
+  // 段階的処理: $..$ / \(..\) 数式範囲を抽出して math chip に置換
+  // 残った文字列は escapeHtml で安全化
+  const parts: string[] = [];
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    // \( ... \)
+    if (ch === "\\" && s[i + 1] === "(") {
+      const close = s.indexOf("\\)", i + 2);
+      if (close !== -1) {
+        const math = s.slice(i + 2, close);
+        parts.push(renderInlineMathOrPlaceholder(math));
+        i = close + 2;
+        continue;
+      }
+    }
+    // $..$
+    if (ch === "$" && s[i + 1] !== "$") {
+      let j = i + 1;
+      while (j < s.length) {
+        if (s[j] === "\\" && j + 1 < s.length) { j += 2; continue; }
+        if (s[j] === "$") break;
+        j++;
+      }
+      if (j < s.length && s[j] === "$") {
+        const math = s.slice(i + 1, j);
+        parts.push(renderInlineMathOrPlaceholder(math));
+        i = j + 1;
+        continue;
+      }
+    }
+    // 残る `\name{...}` 1引数命令 → 中身だけ
+    if (ch === "\\") {
+      const m = s.slice(i).match(/^\\([a-zA-Z@]+)\s*\{([^{}]*)\}/);
+      if (m) {
+        // 中身を再帰的に処理 (テキスト + 数式)
+        parts.push(renderRichInlineHTML(m[2]));
+        i += m[0].length;
+        continue;
+      }
+      // 残る `\name` (引数なし、Unicode 置換でも捕捉できなかったもの) → 削除
+      const m2 = s.slice(i).match(/^\\([a-zA-Z@]+)/);
+      if (m2) {
+        i += m2[0].length;
+        continue;
+      }
+    }
+    // 通常文字 → 1 文字進めて escape する区間に追加
+    let textEnd = i + 1;
+    while (
+      textEnd < s.length &&
+      s[textEnd] !== "\\" &&
+      s[textEnd] !== "$"
+    ) {
+      textEnd++;
+    }
+    parts.push(escapeHtml(s.slice(i, textEnd)));
+    i = textEnd;
+  }
+  return parts.join("");
+}
+
 /** sized inline (\Large \bfseries 等) の CSS スタイル文字列を作る。
  *  size と weight/shape は data 属性で round-trip するので class でも data 属性でも OK。
  *  ここでは inline style で直接サイズを当てる (CSS class より優先順位が分かりやすい)。 */
@@ -1232,17 +1370,35 @@ function buildInlinesHTML(inlines: Inline[], src: string): string {
       html += `<span class="latex-rule" contenteditable="false" data-rule-width="${escapeHtml(w)}" data-rule-height="${escapeHtml(h)}" style="display:inline-block;vertical-align:middle;width:${escapeHtml(cssLength(w))};height:${escapeHtml(cssLength(h))};background:currentColor;margin:0 0.2em;">&nbsp;</span>`;
     } else if (inline.kind === "framed") {
       const cmdName = inline.meta?.cmd ?? "fbox";
-      html += `<span class="latex-fbox" data-fbox-cmd="${escapeHtml(cmdName)}" style="display:inline-block;border:1px solid currentColor;padding:0 0.35em;border-radius:1px;">${escapeHtml(inline.body)}</span>`;
+      html += `<span class="latex-fbox" data-fbox-cmd="${escapeHtml(cmdName)}" style="display:inline-block;border:1px solid currentColor;padding:0 0.35em;border-radius:1px;">${renderRichInlineHTML(inline.body)}</span>`;
     } else if (inline.kind === "colored") {
       const color = inline.meta?.color ?? "inherit";
       const css = colorNameToCss(color);
-      html += `<span class="latex-color" data-color="${escapeHtml(color)}" style="color:${css};">${escapeHtml(inline.body)}</span>`;
+      html += `<span class="latex-color" data-color="${escapeHtml(color)}" style="color:${css};">${renderRichInlineHTML(inline.body)}</span>`;
     } else if (inline.kind === "sized") {
       const style = sizedInlineStyle(inline.meta);
       const dataAttrs = Object.entries(inline.meta ?? {})
         .map(([k, v]) => `data-sized-${k}="${escapeHtml(v)}"`)
         .join(" ");
-      html += `<span class="latex-sized" ${dataAttrs} style="${style}">${escapeHtml(inline.body)}</span>`;
+      html += `<span class="latex-sized" ${dataAttrs} style="${style}">${renderRichInlineHTML(inline.body)}</span>`;
+    } else if (inline.kind === "templateCmd") {
+      const name = inline.meta?.name ?? "text";
+      const arg2 = inline.meta?.arg2;
+      const block = inline.meta?.block === "1";
+      const arg2Attr = arg2 !== undefined ? ` data-cmd-arg2="${escapeHtml(arg2)}"` : "";
+      // ブロックレベルの命令 (\jukutitle / \daimonhead / \chui / \unit / \level / \anslines)
+      // は CSS で display:block にして紙面の段組に流し込む
+      if (name === "anslines") {
+        // \anslines{N} → N 本の罫線
+        const n = Math.max(1, Math.min(20, parseInt(inline.body.trim(), 10) || 1));
+        const lines = Array.from({ length: n })
+          .map(() => `<span class="latex-ans-line"></span>`).join("");
+        html += `<span class="latex-tcmd latex-tcmd-anslines" data-cmd-name="anslines" data-cmd-block="1" contenteditable="false" data-cmd-arg1="${escapeHtml(inline.body)}">${lines}</span>`;
+      } else if (arg2 !== undefined) {
+        html += `<span class="latex-tcmd latex-tcmd-${escapeHtml(name)}" data-cmd-name="${escapeHtml(name)}"${arg2Attr}${block ? ` data-cmd-block="1"` : ""} contenteditable="false"><span class="latex-tcmd-arg1">${renderRichInlineHTML(inline.body)}</span><span class="latex-tcmd-arg2">${renderRichInlineHTML(arg2)}</span></span>`;
+      } else {
+        html += `<span class="latex-tcmd latex-tcmd-${escapeHtml(name)}" data-cmd-name="${escapeHtml(name)}"${block ? ` data-cmd-block="1"` : ""} contenteditable="false">${renderRichInlineHTML(inline.body)}</span>`;
+      }
     }
   }
   if (!html) html = "&#8203;"; // 空段落でもカレットを出すための ZWSP
@@ -1356,6 +1512,28 @@ export function serializeContentEditableDOM(el: HTMLElement): string {
     // \\ (LaTeX line break)
     if (child.dataset.latexLinebreak === "1") {
       result += `\\\\`;
+      continue;
+    }
+
+    // テンプレ独自コマンド (\juKey / \jukutitle / \chui / \nlevel / ...)
+    if (child.dataset.cmdName) {
+      const name = child.dataset.cmdName;
+      // arg1 / arg2 構造があるか
+      const arg1El = child.querySelector(":scope > .latex-tcmd-arg1");
+      const arg2El = child.querySelector(":scope > .latex-tcmd-arg2");
+      if (arg1El && arg2El) {
+        const a1 = (arg1El.textContent || "").trim();
+        const a2 = (arg2El.textContent || "").trim();
+        result += `\\${name}{${a1}}{${a2}}`;
+      } else {
+        // 単一引数。anslines の場合は data-cmd-arg1 を見る
+        const arg1Attr = child.dataset.cmdArg1;
+        if (arg1Attr !== undefined) {
+          result += `\\${name}{${arg1Attr}}`;
+        } else {
+          result += `\\${name}{${(child.textContent || "").trim()}}`;
+        }
+      }
       continue;
     }
 

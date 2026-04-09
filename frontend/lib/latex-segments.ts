@@ -46,7 +46,8 @@ export type InlineKind =
   | "linebreak"    // \\ → <br/>
   | "framed"       // \fbox{...} → 枠付きスパン
   | "colored"      // \textcolor{name}{...} → 色付きスパン
-  | "sized";       // {\Large\bfseries ...} → 大きな太字スパン
+  | "sized"        // {\Large\bfseries ...} → 大きな太字スパン
+  | "templateCmd"; // テンプレ独自コマンド (\juKey, \jukutitle, \chui, \nlevel, \unit, \level, \daimonhead, \jukutitle, \anslines)
 
 export interface Range {
   start: number;
@@ -190,6 +191,32 @@ const INLINE_BADGE_CMDS: Record<string, (arg: string) => string> = {
   haiten: (arg) => `[${arg}点]`,
 };
 
+/** テンプレ独自コマンドの一覧。
+ *  これらは \newcommand で定義されているが、ビジュアルエディタは preamble を解釈しないので
+ *  名前から arity と表示カテゴリを直接ハードコードして拾う。
+ *  これにより `\jukutitle{Quadratic}{Lesson 03}` のような呼び出しが
+ *  「生 LaTeX として画面に漏れる」のを防ぐ。
+ *  CSS は data-cmd-name 属性 + data-template 属性 で各テンプレに合わせて装飾する。 */
+export interface TemplateCmdSpec {
+  arity: 1 | 2;
+  /** ブロックレベルか (display:block で描画) */
+  block?: boolean;
+}
+const INLINE_TEMPLATE_CMDS: Record<string, TemplateCmdSpec> = {
+  // 1-arg inline (juku/worksheet/kaisetsu-note 共通の強調語句)
+  juKey:     { arity: 1 },
+  juHint:    { arity: 1 },
+  nlevel:    { arity: 1 },
+  // 1-arg block-level
+  unit:      { arity: 1, block: true },
+  chui:      { arity: 1, block: true },
+  anslines:  { arity: 1, block: true },
+  // 2-arg block-level
+  daimonhead:{ arity: 2, block: true },
+  jukutitle: { arity: 2, block: true },
+  level:     { arity: 2, block: true },
+};
+
 /** インライン中の 1 引数命令 → 中身だけ取り出す */
 const INLINE_UNWRAP_1: Record<string, "bold" | "italic" | "code" | "text"> = {
   textbf: "bold",
@@ -211,6 +238,49 @@ const INLINE_UNWRAP_1: Record<string, "bold" | "italic" | "code" | "text"> = {
  *  textcolor / fbox / framebox / fcolorbox / colorbox は専用ハンドラ (rule の隣)
  *  で扱うので、こちらには残さない (色や枠を保持するため)。 */
 const INLINE_UNWRAP_2_SECOND = new Set<string>([]);
+
+/** テキストモード LaTeX コマンド → Unicode の置換テーブル。
+ *  parser 側で `\textbullet` `\square` 等を Unicode に変換しておくことで、
+ *  text inline body に `\xxx` が混入して raw LaTeX が漏れるのを防ぐ。
+ *  視覚エディタの renderer 側にも同じテーブルがあるが、parser 側で潰しておくと
+ *  text inline と sized/colored 系の両方で一貫してクリーンになる。 */
+const TEXT_CMD_UNICODE: Record<string, string> = {
+  textbullet: "\u2022",
+  textbackslash: "\\",
+  textbar: "|",
+  textless: "<",
+  textgreater: ">",
+  textquoteleft: "\u2018",
+  textquoteright: "\u2019",
+  textquotedblleft: "\u201C",
+  textquotedblright: "\u201D",
+  textregistered: "\u00AE",
+  texttrademark: "\u2122",
+  textcopyright: "\u00A9",
+  textdegree: "\u00B0",
+  textperiodcentered: "\u00B7",
+  textellipsis: "\u2026",
+  textendash: "\u2013",
+  textemdash: "\u2014",
+  bullet: "\u2022",
+  cdots: "\u22EF",
+  ldots: "\u2026",
+  dots: "\u2026",
+  square: "\u25A1",
+  blacksquare: "\u25A0",
+  bigstar: "\u2605",
+  star: "\u2606",
+  triangle: "\u25B3",
+  blacktriangleright: "\u25B6",
+  blacktriangle: "\u25B2",
+  P: "\u00B6",
+  S: "\u00A7",
+};
+
+/** 3 引数命令で「最後の引数だけが本文」のものを定義 (\multicolumn{n}{spec}{content}) */
+const INLINE_THREE_ARG_LAST_BODY = new Set([
+  "multicolumn",
+]);
 
 /** Inline[] から「ユーザに見えるテキスト」を取り出す。
  *  inlineMath は `$..$` の形で残し、bold/italic 等は中身だけ。
@@ -606,6 +676,45 @@ export function extractInlines(src: string, start: number, end: number): Inline[
           }
         }
 
+        // 0e2) テンプレ独自コマンド (\juKey, \jukutitle, \chui, \nlevel, ...) を
+        //      templateCmd inline として保持する。生 LaTeX を画面に漏らさず、
+        //      data-cmd-name 属性 + テンプレ別 CSS で装飾する。
+        if (INLINE_TEMPLATE_CMDS[cmd.name] && src[nameAfter] === "{") {
+          const spec = INLINE_TEMPLATE_CMDS[cmd.name];
+          const firstClose = findMatchingBrace(src, nameAfter, end);
+          if (firstClose !== -1) {
+            let endPos = firstClose + 1;
+            let visible2: string | undefined;
+            if (spec.arity === 2) {
+              const next2 = skipWS(endPos);
+              if (src[next2] === "{") {
+                const secondClose = findMatchingBrace(src, next2, end);
+                if (secondClose !== -1) {
+                  const inner2 = extractInlines(src, next2 + 1, secondClose);
+                  visible2 = inlinesToVisible(inner2);
+                  endPos = secondClose + 1;
+                }
+              }
+            }
+            const inner1 = extractInlines(src, nameAfter + 1, firstClose);
+            const visible1 = inlinesToVisible(inner1);
+            const meta: Record<string, string> = { name: cmd.name };
+            if (visible2 !== undefined) meta.arg2 = visible2;
+            if (spec.block) meta.block = "1";
+            pushText(cursor, i);
+            inlines.push({
+              id: nextId("inl"),
+              kind: "templateCmd",
+              range: { start: i, end: endPos },
+              body: visible1,
+              meta,
+            });
+            cursor = endPos;
+            i = endPos;
+            continue;
+          }
+        }
+
         // 0f) 2 引数捨てコマンド (\setcounter{x}{y}, \addtocounter{x}{y})
         if (INLINE_DROP_2ARG_CMDS.has(cmd.name) && src[nameAfter] === "{") {
           const firstClose = findMatchingBrace(src, nameAfter, end);
@@ -703,6 +812,72 @@ export function extractInlines(src: string, start: number, end: number): Inline[
             i = braceEnd + 1;
             continue;
           }
+        }
+
+        // 5) テキストモード Unicode 命令 (\textbullet \square \cdot ...) → Unicode 文字
+        if (TEXT_CMD_UNICODE[cmd.name] !== undefined) {
+          let consumeEnd = cmd.nextPos;
+          if (src[consumeEnd] === " " || src[consumeEnd] === "\t") consumeEnd++;
+          pushText(cursor, i);
+          inlines.push({
+            id: nextId("inl"),
+            kind: "text",
+            range: { start: i, end: consumeEnd },
+            body: TEXT_CMD_UNICODE[cmd.name],
+          });
+          cursor = consumeEnd;
+          i = consumeEnd;
+          continue;
+        }
+
+        // 6) \multicolumn{N}{spec}{content} 等 — 最後の引数だけが本文
+        if (INLINE_THREE_ARG_LAST_BODY.has(cmd.name) && src[nameAfter] === "{") {
+          const close1 = findMatchingBrace(src, nameAfter, end);
+          if (close1 !== -1) {
+            const w1 = skipWS(close1 + 1);
+            if (src[w1] === "{") {
+              const close2 = findMatchingBrace(src, w1, end);
+              if (close2 !== -1) {
+                const w2 = skipWS(close2 + 1);
+                if (src[w2] === "{") {
+                  const close3 = findMatchingBrace(src, w2, end);
+                  if (close3 !== -1) {
+                    pushText(cursor, i);
+                    // 本文 (3 番目の引数) を再帰展開
+                    const inner = extractInlines(src, w2 + 1, close3);
+                    inlines.push(...inner);
+                    cursor = close3 + 1;
+                    i = close3 + 1;
+                    continue;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // 7) フォールバック: 未知の `\cmd` (引数の有無を問わず) は中身だけ取り出す。
+        //    `\cmd{...}` なら {} の中を再帰展開し、`\cmd` 単独なら何も出さない。
+        //    生 LaTeX を画面に漏らさないための最後の砦。
+        {
+          if (src[nameAfter] === "{") {
+            const braceEnd = findMatchingBrace(src, nameAfter, end);
+            if (braceEnd !== -1) {
+              pushText(cursor, i);
+              const inner = extractInlines(src, nameAfter + 1, braceEnd);
+              inlines.push(...inner);
+              cursor = braceEnd + 1;
+              i = braceEnd + 1;
+              continue;
+            }
+          }
+          // 引数なしの未知 `\cmd` → スキップ (生コードを表示しない)
+          pushText(cursor, i);
+          let consumeEnd = cmd.nextPos;
+          if (src[consumeEnd] === " " || src[consumeEnd] === "\t") consumeEnd++;
+          cursor = consumeEnd;
+          i = consumeEnd;
+          continue;
         }
       }
     }
@@ -1145,7 +1320,8 @@ const DISPLAY_MATH_ENVS = new Set([
   "displaymath", "multline", "multline*", "eqnarray", "eqnarray*",
 ]);
 
-/** 見出しパターン (より長い prefix を先にマッチさせるため、subsub → sub → section の順) */
+/** 見出しパターン (より長い prefix を先にマッチさせるため、subsub → sub → section → chapter の順)
+ *  ※ \chapter は report テンプレで使われる。section と同じ扱いで番号付け対象。 */
 const HEADING_PATTERNS: ReadonlyArray<{
   prefix: string;
   kind: "section" | "subsection" | "subsubsection";
@@ -1158,10 +1334,12 @@ const HEADING_PATTERNS: ReadonlyArray<{
   { prefix: "\\subsection{",     kind: "subsection",    cmdLen: "\\subsection".length,     starred: false },
   { prefix: "\\section*{",       kind: "section",       cmdLen: "\\section*".length,       starred: true },
   { prefix: "\\section{",        kind: "section",       cmdLen: "\\section".length,        starred: false },
+  { prefix: "\\chapter*{",       kind: "section",       cmdLen: "\\chapter*".length,       starred: true },
+  { prefix: "\\chapter{",        kind: "section",       cmdLen: "\\chapter".length,        starred: false },
 ];
 
 /** 単独命令 ( \maketitle 等 ) の正規表現 — 引数なし */
-const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|newpage|clearpage|pagebreak|linebreak|hline|midrule|toprule|bottomrule|noindent|smallskip|medskip|bigskip|par|centering|raggedright|raggedleft|onehalfspacing|doublespacing|singlespacing|null|@empty)\b/;
+const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|titlepage|newpage|clearpage|pagebreak|linebreak|hline|midrule|toprule|bottomrule|noindent|smallskip|medskip|bigskip|par|centering|raggedright|raggedleft|onehalfspacing|doublespacing|singlespacing|null|@empty|today)\b/;
 
 /**
  * 「これらの環境はビジュアルエディタで `container` 化せず raw に残す」リスト。
@@ -1877,6 +2055,14 @@ export function serializeInline(inline: Inline, newBody: string): string {
       if (shape === "italic") parts.push(`\\itshape`);
       const prefix = parts.join("");
       return `{${prefix}${prefix ? " " : ""}${newBody}}`;
+    }
+    case "templateCmd": {
+      const name = inline.meta?.name ?? "text";
+      const arg2 = inline.meta?.arg2;
+      if (arg2 !== undefined) {
+        return `\\${name}{${newBody}}{${arg2}}`;
+      }
+      return `\\${name}{${newBody}}`;
     }
     default: return newBody;
   }

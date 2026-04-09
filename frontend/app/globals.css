@@ -1902,3 +1902,510 @@ html {
   user-select: none;
   pointer-events: none;
 }
+
+/* ══════════════════════════════════════════════════════════
+   VisualEditor — テンプレ別ビジュアルスタイル
+   --------------------------------------------------------
+   各テンプレ (data-template="...") に対し、以下を定義する:
+     1. container-block と daimon-block の枠 / 背景 / 見出し色
+     2. 各 env (data-env="kihon" 等) の専用装飾
+     3. templateCmd inline (data-cmd-name="juKey" 等) の表示
+     4. section auto-label の枠 (PDF の \titleformat に近づける)
+     5. ページ余白・本文タイポグラフィ
+   方針: できるだけ var(--tpl-*) で配色を集約し、テンプレ毎に上書きする。
+   ══════════════════════════════════════════════════════════ */
+
+/* ── 全テンプレ共通: コンテナのデフォルトスケルトン ── */
+.visual-editor .container-block {
+  --tpl-frame: hsl(var(--foreground) / 0.10);
+  --tpl-bg: transparent;
+  --tpl-title-bg: hsl(var(--foreground) / 0.04);
+  --tpl-title-fg: hsl(var(--foreground) / 0.78);
+  --tpl-accent: hsl(var(--foreground) / 0.55);
+  border: 1px solid var(--tpl-frame);
+  background: var(--tpl-bg);
+  border-radius: 4px;
+}
+.visual-editor .container-block-title {
+  background: var(--tpl-title-bg);
+  color: var(--tpl-title-fg);
+  font-weight: 600;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--tpl-frame);
+}
+.visual-editor .container-block-body {
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.visual-editor .container-block-body > * {
+  margin: 0;
+}
+
+/* ── daimon (大問ボックス) デフォルト ── */
+.visual-editor .daimon-block {
+  --tpl-frame: #1e3a8a66;
+  --tpl-title-bg: #1e3a8a;
+  --tpl-title-fg: #ffffff;
+  --tpl-bg: transparent;
+}
+.visual-editor .daimon-block .daimon-title {
+  background: var(--tpl-title-bg);
+  color: var(--tpl-title-fg);
+  padding: 8px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: none;
+  border-radius: 0;
+}
+
+/* ── section auto-label デフォルト (KOKUKO_NIJI 風) ── */
+.visual-editor .section-auto-label {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 22px 0 12px;
+}
+.visual-editor .section-auto-label-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid currentColor;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.visual-editor .section-auto-label-divider {
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.3;
+}
+
+/* ── templateCmd デフォルト ── */
+.visual-editor .latex-tcmd {
+  display: inline;
+}
+.visual-editor .latex-tcmd[data-cmd-block="1"] {
+  display: block;
+  margin: 8px 0;
+}
+
+/* juKey: 本文中の強調キー (色付き太字) */
+.visual-editor .latex-tcmd-juKey {
+  font-weight: 700;
+  color: var(--tpl-key, #ea580c);
+}
+/* juHint: 小さい斜体ヒント (前に "Hint: " を補う) */
+.visual-editor .latex-tcmd-juHint {
+  font-style: italic;
+  font-size: 0.92em;
+  color: hsl(var(--foreground) / 0.6);
+}
+.visual-editor .latex-tcmd-juHint::before {
+  content: "Hint: ";
+  font-weight: 600;
+  font-style: normal;
+  margin-right: 2px;
+  color: hsl(var(--foreground) / 0.5);
+}
+/* nlevel: 角枠の小バッジ "Level X" */
+.visual-editor .latex-tcmd-nlevel {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--tpl-key, #ea580c);
+  color: var(--tpl-key, #ea580c);
+  font-weight: 600;
+  font-size: 0.85em;
+  margin: 0 2px;
+  border-radius: 2px;
+}
+/* unit: 単元見出し (大きな塗りつぶしバッジ "単元 / Unit XYZ") */
+.visual-editor .latex-tcmd-unit {
+  background: var(--tpl-key, #0d9488);
+  color: #ffffff;
+  padding: 6px 14px;
+  font-weight: 700;
+  display: block;
+  margin: 12px 0 6px;
+  border-radius: 2px;
+}
+.visual-editor .latex-tcmd-unit::before {
+  content: "単元 ";
+  font-weight: 700;
+  margin-right: 4px;
+  opacity: 0.95;
+}
+/* 英語テンプレでは "Unit " ラベルに */
+.visual-editor[data-template="worksheet"][lang="en"] .latex-tcmd-unit::before,
+.visual-editor[data-template="english-worksheet"] .latex-tcmd-unit::before {
+  content: "Unit ";
+}
+
+/* chui: 注意ブロック (ピンクの感嘆符付き) */
+.visual-editor .latex-tcmd-chui {
+  display: block;
+  border-left: 3px solid #e11d48;
+  background: #e11d4810;
+  padding: 8px 12px;
+  margin: 10px 0;
+  color: hsl(var(--foreground) / 0.85);
+  font-size: 0.95em;
+}
+.visual-editor .latex-tcmd-chui::before {
+  content: "! 注意　";
+  color: #e11d48;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+/* daimonhead {N}{desc} → 「第 N 問　desc」赤罫線付き (school-test 風) */
+.visual-editor .latex-tcmd-daimonhead {
+  display: block;
+  margin: 14px 0 4px;
+  font-weight: 700;
+  font-size: 1.04em;
+  border-left: 4px solid #dc2626;
+  padding-left: 10px;
+}
+.visual-editor .latex-tcmd-daimonhead .latex-tcmd-arg1::before { content: "第 "; }
+.visual-editor .latex-tcmd-daimonhead .latex-tcmd-arg1::after  { content: " 問　"; }
+.visual-editor[lang="en"] .latex-tcmd-daimonhead .latex-tcmd-arg1::before { content: "Problem "; }
+.visual-editor[lang="en"] .latex-tcmd-daimonhead .latex-tcmd-arg1::after  { content: "  "; }
+.visual-editor .latex-tcmd-daimonhead .latex-tcmd-arg2 {
+  font-weight: 600;
+  color: hsl(var(--foreground) / 0.85);
+}
+
+/* jukutitle {title}{sub} → JUKU の大きいオレンジバナー */
+.visual-editor .latex-tcmd-jukutitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  background: var(--tpl-key, #ea580c);
+  color: #ffffff;
+  padding: 12px 16px;
+  margin: 14px 0 8px;
+  border-radius: 2px;
+  gap: 12px;
+}
+.visual-editor .latex-tcmd-jukutitle .latex-tcmd-arg1 {
+  font-size: 1.2em;
+  font-weight: 700;
+}
+.visual-editor .latex-tcmd-jukutitle .latex-tcmd-arg2 {
+  font-size: 0.85em;
+  opacity: 0.92;
+}
+
+/* level {label}{desc} → worksheet 風 サブヘッダ */
+.visual-editor .latex-tcmd-level {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: var(--tpl-soft, #ecfeff);
+  border: 1px solid var(--tpl-key, #0d9488);
+  border-left-width: 3px;
+  padding: 5px 12px;
+  margin: 10px 0 4px;
+  border-radius: 2px;
+}
+.visual-editor .latex-tcmd-level .latex-tcmd-arg1 {
+  font-weight: 700;
+  color: var(--tpl-key, #0d9488);
+}
+.visual-editor .latex-tcmd-level .latex-tcmd-arg2 {
+  color: hsl(var(--foreground) / 0.65);
+  font-size: 0.92em;
+}
+
+/* anslines: 複数の薄い罫線 (worksheet 風 解答スペース) */
+.visual-editor .latex-tcmd-anslines {
+  display: block;
+  margin: 4px 0 10px;
+}
+.visual-editor .latex-ans-line {
+  display: block;
+  height: 1.6em;
+  border-bottom: 1px solid hsl(var(--foreground) / 0.25);
+}
+
+/* ══════════════════════════════════════════════════════════
+   テンプレ別カラーパレット (--tpl-* CSS 変数のみ上書き)
+   ══════════════════════════════════════════════════════════ */
+
+/* common-test: 紺 + コバルト (大問は紺ボックス) */
+.visual-editor[data-template="common-test"] {
+  --tpl-key: #1e3a8a;
+  --tpl-soft: #eef2ff;
+}
+.visual-editor[data-template="common-test"] .container-block {
+  --tpl-frame: #1e3a8a55;
+  --tpl-bg: #1e3a8a08;
+  --tpl-title-bg: #1e3a8a;
+  --tpl-title-fg: #ffffff;
+}
+.visual-editor[data-template="common-test"] .daimon-block {
+  --tpl-frame: #1e3a8a66;
+  --tpl-title-bg: #1e3a8a;
+}
+.visual-editor[data-template="common-test"] .section-auto-label-badge {
+  color: #1e3a8a;
+  border-color: #1e3a8a;
+}
+
+/* kokuko-niji: モノクロ (枠つき第N問 + 罫線) */
+.visual-editor[data-template="kokuko-niji"] {
+  --tpl-key: #0a0a0a;
+  --tpl-soft: #f5f5f5;
+}
+.visual-editor[data-template="kokuko-niji"] .container-block {
+  --tpl-frame: hsl(var(--foreground) / 0.18);
+  --tpl-title-bg: hsl(var(--foreground) / 0.06);
+  --tpl-title-fg: hsl(var(--foreground) / 0.85);
+}
+.visual-editor[data-template="kokuko-niji"] .section-auto-label {
+  margin: 28px 0 12px;
+}
+.visual-editor[data-template="kokuko-niji"] .section-auto-label-badge {
+  font-size: 18px;
+  padding: 6px 14px;
+  border: 1.2px solid hsl(var(--foreground) / 0.85);
+  color: hsl(var(--foreground) / 0.92);
+  background: transparent;
+}
+.visual-editor[data-template="kokuko-niji"] .section-auto-label-divider {
+  background: hsl(var(--foreground) / 0.55);
+}
+
+/* school-test: グレー + 赤 (定期考査) */
+.visual-editor[data-template="school-test"] {
+  --tpl-key: #dc2626;
+  --tpl-soft: #fef2f2;
+}
+.visual-editor[data-template="school-test"] .container-block {
+  --tpl-frame: hsl(var(--foreground) / 0.15);
+  --tpl-title-bg: hsl(var(--foreground) / 0.05);
+  --tpl-title-fg: #1f2937;
+}
+.visual-editor[data-template="school-test"] .section-auto-label-badge {
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+/* juku: オレンジ + ペールオレンジ */
+.visual-editor[data-template="juku"] {
+  --tpl-key: #ea580c;
+  --tpl-soft: #fff7ed;
+  --tpl-secondary: #0c4a6e;
+}
+.visual-editor[data-template="juku"] .container-block {
+  --tpl-frame: #ea580c66;
+  --tpl-bg: #fff7ed;
+  --tpl-title-bg: #fed7aa;
+  --tpl-title-fg: #431407;
+}
+.visual-editor[data-template="juku"] .container-block[data-env="kihon"] {
+  --tpl-frame: #ea580c70;
+  --tpl-bg: #fff7ed;
+}
+.visual-editor[data-template="juku"] .container-block[data-env="kihon"] .container-block-title {
+  background: transparent;
+  color: #431407;
+  border-bottom: 1px dashed #ea580c55;
+  font-weight: 700;
+}
+.visual-editor[data-template="juku"] .container-block[data-env="ouyou"] {
+  --tpl-frame: #0c4a6e80;
+  --tpl-bg: #ffffff;
+}
+.visual-editor[data-template="juku"] .container-block[data-env="ouyou"] .container-block-title {
+  background: transparent;
+  color: #0c4a6e;
+  border-bottom: 1px solid #0c4a6e40;
+  font-weight: 700;
+}
+.visual-editor[data-template="juku"] .container-block[data-env="hintbox"] {
+  --tpl-frame: #ea580c40;
+  --tpl-bg: #fff7ed80;
+  font-size: 0.95em;
+}
+.visual-editor[data-template="juku"] .container-block[data-env="kakuninbox"] {
+  --tpl-frame: #0c4a6e40;
+  --tpl-bg: #ffffff;
+  border-left: 3px solid #0c4a6e;
+}
+.visual-editor[data-template="juku"] .section-auto-label-badge {
+  color: #ea580c;
+  border-color: #ea580c;
+}
+
+/* kaisetsu-note: ティール + スカイブルー + ピンク */
+.visual-editor[data-template="kaisetsu-note"] {
+  --tpl-key: #0d9488;
+  --tpl-soft: #ecfeff;
+  --tpl-secondary: #0284c7;
+  --tpl-accent: #e11d48;
+}
+.visual-editor[data-template="kaisetsu-note"] .container-block[data-env="teigi"] {
+  --tpl-frame: #0d9488;
+  --tpl-bg: #ecfeff;
+  --tpl-title-bg: #0d9488;
+  --tpl-title-fg: #ffffff;
+}
+.visual-editor[data-template="kaisetsu-note"] .container-block[data-env="teigi"] .container-block-title::before {
+  content: "定義　";
+}
+.visual-editor[data-template="kaisetsu-note"] .container-block[data-env="teiri"] {
+  --tpl-frame: #0284c7;
+  --tpl-bg: #ffffff;
+  --tpl-title-bg: #0284c7;
+  --tpl-title-fg: #ffffff;
+}
+.visual-editor[data-template="kaisetsu-note"] .container-block[data-env="teiri"] .container-block-title::before {
+  content: "定理　";
+}
+.visual-editor[data-template="kaisetsu-note"] .container-block[data-env="reidai"] {
+  --tpl-frame: #0d948880;
+  --tpl-bg: #f0fdfa;
+  --tpl-title-bg: transparent;
+  --tpl-title-fg: #0d9488;
+}
+.visual-editor[data-template="kaisetsu-note"] .container-block[data-env="reidai"] .container-block-title::before {
+  content: "例題　";
+}
+.visual-editor[data-template="kaisetsu-note"] .section-auto-label-badge {
+  color: #0d9488;
+  border-color: #0d9488;
+}
+
+/* worksheet: ティール (演習プリント) */
+.visual-editor[data-template="worksheet"] {
+  --tpl-key: #0d9488;
+  --tpl-soft: #ecfeff;
+}
+.visual-editor[data-template="worksheet"] .container-block[data-env="formulacard"] {
+  --tpl-frame: #0d9488;
+  --tpl-bg: #ecfeff;
+  --tpl-title-bg: #0d9488;
+  --tpl-title-fg: #ffffff;
+}
+.visual-editor[data-template="worksheet"] .container-block[data-env="formulacard"] .container-block-title::before {
+  content: "今日使う公式　";
+}
+.visual-editor[data-template="worksheet"] .section-auto-label-badge {
+  color: #0d9488;
+  border-color: #0d9488;
+}
+
+/* english-worksheet: グリーン + アンバー */
+.visual-editor[data-template="english-worksheet"] {
+  --tpl-key: #16a34a;
+  --tpl-soft: #f0fdf4;
+  --tpl-secondary: #ca8a04;
+}
+.visual-editor[data-template="english-worksheet"] .container-block[data-env="passage"] {
+  --tpl-frame: #16a34a99;
+  --tpl-bg: #f0fdf4;
+  --tpl-title-bg: transparent;
+  --tpl-title-fg: #14532d;
+}
+.visual-editor[data-template="english-worksheet"] .container-block[data-env="passage"] .container-block-body {
+  font-style: italic;
+  font-size: 0.95em;
+}
+.visual-editor[data-template="english-worksheet"] .container-block[data-env="vocabbox"] {
+  --tpl-frame: #ca8a04;
+  --tpl-bg: #ffffff;
+  --tpl-title-bg: transparent;
+  --tpl-title-fg: #ca8a04;
+}
+.visual-editor[data-template="english-worksheet"] .section-auto-label-badge {
+  color: #14532d;
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+/* article (論文) */
+.visual-editor[data-template="article"] {
+  --tpl-key: #1e40af;
+  --tpl-soft: #eff6ff;
+}
+.visual-editor[data-template="article"] .container-block[data-env="abstract"] {
+  --tpl-frame: hsl(var(--foreground) / 0.10);
+  --tpl-bg: hsl(var(--foreground) / 0.02);
+  --tpl-title-bg: transparent;
+  --tpl-title-fg: #1e40af;
+}
+.visual-editor[data-template="article"] .container-block[data-env="abstract"] .container-block-title::before {
+  content: "Abstract　";
+}
+.visual-editor[data-template="article"] .container-block[data-env="abstract"] .container-block-body {
+  font-style: italic;
+  font-size: 0.95em;
+}
+.visual-editor[data-template="article"] .section-auto-label-badge {
+  color: #1e40af;
+  border-color: transparent;
+  border-bottom: 1.5px solid #1e40af;
+  padding: 0 0 2px;
+  font-size: 18px;
+}
+.visual-editor[data-template="article"] .section-auto-label-divider {
+  display: none;
+}
+
+/* report (技術報告書) */
+.visual-editor[data-template="report"] {
+  --tpl-key: #0f766e;
+  --tpl-soft: #f0fdfa;
+}
+.visual-editor[data-template="report"] .container-block[data-env="note"] {
+  --tpl-frame: #0f766e80;
+  --tpl-bg: #f0fdfa;
+  border-left: 3px solid #0f766e;
+}
+.visual-editor[data-template="report"] .section-auto-label-badge {
+  color: #0f766e;
+  border-color: transparent;
+  border-bottom: 1.5px solid #0f766e80;
+  padding: 0 0 2px;
+  font-size: 18px;
+}
+.visual-editor[data-template="report"] .section-auto-label-divider {
+  display: none;
+}
+
+/* beamer (発表) */
+.visual-editor[data-template="beamer"] {
+  --tpl-key: #6366f1;
+  --tpl-soft: #eef2ff;
+}
+.visual-editor[data-template="beamer"] .container-block[data-env="frame"] {
+  --tpl-frame: #6366f155;
+  --tpl-title-bg: #6366f1;
+  --tpl-title-fg: #ffffff;
+}
+.visual-editor[data-template="beamer"] .section-auto-label-badge {
+  color: #6366f1;
+  border-color: transparent;
+  font-size: 20px;
+  padding: 0;
+}
+.visual-editor[data-template="beamer"] .section-auto-label-divider {
+  background: #6366f180;
+}
+
+/* letter (手紙) — 装飾は最小、本文 serif のみ */
+.visual-editor[data-template="letter"] .container-block {
+  --tpl-frame: transparent;
+  --tpl-bg: transparent;
+}
+.visual-editor[data-template="letter"] .section-auto-label {
+  display: none;
+}
+
+/* blank — デフォルトのまま (装飾なし) */
