@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import katex from "katex";
 import "katex/dist/katex.min.css";
 import "katex/contrib/mhchem";
+import { renderMathHTML } from "@/lib/katex-render";
 
 interface MathRendererProps {
   latex: string;
@@ -20,16 +20,12 @@ export function MathRenderer({ latex, displayMode = true, className = "" }: Math
       ref.current.innerHTML = "";
       return;
     }
-    try {
-      katex.render(latex, ref.current, {
-        throwOnError: false,
-        displayMode,
-        trust: true,
-        strict: false,
-      });
-    } catch {
-      ref.current.innerHTML = `<span class="text-red-400 text-xs">数式エラー</span>`;
-    }
+    // 中央集約の renderMathHTML を使う。プロジェクト固有マクロが効くので
+    // \haiten / \juKey / \circled なども popover プレビューで正しく描画される。
+    const { html, ok } = renderMathHTML(latex, { displayMode });
+    ref.current.innerHTML = ok
+      ? html
+      : `<span class="text-muted-foreground text-xs">\u2329 math \u232A</span>`;
   }, [latex, displayMode]);
 
   return (

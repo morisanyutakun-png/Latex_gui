@@ -1616,8 +1616,8 @@ const JUKU_LATEX_EN = EN_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom
 
 \noindent\textcolor{jkink!70}{\small\textbf{---  Quick review  ---}}\\[1pt]
 \noindent\textcolor{jkink!85}{\small
-\juKey{$\circled{1}$ Completing the square} $\;ax^2+bx+c=a\!\left(x+\dfrac{b}{2a}\right)^{\!2}-\dfrac{b^2-4ac}{4a}$\quad
-\juKey{$\circled{2}$ Discriminant} $\;D=b^2-4ac$
+\juKey{\textcircled{\small 1} Completing the square} $\;ax^2+bx+c=a\!\left(x+\dfrac{b}{2a}\right)^{\!2}-\dfrac{b^2-4ac}{4a}$\quad
+\juKey{\textcircled{\small 2} Discriminant} $\;D=b^2-4ac$
 }
 
 \bigskip
@@ -1812,7 +1812,7 @@ const KAISETSU_NOTE_LATEX_EN = EN_BASE + String.raw`\geometry{margin=20mm,top=22
 // ──── 7. Worksheet (in-class practice) ────
 const WORKSHEET_LATEX_EN = EN_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20mm}
 \usepackage{tcolorbox}
-\tcbuselibrary{skins}
+\tcbuselibrary{skins,breakable}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -2232,6 +2232,7 @@ const BEAMER_LATEX_EN = String.raw`\documentclass[aspectratio=169,11pt]{beamer}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs}
 \usepackage{xcolor}
 
 \definecolor{bmaccent}{HTML}{6366f1}

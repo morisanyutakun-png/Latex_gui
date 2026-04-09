@@ -1682,3 +1682,173 @@ html {
   text-decoration: underline;
   text-decoration-color: rgba(56, 189, 248, 0.4);
 }
+
+/* ══════════════════════════════════════════════════════════
+   VisualEditor — PDF 風 ページタイポグラフィ
+   --------------------------------------------------------
+   方針:
+   - 紙面 (.visual-editor) 全体は serif フォント (Latin Modern Roman 系) で統一。
+     これにより本物の lualatex+lmodern PDF と見た目を合わせる。
+   - 日本語フォントは Hiragino Mincho / Yu Mincho / Noto Serif JP を優先 (HaranoAji 風)。
+   - KaTeX の数式は KaTeX_Main フォントを自前で持つので、テキストと math が
+     視覚的に揃う (どちらも Computer Modern 系)。
+   - Web フォントに依存しない (ブラウザに最初からある serif を優先) ことで
+     「ブラウザ依存の無いプレビュー」というユーザー要件を満たす。
+   ══════════════════════════════════════════════════════════ */
+
+.visual-editor,
+.visual-editor .editable-text-box,
+.visual-editor [contenteditable] {
+  font-family:
+    "Latin Modern Roman",
+    "Computer Modern Serif",
+    "STIX Two Text",
+    "Cambria",
+    "Hiragino Mincho ProN",
+    "YuMincho",
+    "Yu Mincho",
+    "游明朝",
+    "MS Mincho",
+    "Noto Serif JP",
+    "Times New Roman",
+    "Times",
+    Georgia,
+    serif;
+  font-feature-settings: "kern", "liga", "palt";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 紙面の本文ブロックを「印刷物らしい」サイズに揃える */
+.visual-editor .prose-text-block {
+  font-size: 15px;
+  line-height: 1.78;
+  letter-spacing: 0.005em;
+}
+.visual-editor .prose-text-item {
+  font-size: 15px;
+  line-height: 1.72;
+}
+
+/* 編集ボックスの「薄い枠」は VisualEditor では取り去る。
+   PDF らしさを優先し、hover 時にだけ淡くハイライト。 */
+.visual-editor .editable-text-box {
+  border-color: transparent;
+  background: transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.visual-editor .editable-text-box:hover {
+  border-color: hsl(var(--foreground) / 0.06);
+  background: hsl(var(--foreground) / 0.012);
+}
+.visual-editor .editable-text-box:focus {
+  border-color: hsl(var(--foreground) / 0.18);
+  background: hsl(var(--foreground) / 0.02);
+  box-shadow: 0 0 0 2px hsl(var(--foreground) / 0.035);
+}
+
+/* 数式チップは「本文の中の数式」として、装飾なし・KaTeX のフォントそのまま。
+   緑のホバー枠は控えめにして PDF っぽさを優先する。 */
+.visual-editor .math-chip {
+  background: transparent;
+  border-color: transparent;
+  vertical-align: baseline;
+}
+.visual-editor .math-chip:hover {
+  background: hsl(220 70% 55% / 0.08);
+  border-color: transparent;
+  box-shadow: 0 0 0 1px hsl(220 70% 55% / 0.15);
+  border-radius: 3px;
+}
+
+/* 表示数式ブロックも、緑の枠ではなく PDF と同じく中央寄せ + 余白だけにする */
+.visual-editor .display-math-block {
+  display: block;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: center;
+  padding: 8px 0;
+  margin: 12px 0;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.visual-editor .display-math-block:hover {
+  background: hsl(220 70% 55% / 0.05);
+  border-radius: 4px;
+}
+.visual-editor .display-math-block:focus {
+  background: hsl(220 70% 55% / 0.07);
+  box-shadow: 0 0 0 2px hsl(220 70% 55% / 0.18);
+  border-radius: 4px;
+  outline: none;
+}
+
+/* KaTeX のフォントサイズを本文と同じスケールに固定 */
+.visual-editor .katex {
+  font-size: 1.04em;
+}
+.visual-editor .display-math-block .katex-display {
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════════
+   生 LaTeX を画面に出さない: 失敗時の数式プレースホルダ
+   ══════════════════════════════════════════════════════════ */
+.math-chip-placeholder {
+  display: inline-block;
+  padding: 0 6px;
+  margin: 0 1px;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font-size: 0.78em;
+  font-weight: 600;
+  font-style: normal;
+  color: hsl(220 70% 50% / 0.85);
+  background: hsl(220 70% 55% / 0.10);
+  border: 1px dashed hsl(220 70% 55% / 0.35);
+  border-radius: 4px;
+  vertical-align: 0.05em;
+  user-select: none;
+  letter-spacing: 0.03em;
+}
+.dark .math-chip-placeholder {
+  color: hsl(220 90% 80% / 0.95);
+  background: hsl(220 90% 70% / 0.12);
+  border-color: hsl(220 90% 75% / 0.40);
+}
+
+.display-math-placeholder {
+  display: inline-block;
+  padding: 8px 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font-size: 0.85em;
+  font-weight: 600;
+  font-style: normal;
+  color: hsl(220 70% 45% / 0.95);
+  background: hsl(220 70% 55% / 0.08);
+  border: 1px dashed hsl(220 70% 55% / 0.35);
+  border-radius: 6px;
+  user-select: none;
+  letter-spacing: 0.03em;
+}
+.dark .display-math-placeholder {
+  color: hsl(220 90% 80% / 0.95);
+  background: hsl(220 90% 70% / 0.10);
+  border-color: hsl(220 90% 75% / 0.38);
+}
+
+/* 旧 .math-chip-fallback / .display-math-fallback は赤い「生 LaTeX 表示」だったので
+   後方互換のためだけに残す。新コードはプレースホルダを使う。 */
+.math-chip-fallback,
+.display-math-fallback {
+  display: inline-block;
+  padding: 0 6px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.85em;
+  color: hsl(220 70% 50%);
+  background: hsl(220 70% 55% / 0.08);
+  border: 1px dashed hsl(220 70% 55% / 0.30);
+  border-radius: 4px;
+}

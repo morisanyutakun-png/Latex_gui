@@ -1,9 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import katex from "katex";
 import "katex/dist/katex.min.css";
 import "katex/contrib/mhchem";
+import {
+  renderInlineMathOrPlaceholder,
+  renderDisplayMathOrPlaceholder,
+} from "@/lib/katex-render";
 import { Sigma } from "lucide-react";
 import {
   parseLatexToSegments,
@@ -48,21 +51,7 @@ function useMathEditor(): (req: MathEditRequest) => void {
   return ctx;
 }
 
-/** KaTeX で安全に HTML 文字列を生成 (失敗時はソースをそのまま返す) */
-function renderMathToHTML(latex: string, displayMode: boolean): string {
-  if (!latex.trim()) return "";
-  try {
-    return katex.renderToString(latex, {
-      throwOnError: false,
-      displayMode,
-      trust: true,
-      strict: "ignore",
-      output: "html",
-    });
-  } catch {
-    return "";
-  }
-}
+// 中央集約された KaTeX レンダラ (生 LaTeX を画面に出さない方針) を使う。
 // useUIStore is intentionally not imported — VisualEditor never reveals LaTeX source.
 
 interface VisualEditorProps {
@@ -736,17 +725,14 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
   const ref = useRef<HTMLDivElement | null>(null);
   const openMathEditor = useMathEditor();
 
-  /** KaTeX で表示 */
+  /** KaTeX で表示。失敗時は中央レンダラのプレースホルダ (生 LaTeX を出さない) */
   const renderPreview = useCallback((node: HTMLDivElement, source: string) => {
     node.dataset.source = source;
     if (!source.trim()) {
-      node.innerHTML = '<span class="display-math-fallback" contenteditable="false">&nbsp;</span>';
+      node.innerHTML = '<span class="display-math-placeholder" contenteditable="false">&nbsp;</span>';
       return;
     }
-    const html = renderMathToHTML(source, true);
-    node.innerHTML = html
-      ? `<span class="display-math-render" contenteditable="false">${html}</span>`
-      : `<span class="display-math-fallback" contenteditable="false">${escapeHtml(source)}</span>`;
+    node.innerHTML = renderDisplayMathOrPlaceholder(source);
   }, []);
 
   // 外部更新 (テンプレ切替 / ストア反映) の同期
@@ -798,17 +784,15 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
 // 編集はすべて MathEditPopover (自然言語入力) を経由する。
 // ─────────────────────────────────────
 
-/** チップの中身を KaTeX プレビューで描画する。data-source も同時に更新。 */
+/** チップの中身を KaTeX プレビューで描画する。data-source も同時に更新。
+ *  生 LaTeX は絶対に出さず、失敗時は中央レンダラのプレースホルダを使う。 */
 function renderChipPreview(chip: HTMLElement, source: string): void {
   chip.dataset.source = source;
   if (!source.trim()) {
-    chip.innerHTML = '<span class="math-chip-fallback" contenteditable="false">&nbsp;</span>';
+    chip.innerHTML = '<span class="math-chip-placeholder" contenteditable="false">&nbsp;</span>';
     return;
   }
-  const rendered = renderMathToHTML(source, false);
-  chip.innerHTML = rendered
-    ? `<span class="math-chip-render" contenteditable="false">${rendered}</span>`
-    : `<span class="math-chip-fallback" contenteditable="false">${escapeHtml(source)}</span>`;
+  chip.innerHTML = renderInlineMathOrPlaceholder(source);
 }
 
 function findEnclosingChip(node: Node | null): HTMLElement | null {
@@ -1055,13 +1039,11 @@ function escapeHtml(s: string): string {
 /** math chip の初期 HTML を生成。
  *  チップ自体は contentEditable=false (atomic な inline 要素として振る舞う)。
  *  クリックすると ContentEditableBlock の mousedown delegation が MathEditPopover を開く。
- *  生 LaTeX を画面に出さない方針のため、編集モードは存在せず常に KaTeX プレビュー固定。 */
+ *  生 LaTeX を画面に出さない方針のため、編集モードは存在せず常に KaTeX プレビュー固定。
+ *  失敗時は中央レンダラのプレースホルダ (\u2329 math \u232A) で生 LaTeX 露出を防ぐ。 */
 function buildMathChipHTML(source: string, wrapper: string): string {
   const safeSource = escapeHtml(source);
-  const rendered = renderMathToHTML(source, false);
-  const inner = rendered
-    ? `<span class="math-chip-render" contenteditable="false">${rendered}</span>`
-    : `<span class="math-chip-fallback" contenteditable="false">${safeSource || "&nbsp;"}</span>`;
+  const inner = renderInlineMathOrPlaceholder(source);
   return `<span data-math-chip="1" data-wrapper="${wrapper}" data-source="${safeSource}" contenteditable="false" class="math-chip">${inner}</span>`;
 }
 

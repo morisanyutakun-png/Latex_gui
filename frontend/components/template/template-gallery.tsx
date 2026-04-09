@@ -9,8 +9,8 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { UserMenu } from "@/components/auth/user-menu";
-import katex from "katex";
 import "katex/dist/katex.min.css";
+import { renderMathHTML } from "@/lib/katex-render";
 import {
   ArrowRight,
   ChevronRight,
@@ -582,14 +582,14 @@ const PaperFooter = () => (
   </div>
 );
 
-/* KaTeX inline math — renders exactly like real LaTeX output */
+/* KaTeX inline math — renders exactly like real LaTeX output.
+ * 中央集約レンダラを通すことで生 LaTeX 漏れを防ぐ。 */
 function M({ t }: { t: string }) {
-  try {
-    const html = katex.renderToString(t, { throwOnError: false, displayMode: false, trust: true });
+  const { html, ok } = renderMathHTML(t, { displayMode: false });
+  if (ok) {
     return <span className="align-middle" dangerouslySetInnerHTML={{ __html: html }} />;
-  } catch {
-    return <span className="font-mono text-[0.9em]">{t}</span>;
   }
+  return <span className="text-muted-foreground/70 text-[0.85em]">{"\u2329 math \u232A"}</span>;
 }
 
 function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolean }) {
