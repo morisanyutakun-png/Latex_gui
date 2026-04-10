@@ -594,12 +594,115 @@ def _inject_packages(src: str, packages: list[str]) -> str:
 # ─────────────────────────────────────────────────────────────
 
 
+# ── tcolorbox / tikz ライブラリ自動ロード ─────────────────────
+#
+# tcolorbox や tikz は \usepackage だけでなくサブライブラリの
+# ロードが必要な場面が多い。パッケージだけあってライブラリが無い
+# と内部コマンド (\kvtcb@*, \pgf@* 等) が未定義になる。
+#
+# autofix_latex() で「パッケージは入っているがライブラリが足りない」
+# ケースを先回りして補う。
+#
+_TCBUSELIBRARY_RE = re.compile(r"\\tcbuselibrary\{([^}]*)\}")
+_USETIKZLIBRARY_RE = re.compile(r"\\usetikzlibrary\{([^}]*)\}")
+_USEPACKAGE_TCB_RE = re.compile(
+    r"(\\usepackage(?:\[[^\]]*\])?\{[^}]*tcolorbox[^}]*\})"
+)
+_USEPACKAGE_TIKZ_RE = re.compile(
+    r"(\\usepackage(?:\[[^\]]*\])?\{[^}]*tikz[^}]*\})"
+)
+
+# 常に安全にロードできる tcolorbox ライブラリ群
+_TCB_COMMON_LIBS = {"skins", "breakable", "theorems", "raster"}
+# 常に安全にロードできる tikz ライブラリ群
+_TIKZ_COMMON_LIBS = {
+    "shapes", "arrows.meta", "positioning", "calc",
+    "decorations.pathmorphing", "decorations.pathreplacing",
+}
+
+
+def _ensure_tcolorbox_libraries(src: str) -> str:
+    """tcolorbox がロード済みなら、よく使うライブラリを保証する。
+
+    既に ``\\tcbuselibrary`` がある場合はそれに足りないものだけ追加する行を挿入。
+    ``\\tcbuselibrary`` が無ければ新規に挿入する。
+    """
+    loaded = _loaded_packages(src)
+    if "tcolorbox" not in loaded:
+        return src
+
+    # 既存の \tcbuselibrary で読み込み済みのライブラリを取得
+    already: set[str] = set()
+    for m in _TCBUSELIBRARY_RE.finditer(src):
+        for lib in m.group(1).split(","):
+            already.add(lib.strip())
+
+    missing = _TCB_COMMON_LIBS - already
+    if not missing:
+        return src
+
+    insertion = f"\\tcbuselibrary{{{','.join(sorted(missing))}}}"
+
+    # 既存の \tcbuselibrary の直後に追加 (あれば)
+    last_tcb = None
+    for m in _TCBUSELIBRARY_RE.finditer(src):
+        last_tcb = m
+    if last_tcb:
+        pos = last_tcb.end()
+        logger.info("[autofix] appended tcolorbox libraries: %s", sorted(missing))
+        return src[:pos] + "\n" + insertion + src[pos:]
+
+    # \usepackage{tcolorbox} の直後に挿入
+    m = _USEPACKAGE_TCB_RE.search(src)
+    if m:
+        pos = m.end()
+        logger.info("[autofix] added tcolorbox libraries: %s", sorted(missing))
+        return src[:pos] + "\n" + insertion + src[pos:]
+
+    return src
+
+
+def _ensure_tikz_libraries(src: str) -> str:
+    """tikz がロード済みなら、よく使うライブラリを保証する。"""
+    loaded = _loaded_packages(src)
+    if "tikz" not in loaded:
+        return src
+
+    already: set[str] = set()
+    for m in _USETIKZLIBRARY_RE.finditer(src):
+        for lib in m.group(1).split(","):
+            already.add(lib.strip())
+
+    missing = _TIKZ_COMMON_LIBS - already
+    if not missing:
+        return src
+
+    insertion = f"\\usetikzlibrary{{{','.join(sorted(missing))}}}"
+
+    last_utl = None
+    for m in _USETIKZLIBRARY_RE.finditer(src):
+        last_utl = m
+    if last_utl:
+        pos = last_utl.end()
+        logger.info("[autofix] appended tikz libraries: %s", sorted(missing))
+        return src[:pos] + "\n" + insertion + src[pos:]
+
+    m = _USEPACKAGE_TIKZ_RE.search(src)
+    if m:
+        pos = m.end()
+        logger.info("[autofix] added tikz libraries: %s", sorted(missing))
+        return src[:pos] + "\n" + insertion + src[pos:]
+
+    return src
+
+
 def autofix_latex(src: str) -> str:
-    """コンパイル前に呼ぶ軽量サニタイズ + パッケージ補完。
+    r"""コンパイル前に呼ぶ軽量サニタイズ + パッケージ補完。
 
     - スマートクォート / NBSP 等を ASCII へ
-    - コマンド使用パターンから不足パッケージを推定して \\usepackage を追加
-    - \\documentclass や preamble が無い fragment は文字置換だけ行う
+    - コマンド使用パターンから不足パッケージを推定して \usepackage を追加
+    - tcolorbox / tikz のライブラリ自動ロード
+    - \documentclass や preamble が無い fragment は文字置換だけ行う
     """
     if not src:
         return src
@@ -616,6 +719,10 @@ def autofix_latex(src: str) -> str:
                 injected = [p for p in needed if p not in _loaded_packages(before)]
                 if injected:
                     logger.info("[autofix] injected packages: %s", injected)
+
+        # tcolorbox / tikz のライブラリ補完
+        fixed = _ensure_tcolorbox_libraries(fixed)
+        fixed = _ensure_tikz_libraries(fixed)
 
     return fixed
 
@@ -770,6 +877,61 @@ def extract_missing_sty_files(log: str) -> list[str]:
     return files
 
 
+# 内部コマンドの接頭辞 → 必要パッケージ のマッピング。
+# パッケージ内部で \kvtcb@..., \pgf@..., \tikz@... のような名前が使われる。
+# ログで "Undefined control sequence. \kvtcb@title" と出たとき、
+# _COMMAND_TO_PACKAGE に \kvtcb@title が無くても tcolorbox が必要とわかる。
+_INTERNAL_PREFIX_TO_PACKAGE: list[tuple[str, str]] = [
+    # tcolorbox 内部 (kvtcb = key-value tcolorbox)
+    (r"\kvtcb@", "tcolorbox"),
+    (r"\tcb@", "tcolorbox"),
+    (r"\tcbox@", "tcolorbox"),
+    # tikz / pgf 内部
+    (r"\tikz@", "tikz"),
+    (r"\pgf@", "pgf"),
+    (r"\pgfplots@", "pgfplots"),
+    (r"\pgfkeys@", "pgf"),
+    (r"\pgfutil@", "pgf"),
+    (r"\pgfmath@", "pgf"),
+    # amsmath 内部
+    (r"\ams@", "amsmath"),
+    (r"\macc@", "amsmath"),
+    # hyperref 内部
+    (r"\hyper@", "hyperref"),
+    (r"\Hy@", "hyperref"),
+    (r"\href@", "hyperref"),
+    # enumitem 内部
+    (r"\enit@", "enumitem"),
+    (r"\enimark@", "enumitem"),
+    # siunitx 内部
+    (r"\siunitx@", "siunitx"),
+    (r"\__siunitx", "siunitx"),
+    # booktabs 内部
+    (r"\@aboverulesep", "booktabs"),
+    (r"\@belowrulesep", "booktabs"),
+    # xcolor 内部
+    (r"\XC@", "xcolor"),
+    (r"\xcolor@", "xcolor"),
+    # graphicx 内部
+    (r"\Gin@", "graphicx"),
+    # geometry 内部
+    (r"\Gm@", "geometry"),
+    # fancyhdr 内部
+    (r"\f@nch@", "fancyhdr"),
+]
+
+
+def _package_from_internal_prefix(cmd: str) -> Optional[str]:
+    """内部コマンド名からパッケージを推定する。
+
+    例: ``\\kvtcb@title`` → ``tcolorbox``,  ``\\pgf@x`` → ``pgf``
+    """
+    for prefix, pkg in _INTERNAL_PREFIX_TO_PACKAGE:
+        if cmd.startswith(prefix):
+            return pkg
+    return None
+
+
 def _packages_from_log(log: str) -> list[str]:
     """LaTeX ログからリトライで追加すべきパッケージ名を推定する。"""
     pkgs: list[str] = []
@@ -780,9 +942,12 @@ def _packages_from_log(log: str) -> list[str]:
             pkgs.append(pkg)
             seen.add(pkg)
 
-    # 未定義コマンド → COMMAND_TO_PACKAGE
+    # 未定義コマンド → COMMAND_TO_PACKAGE (完全一致) + 接頭辞推定
     for cmd in extract_undefined_commands(log):
-        _add(_COMMAND_TO_PACKAGE.get(cmd))
+        pkg = _COMMAND_TO_PACKAGE.get(cmd)
+        if not pkg:
+            pkg = _package_from_internal_prefix(cmd)
+        _add(pkg)
 
     # 未定義環境 → ENV_TO_PACKAGE
     for env in extract_undefined_environments(log):
@@ -932,16 +1097,26 @@ def _build_stub_block(
     cmd_arities: list[tuple[str, int]],
     envs: list[str],
 ) -> str:
-    r"""`\providecommand` / `\newenvironment` 行を組み立てる。"""
+    r"""`\providecommand` / `\newenvironment` 行を組み立てる。
+
+    `@` を含むコマンド名 (``\kvtcb@title`` 等) は
+    ``\makeatletter ... \makeatother`` で包む必要がある。
+    """
     lines: list[str] = []
     if cmd_arities:
         lines.append("% [autofix] no-op stubs for unresolved commands")
+        # @付きコマンドが 1 つでもあれば全体を makeatletter で包む
+        has_at = any("@" in cmd for cmd, _ in cmd_arities)
+        if has_at:
+            lines.append("\\makeatletter")
         for cmd, arity in cmd_arities:
             if arity <= 0:
                 lines.append(f"\\providecommand{{{cmd}}}{{}}")
             else:
                 # 第一引数を素通し、それ以降は捨てる
                 lines.append(f"\\providecommand{{{cmd}}}[{arity}]{{#1}}")
+        if has_at:
+            lines.append("\\makeatother")
     if envs:
         lines.append("% [autofix] no-op stubs for unresolved environments")
         for env in envs:
