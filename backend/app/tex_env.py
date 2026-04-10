@@ -34,13 +34,23 @@ _TEXLIVE_PATHS = [
 
 
 def _build_texlive_env() -> dict[str, str]:
-    """TeX Live のパスを含む環境変数を構築"""
+    """TeX Live のパスを含む環境変数を構築
+
+    `max_print_line` を大きく設定することで lualatex のログ行折り返し
+    (デフォルト 79 字) を抑止する。これにより autofix のログ解析が
+    `Un\\ndefined control sequence` のような分断を心配せずに済む。
+    """
     env = os.environ.copy()
     current_path = env.get("PATH", "")
     extra = [p for p in _TEXLIVE_PATHS if Path(p).is_dir() and p not in current_path]
     if extra:
         env["PATH"] = ":".join(extra) + ":" + current_path
         logger.info(f"Added TeX Live paths: {extra}")
+    # ログ行を折り返さないようにする (autofix のエラー解析向け)
+    # ※ error_line / half_error_line は TeX の内部定数バウンドが厳しく
+    #   下手に上げると "Ouch---my internal constants have been clobbered!" で死ぬ。
+    #   max_print_line だけを上げれば実質的に十分長い行が得られる。
+    env.setdefault("max_print_line", "10000")
     return env
 
 

@@ -179,14 +179,20 @@ def _compile_pdf_sync(doc: DocumentModel) -> bytes:
         gc.collect()
 
 
+_AUTOFIX_MAX_ROUNDS = int(os.environ.get("LATEX_AUTOFIX_MAX_ROUNDS", "3"))
+
+
 def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
     """LuaLaTeX でコンパイルしPDFバイト列を返す。
 
     AI 出力や手書き LaTeX の細かいミスを救うため、ここでは
       1. autofix_latex() で先に軽量サニタイズ + 不足パッケージ補完
-      2. それでも失敗したら、コンパイルログを autofix_after_failure() に渡し、
-         不足パッケージが推定できたら **1 回だけ** 追加修復してリトライ
-    の 2 段構えで挑戦する。最後まで失敗したら従来通り PDFGenerationError を投げる。
+      2. 失敗したら autofix_after_failure() でログを解析しパッケージ補完 / no-op stub を
+         注入し、最大 LATEX_AUTOFIX_MAX_ROUNDS 回までリトライ
+    の段階で挑戦する。最後まで失敗したら PDFGenerationError を投げる。
+
+    各ラウンドで autofix_after_failure が「変化なし」を返した場合は早期に打ち切る
+    (同じ修復を何度も試しても無意味なため)。
     """
     # 1) コンパイル前サニタイズ
     fixed_source = autofix_latex(latex_source)
@@ -196,15 +202,20 @@ def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
         gc.collect()
         return pdf_bytes
 
-    # 2) 失敗ログから不足パッケージを推定して 1 回リトライ
-    retried_source = autofix_after_failure(fixed_source, log_output or "")
-    if retried_source and retried_source != fixed_source:
-        logger.info("[autofix] retrying compile after package injection")
+    # 2) 失敗ログから不足パッケージ / stub を補ってリトライ — 最大 N 回
+    current_source = fixed_source
+    for round_idx in range(1, _AUTOFIX_MAX_ROUNDS + 1):
+        retried_source = autofix_after_failure(current_source, log_output or "")
+        if not retried_source or retried_source == current_source:
+            break
+        logger.info(f"[autofix] retry round {round_idx}/{_AUTOFIX_MAX_ROUNDS}")
         retry_pdf, retry_log = _try_compile_once(retried_source, timeout)
         if retry_pdf is not None:
+            logger.info(f"[autofix] recovered after round {round_idx}")
             gc.collect()
             return retry_pdf
-        # リトライも失敗 → リトライのログを最終エラーとして使う
+        # 次のラウンドに向けてソースとログを更新
+        current_source = retried_source
         log_output = retry_log or log_output
 
     # ここまで来たら救えない — 元のエラー扱いで投げ直す
@@ -325,30 +336,162 @@ def _strip_temp_paths(text: str) -> str:
     return text
 
 
+def _extract_error_line_number(log: str) -> int | None:
+    """LaTeX ログから最初に出てくる行番号を抽出する。
+
+    対応形式:
+      - `l.42 \\foo`              (古典的な lualatex 出力)
+      - `/tmp/.../document.tex:42:`  (-file-line-error 出力)
+    """
+    if not log:
+        return None
+    m = re.search(r"document\.tex:(\d+):", log)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            pass
+    m = re.search(r"\bl\.(\d+)\b", log)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            pass
+    return None
+
+
+def _extract_undefined_command_name(log: str) -> str | None:
+    """ログから「未定義コントロールシーケンス」のコマンド名 (\\foo) を抽出する。
+
+    lualatex の出力フォーマットは複数あり:
+      1) `! Undefined control sequence.`        (改行)
+         `l.42 \\foo`                            ← ここに名前
+                       `{arg}`
+      2) `/tmp/.../document.tex:42: Undefined control sequence.` (改行)
+         `l.42 \\foo`
+      3) `! Undefined control sequence. \\foo`   (一行版 — 一部のバージョン)
+
+    どの形式でも `l.NN \\name` ペアが必ず付随するので、`Undefined control
+    sequence` 付近で最初に出てくる `\\foo` を返す。
+    """
+    if not log:
+        return None
+    # 「Undefined control sequence」マーカー以降のスライスから探す
+    idx = log.lower().find("undefined control sequence")
+    if idx < 0:
+        return None
+    snippet = log[idx: idx + 800]
+    # まず `l.NN \\foo` パターン優先
+    m = re.search(r"\bl\.\d+\s+(\\[a-zA-Z@]+)", snippet)
+    if m:
+        return m.group(1)
+    # 次に snippet 内の任意の `\\foo` を拾う
+    m = re.search(r"(\\[a-zA-Z@]+)", snippet)
+    if m:
+        cmd = m.group(1)
+        # `\foo` の `\foo` 自身が "control" の一部にならないように長さ判定
+        if len(cmd) > 1 and cmd not in (r"\foo",):
+            return cmd
+    return None
+
+
+def _extract_undefined_environment_name(log: str) -> str | None:
+    if not log:
+        return None
+    m = re.search(r"Environment\s+([A-Za-z*]+)\s+undefined", log, re.IGNORECASE)
+    return m.group(1) if m else None
+
+
 def _parse_latex_error(log: str) -> str:
-    """LaTeXログからユーザー向けエラーメッセージを推定"""
+    """LaTeXログからユーザー向けエラーメッセージを推定。
+
+    Phase 4 改修:
+      - `-file-line-error` 形式 (`!` で始まらない) のエラー行も拾う
+      - 「未定義コマンド」エラーは具体的な `\\foo` 名と行番号を本文に含める
+      - 「==> Fatal error occurred ...」のような末尾フッタは error_detail として
+        採用しない (本来の原因行を優先する)
+      - lualatex の 79 字行折り返し (`Un\\ndefined ...`) を再結合してから解析
+    """
+    if not log:
+        return "PDFの作成中にエラーが発生しました。サーバーログを確認してください。"
+
+    # 行折り返しを再結合してからキーワード判定する
+    from .latex_autofix import _unwrap_tex_log
+    log = _unwrap_tex_log(log)
     log_lower = log.lower()
 
-    error_lines = [l.strip() for l in log.split("\n") if l.strip().startswith("!")]
+    # 1) `! ...` で始まる本物のエラー行を集める。
+    #    ただし「==> Fatal error occurred」だけは中身が無いので除外する。
+    error_lines = [
+        l.strip()
+        for l in log.split("\n")
+        if l.strip().startswith("!") and "fatal error occurred" not in l.lower()
+    ]
     error_detail = error_lines[0] if error_lines else ""
 
+    # 2) `-file-line-error` 形式 (`/path/document.tex:42: foo`) も拾う。
+    #    こちらも Fatal フッタは除外する。
     if not error_detail:
         for line in log.split("\n"):
             line_s = line.strip()
+            if "document.tex:" in line_s and ":" in line_s:
+                lower = line_s.lower()
+                if "fatal error occurred" in lower:
+                    continue
+                if "error" in lower or "undefined" in lower or "missing" in lower:
+                    if 10 < len(line_s) < 300:
+                        error_detail = line_s
+                        break
+
+    # 3) 上記いずれも無ければ、最後の手段として「fatal/error」を含む行を拾う
+    if not error_detail:
+        for line in log.split("\n"):
+            line_s = line.strip()
+            if "fatal error occurred" in line_s.lower():
+                continue
             if "fatal" in line_s.lower() or "error" in line_s.lower():
-                if 10 < len(line_s) < 200:
+                if 10 < len(line_s) < 300:
                     error_detail = line_s
                     break
 
-    # テンポラリパスを除去してユーザー向けに整形
     error_detail = _strip_temp_paths(error_detail)
 
+    line_no = _extract_error_line_number(log)
+    line_hint = f"行 {line_no}" if line_no else ""
+
     if "undefined control sequence" in log_lower:
-        return f"未定義のコマンドがあります。入力内容を確認してください。({error_detail})"
+        cmd = _extract_undefined_command_name(log)
+        if cmd:
+            base = f"未定義のコマンド {cmd} があります"
+        else:
+            base = "未定義のコマンドがあります"
+        if line_hint:
+            base += f" ({line_hint})"
+        base += "。コマンド名のスペルを確認してください。"
+        return base
+
+    if "environment" in log_lower and "undefined" in log_lower:
+        env = _extract_undefined_environment_name(log)
+        target = f"環境 {env} " if env else "環境"
+        if line_hint:
+            return f"未定義の{target}があります ({line_hint})。環境名と \\begin / \\end の対応を確認してください。"
+        return f"未定義の{target}があります。環境名と \\begin / \\end の対応を確認してください。"
+
     if "missing $ inserted" in log_lower:
-        return "数式記号の処理でエラーが発生しました。$や%などの記号が入力に含まれていないか確認してください。"
-    if "extra alignment tab" in log_lower or "misplaced" in log_lower:
-        return "表の列数が一致していない可能性があります。表の内容を確認してください。"
+        suffix = f" ({line_hint})" if line_hint else ""
+        return f"数式記号の処理でエラーが発生しました{suffix}。$や%などの記号が入力に含まれていないか確認してください。"
+    if "extra alignment tab" in log_lower or "misplaced alignment" in log_lower:
+        suffix = f" ({line_hint})" if line_hint else ""
+        return f"表の列数が一致していない可能性があります{suffix}。表の内容を確認してください。"
+    if "missing } inserted" in log_lower or "missing { inserted" in log_lower:
+        suffix = f" ({line_hint})" if line_hint else ""
+        return f"波括弧 {{ }} の対応が取れていません{suffix}。"
+    if "runaway argument" in log_lower:
+        suffix = f" ({line_hint})" if line_hint else ""
+        return f"閉じられていない引数 (Runaway argument) があります{suffix}。{{ }} の対応を確認してください。"
+    if "paragraph ended before" in log_lower:
+        suffix = f" ({line_hint})" if line_hint else ""
+        return f"段落が想定外の位置で終わりました{suffix}。引数の途中で空行が入っていないか確認してください。"
     if "file not found" in log_lower and "image" in log_lower:
         return "画像の読み込みに失敗しました。画像URLが正しいか確認してください。"
     if "luatexja" in log_lower and "not found" in log_lower:
@@ -356,8 +499,11 @@ def _parse_latex_error(log: str) -> str:
     if "fontspec error" in log_lower or ("fontspec" in log_lower and "not found" in log_lower):
         return f"フォントの読み込みに問題があります。({error_detail})"
     if "emergency stop" in log_lower:
-        return f"文書の処理中に重大なエラーが発生しました。({error_detail})"
-    if "file not found" in log_lower:
+        # Emergency stop は副次エラー — 直前の本物のエラーがあればそちらを優先
+        if error_detail and "emergency stop" not in error_detail.lower():
+            return f"PDF生成エラー: {error_detail}"
+        return f"文書の処理中に重大なエラーが発生しました。({error_detail or 'emergency stop'})"
+    if "file" in log_lower and "not found" in log_lower:
         return f"必要なファイルが見つかりません。({error_detail})"
 
     if error_detail:

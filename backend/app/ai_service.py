@@ -534,15 +534,21 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
         try:
             ok, pdf_size, log = _run_once(latex_source)
 
-            # autofix リトライ — 不足パッケージを 1 回だけ補ってリトライ
+            # autofix リトライ — 不足パッケージ / no-op stub を最大 3 回まで補完
             if not ok:
-                retry_source = autofix_after_failure(latex_source, log)
-                if retry_source and retry_source != latex_source:
+                max_rounds = int(os.environ.get("LATEX_AUTOFIX_MAX_ROUNDS", "3"))
+                current = latex_source
+                for _round in range(max_rounds):
+                    retry_source = autofix_after_failure(current, log)
+                    if not retry_source or retry_source == current:
+                        break
                     ok, pdf_size, log = _run_once(retry_source)
+                    current = retry_source
                     if ok:
                         latex_source = retry_source
                         # AI が次の編集で同じ問題を起こさないよう、補完済みのソースを document に反映
                         document["latex"] = retry_source
+                        break
 
             if ok:
                 warnings = []
