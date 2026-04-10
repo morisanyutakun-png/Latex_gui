@@ -8,7 +8,7 @@
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{tcolorbox}
-\tcbuselibrary{skins}
+\tcbuselibrary{skins,breakable,theorems}
 \usepackage{listings}
 \usepackage{tikz}
 \usetikzlibrary{shapes,arrows.meta,positioning,calc,decorations.markings,automata,fit}
@@ -38,6 +38,21 @@
 \begin{tcolorbox}[colback=blue!5,colframe=blue!40,title=テスト]
 tcolorbox テスト
 \end{tcolorbox}
+
+% enhanced + attach boxed title (skins ライブラリ必須パターン)
+\newtcolorbox{smokeboxtest}[1]{
+  enhanced,breakable,
+  colback=blue!3,colframe=blue!60,
+  fonttitle=\bfseries,coltitle=white,colbacktitle=blue!80,
+  title={#1},
+  attach boxed title to top left={xshift=8mm,yshift=-3mm},
+  boxed title style={sharp corners,size=small},
+  sharp corners=south,arc=2mm,boxrule=0.6pt,
+}
+
+\begin{smokeboxtest}{enhanced スモーク}
+enhanced + attach boxed title が正しく動作するテスト。
+\end{smokeboxtest}
 
 \begin{tabular}{lcc}
 \toprule

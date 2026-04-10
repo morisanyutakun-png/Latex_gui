@@ -33,6 +33,18 @@ const JA_BASE = String.raw`\documentclass[11pt,a4paper]{article}
 \usepackage{hyperref}
 `;
 
+/**
+ * tcolorbox 共通プリアンブル — 全テンプレートで統一的に使う。
+ * skins: enhanced / attach boxed title / bicolor 等に必須
+ * breakable: ページ跨ぎボックスに必須
+ * theorems: tcbtheorem 等 (将来互換)
+ *
+ * 個別に \tcbuselibrary を書くとライブラリ漏れの温床になるため、
+ * テンプレートでは必ずこの定数経由でロードする。
+ */
+const TCB_PREAMBLE: string = String.raw`\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable,theorems}`;
+
 // ══════════════════════════════════════════
 // 1. Blank — 白紙 (Word ライク)
 // ══════════════════════════════════════════
@@ -53,8 +65,7 @@ const BLANK_LATEX = JA_BASE + String.raw`\geometry{margin=22mm}
 //   特徴: 表紙風タイトル / 注意事項 / 大問ボックス / 配点表示
 // ══════════════════════════════════════════
 const COMMON_TEST_LATEX = JA_BASE + String.raw`\geometry{margin=20mm,top=22mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{breakable,skins,theorems}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -252,8 +263,7 @@ $xy$ 平面上の曲線 $C: y = x^3 - 3x$ と直線 $\ell: y = ax + b$ につい
 //   特徴: 氏名欄 / 得点欄 / 大問ヘッダ簡素 / 解答欄あり
 // ══════════════════════════════════════════
 const SCHOOL_TEST_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=22mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins}
+${TCB_PREAMBLE}
 \usepackage{multirow}
 \hypersetup{hidelinks}
 
@@ -326,8 +336,7 @@ const SCHOOL_TEST_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=22mm}
 //   特徴: タイトル帯 / 難易度バッジ (★★☆) / 基礎→応用 構成 / 解説スペース
 // ══════════════════════════════════════════
 const JUKU_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -404,6 +413,9 @@ const JUKU_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20
 
 \newcommand{\juKey}[1]{\textcolor{jkmain}{\textbf{#1}}}
 \newcommand{\juHint}[1]{\textcolor{jkink!70}{\small\textit{ヒント:\,#1}}}
+
+% ── 配点バッジ ──
+\newcommand{\haiten}[1]{\hfill\textcolor{jkmain}{\small\textbf{[#1点]}}}
 
 \begin{document}
 
@@ -511,8 +523,7 @@ $\square$ 次回までに復習する問題番号: \underline{\hspace{6em}}
 //   特徴: 定義ボックス / 例題ボックス / 注意ボックス / 練習問題
 // ══════════════════════════════════════════
 const KAISETSU_NOTE_LATEX = JA_BASE + String.raw`\geometry{margin=20mm,top=22mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable,theorems}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -644,8 +655,7 @@ const KAISETSU_NOTE_LATEX = JA_BASE + String.raw`\geometry{margin=20mm,top=22mm}
 //   特徴: 単元名バナー / 基本→応用→発展 / 解答スペース
 // ══════════════════════════════════════════
 const WORKSHEET_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -776,8 +786,7 @@ $\displaystyle \sin^2\theta+\cos^2\theta=1,\quad \tan\theta=\frac{\sin\theta}{\c
 //   特徴: vocab table / reading passage / 設問
 // ══════════════════════════════════════════
 const ENGLISH_WORKSHEET_LATEX = JA_BASE + String.raw`\geometry{margin=18mm,top=20mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+${TCB_PREAMBLE}
 \usepackage{multicol}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
@@ -992,8 +1001,7 @@ const REPORT_LATEX = String.raw`\documentclass[11pt,a4paper]{report}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{titlesec}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+${TCB_PREAMBLE}
 \usepackage{fancyhdr}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=teal!70!black,urlcolor=teal!70!black}
@@ -1284,8 +1292,7 @@ const BLANK_LATEX_EN = EN_BASE + String.raw`\geometry{margin=22mm}
 
 // ──── 2. Common test (US placement-test style) ────
 const COMMON_TEST_LATEX_EN = EN_BASE + String.raw`\geometry{margin=20mm,top=22mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{breakable,skins,theorems}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -1444,8 +1451,7 @@ Let $z$ be a complex number with $|z - 1| = 1$.
 
 // ──── 4. School test (periodic test sheet) ────
 const SCHOOL_TEST_LATEX_EN = EN_BASE + String.raw`\geometry{margin=18mm,top=22mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins}
+${TCB_PREAMBLE}
 \usepackage{multirow}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
@@ -1520,8 +1526,7 @@ const SCHOOL_TEST_LATEX_EN = EN_BASE + String.raw`\geometry{margin=18mm,top=22mm
 
 // ──── 5. Cram-school worksheet (tutoring center) ────
 const JUKU_LATEX_EN = EN_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -1692,8 +1697,7 @@ $\square$ Review next time: \underline{\hspace{6em}}
 
 // ──── 6. Lecture note (chapter walkthrough) ────
 const KAISETSU_NOTE_LATEX_EN = EN_BASE + String.raw`\geometry{margin=20mm,top=22mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable,theorems}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -1811,8 +1815,7 @@ const KAISETSU_NOTE_LATEX_EN = EN_BASE + String.raw`\geometry{margin=20mm,top=22
 
 // ──── 7. Worksheet (in-class practice) ────
 const WORKSHEET_LATEX_EN = EN_BASE + String.raw`\geometry{margin=18mm,top=18mm,bottom=20mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \hypersetup{hidelinks}
@@ -1936,8 +1939,7 @@ Checklist: $\square$ Solved without looking at the formulas\quad $\square$ Drew 
 // JA 版は「日本語話者向けの英語学習プリント」だが、EN 版は「英語話者向けの
 // 英語 reading & comprehension worksheet (英語の授業用)」として再構成。
 const ENGLISH_WORKSHEET_LATEX_EN = EN_BASE + String.raw`\geometry{margin=18mm,top=20mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+${TCB_PREAMBLE}
 \usepackage{multicol}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
@@ -2135,8 +2137,7 @@ collaborative editing and to non-mathematical document genres.
 
 // ──── 10. Technical report ────
 const REPORT_LATEX_EN = EN_BASE.replace("article", "report") + String.raw`\geometry{margin=22mm,top=24mm}
-\usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+${TCB_PREAMBLE}
 \usepackage{titlesec}
 \hypersetup{colorlinks=true,linkcolor=teal!70!black,urlcolor=teal!70!black}
 

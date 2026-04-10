@@ -621,15 +621,40 @@ _TIKZ_COMMON_LIBS = {
 }
 
 
+# ── tcolorbox を使っている証拠 (content-based) ──
+# \usepackage{tcolorbox} が消えていても、これらが残っていれば tcolorbox が必要。
+_TCB_CONTENT_SIGNALS = re.compile(
+    r"\\(?:newtcolorbox|renewtcolorbox|newtcbtheorem|tcbset|tcbox|tcblower|tcbline)"
+    r"|\\begin\{tcolorbox\}"
+)
+# skins ライブラリが必要なキーワード (enhanced / attach boxed title 等)
+_TCB_SKINS_SIGNALS = re.compile(
+    r"\benhanced\b|attach\s+boxed\s+title|boxed\s+title\s+style"
+    r"|bicolor|beamer|widget|draft"
+)
+
+
 def _ensure_tcolorbox_libraries(src: str) -> str:
-    """tcolorbox がロード済みなら、よく使うライブラリを保証する。
+    """tcolorbox がロード済み (または使用中) なら、よく使うライブラリを保証する。
 
     既に ``\\tcbuselibrary`` がある場合はそれに足りないものだけ追加する行を挿入。
     ``\\tcbuselibrary`` が無ければ新規に挿入する。
+
+    ``\\usepackage{tcolorbox}`` が消えていても、ソース中に tcolorbox 固有の
+    コマンド/環境があればパッケージごと注入する。
     """
     loaded = _loaded_packages(src)
-    if "tcolorbox" not in loaded:
-        return src
+    has_tcolorbox = "tcolorbox" in loaded
+
+    # tcolorbox が明示ロードされていなくても、ソースが使っていれば注入する
+    if not has_tcolorbox:
+        if _TCB_CONTENT_SIGNALS.search(src):
+            # \usepackage{tcolorbox} を注入
+            src = _inject_packages(src, ["tcolorbox"])
+            has_tcolorbox = True
+            logger.info("[autofix] injected tcolorbox (detected from content)")
+        else:
+            return src
 
     # 既存の \tcbuselibrary で読み込み済みのライブラリを取得
     already: set[str] = set()
@@ -637,7 +662,12 @@ def _ensure_tcolorbox_libraries(src: str) -> str:
         for lib in m.group(1).split(","):
             already.add(lib.strip())
 
-    missing = _TCB_COMMON_LIBS - already
+    # enhanced / attach boxed title 等がある場合は skins が必須
+    required = set(_TCB_COMMON_LIBS)
+    if _TCB_SKINS_SIGNALS.search(src):
+        required.add("skins")
+
+    missing = required - already
     if not missing:
         return src
 
@@ -1203,8 +1233,9 @@ def autofix_after_failure(src: str, log: str) -> Optional[str]:
     """コンパイル失敗ログを見て追加リペアを試みる。
 
     優先順:
-      1. ログから不足パッケージを推定して `\\usepackage` を追加
-      2. それでも足りなければ no-op stub を注入してとにかくコンパイルを通す
+      1. ログから不足パッケージを推定して ``\\usepackage`` を追加
+      2. tcolorbox / tikz 内部コマンドエラー → ライブラリ補完を再実行
+      3. それでも足りなければ no-op stub を注入してとにかくコンパイルを通す
 
     Returns:
         リペア済みソース。何も変えられなかった場合は None。
@@ -1222,9 +1253,40 @@ def autofix_after_failure(src: str, log: str) -> Optional[str]:
         fixed = _inject_packages(src, new_pkgs)
         if fixed != src:
             logger.info("[autofix-retry] injected packages from log: %s", new_pkgs)
+            # パッケージ注入後にライブラリ補完も走らせる
+            fixed = _ensure_tcolorbox_libraries(fixed)
+            fixed = _ensure_tikz_libraries(fixed)
             return fixed
 
-    # ── 2) パッケージで救えない: stub fallback ──
+    # ── 2) tcolorbox/tikz 内部コマンドエラー → ライブラリ不足の可能性 ──
+    #
+    # パッケージ自体は既に入っているが skins / breakable 等のライブラリが
+    # 足りないとき、\kvtcb@title や \tcb@breakable@xxx のような内部コマンドが
+    # 未定義になる。パッケージ補完では救えない (既にロード済み) ので、
+    # ライブラリ補完を再度走らせる。
+    undef_cmds = extract_undefined_commands(_unwrap_tex_log(log))
+    needs_tcb_libs = any(
+        cmd.startswith(r"\kvtcb@") or cmd.startswith(r"\tcb@")
+        for cmd in undef_cmds
+    )
+    needs_tikz_libs = any(
+        cmd.startswith(r"\tikz@") or cmd.startswith(r"\pgf@")
+        for cmd in undef_cmds
+    )
+    if needs_tcb_libs or needs_tikz_libs:
+        fixed = src
+        if needs_tcb_libs:
+            fixed = _ensure_tcolorbox_libraries(fixed)
+        if needs_tikz_libs:
+            fixed = _ensure_tikz_libraries(fixed)
+        if fixed != src:
+            logger.info(
+                "[autofix-retry] re-ensured libraries (tcb=%s, tikz=%s)",
+                needs_tcb_libs, needs_tikz_libs,
+            )
+            return fixed
+
+    # ── 3) パッケージ・ライブラリで救えない: stub fallback ──
     stubbed = stub_unknown_commands(src, log)
     if stubbed and stubbed != src:
         return stubbed
