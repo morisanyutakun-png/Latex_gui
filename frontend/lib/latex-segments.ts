@@ -21,6 +21,10 @@
 export type SegmentKind =
   | "preamble"
   | "titleBlock"  // \maketitle を展開して \title / \subtitle / \author / \date を可視ブロックとして表示
+  | "toc"         // \tableofcontents を展開して章節のリストとして表示
+  | "vspace"      // \vspace{...} / \smallskip / \medskip / \bigskip を可視スペースとして描画
+  | "pageBreak"   // \newpage / \clearpage / \pagebreak を可視の改ページマーカとして描画
+  | "bibliography" // \begin{thebibliography}...\end{thebibliography} を参考文献リストとして描画
   | "section"
   | "subsection"
   | "subsubsection"
@@ -217,6 +221,24 @@ const INLINE_TEMPLATE_CMDS: Record<string, TemplateCmdSpec> = {
   jukutitle: { arity: 2, block: true },
   level:     { arity: 2, block: true },
 };
+
+/** \today のような「引数を取らず現在日付などに展開される」 LaTeX プリミティブ。
+ *  templateCmd inline として保持し、serializer 側で引数ブレースを付けずに出し戻す。 */
+const INLINE_NO_ARG_VALUE_CMDS: Record<string, () => string> = {
+  today: () => formatLatexToday(),
+};
+
+/** 標準 LaTeX の \today と同じフォーマット ("April 11, 2026") を返す。
+ *  luatexja-preset[haranoaji] 下でも \today の展開は英語式なので、templates.ts で使われる
+ *  \documentclass{article|report|beamer|letter} のいずれでも PDF と近い見た目になる。 */
+function formatLatexToday(): string {
+  const d = new Date();
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
 
 /** インライン中の 1 引数命令 → 中身だけ取り出す */
 const INLINE_UNWRAP_1: Record<string, "bold" | "italic" | "code" | "text"> = {
@@ -675,6 +697,23 @@ export function extractInlines(src: string, start: number, end: number): Inline[
             i = braceEnd + 1;
             continue;
           }
+        }
+
+        // 0e1) 引数を取らない値展開コマンド (\today 等) → 現在値を持つ templateCmd inline
+        if (INLINE_NO_ARG_VALUE_CMDS[cmd.name]) {
+          let consumeEnd = cmd.nextPos;
+          if (src[consumeEnd] === " " || src[consumeEnd] === "\t") consumeEnd++;
+          pushText(cursor, i);
+          inlines.push({
+            id: nextId("inl"),
+            kind: "templateCmd",
+            range: { start: i, end: consumeEnd },
+            body: INLINE_NO_ARG_VALUE_CMDS[cmd.name](),
+            meta: { name: cmd.name, noarg: "1" },
+          });
+          cursor = consumeEnd;
+          i = consumeEnd;
+          continue;
         }
 
         // 0e2) テンプレ独自コマンド (\juKey, \jukutitle, \chui, \nlevel, ...) を
@@ -1339,8 +1378,14 @@ const HEADING_PATTERNS: ReadonlyArray<{
   { prefix: "\\chapter{",        kind: "section",       cmdLen: "\\chapter".length,        starred: false },
 ];
 
-/** 単独命令 ( \maketitle 等 ) の正規表現 — 引数なし */
-const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|titlepage|newpage|clearpage|pagebreak|linebreak|hline|midrule|toprule|bottomrule|noindent|smallskip|medskip|bigskip|par|centering|raggedright|raggedleft|onehalfspacing|doublespacing|singlespacing|null|@empty|today)\b/;
+/** 単独命令 ( \maketitle 等 ) の正規表現 — 引数なし。
+ *  ここに書いたものは parseBody で「hidden raw」にされ、通常は非表示。
+ *  maketitle は後段の upgradeMaketitleSegments で titleBlock に昇格する。
+ *  tableofcontents は後段の upgradeTocSegments で toc に昇格する。
+ *  skip 系 (smallskip/medskip/bigskip) と page break 系 (newpage/clearpage/pagebreak)
+ *  は upgradeSpacingSegments で可視 vspace/pageBreak 段落に昇格する。
+ *  \today はここから外してあり、段落として extractInlines に流れて現在日付に展開される。 */
+const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|titlepage|newpage|clearpage|pagebreak|linebreak|hline|midrule|toprule|bottomrule|noindent|smallskip|medskip|bigskip|par|centering|raggedright|raggedleft|onehalfspacing|doublespacing|singlespacing|null|@empty)\b/;
 
 /**
  * 「これらの環境はビジュアルエディタで `container` 化せず raw に残す」リスト。
@@ -1352,7 +1397,7 @@ const PRESERVE_AS_RAW_ENVS = new Set([
   "tikzpicture", "pgfpicture", "scope",
   "verbatim", "verbatim*", "lstlisting", "minted", "alltt", "Verbatim",
   "figure", "figure*", "table", "table*", "wrapfigure", "wraptable",
-  "thebibliography", "filecontents", "filecontents*",
+  "filecontents", "filecontents*",
 ]);
 
 /** HTML テーブルとして可視化する表組環境 (tabular 系)。
@@ -1620,6 +1665,64 @@ function parseBody(src: string, start: number, end: number): Segment[] {
                 innerStart: String(innerStart),
                 innerEnd: String(innerEnd),
               },
+            });
+            i = envEnd;
+            continue;
+          }
+          // thebibliography — 参考文献リスト
+          //   \begin{thebibliography}{widest-label}
+          //     \bibitem{key1} content
+          //     \bibitem{key2} content
+          //   \end{thebibliography}
+          // 各 \bibitem{key} のあとから次の \bibitem か \end までを item として拾う。
+          if (envName === "thebibliography") {
+            const beginLen = `\\begin{thebibliography}`.length;
+            const endLen = `\\end{thebibliography}`.length;
+            let cursor = i + beginLen;
+            // 必須 {widest-label} をスキップ (容器には保持しない)
+            while (cursor < envEnd && (src[cursor] === " " || src[cursor] === "\t" || src[cursor] === "\n")) cursor++;
+            if (src[cursor] === "{") {
+              const close = findMatchingBrace(src, cursor, envEnd);
+              if (close !== -1) cursor = close + 1;
+            }
+            const innerStart = cursor;
+            const innerEnd = envEnd - endLen;
+            // \bibitem{key} の位置を全部拾う
+            const children: Segment[] = [];
+            const bibRe = /\\bibitem(?:\[[^\]]*\])?\{([^{}]*)\}/g;
+            bibRe.lastIndex = innerStart;
+            const positions: Array<{ start: number; cmdEnd: number; key: string }> = [];
+            let m: RegExpExecArray | null;
+            while ((m = bibRe.exec(src)) !== null) {
+              if (m.index >= innerEnd) break;
+              positions.push({ start: m.index, cmdEnd: m.index + m[0].length, key: m[1] });
+            }
+            for (let k = 0; k < positions.length; k++) {
+              const cur = positions[k];
+              const next = k + 1 < positions.length ? positions[k + 1].start : innerEnd;
+              const bodyStart = cur.cmdEnd;
+              const bodyEnd = next;
+              children.push({
+                id: nextId("seg"),
+                kind: "item",
+                range: { start: cur.start, end: bodyEnd },
+                body: src.slice(bodyStart, bodyEnd).trim(),
+                inlines: extractInlines(src, bodyStart, bodyEnd),
+                meta: {
+                  bibKey: cur.key,
+                  bibIndex: String(k + 1),
+                  bodyStart: String(bodyStart),
+                  bodyEnd: String(bodyEnd),
+                },
+              });
+            }
+            segments.push({
+              id: nextId("seg"),
+              kind: "bibliography",
+              range: { start: i, end: envEnd },
+              body: "",
+              children,
+              meta: { envName: "thebibliography" },
             });
             i = envEnd;
             continue;
@@ -1930,12 +2033,13 @@ function extractTitleFieldsFromPreamble(
   src: string,
   preambleStart: number,
   preambleEnd: number,
-): { title?: Range; subtitle?: Range; author?: Range; date?: Range } {
-  const result: { title?: Range; subtitle?: Range; author?: Range; date?: Range } = {};
-  const fields: Array<{ cmd: string; key: "title" | "subtitle" | "author" | "date" }> = [
+): { title?: Range; subtitle?: Range; author?: Range; institute?: Range; date?: Range } {
+  const result: { title?: Range; subtitle?: Range; author?: Range; institute?: Range; date?: Range } = {};
+  const fields: Array<{ cmd: string; key: "title" | "subtitle" | "author" | "institute" | "date" }> = [
     { cmd: "\\title", key: "title" },
     { cmd: "\\subtitle", key: "subtitle" },
     { cmd: "\\author", key: "author" },
+    { cmd: "\\institute", key: "institute" },
     { cmd: "\\date", key: "date" },
   ];
   for (const { cmd, key } of fields) {
@@ -1997,13 +2101,14 @@ function extractTitleFieldsFromPreamble(
  *  通常は 1 箇所だけヒットする想定だが、念のため再帰で探す。 */
 function upgradeMaketitleSegments(
   segments: Segment[],
-  titleFields: { title?: Range; subtitle?: Range; author?: Range; date?: Range },
+  titleFields: { title?: Range; subtitle?: Range; author?: Range; institute?: Range; date?: Range },
 ): void {
-  if (!titleFields.title && !titleFields.subtitle && !titleFields.author && !titleFields.date) return;
+  if (!titleFields.title && !titleFields.subtitle && !titleFields.author && !titleFields.institute && !titleFields.date) return;
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
-    if (seg.kind === "raw" && seg.meta?.cmd === "maketitle") {
-      const meta: Record<string, string> = { cmd: "maketitle" };
+    // beamer は \maketitle の代わりに \titlepage を frame 内で呼ぶ流儀があるので両方拾う
+    if (seg.kind === "raw" && (seg.meta?.cmd === "maketitle" || seg.meta?.cmd === "titlepage")) {
+      const meta: Record<string, string> = { cmd: seg.meta.cmd };
       if (titleFields.title) {
         meta.titleStart = String(titleFields.title.start);
         meta.titleEnd = String(titleFields.title.end);
@@ -2015,6 +2120,10 @@ function upgradeMaketitleSegments(
       if (titleFields.author) {
         meta.authorStart = String(titleFields.author.start);
         meta.authorEnd = String(titleFields.author.end);
+      }
+      if (titleFields.institute) {
+        meta.instituteStart = String(titleFields.institute.start);
+        meta.instituteEnd = String(titleFields.institute.end);
       }
       if (titleFields.date) {
         meta.dateStart = String(titleFields.date.start);
@@ -2030,6 +2139,96 @@ function upgradeMaketitleSegments(
     }
     if (seg.children && seg.children.length > 0) {
       upgradeMaketitleSegments(seg.children, titleFields);
+    }
+  }
+}
+
+/** セグメントツリーをトップレベル順に走査して章・節の一覧を収集する。
+ *  \tableofcontents セグメントに渡して PDF ライクな目次を描画するために使う。
+ *  container / center / daimon 等の中に置かれた見出しも拾う (再帰)。
+ *  トップレベルでは chapter → section → subsection の親子関係はカウンタで擬似的に振る。 */
+function collectTocEntries(segments: Segment[]): Array<{ level: number; text: string; starred: boolean }> {
+  const entries: Array<{ level: number; text: string; starred: boolean }> = [];
+  const walk = (segs: Segment[]): void => {
+    for (const s of segs) {
+      if (s.kind === "section") {
+        // chapter も section 扱いだが、LaTeX 的には \chapter が最上位。テンプレ上は
+        // \chapter と \section の混在は少ないので level=1 で並べる。
+        entries.push({
+          level: 1,
+          text: (s.body ?? "").trim(),
+          starred: s.meta?.starred === "true",
+        });
+      } else if (s.kind === "subsection") {
+        entries.push({ level: 2, text: (s.body ?? "").trim(), starred: s.meta?.starred === "true" });
+      } else if (s.kind === "subsubsection") {
+        entries.push({ level: 3, text: (s.body ?? "").trim(), starred: s.meta?.starred === "true" });
+      }
+      if (s.children && s.children.length > 0) walk(s.children);
+    }
+  };
+  walk(segments);
+  return entries;
+}
+
+/** 本文中の hidden raw "\tableofcontents" を見つけて、収集済みの見出し一覧を
+ *  含む toc セグメントに差し替える。 */
+function upgradeTocSegments(segments: Segment[], tocJson: string): void {
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (seg.kind === "raw" && seg.meta?.cmd === "tableofcontents") {
+      segments[i] = {
+        id: seg.id,
+        kind: "toc",
+        range: seg.range,
+        body: "",
+        meta: { entries: tocJson },
+      };
+    }
+    if (seg.children && seg.children.length > 0) {
+      upgradeTocSegments(seg.children, tocJson);
+    }
+  }
+}
+
+/** hidden raw の skip 系 (\smallskip / \medskip / \bigskip / \vspace{...}) と
+ *  page break 系 (\newpage / \clearpage / \pagebreak) を可視セグメントに昇格する。 */
+function upgradeSpacingSegments(segments: Segment[]): void {
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const cmd = seg.meta?.cmd;
+    if (seg.kind === "raw" && cmd) {
+      if (cmd === "smallskip" || cmd === "medskip" || cmd === "bigskip") {
+        segments[i] = {
+          id: seg.id,
+          kind: "vspace",
+          range: seg.range,
+          body: "",
+          meta: { size: cmd },
+        };
+      } else if (cmd === "vspace" || cmd === "vspace*") {
+        // \vspace{Nmm} の第一引数を body から抽出
+        const m = /\\vspace\*?\s*\{([^{}]*)\}/.exec(seg.body);
+        const arg = m ? m[1].trim() : "";
+        segments[i] = {
+          id: seg.id,
+          kind: "vspace",
+          range: seg.range,
+          body: "",
+          meta: { size: "custom", amount: arg },
+        };
+      } else if (cmd === "newpage" || cmd === "clearpage" || cmd === "pagebreak") {
+        segments[i] = {
+          id: seg.id,
+          kind: "pageBreak",
+          range: seg.range,
+          body: "",
+          meta: { cmd },
+        };
+      }
+    }
+    if (seg.children && seg.children.length > 0) {
+      upgradeSpacingSegments(seg.children);
     }
   }
 }
@@ -2061,6 +2260,12 @@ export function parseLatexToSegments(latex: string): Segment[] {
   const bodyEnd = endDoc === -1 ? latex.length : endDoc;
   const bodySegs = parseBody(latex, preambleEnd, bodyEnd);
   upgradeMaketitleSegments(bodySegs, titleFields);
+  upgradeSpacingSegments(bodySegs);
+  // 目次の中身は「最終的なセグメントツリー」を歩いて集める必要がある (spacing の昇格後)
+  const tocEntries = collectTocEntries(bodySegs);
+  if (tocEntries.length > 0) {
+    upgradeTocSegments(bodySegs, JSON.stringify(tocEntries));
+  }
   segments.push(...bodySegs);
 
   if (endDoc !== -1) {
@@ -2127,10 +2332,15 @@ export function serializeSegment(segment: Segment, newBody: string, originalSrc:
     case "preamble":
     case "raw":
     case "documentEnd":
-    case "titleBlock":
       // paragraph/item は外部で inline 単位で書き換えるか、body 全体を文字列として置換する想定
-      // titleBlock は個別フィールドを range-edit で書き換えるので、ここでは original を返す
-      return segment.kind === "titleBlock" ? original : newBody;
+      return newBody;
+    case "titleBlock":
+    case "toc":
+    case "vspace":
+    case "pageBreak":
+    case "bibliography":
+      // 構造的に上書きしないブロック — 元のスライスをそのまま返す
+      return original;
     case "daimon":
     case "center":
     case "container":

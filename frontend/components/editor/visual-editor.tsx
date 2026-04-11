@@ -304,6 +304,18 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
     case "titleBlock":
       return <TitleBlockRenderer segment={segment} latex={latex} applyRangeEdit={applyRangeEdit} />;
 
+    case "toc":
+      return <TocRenderer segment={segment} />;
+
+    case "vspace":
+      return <VSpaceRenderer segment={segment} />;
+
+    case "pageBreak":
+      return <PageBreakRenderer segment={segment} />;
+
+    case "bibliography":
+      return <BibliographyRenderer segment={segment} latex={latex} applyRangeEdit={applyRangeEdit} />;
+
     case "section": {
       // 空 \section{} (autoLabel) は \titleformat により PDF 側で「第N問」「Problem N」が
       // 注入されているケース。ビジュアル側で同じ番号付きラベルを描く。
@@ -447,50 +459,8 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
       );
     }
 
-    case "container": {
-      // 未知環境 (tcolorbox / kihon / ouyou / teigi / passage / note / frame …) の透過コンテナ。
-      // {title} 引数があれば見出しとして編集可能に出し、子セグメントを再帰描画する。
-      // 「📎tcolorbox」のような生 env 名は表示しない。
-      const titleStart = Number(segment.meta?.titleStart);
-      const titleEnd = Number(segment.meta?.titleEnd);
-      const hasTitleRange = Number.isFinite(titleStart) && titleStart >= 0 && Number.isFinite(titleEnd) && titleStart < titleEnd;
-      const titleSegment: Segment | null = hasTitleRange ? {
-        id: segment.id + "-title",
-        kind: "paragraph",
-        range: { start: titleStart, end: titleEnd },
-        body: latex.slice(titleStart, titleEnd),
-        inlines: extractInlines(latex, titleStart, titleEnd),
-      } : null;
-      const onContainerTitleCommit = (el: HTMLElement) => {
-        if (!hasTitleRange) return;
-        const newBody = serializeContentEditableDOM(el);
-        if (newBody.trim() === (titleSegment?.body ?? "").trim()) return;
-        applyRangeEdit({ start: titleStart, end: titleEnd }, newBody);
-      };
-      return (
-        <div className="container-block my-4 overflow-hidden" data-env={segment.meta?.envName ?? "container"}>
-          {titleSegment && (
-            <ContentEditableBlock
-              segment={titleSegment}
-              latex={latex}
-              onCommit={onContainerTitleCommit}
-              tag="h4"
-              className="container-block-title m-0"
-            />
-          )}
-          <div className="container-block-body">
-            {(segment.children ?? []).map((child, idx) => (
-              <SegmentRenderer
-                key={`${idx}-${child.kind}`}
-                segment={child}
-                latex={latex}
-                applyRangeEdit={applyRangeEdit}
-              />
-            ))}
-          </div>
-        </div>
-      );
-    }
+    case "container":
+      return <ContainerRenderer segment={segment} latex={latex} applyRangeEdit={applyRangeEdit} />;
 
     case "table":
       return <TableSegmentRenderer segment={segment} latex={latex} />;
@@ -1046,6 +1016,253 @@ function TableSegmentRenderer({ segment, latex }: { segment: Segment; latex: str
 }
 
 // ─────────────────────────────────────
+// ContainerRenderer — \begin{<env>}{title}...\end{<env>} の汎用コンテナ。
+//
+// 未知の環境 (tcolorbox / tcbtheorem / flushright / abstract / quote / ...) を
+// 透過的に展開して子を再帰描画する。title 引数がなくても、既知環境名に対して
+// ロケールに合わせたデフォルトラベル (abstract → "Abstract"/"要約" 等) を出す。
+// ─────────────────────────────────────
+
+// 既知の「ラベルを出したい」環境名 → ロケール別表示ラベル。
+// 同時に、タイトル引数を持たない環境にもデフォルトタイトルを与える。
+const CONTAINER_DEFAULT_LABELS: Record<string, { ja: string; en: string }> = {
+  abstract: { ja: "要約", en: "Abstract" },
+  quote: { ja: "引用", en: "Quote" },
+  quotation: { ja: "引用", en: "Quotation" },
+  verse: { ja: "詩", en: "Verse" },
+  proof: { ja: "証明", en: "Proof" },
+  theorem: { ja: "定理", en: "Theorem" },
+  lemma: { ja: "補題", en: "Lemma" },
+  corollary: { ja: "系", en: "Corollary" },
+  definition: { ja: "定義", en: "Definition" },
+  example: { ja: "例", en: "Example" },
+  remark: { ja: "注意", en: "Remark" },
+  note: { ja: "注記", en: "Note" },
+};
+
+// 子孫を再帰描画するだけの無題コンテナ (枠も見出しも出さない)。
+// flushright / flushleft などの「配置スイッチ」に使う。
+const CONTAINER_ALIGN_CLASSES: Record<string, string> = {
+  flushright: "text-right",
+  flushleft: "text-left",
+};
+
+interface ContainerRendererProps {
+  segment: Segment;
+  latex: string;
+  applyRangeEdit: (range: Range, snippet: string) => void;
+}
+
+function ContainerRenderer({ segment, latex, applyRangeEdit }: ContainerRendererProps) {
+  const { locale } = useI18n();
+  const envName = segment.meta?.envName ?? "container";
+  const titleStart = Number(segment.meta?.titleStart);
+  const titleEnd = Number(segment.meta?.titleEnd);
+  const hasTitleRange = Number.isFinite(titleStart) && titleStart >= 0 && Number.isFinite(titleEnd) && titleStart < titleEnd;
+  const titleSegment: Segment | null = hasTitleRange ? {
+    id: segment.id + "-title",
+    kind: "paragraph",
+    range: { start: titleStart, end: titleEnd },
+    body: latex.slice(titleStart, titleEnd),
+    inlines: extractInlines(latex, titleStart, titleEnd),
+  } : null;
+  const onContainerTitleCommit = (el: HTMLElement) => {
+    if (!hasTitleRange) return;
+    const newBody = serializeContentEditableDOM(el);
+    if (newBody.trim() === (titleSegment?.body ?? "").trim()) return;
+    applyRangeEdit({ start: titleStart, end: titleEnd }, newBody);
+  };
+
+  // 配置スイッチ (flushright / flushleft) は枠なしで子を並べる
+  const alignClass = CONTAINER_ALIGN_CLASSES[envName];
+  if (alignClass) {
+    return (
+      <div className={`${alignClass} my-3`} data-env={envName}>
+        {(segment.children ?? []).map((child, idx) => (
+          <SegmentRenderer
+            key={`${idx}-${child.kind}`}
+            segment={child}
+            latex={latex}
+            applyRangeEdit={applyRangeEdit}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // 既知環境のデフォルトラベル (title 引数がない時の fallback)
+  const defaultLabel = !titleSegment && CONTAINER_DEFAULT_LABELS[envName]
+    ? (locale === "en" ? CONTAINER_DEFAULT_LABELS[envName].en : CONTAINER_DEFAULT_LABELS[envName].ja)
+    : null;
+
+  // abstract は紙面中央にインデント付きで出す (LaTeX の \begin{abstract} と似せる)
+  const isAbstract = envName === "abstract";
+
+  return (
+    <div
+      className={`container-block my-4 overflow-hidden ${isAbstract ? "mx-6 px-4 py-2 border-l-2 border-foreground/15" : ""}`}
+      data-env={envName}
+    >
+      {titleSegment && (
+        <ContentEditableBlock
+          segment={titleSegment}
+          latex={latex}
+          onCommit={onContainerTitleCommit}
+          tag="h4"
+          className="container-block-title m-0"
+        />
+      )}
+      {!titleSegment && defaultLabel && (
+        <h4 className="container-block-title m-0 text-sm font-semibold text-foreground/70 uppercase tracking-wide">
+          {defaultLabel}
+        </h4>
+      )}
+      <div className="container-block-body">
+        {(segment.children ?? []).map((child, idx) => (
+          <SegmentRenderer
+            key={`${idx}-${child.kind}`}
+            segment={child}
+            latex={latex}
+            applyRangeEdit={applyRangeEdit}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────
+// TocRenderer — \tableofcontents を展開して章節の一覧を描画する。
+// エントリは parser 側で collectTocEntries によって JSON として meta に詰められている。
+// ─────────────────────────────────────
+
+function TocRenderer({ segment }: { segment: Segment }) {
+  const { locale } = useI18n();
+  const label = locale === "en" ? "Contents" : "目次";
+  let entries: Array<{ level: number; text: string; starred: boolean }> = [];
+  try {
+    const raw = segment.meta?.entries;
+    if (raw) entries = JSON.parse(raw);
+  } catch {
+    entries = [];
+  }
+  // starred (番号なし) セクションは TOC に出ない (LaTeX の挙動と同じ)
+  const visible = entries.filter((e) => !e.starred && e.text.trim() !== "");
+  if (visible.length === 0) {
+    return (
+      <div className="my-6 p-4 rounded border border-dashed border-foreground/15 text-foreground/50 text-sm">
+        {label}（章節が見つかりません）
+      </div>
+    );
+  }
+  return (
+    <nav className="my-6 p-4 rounded border border-foreground/15 bg-foreground/[0.015]" aria-label={label}>
+      <h3 className="text-lg font-bold text-foreground mb-3 border-b border-foreground/10 pb-1">{label}</h3>
+      <ol className="space-y-1 list-none pl-0 m-0">
+        {visible.map((entry, idx) => (
+          <li
+            key={idx}
+            className="flex items-baseline gap-3 text-foreground/85"
+            style={{ paddingLeft: `${(entry.level - 1) * 1.25}rem` }}
+          >
+            <span className="flex-1 truncate">
+              {entry.text}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+// ─────────────────────────────────────
+// VSpaceRenderer — \vspace / \smallskip / \medskip / \bigskip を可視スペースとして描画。
+// ─────────────────────────────────────
+
+function VSpaceRenderer({ segment }: { segment: Segment }) {
+  const size = segment.meta?.size ?? "medskip";
+  let height = "0.8rem";
+  if (size === "smallskip") height = "0.4rem";
+  else if (size === "medskip") height = "0.8rem";
+  else if (size === "bigskip") height = "1.6rem";
+  else if (size === "custom") {
+    const amount = segment.meta?.amount ?? "";
+    height = cssLength(amount) || "0.8rem";
+  }
+  return <div aria-hidden="true" style={{ height }} />;
+}
+
+// ─────────────────────────────────────
+// PageBreakRenderer — \newpage / \clearpage / \pagebreak を可視の改ページマーカに。
+// ─────────────────────────────────────
+
+function PageBreakRenderer({ segment }: { segment: Segment }) {
+  void segment;
+  const { locale } = useI18n();
+  const label = locale === "en" ? "Page break" : "改ページ";
+  return (
+    <div className="my-6 flex items-center gap-3 select-none" aria-label={label}>
+      <div className="flex-1 border-t border-dashed border-foreground/20" />
+      <span className="text-[10px] font-medium uppercase tracking-wider text-foreground/40">
+        {label}
+      </span>
+      <div className="flex-1 border-t border-dashed border-foreground/20" />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────
+// BibliographyRenderer — \begin{thebibliography}{N}...\end{thebibliography}
+// 各 \bibitem{key} を番号付きエントリとして描画する。
+// ─────────────────────────────────────
+
+interface BibliographyRendererProps {
+  segment: Segment;
+  latex: string;
+  applyRangeEdit: (range: Range, snippet: string) => void;
+}
+
+function BibliographyRenderer({ segment, latex, applyRangeEdit }: BibliographyRendererProps) {
+  const { locale } = useI18n();
+  const label = locale === "en" ? "References" : "参考文献";
+  return (
+    <section className="my-8" aria-label={label}>
+      <h3 className="text-xl font-semibold text-foreground/90 border-b border-foreground/10 pb-1 mb-3">
+        {label}
+      </h3>
+      <ol className="list-none pl-0 space-y-2 m-0">
+        {(segment.children ?? []).map((child, idx) => {
+          const index = child.meta?.bibIndex ?? String(idx + 1);
+          const bodyStart = Number(child.meta?.bodyStart);
+          const bodyEnd = Number(child.meta?.bodyEnd);
+          const onItemCommit = (el: HTMLElement) => {
+            const newBody = serializeContentEditableDOM(el);
+            if (newBody.trim() === child.body.trim()) return;
+            if (Number.isFinite(bodyStart) && Number.isFinite(bodyEnd)) {
+              applyRangeEdit({ start: bodyStart, end: bodyEnd }, newBody);
+              return;
+            }
+            applyRangeEdit(child.range, newBody);
+          };
+          return (
+            <li key={child.id} className="flex items-baseline gap-3 text-foreground/85">
+              <span className="flex-none text-foreground/55 tabular-nums">[{index}]</span>
+              <ContentEditableBlock
+                segment={child}
+                latex={latex}
+                onCommit={onItemCommit}
+                tag="p"
+                className="flex-1 m-0 leading-snug"
+              />
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────
 // TitleBlockRenderer — \maketitle を可視化する
 //
 // プリアンブルの \title / \subtitle / \author / \date を抽出し、
@@ -1069,6 +1286,7 @@ function TitleBlockRenderer({ segment, latex, applyRangeEdit }: TitleBlockRender
   const titleRange = fieldRange("titleStart", "titleEnd");
   const subtitleRange = fieldRange("subtitleStart", "subtitleEnd");
   const authorRange = fieldRange("authorStart", "authorEnd");
+  const instituteRange = fieldRange("instituteStart", "instituteEnd");
   const dateRange = fieldRange("dateStart", "dateEnd");
 
   // フィールド範囲から、擬似 paragraph セグメントを作って ContentEditableBlock に渡す。
@@ -1089,7 +1307,7 @@ function TitleBlockRenderer({ segment, latex, applyRangeEdit }: TitleBlockRender
   };
 
   // いずれのフィールドも取れなかった場合 (raw maketitle だけが残っていた場合) は描画しない
-  if (!titleRange && !subtitleRange && !authorRange && !dateRange) return null;
+  if (!titleRange && !subtitleRange && !authorRange && !instituteRange && !dateRange) return null;
 
   return (
     <div className="my-8 text-center space-y-2">
@@ -1118,6 +1336,15 @@ function TitleBlockRenderer({ segment, latex, applyRangeEdit }: TitleBlockRender
           onCommit={onFieldCommit(authorRange)}
           tag="p"
           className="text-base text-foreground/75 m-0 mt-3"
+        />
+      )}
+      {instituteRange && (
+        <ContentEditableBlock
+          segment={makeFieldSegment(instituteRange, "-institute")}
+          latex={latex}
+          onCommit={onFieldCommit(instituteRange)}
+          tag="p"
+          className="text-sm text-foreground/65 m-0"
         />
       )}
       {dateRange && (
@@ -1476,7 +1703,14 @@ function buildInlinesHTML(inlines: Inline[], src: string): string {
       const name = inline.meta?.name ?? "text";
       const arg2 = inline.meta?.arg2;
       const block = inline.meta?.block === "1";
+      const noarg = inline.meta?.noarg === "1";
       const arg2Attr = arg2 !== undefined ? ` data-cmd-arg2="${escapeHtml(arg2)}"` : "";
+      // 引数を取らない値展開コマンド (\today 等) はプレーンテキストの見た目で出し、
+      // data-cmd-noarg="1" をマークして serializer 側で `\today` にラウンドトリップする。
+      if (noarg) {
+        html += `<span class="latex-tcmd latex-tcmd-${escapeHtml(name)}" data-cmd-name="${escapeHtml(name)}" data-cmd-noarg="1" contenteditable="false">${escapeHtml(inline.body)}</span>`;
+        continue;
+      }
       // ブロックレベルの命令 (\jukutitle / \daimonhead / \chui / \unit / \level / \anslines)
       // は CSS で display:block にして紙面の段組に流し込む
       if (name === "anslines") {
@@ -1609,6 +1843,11 @@ export function serializeContentEditableDOM(el: HTMLElement): string {
     // テンプレ独自コマンド (\juKey / \jukutitle / \chui / \nlevel / ...)
     if (child.dataset.cmdName) {
       const name = child.dataset.cmdName;
+      // 引数を取らないコマンド (\today 等) はそのまま `\name` を吐く
+      if (child.dataset.cmdNoarg === "1") {
+        result += `\\${name}`;
+        continue;
+      }
       // arg1 / arg2 構造があるか
       const arg1El = child.querySelector(":scope > .latex-tcmd-arg1");
       const arg2El = child.querySelector(":scope > .latex-tcmd-arg2");
