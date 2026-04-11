@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import "katex/dist/katex.min.css";
 import "katex/contrib/mhchem";
 import {
@@ -78,6 +78,19 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
   const { t } = useI18n();
   const segments = useMemo(() => parseLatexToSegments(latex), [latex]);
   const templateId = template ?? "blank";
+
+  // ユーザーのソースに含まれる \definecolor を CSS 色として畳み、
+  // \titleformat{\section}{...\color{X}...} 等から見出し色を引き出して
+  // CSS 変数として root に流し込む (簡易プレビューを PDF に近づける)。
+  const docColorVars = useMemo(() => {
+    const colorMap = parseDefinedColors(latex);
+    const sectionColor = extractTitleformatColor(latex, "section", colorMap);
+    const subsectionColor = extractTitleformatColor(latex, "subsection", colorMap);
+    const style: Record<string, string> = {};
+    if (sectionColor) style["--doc-section-color"] = sectionColor;
+    if (subsectionColor) style["--doc-subsection-color"] = subsectionColor;
+    return style;
+  }, [latex]);
 
   // 末尾の常時編集可能な段落 (Word ライクな「白紙の上にカーソル」感)
   const trailingRef = useRef<HTMLParagraphElement | null>(null);
@@ -201,6 +214,7 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
         <div
           className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin"
           data-template={templateId}
+          style={docColorVars as CSSProperties}
         >
           <div className="visual-editor-paper mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
             <div
@@ -329,7 +343,8 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
           tag="h2"
           initialText={segment.body}
           onCommit={onHeadingCommit}
-          className="text-2xl font-bold text-foreground border-b border-foreground/10 pb-1.5 mt-6"
+          className="text-2xl font-bold border-b border-foreground/10 pb-1.5 mt-6"
+          style={{ color: "var(--doc-section-color, hsl(var(--foreground)))" }}
         />
       );
     }
@@ -340,7 +355,8 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
           tag="h3"
           initialText={segment.body}
           onCommit={onHeadingCommit}
-          className="text-xl font-semibold text-foreground/90 mt-5"
+          className="text-xl font-semibold mt-5"
+          style={{ color: "var(--doc-subsection-color, hsl(var(--foreground) / 0.9))" }}
         />
       );
 
@@ -484,10 +500,11 @@ interface EditableHeadingProps {
   tag: "h2" | "h3" | "h4";
   initialText: string;
   className?: string;
+  style?: CSSProperties;
   onCommit: (newText: string) => void;
 }
 
-function EditableHeading({ tag: Tag, initialText, className, onCommit }: EditableHeadingProps) {
+function EditableHeading({ tag: Tag, initialText, className, style, onCommit }: EditableHeadingProps) {
   const ref = useRef<HTMLHeadingElement | null>(null);
   const lastWritten = useRef(initialText);
 
@@ -518,6 +535,7 @@ function EditableHeading({ tag: Tag, initialText, className, onCommit }: Editabl
       suppressContentEditableWarning
       spellCheck={false}
       className={`${className ?? ""} outline-none focus:bg-foreground/[0.03] rounded px-1 -mx-1 cursor-text`}
+      style={style}
       onBlur={(e) => {
         const text = (e.currentTarget.textContent || "").trim();
         if (text !== lastWritten.current) {
@@ -906,9 +924,14 @@ const ENV_LABEL_ICON: Record<string, string> = {
 function SectionAutoLabel({ number }: { number: string }) {
   const { locale } = useI18n();
   const label = locale === "en" ? `Problem ${number}` : `第 ${number} 問`;
-  // 装飾はテンプレ別に CSS で行う (data-template が祖先 .visual-editor にある)
+  // 装飾はテンプレ別に CSS で行う (data-template が祖先 .visual-editor にある)。
+  // ユーザー定義の \titleformat 色があれば --doc-section-color 経由で色が載る。
   return (
-    <div className="section-auto-label select-none" data-section-number={number}>
+    <div
+      className="section-auto-label select-none"
+      data-section-number={number}
+      style={{ color: "var(--doc-section-color, inherit)" }}
+    >
       <span className="section-auto-label-badge">{label}</span>
       <span className="section-auto-label-divider" />
     </div>
@@ -1699,6 +1722,7 @@ function sizedInlineStyle(meta: Record<string, string> | undefined): string {
 /** Inline 配列から contentEditable 用の初期 HTML を組み立てる。
  *  scoreBadge など「表示と原 LaTeX が異なる」種類は src から原文をそのまま data 属性に埋め込む。 */
 function buildInlinesHTML(inlines: Inline[], src: string): string {
+  const colorMap = getColorMapFor(src);
   let html = "";
   for (const inline of inlines) {
     if (inline.kind === "text") {
@@ -1726,7 +1750,7 @@ function buildInlinesHTML(inlines: Inline[], src: string): string {
       html += `<span class="latex-fbox" data-fbox-cmd="${escapeHtml(cmdName)}" style="display:inline-block;border:1px solid currentColor;padding:0 0.35em;border-radius:1px;">${renderRichInlineHTML(inline.body)}</span>`;
     } else if (inline.kind === "colored") {
       const color = inline.meta?.color ?? "inherit";
-      const css = colorNameToCss(color);
+      const css = colorNameToCss(color, colorMap);
       html += `<span class="latex-color" data-color="${escapeHtml(color)}" style="color:${css};">${renderRichInlineHTML(inline.body)}</span>`;
     } else if (inline.kind === "sized") {
       const style = sizedInlineStyle(inline.meta);
@@ -1793,15 +1817,137 @@ const NAMED_COLORS: Record<string, string> = {
   red: "#dc2626", blue: "#2563eb", green: "#16a34a", yellow: "#facc15",
   cyan: "#06b6d4", magenta: "#d946ef", orange: "#ea580c", purple: "#9333ea",
   gray: "#6b7280", lightgray: "#d1d5db", darkgray: "#374151",
-  // テンプレで定義される色は 16 進だが、ここでは認識できないので無視 (currentColor)
 };
-function colorNameToCss(name: string): string {
+
+function clamp255(n: number): number {
+  return Math.max(0, Math.min(255, Math.round(n)));
+}
+
+/** xcolor の model / value を CSS 色文字列に変換する。不明なら null。 */
+function colorModelToCss(model: string, value: string): string | null {
+  const v = value.trim();
+  switch (model.trim()) {
+    case "HTML": {
+      const hex = v.replace(/\s+/g, "");
+      if (/^[0-9a-fA-F]{6}$/.test(hex)) return `#${hex}`;
+      if (/^[0-9a-fA-F]{3}$/.test(hex)) return `#${hex}`;
+      return null;
+    }
+    case "RGB": {
+      const [r, g, b] = v.split(",").map((s) => parseFloat(s.trim()));
+      if ([r, g, b].every((n) => Number.isFinite(n))) {
+        return `rgb(${clamp255(r)}, ${clamp255(g)}, ${clamp255(b)})`;
+      }
+      return null;
+    }
+    case "rgb": {
+      const [r, g, b] = v.split(",").map((s) => parseFloat(s.trim()));
+      if ([r, g, b].every((n) => Number.isFinite(n))) {
+        return `rgb(${clamp255(r * 255)}, ${clamp255(g * 255)}, ${clamp255(b * 255)})`;
+      }
+      return null;
+    }
+    case "gray": {
+      const g = parseFloat(v);
+      if (Number.isFinite(g)) {
+        const c = clamp255(g * 255);
+        return `rgb(${c}, ${c}, ${c})`;
+      }
+      return null;
+    }
+    case "cmyk": {
+      const [c, m, y, k] = v.split(",").map((s) => parseFloat(s.trim()));
+      if ([c, m, y, k].every((n) => Number.isFinite(n))) {
+        const r = 255 * (1 - c) * (1 - k);
+        const g = 255 * (1 - m) * (1 - k);
+        const b = 255 * (1 - y) * (1 - k);
+        return `rgb(${clamp255(r)}, ${clamp255(g)}, ${clamp255(b)})`;
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+/** LaTeX ソースから `\definecolor{name}{model}{value}` を全部拾って name → CSS に畳む。 */
+function parseDefinedColors(src: string): Record<string, string> {
+  const map: Record<string, string> = {};
+  const re = /\\definecolor\s*\{([^}]+)\}\s*\{([^}]+)\}\s*\{([^}]+)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    const name = m[1].trim();
+    const css = colorModelToCss(m[2], m[3]);
+    if (css) map[name] = css;
+  }
+  return map;
+}
+
+// 同じ src に対する再パースを避けるためのモジュールレベルキャッシュ (直近 1 件で十分)。
+let _colorMapSrc: string | null = null;
+let _colorMap: Record<string, string> = {};
+function getColorMapFor(src: string): Record<string, string> {
+  if (src === _colorMapSrc) return _colorMap;
+  _colorMapSrc = src;
+  _colorMap = parseDefinedColors(src);
+  return _colorMap;
+}
+
+/** `red`, `DeepBlue`, `red!50!black`, `jkmain!20` 等を CSS 色に解決する。
+ *  mixing は CSS `color-mix(in srgb, ...)` にフォールバックし、base が解決できなければ
+ *  currentColor を返して UI を壊さない。 */
+function colorNameToCss(name: string, custom?: Record<string, string>): string {
   const trimmed = name.trim();
-  if (NAMED_COLORS[trimmed]) return NAMED_COLORS[trimmed];
-  // \color{red!75!black} のような表現は基底色だけ拾う
-  const base = trimmed.split("!")[0];
-  if (NAMED_COLORS[base]) return NAMED_COLORS[base];
-  return "currentColor";
+  if (!trimmed) return "currentColor";
+  const resolveBase = (n: string): string | null => {
+    const t = n.trim();
+    if (!t) return null;
+    if (custom && custom[t]) return custom[t];
+    if (NAMED_COLORS[t]) return NAMED_COLORS[t];
+    return null;
+  };
+  if (trimmed.includes("!")) {
+    const parts = trimmed.split("!").map((p) => p.trim());
+    // A!P!B → A を P% と B を (100-P)% で混ぜる
+    if (parts.length >= 3) {
+      const a = resolveBase(parts[0]);
+      const pct = parseFloat(parts[1]);
+      const b = resolveBase(parts[2]);
+      if (a && b && Number.isFinite(pct)) {
+        return `color-mix(in srgb, ${a} ${pct}%, ${b})`;
+      }
+    }
+    // A!P → xcolor のデフォルトで A を P%、残りを white で希釈
+    if (parts.length === 2) {
+      const a = resolveBase(parts[0]);
+      const pct = parseFloat(parts[1]);
+      if (a && Number.isFinite(pct)) {
+        return `color-mix(in srgb, ${a} ${pct}%, white)`;
+      }
+    }
+    return resolveBase(parts[0]) ?? "currentColor";
+  }
+  return resolveBase(trimmed) ?? "currentColor";
+}
+
+/** `\titleformat{\section}{…}{…}{…}{…}` 等から最初の `\color{X}` / `\textcolor{X}{…}` を拾い、
+ *  section / subsection の見出し色として使えるように解決する。未定義なら null。 */
+function extractTitleformatColor(
+  src: string,
+  target: "section" | "subsection",
+  colorMap: Record<string, string>,
+): string | null {
+  const re = new RegExp(`\\\\titleformat\\s*\\{\\\\${target}\\}`, "g");
+  const m = re.exec(src);
+  if (!m) return null;
+  // titleformat 宣言以降の適当な範囲 (~400 文字) を走査して color 指定を探す。
+  const tail = src.slice(m.index, m.index + 600);
+  const colorMatch =
+    tail.match(/\\color\s*\{([^}]+)\}/) ??
+    tail.match(/\\textcolor\s*\{([^}]+)\}/);
+  if (!colorMatch) return null;
+  const resolved = colorNameToCss(colorMatch[1], colorMap);
+  return resolved === "currentColor" ? null : resolved;
 }
 
 /** contentEditable な要素から LaTeX 文字列をシリアライズする */
