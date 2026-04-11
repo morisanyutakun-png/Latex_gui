@@ -527,7 +527,17 @@ def _document_uses(src: str, key: str) -> bool:
 
 
 def _detect_required_packages(src: str) -> list[str]:
-    """ソースが必要としそうなパッケージを (重複なく) 列挙する。"""
+    """ソースが必要としそうなパッケージを (重複なく) 列挙する。
+
+    重要: ソース中で ``\\newcommand`` / ``\\def`` 等で既にユーザ定義されている
+    コマンドは「パッケージを求めている」とは判定しない。
+    例: テンプレートが ``\\newcommand{\\unit}`` を定義している場合、
+    autofix が siunitx を勝手に注入すると衝突 (``\\unit already defined``) する。
+    """
+    # ユーザ定義のコマンド/環境は触らない
+    user_defined_cmds = _user_defined_commands(src)
+    user_defined_envs = _user_defined_environments(src)
+
     needed: list[str] = []
     seen: set[str] = set()
 
@@ -536,6 +546,13 @@ def _detect_required_packages(src: str) -> list[str]:
             continue
         if pkg not in ALLOWED_PACKAGES:
             continue
+        # ``\begin{env}`` 形式のキーは環境ルックアップに任せる
+        if cmd.startswith(r"\begin{"):
+            env_name = cmd[len(r"\begin{"):-1]
+            if env_name in user_defined_envs:
+                continue
+        elif cmd in user_defined_cmds:
+            continue
         if _document_uses(src, cmd):
             needed.append(pkg)
             seen.add(pkg)
@@ -543,6 +560,8 @@ def _detect_required_packages(src: str) -> list[str]:
     # 環境ベース
     env_matches = re.findall(r"\\begin\{([A-Za-z*]+)\}", src)
     for env in set(env_matches):
+        if env in user_defined_envs:
+            continue
         pkg = _ENV_TO_PACKAGE.get(env)
         if pkg and pkg in ALLOWED_PACKAGES and pkg not in seen:
             needed.append(pkg)

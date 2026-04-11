@@ -665,7 +665,8 @@ ${TCB_PREAMBLE}
 \definecolor{wsink}{HTML}{0f172a}
 \definecolor{wspale}{HTML}{ecfeff}
 
-\newcommand{\unit}[1]{%
+% \unit は siunitx / physics / 一部 LaTeX カーネルとの衝突を避けるため \unitbox に改名
+\newcommand{\unitbox}[1]{%
   \begin{tcolorbox}[colback=wsteal,colframe=wsteal,sharp corners,boxrule=0pt,
     left=10pt,right=10pt,top=4pt,bottom=4pt]
     \color{white}\textbf{単元}\quad #1
@@ -728,7 +729,7 @@ ${TCB_PREAMBLE}
 
 \bigskip
 
-\unit{三角比の定義 / 正弦定理 / 余弦定理}
+\unitbox{三角比の定義 / 正弦定理 / 余弦定理}
 
 \begin{formulacard}{今日使う公式}
 \small
@@ -1824,7 +1825,8 @@ ${TCB_PREAMBLE}
 \definecolor{wsink}{HTML}{0f172a}
 \definecolor{wspale}{HTML}{ecfeff}
 
-\newcommand{\unit}[1]{%
+% \unit は siunitx / physics / 一部 LaTeX カーネルとの衝突を避けるため \unitbox に改名
+\newcommand{\unitbox}[1]{%
   \begin{tcolorbox}[colback=wsteal,colframe=wsteal,sharp corners,boxrule=0pt,
     left=10pt,right=10pt,top=4pt,bottom=4pt]
     \color{white}\textbf{Unit}\quad #1
@@ -1885,7 +1887,7 @@ Name\,\rule{45mm}{0.4pt}\hfill Due\,\rule{20mm}{0.4pt}}
 
 \bigskip
 
-\unit{Right-triangle definitions / Law of Sines / Law of Cosines}
+\unitbox{Right-triangle definitions / Law of Sines / Law of Cosines}
 
 \begin{formulacard}{Formulas you will use}
 \small
