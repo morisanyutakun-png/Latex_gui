@@ -301,6 +301,9 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
       // プリアンブルは完全に非表示。ユーザーは LaTeX を見ない。
       return null;
 
+    case "titleBlock":
+      return <TitleBlockRenderer segment={segment} latex={latex} applyRangeEdit={applyRangeEdit} />;
+
     case "section": {
       // 空 \section{} (autoLabel) は \titleformat により PDF 側で「第N問」「Problem N」が
       // 注入されているケース。ビジュアル側で同じ番号付きラベルを描く。
@@ -602,7 +605,7 @@ function EditableItem({ segment, latex, onCommit }: EditableItemProps) {
   );
 }
 
-type ContentEditableTag = "p" | "li" | "h2" | "h3" | "h4" | "div";
+type ContentEditableTag = "p" | "li" | "h1" | "h2" | "h3" | "h4" | "div";
 
 interface ContentEditableBlockProps {
   segment: Segment;
@@ -1039,6 +1042,94 @@ function TableSegmentRenderer({ segment, latex }: { segment: Segment; latex: str
         })}
       </tbody>
     </table>
+  );
+}
+
+// ─────────────────────────────────────
+// TitleBlockRenderer — \maketitle を可視化する
+//
+// プリアンブルの \title / \subtitle / \author / \date を抽出し、
+// 大きい見出し + 小さい補助行としてページ頭に表示する。
+// 各フィールドは自分自身の preamble 上の range に対して range-edit でコミットする。
+// ─────────────────────────────────────
+interface TitleBlockRendererProps {
+  segment: Segment;
+  latex: string;
+  applyRangeEdit: (range: Range, snippet: string) => void;
+}
+
+function TitleBlockRenderer({ segment, latex, applyRangeEdit }: TitleBlockRendererProps) {
+  const fieldRange = (startKey: string, endKey: string): Range | null => {
+    const s = Number(segment.meta?.[startKey]);
+    const e = Number(segment.meta?.[endKey]);
+    if (!Number.isFinite(s) || !Number.isFinite(e) || s < 0 || e < s) return null;
+    return { start: s, end: e };
+  };
+
+  const titleRange = fieldRange("titleStart", "titleEnd");
+  const subtitleRange = fieldRange("subtitleStart", "subtitleEnd");
+  const authorRange = fieldRange("authorStart", "authorEnd");
+  const dateRange = fieldRange("dateStart", "dateEnd");
+
+  // フィールド範囲から、擬似 paragraph セグメントを作って ContentEditableBlock に渡す。
+  // 日付の `\today` 等は「templateCmd」インライン or plain text として渡るだけなので
+  // 表示は控えめに。
+  const makeFieldSegment = (range: Range, idSuffix: string): Segment => ({
+    id: segment.id + idSuffix,
+    kind: "paragraph",
+    range,
+    body: latex.slice(range.start, range.end),
+    inlines: extractInlines(latex, range.start, range.end),
+  });
+
+  const onFieldCommit = (range: Range) => (el: HTMLElement) => {
+    const newBody = serializeContentEditableDOM(el);
+    if (newBody.trim() === latex.slice(range.start, range.end).trim()) return;
+    applyRangeEdit(range, newBody);
+  };
+
+  // いずれのフィールドも取れなかった場合 (raw maketitle だけが残っていた場合) は描画しない
+  if (!titleRange && !subtitleRange && !authorRange && !dateRange) return null;
+
+  return (
+    <div className="my-8 text-center space-y-2">
+      {titleRange && (
+        <ContentEditableBlock
+          segment={makeFieldSegment(titleRange, "-title")}
+          latex={latex}
+          onCommit={onFieldCommit(titleRange)}
+          tag="h1"
+          className="text-3xl font-bold text-foreground leading-tight m-0"
+        />
+      )}
+      {subtitleRange && (
+        <ContentEditableBlock
+          segment={makeFieldSegment(subtitleRange, "-subtitle")}
+          latex={latex}
+          onCommit={onFieldCommit(subtitleRange)}
+          tag="h2"
+          className="text-xl font-semibold text-foreground/80 m-0"
+        />
+      )}
+      {authorRange && (
+        <ContentEditableBlock
+          segment={makeFieldSegment(authorRange, "-author")}
+          latex={latex}
+          onCommit={onFieldCommit(authorRange)}
+          tag="p"
+          className="text-base text-foreground/75 m-0 mt-3"
+        />
+      )}
+      {dateRange && (
+        <ContentEditableBlock
+          segment={makeFieldSegment(dateRange, "-date")}
+          latex={latex}
+          onCommit={onFieldCommit(dateRange)}
+          tag="p"
+          className="text-sm text-foreground/55 m-0"
+        />
+      )}
+    </div>
   );
 }
 

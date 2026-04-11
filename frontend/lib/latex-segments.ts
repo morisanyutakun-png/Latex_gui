@@ -20,6 +20,7 @@
 
 export type SegmentKind =
   | "preamble"
+  | "titleBlock"  // \maketitle を展開して \title / \subtitle / \author / \date を可視ブロックとして表示
   | "section"
   | "subsection"
   | "subsubsection"
@@ -1921,6 +1922,118 @@ function parseBody(src: string, start: number, end: number): Segment[] {
   return segments;
 }
 
+/** プリアンブルから \title / \subtitle / \author / \date の中身の絶対 range を抽出する。
+ *  例: `\title{ABC}` → titleStart = '{' の次, titleEnd = '}' の位置
+ *  見つからないフィールドは undefined を返す。
+ *  ※ トップレベルのみをスキャンする (環境内に書かれている場合は拾わない)。 */
+function extractTitleFieldsFromPreamble(
+  src: string,
+  preambleStart: number,
+  preambleEnd: number,
+): { title?: Range; subtitle?: Range; author?: Range; date?: Range } {
+  const result: { title?: Range; subtitle?: Range; author?: Range; date?: Range } = {};
+  const fields: Array<{ cmd: string; key: "title" | "subtitle" | "author" | "date" }> = [
+    { cmd: "\\title", key: "title" },
+    { cmd: "\\subtitle", key: "subtitle" },
+    { cmd: "\\author", key: "author" },
+    { cmd: "\\date", key: "date" },
+  ];
+  for (const { cmd, key } of fields) {
+    // 同名コマンドが複数回定義されていれば最後のものが有効になる (LaTeX 準拠)
+    let searchFrom = preambleStart;
+    while (searchFrom < preambleEnd) {
+      const found = src.indexOf(cmd, searchFrom);
+      if (found === -1 || found >= preambleEnd) break;
+      // \title[...] → コマンド名として厳密にマッチさせる (\titleformat 等と区別)
+      const afterCmd = found + cmd.length;
+      const nextCh = src[afterCmd];
+      if (nextCh !== "{" && nextCh !== " " && nextCh !== "\t" && nextCh !== "[") {
+        searchFrom = afterCmd;
+        continue;
+      }
+      // 行頭が '%' でコメントアウトされていないかだけ粗くチェック
+      let lineStart = found;
+      while (lineStart > preambleStart && src[lineStart - 1] !== "\n") lineStart--;
+      let isCommented = false;
+      for (let k = lineStart; k < found; k++) {
+        if (src[k] === "%" && (k === lineStart || src[k - 1] !== "\\")) { isCommented = true; break; }
+      }
+      if (isCommented) {
+        searchFrom = afterCmd;
+        continue;
+      }
+      // オプション引数 [...] をスキップ
+      let cursor = afterCmd;
+      while (cursor < preambleEnd && (src[cursor] === " " || src[cursor] === "\t")) cursor++;
+      if (src[cursor] === "[") {
+        let depth = 1;
+        let j = cursor + 1;
+        while (j < preambleEnd) {
+          if (src[j] === "\\" && j + 1 < preambleEnd) { j += 2; continue; }
+          if (src[j] === "[") depth++;
+          else if (src[j] === "]") { depth--; if (depth === 0) { cursor = j + 1; break; } }
+          j++;
+        }
+        while (cursor < preambleEnd && (src[cursor] === " " || src[cursor] === "\t")) cursor++;
+      }
+      if (src[cursor] !== "{") {
+        searchFrom = afterCmd;
+        continue;
+      }
+      const close = findMatchingBrace(src, cursor, preambleEnd);
+      if (close === -1) {
+        searchFrom = afterCmd;
+        continue;
+      }
+      result[key] = { start: cursor + 1, end: close };
+      searchFrom = close + 1;
+    }
+  }
+  return result;
+}
+
+/** 再帰的にセグメントツリーを歩き、hidden raw \maketitle を見つけて titleBlock に差し替える。
+ *  beamer / article / report のいずれでも最上位 body に出るのが基本なので、
+ *  通常は 1 箇所だけヒットする想定だが、念のため再帰で探す。 */
+function upgradeMaketitleSegments(
+  segments: Segment[],
+  titleFields: { title?: Range; subtitle?: Range; author?: Range; date?: Range },
+): void {
+  if (!titleFields.title && !titleFields.subtitle && !titleFields.author && !titleFields.date) return;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (seg.kind === "raw" && seg.meta?.cmd === "maketitle") {
+      const meta: Record<string, string> = { cmd: "maketitle" };
+      if (titleFields.title) {
+        meta.titleStart = String(titleFields.title.start);
+        meta.titleEnd = String(titleFields.title.end);
+      }
+      if (titleFields.subtitle) {
+        meta.subtitleStart = String(titleFields.subtitle.start);
+        meta.subtitleEnd = String(titleFields.subtitle.end);
+      }
+      if (titleFields.author) {
+        meta.authorStart = String(titleFields.author.start);
+        meta.authorEnd = String(titleFields.author.end);
+      }
+      if (titleFields.date) {
+        meta.dateStart = String(titleFields.date.start);
+        meta.dateEnd = String(titleFields.date.end);
+      }
+      segments[i] = {
+        id: seg.id,
+        kind: "titleBlock",
+        range: seg.range,
+        body: "",
+        meta,
+      };
+    }
+    if (seg.children && seg.children.length > 0) {
+      upgradeMaketitleSegments(seg.children, titleFields);
+    }
+  }
+}
+
 /** トップレベル: preamble + body + documentEnd を抽出 */
 export function parseLatexToSegments(latex: string): Segment[] {
   __idCounter = 0;
@@ -1942,9 +2055,13 @@ export function parseLatexToSegments(latex: string): Segment[] {
     body: latex.slice(0, preambleEnd),
   });
 
+  const titleFields = extractTitleFieldsFromPreamble(latex, 0, beginDoc);
+
   const endDoc = latex.indexOf("\\end{document}", preambleEnd);
   const bodyEnd = endDoc === -1 ? latex.length : endDoc;
-  segments.push(...parseBody(latex, preambleEnd, bodyEnd));
+  const bodySegs = parseBody(latex, preambleEnd, bodyEnd);
+  upgradeMaketitleSegments(bodySegs, titleFields);
+  segments.push(...bodySegs);
 
   if (endDoc !== -1) {
     segments.push({
@@ -2010,8 +2127,10 @@ export function serializeSegment(segment: Segment, newBody: string, originalSrc:
     case "preamble":
     case "raw":
     case "documentEnd":
+    case "titleBlock":
       // paragraph/item は外部で inline 単位で書き換えるか、body 全体を文字列として置換する想定
-      return newBody;
+      // titleBlock は個別フィールドを range-edit で書き換えるので、ここでは original を返す
+      return segment.kind === "titleBlock" ? original : newBody;
     case "daimon":
     case "center":
     case "container":
