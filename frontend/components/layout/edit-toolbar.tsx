@@ -13,6 +13,7 @@ import { generatePDF, CompileError, formatCompileError } from "@/lib/api";
 import { createFromTemplate } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
 import { TemplatePicker } from "@/components/editor/template-picker";
+import { FormattingToolbar } from "@/components/editor/formatting-toolbar";
 import {
   Download,
   ScanLine,
@@ -96,6 +97,11 @@ export function EditToolbar() {
         onSelect={handleTemplateChange}
         label={t("edit.toolbar.template.label")}
       />
+
+      <Sep />
+
+      {/* ── 書式バー (選択範囲への装飾 + ブロック挿入) ── */}
+      <FormattingToolbar />
 
       <div className="flex-1" />
 

@@ -1506,12 +1506,19 @@ function buildMathChipHTML(source: string, wrapper: string): string {
 /** テキスト系 LaTeX コマンドの Unicode 置換テーブル。
  *  「テキストモードの装飾コマンド」を visible body 内で見つけたとき、生 LaTeX を出さずに
  *  Unicode に置き換えて表示する。 */
-const TEXT_CMD_UNICODE: Record<string, string> = {
-  textbullet: "\u2022",
-  textbackslash: "\\",
-  textbar: "|",
+// textbackslash / textbar / textless / textgreater は latex-segments.ts 側で
+// templateCmd (noarg) として round-trip するため、ここでは Unicode 置換しない。
+// renderRichInlineHTML がラップ inline の body 文字列をパースし直すときは
+// 代わりにこの表で noarg templateCmd span を組み立てる。
+const INLINE_LATEX_ESCAPE_CHARS: Record<string, string> = {
+  textbackslash: "\u005C",
   textless: "<",
   textgreater: ">",
+  textbar: "|",
+};
+
+const TEXT_CMD_UNICODE: Record<string, string> = {
+  textbullet: "\u2022",
   textquoteleft: "\u2018",
   textquoteright: "\u2019",
   textquotedblleft: "\u201C",
@@ -1608,6 +1615,25 @@ function renderRichInlineHTML(body: string): string {
     }
     // 残る `\name{...}` 1引数命令 → 中身だけ
     if (ch === "\\") {
+      // \\ (literal line break) → <br data-latex-linebreak> でラウンドトリップ
+      if (s[i + 1] === "\\") {
+        let cmdEnd = i + 2;
+        if (s[cmdEnd] === "*") cmdEnd++;
+        if (s[cmdEnd] === "[") {
+          let depth = 1;
+          let j = cmdEnd + 1;
+          while (j < s.length && depth > 0) {
+            if (s[j] === "\\" && j + 1 < s.length) { j += 2; continue; }
+            if (s[j] === "[") depth++;
+            else if (s[j] === "]") depth--;
+            j++;
+          }
+          cmdEnd = j;
+        }
+        parts.push(`<br data-latex-linebreak="1"/>`);
+        i = cmdEnd;
+        continue;
+      }
       const m = s.slice(i).match(/^\\([a-zA-Z@]+)\s*\{([^{}]*)\}/);
       if (m) {
         // 中身を再帰的に処理 (テキスト + 数式)
@@ -1615,9 +1641,18 @@ function renderRichInlineHTML(body: string): string {
         i += m[0].length;
         continue;
       }
-      // 残る `\name` (引数なし、Unicode 置換でも捕捉できなかったもの) → 削除
+      // 残る `\name` (引数なし) — 表示特殊文字用のエスケープなら atomic span で round-trip
       const m2 = s.slice(i).match(/^\\([a-zA-Z@]+)/);
       if (m2) {
+        const name = m2[1];
+        const escapeCh = INLINE_LATEX_ESCAPE_CHARS[name];
+        if (escapeCh !== undefined) {
+          parts.push(`<span class="latex-tcmd latex-tcmd-${escapeHtml(name)}" data-cmd-name="${escapeHtml(name)}" data-cmd-noarg="1" contenteditable="false">${escapeHtml(escapeCh)}</span>`);
+          let step = m2[0].length;
+          if (s[i + step] === " ") step++;
+          i += step;
+          continue;
+        }
         i += m2[0].length;
         continue;
       }
@@ -1868,15 +1903,15 @@ export function serializeContentEditableDOM(el: HTMLElement): string {
     }
 
     if (tag === "strong" || tag === "b") {
-      result += `\\textbf{${child.textContent || ""}}`;
+      result += `\\textbf{${serializeContentEditableDOM(child)}}`;
       continue;
     }
     if (tag === "em" || tag === "i") {
-      result += `\\textit{${child.textContent || ""}}`;
+      result += `\\textit{${serializeContentEditableDOM(child)}}`;
       continue;
     }
     if (tag === "code") {
-      result += `\\texttt{${child.textContent || ""}}`;
+      result += `\\texttt{${serializeContentEditableDOM(child)}}`;
       continue;
     }
     if (tag === "br") {

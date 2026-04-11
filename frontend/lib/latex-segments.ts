@@ -228,6 +228,20 @@ const INLINE_NO_ARG_VALUE_CMDS: Record<string, () => string> = {
   today: () => formatLatexToday(),
 };
 
+/** LaTeX で特殊文字をテキストモードで出すためのエスケープコマンド群。
+ *  これらは Unicode に単純置換すると、round-trip 時に本物の特殊文字が出てしまい、
+ *  LaTeX の再コンパイルで全く別の解釈になる (例: `\textbackslash documentclass` を
+ *  `\` に置換すると、serializer が `\documentclass` を literal として書き戻し、
+ *  "Can be used only in preamble" の fatal error になる)。
+ *  そこで noarg templateCmd として保持し、表示は該当 Unicode、serialize は元コマンド、
+ *  という非対称ラウンドトリップにする。 */
+const INLINE_LATEX_ESCAPE_CMDS: Record<string, string> = {
+  textbackslash: "\u005C",  // "\"
+  textless: "<",
+  textgreater: ">",
+  textbar: "|",
+};
+
 /** 標準 LaTeX の \today と同じフォーマット ("April 11, 2026") を返す。
  *  luatexja-preset[haranoaji] 下でも \today の展開は英語式なので、templates.ts で使われる
  *  \documentclass{article|report|beamer|letter} のいずれでも PDF と近い見た目になる。 */
@@ -269,10 +283,9 @@ const INLINE_UNWRAP_2_SECOND = new Set<string>([]);
  *  text inline と sized/colored 系の両方で一貫してクリーンになる。 */
 const TEXT_CMD_UNICODE: Record<string, string> = {
   textbullet: "\u2022",
-  textbackslash: "\\",
-  textbar: "|",
-  textless: "<",
-  textgreater: ">",
+  // NOTE: textbackslash / textbar / textless / textgreater は LaTeX 特殊文字の
+  // エスケープ形式なので Unicode に置換せず、INLINE_LATEX_ESCAPE_CMDS 経由で
+  // noarg templateCmd inline として round-trip する。
   textquoteleft: "\u2018",
   textquoteright: "\u2019",
   textquotedblleft: "\u201C",
@@ -308,13 +321,26 @@ const INLINE_THREE_ARG_LAST_BODY = new Set([
 /** Inline[] から「ユーザに見えるテキスト」を取り出す。
  *  inlineMath は `$..$` の形で残し、bold/italic 等は中身だけ。
  *  色付き / 枠付き / サイズ付きスパンは中身だけ取り出す (再帰的に)。
- *  シリアライズ用ではなく、表示用の文字列を作るときに使う。 */
+ *  シリアライズ用ではなく、表示用の文字列を作るときに使う。
+ *
+ *  ※ linebreak (`\\`) は LaTeX の literal `\\` として残す。
+ *    ここを `\n` に変換すると、`\textcolor{..}{\small A\\\nB\\\nC}` のような
+ *    命令の中身で「ソース側の改行 + 変換された \n」が合流し、空行 (= `\par`) になり、
+ *    "Paragraph ended before \@textcolor was complete" の fatal error を誘発する。
+ *    `\\` を literal のまま保持すれば DOM → serialize 経路でもそのまま書き戻せる。 */
 function inlinesToVisible(inlines: Inline[]): string {
   let out = "";
   for (const it of inlines) {
     if (it.kind === "inlineMath") out += `$${it.body}$`;
-    else if (it.kind === "linebreak") out += "\n";
-    else if (it.kind === "rule") out += " ";
+    else if (it.kind === "linebreak") out += "\\\\";
+    else if (it.kind === "rule") {
+      // \rule{w}{h} は LaTeX の literal 文字列として残す。空文字だと
+      // 親ラッパ (e.g. `{\Large \rule{..}}`) が空 group になって
+      // 直後の `\\[Npt]` が "There's no line here to end" で落ちる。
+      const w = it.meta?.width ?? "1em";
+      const h = it.meta?.height ?? "0.4pt";
+      out += `\\rule{${w}}{${h}}`;
+    }
     else out += it.body;
   }
   return out;
@@ -699,20 +725,40 @@ export function extractInlines(src: string, start: number, end: number): Inline[
           }
         }
 
-        // 0e1) 引数を取らない値展開コマンド (\today 等) → 現在値を持つ templateCmd inline
-        if (INLINE_NO_ARG_VALUE_CMDS[cmd.name]) {
-          let consumeEnd = cmd.nextPos;
-          if (src[consumeEnd] === " " || src[consumeEnd] === "\t") consumeEnd++;
+        // 0e0) \textbackslash / \textless / \textgreater / \textbar →
+        //      表示は記号、serialize は元の \text… コマンドにラウンドトリップ
+        //
+        //      ※ コマンド直後の空白は inline に取り込まない。LaTeX では
+        //        `\textbackslash documentclass` の「空白が区切り」であり、
+        //        serialize 時に `\textbackslash` + 次の text inline (先頭が空白)
+        //        と連結することで `\textbackslashdocumentclass` 化を防ぐ。
+        if (INLINE_LATEX_ESCAPE_CMDS[cmd.name] !== undefined) {
           pushText(cursor, i);
           inlines.push({
             id: nextId("inl"),
             kind: "templateCmd",
-            range: { start: i, end: consumeEnd },
+            range: { start: i, end: cmd.nextPos },
+            body: INLINE_LATEX_ESCAPE_CMDS[cmd.name],
+            meta: { name: cmd.name, noarg: "1" },
+          });
+          cursor = cmd.nextPos;
+          i = cmd.nextPos;
+          continue;
+        }
+
+        // 0e1) 引数を取らない値展開コマンド (\today 等) → 現在値を持つ templateCmd inline
+        //      同様に、後続の空白は次の text inline に委ねる (連結事故を防ぐ)。
+        if (INLINE_NO_ARG_VALUE_CMDS[cmd.name]) {
+          pushText(cursor, i);
+          inlines.push({
+            id: nextId("inl"),
+            kind: "templateCmd",
+            range: { start: i, end: cmd.nextPos },
             body: INLINE_NO_ARG_VALUE_CMDS[cmd.name](),
             meta: { name: cmd.name, noarg: "1" },
           });
-          cursor = consumeEnd;
-          i = consumeEnd;
+          cursor = cmd.nextPos;
+          i = cmd.nextPos;
           continue;
         }
 
