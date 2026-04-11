@@ -268,6 +268,26 @@ def wrap_figure_float(
     return "\n".join(parts)
 
 
+_BEGIN_TIKZ_ENV_RE = re.compile(
+    r"(\\begin\{(?:tikzpicture|circuitikz|pgfpicture)\}[^\n]*\n)"
+)
+
+
+def _inject_marker_into_tikz_body(body: str, asset_id: str) -> str:
+    """Insert `% eddivom-figure: id=<id>` right after the first tikz/circuitikz
+    \\begin so the marker lives **inside** the raw environment. This makes the
+    Visual Editor's regex-based detection work regardless of whether the
+    tikz is wrapped in `figure{}` or spliced bare."""
+    marker = figure_marker(asset_id)
+    def _sub(m: re.Match) -> str:
+        return f"{m.group(1)}{marker}\n"
+    new_body, n = _BEGIN_TIKZ_ENV_RE.subn(_sub, body, count=1)
+    if n == 0:
+        # Unknown env — fall back to prepending the marker as a raw comment line.
+        return marker + "\n" + body
+    return new_body
+
+
 def apply_figure_to_source(
     src: str,
     rendered: RenderedFigure,
@@ -282,9 +302,12 @@ def apply_figure_to_source(
     new_src = _inject_packages(src, rendered.required_packages)
     new_src = ensure_figure_libraries(new_src, rendered.required_tikzlibraries)
 
+    body_with_marker = _inject_marker_into_tikz_body(rendered.tikz_body, asset_id)
     if float_env:
-        fragment = wrap_figure_float(rendered.tikz_body, caption, label, asset_id=asset_id)
+        # wrap_figure_float also adds a marker near \centering — keep it for
+        # redundancy so even if tikz injection fails, the `figure` env still
+        # carries the id.
+        fragment = wrap_figure_float(body_with_marker, caption, label, asset_id=asset_id)
     else:
-        # Still emit the marker so the Visual Editor can render it.
-        fragment = figure_marker(asset_id) + "\n" + rendered.tikz_body.rstrip()
+        fragment = body_with_marker.rstrip()
     return splice_figure(new_src, fragment, anchor_text=anchor_text)

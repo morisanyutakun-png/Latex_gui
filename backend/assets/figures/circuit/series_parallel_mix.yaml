@@ -1,0 +1,35 @@
+id: circuit.series_parallel_mix
+category: circuit
+subcategory: passive
+title:
+  ja: 直列並列混合回路 (R1 直列 + R2∥R3)
+  en: Series-parallel mixed resistor network
+description:
+  ja: 電源に R1 が直列、続けて R2 と R3 が並列につながる典型的な混合回路。R2・R3 のラベルを個別に指定可能。
+  en: Classic mixed network — R1 in series with a parallel combination of R2 and R3.
+tags: [circuitikz, series, parallel, mixed, resistors]
+required_packages: [circuitikz]
+required_tikzlibraries: []
+parameters:
+  vlabel:  { type: string, default: "V", max_len: 12 }
+  r1:      { type: string, default: "R_1", max_len: 16 }
+  r2:      { type: string, default: "R_2", max_len: 16 }
+  r3:      { type: string, default: "R_3", max_len: 16 }
+body: |
+  \begin{circuitikz}
+    % Source on the far left
+    \draw (0,0) to[V, v=${{vlabel}}$] (0,4) -- (1.5,4);
+    % Series resistor R1 on the top rail
+    \draw (1.5,4) to[R, l=${{r1}}$] (4,4);
+    % Parallel branch: upper node (A) -> R2 and R3 in parallel -> lower node (B)
+    \draw (4,4) -- (4,3) coordinate (A);
+    \draw (A) -- (5.5,3);
+    \draw (5.5,3) to[R, l=${{r2}}$] (5.5,0) coordinate (B);
+    \draw (A) -- (2.5,3);
+    \draw (2.5,3) to[R, l_=${{r3}}$] (2.5,0);
+    \draw (2.5,0) -- (B);
+    % Return wire
+    \draw (B) -- (0,0);
+  \end{circuitikz}
+preview:
+  params: { vlabel: "V", r1: "R_1", r2: "R_2", r3: "R_3" }

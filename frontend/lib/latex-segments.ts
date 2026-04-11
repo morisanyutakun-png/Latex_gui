@@ -1441,6 +1441,7 @@ const STANDALONE_CMD_RE = /^\\(maketitle|tableofcontents|titlepage|newpage|clear
 const PRESERVE_AS_RAW_ENVS = new Set([
   "array", "matrix",
   "tikzpicture", "pgfpicture", "scope",
+  "circuitikz", "circuittikz",
   "verbatim", "verbatim*", "lstlisting", "minted", "alltt", "Verbatim",
   "figure", "figure*", "table", "table*", "wrapfigure", "wraptable",
   "filecontents", "filecontents*",

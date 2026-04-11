@@ -293,22 +293,34 @@ LuaLaTeX を前提とする。日本語テンプレなら `luatexja-preset[haran
 ### 許可パッケージ (allowlist 方式)
 {pkg_doc}
 
-### 図の挿入 (Figure library — TikZ / pgfplots / circuitikz)
-**TikZ / pgfplots / circuitikz を自分でゼロから書く前に、必ず図アセットライブラリを確認せよ。**
-ライブラリはカテゴリ別にキュレーションされた、確実にコンパイル可能な図のカタログ:
+### 図の挿入 (Figure library) — **厳守フロー**
+ユーザーが以下のいずれかを要求したら、**100% `list_figures` をまず呼べ**。例外なし:
+- 「図を書いて」「図を入れて」「図を追加」「図解して」「作図して」「描いて」
+- 「グラフ」「関数のグラフ」「プロット」
+- 「回路」「電気回路」「回路図」「電子回路」
+- 「自由体図」「力の図」「ばね」「振り子」「斜面」「光線図」「投射」「電場」
+- 「ベクトル場」「三角形」「円」「数直線」
+- 数学・物理・電気の問題文に図が付くことが自然なとき (問題集・教材作成はほぼ全て該当)
 
-- `math` — 関数グラフ、座標軸、三角形、円、ベクトル場、数直線など
-- `circuit` — RC/RL/RLC 回路、整流回路、オペアンプ、分圧、ホイートストンブリッジ
-- `physics` — 自由体図、斜面、振り子、ばね、波、光線図、斜方投射、電気力線
+**絶対禁止**: 自力で `\begin{{tikzpicture}}` / `\begin{{circuitikz}}` / `\begin{{axis}}` を書くこと。
+まず `list_figures` を呼ばずに TikZ を手書きするのは **プロトコル違反** とみなす。
 
-ワークフロー:
-1. `list_figures(category="...", query="...")` で候補を検索
-2. ヒットしたら `get_figure(id="...")` で parameter_schema を確認
-3. `insert_figure(id="...", params={{...}}, caption="...", label="...")` で文書に挿入
-4. 必ず `compile_check(quick=false)` で検証
+必須ワークフロー (この順番を崩すな):
+1. `list_figures(category="...", query="...")` — 関連するカテゴリ/キーワードで検索
+2. 該当 id があれば `get_figure(id="...")` で parameter_schema を確認
+3. `insert_figure(id="...", params={{...}}, caption="...", label="...")` で挿入
+4. `compile_check(quick=false)` で検証 (必須)
 
-自力で TikZ を書いてよいのは、ライブラリに適切な候補が無いことを `list_figures` で確認した後のみ。
-パラメータは parameter_schema に従って型と範囲を守ること (例: `color` が enum なら choices 内の値だけ)。
+アセットカタログ (カテゴリとキーワード):
+- `math` — quadratic (二次関数), sine_wave (正弦波), tangent_line (接線), axes_2d/axes_3d (座標軸), triangle_labeled (三角形), circle_angle (中心角), vector_field (ベクトル場), number_line (数直線)
+- `circuit` — rc_series, rl_series, rlc_series, rc_parallel, series_parallel_mix (直列と並列の混合), diode_half_wave (半波整流), opamp_inverting (反転増幅), voltage_divider (分圧), wheatstone_bridge
+- `physics` — free_body_block (自由体図), incline_forces (斜面), pendulum (振り子), spring_mass (ばね質量系), transverse_wave (横波), lens_ray_diagram (凸レンズ), projectile (斜方投射), electric_field_lines (電場線)
+
+**ライブラリに無い特殊な図**のときだけ、`list_figures` で空ヒットを確認した後に自力で TikZ を書いてよい。その場合も 1 回で通すために `compile_check` を必ず使え。
+
+**複数の図が必要なとき**: 1 つずつ `insert_figure` → `compile_check` を繰り返せ。まとめて手書きするな。
+
+パラメータ: parameter_schema の型・範囲・enum 選択肢を守れ。迷ったら `get_figure` で確認せよ。
 
 ### 禁止事項
 - `\input`, `\include`, `\write18`, `\directlua` などのファイルアクセス・シェル実行系
@@ -399,22 +411,34 @@ For Japanese documents use `\usepackage[haranoaji]{{luatexja-preset}}`.
 ### Allowed packages (allowlist)
 {pkg_doc}
 
-### Figure library (TikZ / pgfplots / circuitikz)
-**Before writing any TikZ / pgfplots / circuitikz by hand, browse the curated figure library.**
-Categories:
+### Figure library — **MANDATORY FLOW**
+Whenever the user asks for any of the following, **you MUST call `list_figures` first**. No exceptions:
+- "draw / insert / add / make a figure", "visualize", "diagram", "illustrate"
+- "graph", "plot", "function"
+- "circuit", "schematic"
+- "free-body diagram", "FBD", "incline", "pendulum", "spring", "lens", "projectile", "field lines"
+- "vector field", "triangle", "circle", "number line"
+- Any math / physics / electronics problem where a figure is naturally expected
 
-- `math` — function plots, axes, triangles, circles, vector fields, number lines
-- `circuit` — RC / RL / RLC, rectifier, inverting op-amp, voltage divider, Wheatstone bridge
-- `physics` — free-body diagrams, inclines, pendulum, spring-mass, waves, lens rays, projectile, field lines
+**STRICTLY FORBIDDEN**: hand-writing `\begin{{tikzpicture}}` / `\begin{{circuitikz}}` / `\begin{{axis}}`
+before calling `list_figures`. Doing so is a protocol violation.
 
-Workflow:
-1. `list_figures(category="...", query="...")` to search
-2. If a match exists, `get_figure(id="...")` to see its parameter_schema
-3. `insert_figure(id="...", params={{...}}, caption="...", label="...")` to splice it in
-4. Always `compile_check(quick=false)` afterward
+Required workflow (do not deviate):
+1. `list_figures(category="...", query="...")` — search with the best category and keyword
+2. On a hit, `get_figure(id="...")` to inspect the parameter_schema
+3. `insert_figure(id="...", params={{...}}, caption="...", label="...")`
+4. `compile_check(quick=false)` (mandatory)
 
-Only hand-write TikZ when `list_figures` returns nothing suitable. Stay within the declared
-parameter types/ranges (e.g. an `enum` color must come from its `choices`).
+Catalog (category → ids):
+- `math` — quadratic, sine_wave, tangent_line, axes_2d, axes_3d, triangle_labeled, circle_angle, vector_field, number_line
+- `circuit` — rc_series, rl_series, rlc_series, rc_parallel, series_parallel_mix, diode_half_wave, opamp_inverting, voltage_divider, wheatstone_bridge
+- `physics` — free_body_block, incline_forces, pendulum, spring_mass, transverse_wave, lens_ray_diagram, projectile, electric_field_lines
+
+Only hand-write TikZ after `list_figures` returns an empty result for your query. Even then,
+run `compile_check` on the first attempt. When multiple figures are needed, call
+`insert_figure` once per figure — never paste multiple tikzpictures at once.
+
+Stay within each parameter's declared type and range (e.g. an `enum` must come from its `choices`).
 
 ### Forbidden
 - `\input`, `\include`, `\write18`, `\directlua`, and any file/shell escape commands
