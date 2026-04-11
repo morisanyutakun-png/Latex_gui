@@ -15,17 +15,22 @@ parameters:
   length:    { type: number, default: 3,  min: 1, max: 6 }
 body: |
   \begin{tikzpicture}[>=Stealth, thick]
-    \draw[pattern=north east lines] (-1.5,0) rectangle (1.5,0.25);
-    \draw (-1.5,0) -- (1.5,0);
+    % Ceiling
+    \draw[pattern=north east lines] (-1.6,0) rectangle (1.6,0.22);
+    \draw (-1.6,0) -- (1.6,0);
+    % Pendulum
     \coordinate (O) at (0,0);
-    \coordinate (B) at ({-{{length}}*sin({{angle_deg}})}, {-{{length}}*cos({{angle_deg}})});
-    \draw (O) -- (B);
-    \draw[dashed, gray] (O) -- (0,{-{{length}}});
-    \draw (0,-0.6) arc (-90:{-90+{{angle_deg}}}:0.6);
-    \node at (-0.28,-0.75) {$\theta$};
-    \filldraw[fill=blue!30] (B) circle (0.25);
-    \node[left] at ($(B)+(-0.25,0)$) {$m$};
-    \draw[->, blue, very thick] (B) -- ++(0,-1) node[below] {$mg$};
+    \coordinate (B) at ({ -{{length}}*sin({{angle_deg}}) }, { -{{length}}*cos({{angle_deg}}) });
+    \draw[dashed, gray!70] (O) -- (0,{ -{{length}} -0.4 });
+    \draw[thick] (O) -- (B);
+    % Angle arc (smaller, anchored at pivot, clearly between string and vertical)
+    \draw ({ -0.9*sin(0) }, { -0.9*cos(0) })
+        arc ({-90}:{-90 - {{angle_deg}} }:0.9);
+    \node at ({ -0.55*sin({{angle_deg}}/2) }, { -0.9*cos({{angle_deg}}/2) -0.05 }) {$\theta$};
+    \filldraw[fill=blue!25, draw=blue!70!black] (B) circle (0.28);
+    \node[left=4pt] at (B) {$m$};
+    % Gravity vector
+    \draw[->, blue, very thick] (B) -- ++(0,-1.1) node[below, fill=white, inner sep=1pt] {$m\vec{g}$};
   \end{tikzpicture}
 preview:
   params: { angle_deg: 25, length: 3 }

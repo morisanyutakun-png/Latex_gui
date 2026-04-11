@@ -15,13 +15,18 @@ parameters:
   show_applied:  { type: boolean, default: true }
 body: |
   \begin{tikzpicture}[>=Stealth, thick]
-    \draw[fill=gray!20] (-1,0) rectangle (1,1.2);
+    % Ground
+    \draw[pattern=north east lines] (-2.6,-0.35) rectangle (2.6,0);
+    \draw (-2.6,0) -- (2.6,0);
+    % Block
+    \draw[fill=gray!15] (-1,0) rectangle (1,1.2);
     \node at (0,0.6) {$m$};
-    \draw[pattern=north east lines] (-2.5,0) rectangle (2.5,-0.2);
-    \draw[->, blue, very thick] (0,0.6) -- (0,-1.3) node[below] {$mg$};
-    \draw[->, red, very thick]  (0,0.6) -- (0,2.1)  node[above] {$N$};
-    {% if show_applied == "true" %}\draw[->, violet, very thick] (1,0.8) -- (2.3,0.8) node[right] {$F$};{% endif %}
-    {% if show_friction == "true" %}\draw[->, orange, very thick] (-1,0.3) -- (-2.1,0.3) node[left] {$f$};{% endif %}
+    % Gravity: from centre of mass straight down, label below block
+    \draw[->, blue, very thick] (0,0.6) -- (0,-1.2) node[below, fill=white, inner sep=1pt] {$m\vec{g}$};
+    % Normal force: from centre of the top contact upward
+    \draw[->, red, very thick]  (0,1.2) -- (0,2.4)  node[above] {$\vec{N}$};
+    {% if show_applied == "true" %}\draw[->, violet!80!black, very thick] (1,0.75) -- (2.35,0.75) node[right] {$\vec{F}$};{% endif %}
+    {% if show_friction == "true" %}\draw[->, orange!85!black, very thick] (-1,0.3) -- (-2.35,0.3) node[left] {$\vec{f}$};{% endif %}
   \end{tikzpicture}
 preview:
   params: { show_friction: true, show_applied: true }

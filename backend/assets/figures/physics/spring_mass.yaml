@@ -14,14 +14,18 @@ parameters:
   displacement: { type: number, default: 0, min: -2, max: 2 }
 body: |
   \begin{tikzpicture}[>=Stealth, thick]
-    \draw[pattern=north east lines] (-0.3,-0.3) rectangle (0,1.8);
-    \draw (0,-0.3) -- (0,1.8);
+    % Wall on the left
+    \draw[pattern=north east lines] (-0.35,-0.2) rectangle (0,1.7);
+    \draw (0,-0.2) -- (0,1.7);
+    % Spring
     \draw[decorate, decoration={coil, aspect=0.6, segment length=4pt, amplitude=5pt}]
-      (0,0.75) -- (3,0.75);
-    \draw[fill=blue!20] (3,0) rectangle (4.2,1.5);
-    \node at (3.6,0.75) {$m$};
-    \draw[pattern=north east lines] (-0.3,-0.8) rectangle (5,-0.6);
-    \draw[->, red, very thick] (4.6,0.75) -- ++({ {{displacement}} }, 0) node[right] {$x$};
+      (0,0.75) -- (2.8,0.75);
+    % Mass
+    \draw[fill=blue!15] (2.8,0) rectangle (4.0,1.5);
+    \node at (3.4,0.75) {$m$};
+    % Displacement arrow from equilibrium line
+    \draw[dashed, gray!70] (4.0,-0.1) -- (4.0,1.7);
+    \draw[->, red, very thick] (4.0,0.45) -- ++({ {{displacement}} }, 0) node[right] {$\vec{x}$};
   \end{tikzpicture}
 preview:
   params: { displacement: 0.8 }

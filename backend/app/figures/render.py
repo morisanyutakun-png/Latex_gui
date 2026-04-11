@@ -236,11 +236,31 @@ def splice_figure(
     return src, 0
 
 
-def wrap_figure_float(tikz_body: str, caption: str | None, label: str | None) -> str:
+_FIGURE_MARKER_PREFIX = "% eddivom-figure: id="
+
+
+def figure_marker(asset_id: str) -> str:
+    """Return the invisible comment marker that tags an inserted asset.
+
+    The Visual Editor scans for this line in raw LaTeX blocks and replaces
+    the block with the corresponding preview image — without it KaTeX has
+    no way to visualise TikZ.
+    """
+    return f"{_FIGURE_MARKER_PREFIX}{asset_id}"
+
+
+def wrap_figure_float(
+    tikz_body: str,
+    caption: str | None,
+    label: str | None,
+    asset_id: str | None = None,
+) -> str:
     """Wrap a TikZ body in a `figure` float environment."""
-    parts = [r"\begin{figure}[h]", r"\centering", tikz_body.rstrip()]
+    parts = [r"\begin{figure}[h]", r"\centering"]
+    if asset_id:
+        parts.append(figure_marker(asset_id))
+    parts.append(tikz_body.rstrip())
     if caption:
-        # Caption already sanitized by the caller (string parameter sanitization)
         parts.append(f"\\caption{{{caption}}}")
     if label:
         parts.append(f"\\label{{fig:{label}}}")
@@ -252,6 +272,7 @@ def apply_figure_to_source(
     src: str,
     rendered: RenderedFigure,
     *,
+    asset_id: str,
     caption: str | None,
     label: str | None,
     float_env: bool,
@@ -260,7 +281,10 @@ def apply_figure_to_source(
     """High-level helper: inject packages + libraries + splice the fragment."""
     new_src = _inject_packages(src, rendered.required_packages)
     new_src = ensure_figure_libraries(new_src, rendered.required_tikzlibraries)
-    fragment = rendered.tikz_body
+
     if float_env:
-        fragment = wrap_figure_float(fragment, caption, label)
+        fragment = wrap_figure_float(rendered.tikz_body, caption, label, asset_id=asset_id)
+    else:
+        # Still emit the marker so the Visual Editor can render it.
+        fragment = figure_marker(asset_id) + "\n" + rendered.tikz_body.rstrip()
     return splice_figure(new_src, fragment, anchor_text=anchor_text)

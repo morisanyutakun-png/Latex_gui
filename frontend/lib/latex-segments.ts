@@ -1787,12 +1787,24 @@ function parseBody(src: string, start: number, end: number): Segment[] {
           // 「中身を覗かない」と決めている環境 (figure/tikz/verbatim/…)
           // → これだけは raw 扱い (RawPlaceholder で控えめに表示)
           if (PRESERVE_AS_RAW_ENVS.has(envName)) {
+            const body = src.slice(i, envEnd);
+            // 図アセットライブラリで挿入された図は `% eddivom-figure: id=<id>`
+            // マーカコメントが入っている。Visual Editor はこれを使って
+            // サーバの preview PNG を表示する。
+            const figIdMatch = body.match(/%\s*eddivom-figure:\s*id=([a-z0-9_.]+)/i);
+            const meta: Record<string, string> = {
+              envName,
+              isEnvironment: "true",
+            };
+            if (figIdMatch) {
+              meta.figureId = figIdMatch[1];
+            }
             segments.push({
               id: nextId("seg"),
               kind: "raw",
               range: { start: i, end: envEnd },
-              body: src.slice(i, envEnd),
-              meta: { envName, isEnvironment: "true" },
+              body,
+              meta,
             });
             i = envEnd;
             continue;

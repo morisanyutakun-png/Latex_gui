@@ -18,20 +18,20 @@ body: |
     \coordinate (O) at (0,0);
     \coordinate (T) at ({{length}}, 0);
     \coordinate (P) at ({{length}}, { {{length}} *tan({{angle_deg}}) });
-    \draw[fill=gray!15] (O) -- (T) -- (P) -- cycle;
+    \draw[fill=gray!12] (O) -- (T) -- (P) -- cycle;
     \draw[pattern=north east lines] ({-0.6},-0.45) rectangle ({ {{length}} +0.6},-0.05);
     \draw (O) -- (T);
-    % Block
+    % Block (rotated onto the incline surface)
     \begin{scope}[rotate={{angle_deg}}]
-      \draw[fill=blue!20] ({{ length * 0.55 }}, 0) rectangle ++(1.1,0.7);
-      \node at ({{ length * 0.55 + 0.55 }}, 0.35) {$m$};
+      \draw[fill=blue!15] ({{ length * 0.55 }}, 0) rectangle ++(1.1,0.75);
+      \node at ({{ length * 0.55 + 0.55 }}, 0.37) {$m$};
     \end{scope}
-    % Angle arc
-    \draw (0.8,0) arc (0:{{angle_deg}}:0.8);
-    \node at (1.1, 0.25) {$\theta$};
-    % Gravity vector from block center (straight down)
-    \coordinate (BC) at ({ {{ length * 0.55 + 0.55 }} * cos({{angle_deg}}) }, { {{ length * 0.55 + 0.55 }} * sin({{angle_deg}}) + 0.35 });
-    \draw[->, blue, very thick] (BC) -- ++(0,-1.6) node[below] {$mg$};
+    % Angle arc + label
+    \draw[thick] (0.85,0) arc (0:{{angle_deg}}:0.85);
+    \node at ({ 1.05*cos({{angle_deg}}/2) }, { 1.05*sin({{angle_deg}}/2) }) {$\theta$};
+    % Gravity vector from block centre straight down
+    \coordinate (BC) at ({ ({{ length * 0.55 + 0.55 }}) * cos({{angle_deg}}) - 0.38*sin({{angle_deg}}) }, { ({{ length * 0.55 + 0.55 }}) * sin({{angle_deg}}) + 0.38*cos({{angle_deg}}) });
+    \draw[->, blue, very thick] (BC) -- ++(0,-1.7) node[below, fill=white, inner sep=1pt] {$m\vec{g}$};
   \end{tikzpicture}
 preview:
   params: { angle_deg: 30, length: 5 }

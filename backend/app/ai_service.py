@@ -807,6 +807,7 @@ def _execute_insert_figure(document: dict, args: dict) -> dict:
     new_src, line = apply_figure_to_source(
         current,
         rendered,
+        asset_id=asset_id,
         caption=caption,
         label=label,
         float_env=float_env,

@@ -38,18 +38,29 @@ def preview_path(asset_id: str) -> Path:
     return preview_cache_dir() / category / f"{slug}.png"
 
 
+def _has_non_ascii(s: str) -> bool:
+    return any(ord(c) > 127 for c in s)
+
+
 def _standalone_doc(asset: dict[str, Any]) -> str:
-    """Build a minimal \\documentclass{standalone} wrapper around the asset body."""
+    """Build a minimal \\documentclass{standalone} wrapper around the asset body.
+
+    Avoids the `[tikz]` class option because it only auto-previews the
+    `tikzpicture` environment, leaving `circuitikz` renders on a full letter
+    page. Instead we load `standalone` bare and run `pdfcrop` afterwards.
+    """
     rendered = render_asset(asset, asset.get("preview", {}).get("params"))
     pkgs = list(rendered.required_packages)
     libs = list(rendered.required_tikzlibraries)
 
-    # standalone + tikz are implied for every figure — pgfplots/circuitikz
-    # already bring tikz in, but load it explicitly when neither is present.
     lines = [
-        r"\documentclass[tikz,border=4pt]{standalone}",
-        r"\usepackage{luatexja-preset}",
+        r"\documentclass[border=4pt]{standalone}",
     ]
+    # Only pull in Japanese font support when the body actually needs it —
+    # luatexja-preset occasionally interacts badly with standalone's page
+    # sizing, so we avoid loading it when unnecessary.
+    if _has_non_ascii(rendered.tikz_body):
+        lines.append(r"\usepackage{luatexja-preset}")
     if "tikz" not in pkgs and "pgfplots" not in pkgs and "circuitikz" not in pkgs:
         lines.append(r"\usepackage{tikz}")
     for p in pkgs:
@@ -97,21 +108,37 @@ def _build_png_sync(asset_id: str) -> Path:
             tail = (result.stdout + "\n" + result.stderr)[-2000:]
             raise PreviewError(f"lualatex failed for {asset_id}: {tail}")
 
+        # Crop the PDF to its ink bounding box. This rescues circuitikz
+        # (which standalone's [tikz] wrapper doesn't cover) and any figure
+        # that leaks whitespace from the document class defaults.
+        pdfcrop = shutil.which("pdfcrop")
+        if pdfcrop:
+            cropped = Path(tmpdir) / "fig-cropped.pdf"
+            r = _run(
+                [pdfcrop, "--margins", "6", str(pdf_path), str(cropped)],
+                tmpdir,
+            )
+            if r.returncode == 0 and cropped.exists():
+                pdf_path = cropped
+            else:
+                logger.warning("[figures] pdfcrop failed for %s: %s", asset_id, r.stderr[-300:])
+
         pdftoppm = shutil.which("pdftoppm")
         if pdftoppm:
             png_prefix = Path(tmpdir) / "page"
             r = _run(
-                [pdftoppm, "-png", "-r", "150", str(pdf_path), str(png_prefix)],
+                [pdftoppm, "-png", "-r", "180", "-singlefile", str(pdf_path), str(png_prefix)],
                 tmpdir,
             )
-            # pdftoppm writes page-1.png (or page.png for single-page)
-            candidates = sorted(Path(tmpdir).glob("page*.png"))
-            if r.returncode != 0 or not candidates:
-                raise PreviewError(f"pdftoppm failed for {asset_id}: {r.stderr[-500:]}")
-            shutil.copyfile(candidates[0], out)
+            png_out = Path(tmpdir) / "page.png"
+            if r.returncode != 0 or not png_out.exists():
+                # Fallback: non-singlefile variant writes page-1.png etc.
+                candidates = sorted(Path(tmpdir).glob("page*.png"))
+                if not candidates:
+                    raise PreviewError(f"pdftoppm failed for {asset_id}: {r.stderr[-500:]}")
+                png_out = candidates[0]
+            shutil.copyfile(png_out, out)
         else:
-            # Fallback: ship PDF as .png so frontend fetch still resolves;
-            # browsers won't render it but the route won't 404.
             logger.warning("[figures] pdftoppm not found — storing PDF bytes at %s", out)
             shutil.copyfile(pdf_path, out)
 

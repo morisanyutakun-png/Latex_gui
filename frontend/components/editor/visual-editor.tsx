@@ -1386,9 +1386,19 @@ function TitleBlockRenderer({ segment, latex, applyRangeEdit }: TitleBlockRender
 function RawPlaceholder({ segment }: { segment: Segment }) {
   const isStandalone = segment.meta?.isStandalone === "true";
   const isEnv = segment.meta?.isEnvironment === "true";
+  const figureId = segment.meta?.figureId;
 
   // \maketitle / \tableofcontents / \newpage / `\\[10mm]` 等は完全に非表示。
   if (isStandalone) return null;
+
+  // 図アセットライブラリ由来の図は、サーバが生成した PNG プレビューで
+  // 置き換える。KaTeX は TikZ をレンダリングできないため、この経路だけが
+  // 「生 LaTeX を画面に出さない」原則を守りつつ図を可視化する方法。
+  if (isEnv && figureId) {
+    return (
+      <FigureAssetPreview figureId={figureId} />
+    );
+  }
 
   if (isEnv) {
     const envName = segment.meta?.envName ?? "";
@@ -1404,6 +1414,43 @@ function RawPlaceholder({ segment }: { segment: Segment }) {
 
   // その他 (% コメント等) も完全非表示。
   return null;
+}
+
+// ─────────────────────────────────────
+// FigureAssetPreview — サーバの /api/figures/{id}/preview.png を img で表示。
+// 図アセットライブラリ由来のブロックは必ずこの経路を通る。
+// ─────────────────────────────────────
+function FigureAssetPreview({ figureId }: { figureId: string }) {
+  const [errored, setErrored] = useState(false);
+  const src = `/api/figures/${encodeURIComponent(figureId)}/preview.png`;
+  if (errored) {
+    return (
+      <div className="my-3 px-3 py-2 rounded border border-dashed border-foreground/15 bg-foreground/[0.02] inline-flex items-center gap-2 text-foreground/50 text-[11.5px]">
+        <span className="font-mono text-[10px]">❖</span>
+        <span>図 (プレビュー取得失敗: {figureId})</span>
+      </div>
+    );
+  }
+  return (
+    <div
+      className="my-3 flex flex-col items-center gap-1"
+      contentEditable={false}
+      data-figure-id={figureId}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={figureId}
+        loading="lazy"
+        draggable={false}
+        onError={() => setErrored(true)}
+        className="max-w-full max-h-[360px] object-contain select-none bg-white rounded border border-foreground/10"
+      />
+      <span className="text-[10px] text-foreground/40 font-mono tracking-wide">
+        {figureId}
+      </span>
+    </div>
+  );
 }
 
 // ─────────────────────────────────────
