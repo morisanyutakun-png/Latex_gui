@@ -1,0 +1,27 @@
+id: physics.spring_mass
+category: physics
+subcategory: mechanics
+title:
+  ja: ばね・質量系
+  en: Spring-mass system
+description:
+  ja: 壁に接続されたばねと質量 m。変位 x を示す。
+  en: Mass m connected to a wall via a spring, with displacement x.
+tags: [tikz, spring, harmonic, oscillation]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta, decorations.pathmorphing, patterns]
+parameters:
+  displacement: { type: number, default: 0, min: -2, max: 2 }
+body: |
+  \begin{tikzpicture}[>=Stealth, thick]
+    \draw[pattern=north east lines] (-0.3,-0.3) rectangle (0,1.8);
+    \draw (0,-0.3) -- (0,1.8);
+    \draw[decorate, decoration={coil, aspect=0.6, segment length=4pt, amplitude=5pt}]
+      (0,0.75) -- (3,0.75);
+    \draw[fill=blue!20] (3,0) rectangle (4.2,1.5);
+    \node at (3.6,0.75) {$m$};
+    \draw[pattern=north east lines] (-0.3,-0.8) rectangle (5,-0.6);
+    \draw[->, red, very thick] (4.6,0.75) -- ++({ {{displacement}} }, 0) node[right] {$x$};
+  \end{tikzpicture}
+preview:
+  params: { displacement: 0.8 }

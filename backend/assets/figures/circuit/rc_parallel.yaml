@@ -1,0 +1,22 @@
+id: circuit.rc_parallel
+category: circuit
+subcategory: passive
+title:
+  ja: RC 並列回路
+  en: Parallel RC circuit
+description:
+  ja: 電圧源に対し、抵抗とコンデンサが並列接続された回路。
+  en: Resistor and capacitor in parallel across a voltage source.
+tags: [circuitikz, rc, passive, parallel]
+required_packages: [circuitikz]
+required_tikzlibraries: []
+parameters:
+  vlabel: { type: string, default: "V", max_len: 12 }
+body: |
+  \begin{circuitikz}
+    \draw (0,0) to[V, v=${{vlabel}}$] (0,3) -- (2,3)
+                to[R, l=$R$] (2,0) -- (0,0);
+    \draw (2,3) -- (4,3) to[C, l=$C$] (4,0) -- (2,0);
+  \end{circuitikz}
+preview:
+  params: { vlabel: "V" }

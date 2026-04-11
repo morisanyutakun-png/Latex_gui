@@ -1,0 +1,23 @@
+id: math.axes_3d
+category: math
+subcategory: geometry
+title:
+  ja: 3D 座標軸
+  en: 3D coordinate axes
+description:
+  ja: 3次元 x-y-z 軸 (右手系)。
+  en: Right-handed 3D coordinate axes.
+tags: [tikz, axes, 3d, coordinate]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta]
+parameters:
+  length: { type: number, default: 3, min: 1, max: 6 }
+body: |
+  \begin{tikzpicture}[>=Stealth, x={(0.866cm,-0.5cm)}, y={(0.866cm,0.5cm)}, z={(0cm,1cm)}]
+    \draw[->, thick] (0,0,0) -- ({{length}},0,0) node[anchor=north east] {$x$};
+    \draw[->, thick] (0,0,0) -- (0,{{length}},0) node[anchor=north west] {$y$};
+    \draw[->, thick] (0,0,0) -- (0,0,{{length}}) node[anchor=south] {$z$};
+    \node[anchor=north east] at (0,0,0) {$O$};
+  \end{tikzpicture}
+preview:
+  params: { length: 3 }

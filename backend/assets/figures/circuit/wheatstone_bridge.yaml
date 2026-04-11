@@ -1,0 +1,27 @@
+id: circuit.wheatstone_bridge
+category: circuit
+subcategory: bridge
+title:
+  ja: ホイートストンブリッジ
+  en: Wheatstone bridge
+description:
+  ja: 4本の抵抗と検流計からなるホイートストンブリッジ。
+  en: Four-resistor Wheatstone bridge with a galvanometer.
+tags: [circuitikz, wheatstone, bridge, measurement]
+required_packages: [circuitikz]
+required_tikzlibraries: []
+parameters: {}
+body: |
+  \begin{circuitikz}
+    \draw (0,0) node[circ] (B) {} -- (-2,2) node[circ] (A) {}
+          (A) -- (0,4) node[circ] (C) {} -- (2,2) node[circ] (D) {} -- (B);
+    \draw (A) to[R, l=$R_1$] (C);
+    \draw (C) to[R, l=$R_2$] (D);
+    \draw (A) to[R, l_=$R_3$] (B);
+    \draw (B) to[R, l_=$R_4$] (D);
+    \draw (A) to[ammeter, l=$G$] (D);
+    \draw (C) -- ++(0,1) node[above] {$V$};
+    \draw (B) -- ++(0,-1) node[below] {$0$};
+  \end{circuitikz}
+preview:
+  params: {}

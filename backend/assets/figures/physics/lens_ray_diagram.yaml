@@ -1,0 +1,37 @@
+id: physics.lens_ray_diagram
+category: physics
+subcategory: optics
+title:
+  ja: 凸レンズ光線図
+  en: Converging lens ray diagram
+description:
+  ja: 焦点 F を持つ凸レンズによる実像の作図。物体から出た2本の主要光線を描く。
+  en: Converging lens with focal point F producing a real image; two principal rays drawn.
+tags: [tikz, optics, lens, rays]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta, calc]
+parameters:
+  focal:       { type: number, default: 2, min: 0.5, max: 5 }
+  object_dist: { type: number, default: 4, min: 1,   max: 10 }
+  object_h:    { type: number, default: 1.2, min: 0.3, max: 3 }
+body: |
+  \begin{tikzpicture}[>=Stealth, thick]
+    % Principal axis
+    \draw[->] (-6,0) -- (6,0) node[below] {axis};
+    % Lens
+    \draw[blue, very thick] (0,-2) -- (0,2);
+    \node[blue, above] at (0,2) {lens};
+    % Focal points
+    \fill[red] ({ {{focal}} }, 0) circle (1.5pt) node[below] {$F$};
+    \fill[red] ({-{{focal}}}, 0) circle (1.5pt) node[below] {$F$};
+    % Object
+    \draw[->, very thick, blue!60!black] ({-{{object_dist}}},0) -- ({-{{object_dist}}},{{object_h}});
+    \node[left] at ({-{{object_dist}}}, {{ object_h * 0.5 }}) {obj};
+    % Ray 1: parallel to axis, then through F on far side
+    \draw[orange, thick] ({-{{object_dist}}},{{object_h}}) -- (0,{{object_h}});
+    \draw[orange, thick, ->] (0,{{object_h}}) -- (6, { {{object_h}} * (1 - 6/{{focal}}) });
+    % Ray 2: through center of lens
+    \draw[violet, thick, ->] ({-{{object_dist}}},{{object_h}}) -- (6, { -{{object_h}}*6/{{object_dist}} });
+  \end{tikzpicture}
+preview:
+  params: { focal: 2, object_dist: 4, object_h: 1.2 }

@@ -1,0 +1,37 @@
+id: physics.projectile
+category: physics
+subcategory: mechanics
+title:
+  ja: 斜方投射
+  en: Projectile motion
+description:
+  ja: 初速 v0, 仰角 θ の斜方投射の軌道 (重力 g=9.8)。初速ベクトルも表示。
+  en: Projectile trajectory for initial speed v0 and angle θ (g = 9.8). Initial velocity vector shown.
+tags: [pgfplots, projectile, kinematics, mechanics]
+required_packages: [pgfplots]
+required_tikzlibraries: [arrows.meta]
+parameters:
+  v0:        { type: number, default: 10, min: 1,  max: 50 }
+  angle_deg: { type: number, default: 45, min: 5,  max: 85 }
+body: |
+  \begin{tikzpicture}
+  \pgfmathsetmacro{\vx}{ {{v0}} * cos({{angle_deg}}) }
+  \pgfmathsetmacro{\vy}{ {{v0}} * sin({{angle_deg}}) }
+  \pgfmathsetmacro{\range}{ 2*\vx*\vy/9.8 }
+  \pgfmathsetmacro{\hmax}{ \vy*\vy/(2*9.8) }
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$ [m]}, ylabel={$y$ [m]},
+    xmin=0, xmax=\range*1.15,
+    ymin=0, ymax=\hmax*1.35,
+    width=10cm, height=6cm, samples=100,
+  ]
+    \addplot[domain=0:\range, thick, blue]
+      { x*tan({{angle_deg}}) - 9.8*x*x / (2*(\vx)*(\vx)) };
+    \draw[->, red, very thick] (axis cs:0,0)
+      -- (axis cs:{\vx*0.15}, {\vy*0.15})
+      node[above right] {$\vec{v_0}$};
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { v0: 10, angle_deg: 45 }

@@ -1,0 +1,26 @@
+id: math.circle_angle
+category: math
+subcategory: geometry
+title:
+  ja: 円と中心角
+  en: Circle with central angle
+description:
+  ja: 原点中心の円と、指定した中心角を示す扇形・角度ラベル。
+  en: Circle at origin with a central angle sector and degree label.
+tags: [tikz, circle, angle, geometry]
+required_packages: [tikz]
+required_tikzlibraries: [calc]
+parameters:
+  radius:     { type: number, default: 2, min: 0.5, max: 8 }
+  angle_deg:  { type: number, default: 60, min: 5, max: 355 }
+body: |
+  \begin{tikzpicture}
+    \draw[thick] (0,0) circle ({{radius}});
+    \draw[thick, blue] (0,0) -- ({{radius}},0);
+    \draw[thick, blue] (0,0) -- ({{angle_deg}}:{{radius}});
+    \draw[fill=blue!15, draw=blue] (0,0) -- ({{ radius * 0.5 }},0) arc (0:{{angle_deg}}:{{ radius * 0.5 }}) -- cycle;
+    \node at ({{ angle_deg / 2 }}:{{ radius * 0.72 }}) {\small${{angle_deg}}^{\circ}$};
+    \node[below left] at (0,0) {$O$};
+  \end{tikzpicture}
+preview:
+  params: { radius: 2, angle_deg: 60 }

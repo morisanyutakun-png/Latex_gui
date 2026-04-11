@@ -1,0 +1,22 @@
+id: circuit.voltage_divider
+category: circuit
+subcategory: passive
+title:
+  ja: 分圧回路
+  en: Voltage divider
+description:
+  ja: 電源と2本の抵抗による分圧回路。出力電圧 Vout = Vin * R2/(R1+R2)。
+  en: Two-resistor voltage divider. Vout = Vin * R2 / (R1 + R2).
+tags: [circuitikz, voltage divider, resistor]
+required_packages: [circuitikz]
+required_tikzlibraries: []
+parameters: {}
+body: |
+  \begin{circuitikz}
+    \draw (0,0) to[V, v=$V_{in}$] (0,4)
+               to[R, l=$R_1$]    (2,4)
+               to[R, l=$R_2$, v=$V_{out}$] (2,0)
+               -- (0,0);
+  \end{circuitikz}
+preview:
+  params: {}

@@ -1,0 +1,34 @@
+id: math.vector_field
+category: math
+subcategory: plot
+title:
+  ja: 2Dベクトル場
+  en: 2D vector field
+description:
+  ja: 指定の成分 (u(x,y), v(x,y)) をもつ2次元ベクトル場の quiver プロット。
+  en: Quiver plot of a 2D vector field with components (u(x,y), v(x,y)).
+tags: [pgfplots, vector, field, quiver]
+required_packages: [pgfplots]
+required_tikzlibraries: [arrows.meta]
+parameters:
+  xmin: { type: number, default: -2, min: -10, max: 0 }
+  xmax: { type: number, default: 2,  min: 0,   max: 10 }
+  ymin: { type: number, default: -2, min: -10, max: 0 }
+  ymax: { type: number, default: 2,  min: 0,   max: 10 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$}, ylabel={$y$},
+    xmin={{xmin}}, xmax={{xmax}},
+    ymin={{ymin}}, ymax={{ymax}},
+    width=8cm, height=8cm,
+    view={0}{90},
+  ]
+    \addplot3[quiver={u=-y, v=x, scale arrows=0.18},
+              -Stealth, domain={{xmin}}:{{xmax}}, y domain={{ymin}}:{{ymax}},
+              samples=9, samples y=9] {0};
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { xmin: -2, xmax: 2, ymin: -2, ymax: 2 }

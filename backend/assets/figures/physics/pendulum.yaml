@@ -1,0 +1,31 @@
+id: physics.pendulum
+category: physics
+subcategory: mechanics
+title:
+  ja: 単振り子
+  en: Simple pendulum
+description:
+  ja: 天井から吊るした単振り子と、鉛直からの振れ角 θ。
+  en: Simple pendulum suspended from a ceiling with angle θ from vertical.
+tags: [tikz, pendulum, oscillation, mechanics]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta, calc, patterns]
+parameters:
+  angle_deg: { type: number, default: 25, min: 5, max: 80 }
+  length:    { type: number, default: 3,  min: 1, max: 6 }
+body: |
+  \begin{tikzpicture}[>=Stealth, thick]
+    \draw[pattern=north east lines] (-1.5,0) rectangle (1.5,0.25);
+    \draw (-1.5,0) -- (1.5,0);
+    \coordinate (O) at (0,0);
+    \coordinate (B) at ({-{{length}}*sin({{angle_deg}})}, {-{{length}}*cos({{angle_deg}})});
+    \draw (O) -- (B);
+    \draw[dashed, gray] (O) -- (0,{-{{length}}});
+    \draw (0,-0.6) arc (-90:{-90+{{angle_deg}}}:0.6);
+    \node at (-0.28,-0.75) {$\theta$};
+    \filldraw[fill=blue!30] (B) circle (0.25);
+    \node[left] at ($(B)+(-0.25,0)$) {$m$};
+    \draw[->, blue, very thick] (B) -- ++(0,-1) node[below] {$mg$};
+  \end{tikzpicture}
+preview:
+  params: { angle_deg: 25, length: 3 }

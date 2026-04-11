@@ -1,0 +1,31 @@
+id: math.number_line
+category: math
+subcategory: geometry
+title:
+  ja: 数直線 + 区間塗り
+  en: Number line with shaded interval
+description:
+  ja: 数直線と、指定範囲 [a, b] を塗りつぶした区間。端点の開閉も指定可能。
+  en: Number line with a shaded interval [a, b] and open/closed endpoints.
+tags: [tikz, number line, interval]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta]
+parameters:
+  left:    { type: number, default: -3, min: -20, max: 20 }
+  right:   { type: number, default: 3,  min: -20, max: 20 }
+  a:       { type: number, default: -1, min: -20, max: 20 }
+  b:       { type: number, default: 2,  min: -20, max: 20 }
+  a_open:  { type: boolean, default: false }
+  b_open:  { type: boolean, default: false }
+body: |
+  \begin{tikzpicture}[>=Stealth]
+    \draw[->, thick] ({{ left - 0.3 }}, 0) -- ({{ right + 0.3 }}, 0);
+    \foreach \x in { {{left}},...,{{right}} } {
+      \draw (\x, 0.12) -- (\x, -0.12) node[below] {\scriptsize$\x$};
+    }
+    \draw[very thick, blue] ({{a}}, 0) -- ({{b}}, 0);
+    \node[blue, fill={% if a_open == "true" %}white{% else %}blue{% endif %}, circle, draw=blue, inner sep=1.8pt] at ({{a}}, 0) {};
+    \node[blue, fill={% if b_open == "true" %}white{% else %}blue{% endif %}, circle, draw=blue, inner sep=1.8pt] at ({{b}}, 0) {};
+  \end{tikzpicture}
+preview:
+  params: { left: -3, right: 3, a: -1, b: 2, a_open: false, b_open: false }

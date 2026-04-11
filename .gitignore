@@ -29,3 +29,6 @@ Thumbs.db
 *.egg-info/
 dist/
 build/
+
+# Figure preview cache (generated on demand from YAML sources)
+backend/assets/figures/_previews/

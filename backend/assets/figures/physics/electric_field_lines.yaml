@@ -1,0 +1,29 @@
+id: physics.electric_field_lines
+category: physics
+subcategory: electromagnetism
+title:
+  ja: 点電荷の電気力線
+  en: Point charge field lines
+description:
+  ja: +q と -q の点電荷の周りの典型的な電気力線 (手描きスタイル)。
+  en: Illustrative dipole field lines for +q and -q point charges.
+tags: [tikz, electric field, dipole, electromagnetism]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta, decorations.markings]
+parameters:
+  separation: { type: number, default: 3, min: 1, max: 6 }
+body: |
+  \begin{tikzpicture}[>=Stealth, thick]
+    \coordinate (P) at ({-{{ separation / 2 }}}, 0);
+    \coordinate (N) at ({ {{ separation / 2 }}}, 0);
+    \filldraw[fill=red!30, draw=red] (P) circle (0.25) node {$+$};
+    \filldraw[fill=blue!30, draw=blue] (N) circle (0.25) node {$-$};
+    \foreach \a in {20, 60, 100, 140, 220, 260, 300, 340} {
+      \draw[->, red!60!black,
+            postaction={decorate, decoration={markings,
+                mark=at position 0.55 with {\arrow{>}}}}]
+        (P) .. controls +(\a:1.6) and +(180-\a:1.6) .. (N);
+    }
+  \end{tikzpicture}
+preview:
+  params: { separation: 3 }

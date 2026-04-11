@@ -1,0 +1,34 @@
+id: physics.transverse_wave
+category: physics
+subcategory: waves
+title:
+  ja: 横波の瞬間図
+  en: Transverse wave snapshot
+description:
+  ja: 振幅 A・波長 λ の横波の瞬間像。
+  en: Snapshot of a transverse wave with amplitude A and wavelength λ.
+tags: [pgfplots, wave, transverse, oscillation]
+required_packages: [pgfplots]
+required_tikzlibraries: [decorations.pathreplacing]
+parameters:
+  amplitude:  { type: number, default: 1, min: 0.1, max: 3 }
+  wavelength: { type: number, default: 2, min: 0.5, max: 10 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$}, ylabel={$y$},
+    xmin=0, xmax=8,
+    ymin={{ -amplitude - 0.8 }}, ymax={{ amplitude + 1.3 }},
+    samples=200, width=10cm, height=5.5cm,
+    ticks=none,
+  ]
+    \addplot[domain=0:8, thick, blue] { ({{amplitude}})*sin(deg(2*pi*x/({{wavelength}}))) };
+    \draw[decorate, decoration={brace, amplitude=5pt}, thick]
+      (axis cs:{{wavelength}}, {{ amplitude + 0.4 }}) --
+      (axis cs:{{ wavelength*2 }}, {{ amplitude + 0.4 }})
+      node[midway, above=6pt] {$\lambda$};
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { amplitude: 1, wavelength: 2 }

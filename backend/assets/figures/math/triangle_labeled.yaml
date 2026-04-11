@@ -1,0 +1,31 @@
+id: math.triangle_labeled
+category: math
+subcategory: geometry
+title:
+  ja: ラベル付き三角形
+  en: Labeled triangle
+description:
+  ja: 頂点 A, B, C と辺 a, b, c のラベル付き三角形。
+  en: Triangle with vertices A/B/C and side labels a/b/c.
+tags: [tikz, triangle, geometry]
+required_packages: [tikz]
+required_tikzlibraries: [calc, positioning]
+parameters:
+  base:   { type: number, default: 4, min: 1, max: 10 }
+  height: { type: number, default: 3, min: 1, max: 10 }
+  apex_x: { type: number, default: 1.3, min: 0, max: 10 }
+body: |
+  \begin{tikzpicture}[scale=1, line join=round]
+    \coordinate (B) at (0,0);
+    \coordinate (C) at ({{base}},0);
+    \coordinate (A) at ({{apex_x}},{{height}});
+    \draw[thick] (A) -- (B) -- (C) -- cycle;
+    \node[below left]  at (B) {$B$};
+    \node[below right] at (C) {$C$};
+    \node[above]       at (A) {$A$};
+    \node[below]       at ($(B)!0.5!(C)$) {$a$};
+    \node[above left]  at ($(A)!0.5!(C)$) {$b$};
+    \node[above right] at ($(A)!0.5!(B)$) {$c$};
+  \end{tikzpicture}
+preview:
+  params: { base: 4, height: 3, apex_x: 1.3 }

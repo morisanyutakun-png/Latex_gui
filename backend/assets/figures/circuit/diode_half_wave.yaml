@@ -1,0 +1,22 @@
+id: circuit.diode_half_wave
+category: circuit
+subcategory: rectifier
+title:
+  ja: 半波整流回路
+  en: Half-wave rectifier
+description:
+  ja: 交流電源 → ダイオード → 負荷抵抗の半波整流回路。
+  en: AC source feeding a diode and a load resistor (half-wave rectifier).
+tags: [circuitikz, diode, rectifier, ac]
+required_packages: [circuitikz]
+required_tikzlibraries: []
+parameters: {}
+body: |
+  \begin{circuitikz}
+    \draw (0,0) to[sV, v=$v_{in}$] (0,3)
+               to[D, l=$D$] (3,3)
+               to[R, l=$R_L$, v=$v_{out}$] (3,0)
+               -- (0,0);
+  \end{circuitikz}
+preview:
+  params: {}

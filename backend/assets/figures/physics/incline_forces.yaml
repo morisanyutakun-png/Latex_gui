@@ -1,0 +1,37 @@
+id: physics.incline_forces
+category: physics
+subcategory: mechanics
+title:
+  ja: 斜面上の力の分解
+  en: Forces on an incline
+description:
+  ja: 傾斜角 θ の斜面上のブロック。重力を斜面方向と垂直方向に分解して図示。
+  en: Block on an incline of angle θ with gravity decomposed along and perpendicular to the surface.
+tags: [tikz, mechanics, incline, gravity, decomposition]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta, calc, patterns]
+parameters:
+  angle_deg: { type: number, default: 30, min: 5, max: 80 }
+  length:    { type: number, default: 5,  min: 2, max: 10 }
+body: |
+  \begin{tikzpicture}[>=Stealth, thick]
+    \coordinate (O) at (0,0);
+    \coordinate (T) at ({{length}}, 0);
+    \coordinate (P) at ({{length}}, { {{length}} *tan({{angle_deg}}) });
+    \draw[fill=gray!15] (O) -- (T) -- (P) -- cycle;
+    \draw[pattern=north east lines] ({-0.6},-0.45) rectangle ({ {{length}} +0.6},-0.05);
+    \draw (O) -- (T);
+    % Block
+    \begin{scope}[rotate={{angle_deg}}]
+      \draw[fill=blue!20] ({{ length * 0.55 }}, 0) rectangle ++(1.1,0.7);
+      \node at ({{ length * 0.55 + 0.55 }}, 0.35) {$m$};
+    \end{scope}
+    % Angle arc
+    \draw (0.8,0) arc (0:{{angle_deg}}:0.8);
+    \node at (1.1, 0.25) {$\theta$};
+    % Gravity vector from block center (straight down)
+    \coordinate (BC) at ({ {{ length * 0.55 + 0.55 }} * cos({{angle_deg}}) }, { {{ length * 0.55 + 0.55 }} * sin({{angle_deg}}) + 0.35 });
+    \draw[->, blue, very thick] (BC) -- ++(0,-1.6) node[below] {$mg$};
+  \end{tikzpicture}
+preview:
+  params: { angle_deg: 30, length: 5 }

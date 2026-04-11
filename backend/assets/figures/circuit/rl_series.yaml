@@ -1,0 +1,25 @@
+id: circuit.rl_series
+category: circuit
+subcategory: passive
+title:
+  ja: RL 直列回路
+  en: Series RL circuit
+description:
+  ja: 電圧源 + 抵抗 + インダクタの直列回路。
+  en: Voltage source in series with a resistor and an inductor.
+tags: [circuitikz, rl, passive, series]
+required_packages: [circuitikz]
+required_tikzlibraries: []
+parameters:
+  vlabel: { type: string, default: "V", max_len: 12 }
+  rlabel: { type: string, default: "R", max_len: 12 }
+  llabel: { type: string, default: "L", max_len: 12 }
+body: |
+  \begin{circuitikz}
+    \draw (0,0) to[V, v=${{vlabel}}$] (0,3)
+               to[R, l=${{rlabel}}$] (3,3)
+               to[L, l=${{llabel}}$] (3,0)
+               -- (0,0);
+  \end{circuitikz}
+preview:
+  params: { vlabel: "V", rlabel: "R", llabel: "L" }

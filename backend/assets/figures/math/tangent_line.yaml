@@ -1,0 +1,34 @@
+id: math.tangent_line
+category: math
+subcategory: plot
+title:
+  ja: 曲線と接線
+  en: Curve with tangent line
+description:
+  ja: 放物線と指定 x = x0 における接線を描く。
+  en: Parabola with a tangent line at x = x0.
+tags: [pgfplots, tangent, derivative, calculus]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  a:    { type: number, default: 1,  min: -5, max: 5 }
+  x0:   { type: number, default: 1,  min: -5, max: 5 }
+  xmin: { type: number, default: -3, min: -20, max: 20 }
+  xmax: { type: number, default: 3,  min: -20, max: 20 }
+body: |
+  \begin{tikzpicture}
+  \pgfmathsetmacro{\tgty}{({{a}})*({{x0}})*({{x0}})}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$}, ylabel={$y$},
+    xmin={{xmin}}, xmax={{xmax}},
+    samples=100, grid=both,
+    width=8cm, height=6cm,
+  ]
+    \addplot[domain={{xmin}}:{{xmax}}, thick, blue] { ({{a}})*x^2 };
+    \addplot[domain={{xmin}}:{{xmax}}, thick, red, dashed] { 2*({{a}})*({{x0}})*(x - ({{x0}})) + ({{a}})*({{x0}})^2 };
+    \addplot[only marks, mark=*, mark size=2.5pt, black] coordinates {({{x0}}, \tgty)};
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { a: 1, x0: 1, xmin: -3, xmax: 3 }

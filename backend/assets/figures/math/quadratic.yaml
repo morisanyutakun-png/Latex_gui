@@ -1,0 +1,33 @@
+id: math.quadratic
+category: math
+subcategory: plot
+title:
+  ja: 二次関数のグラフ
+  en: Quadratic function
+description:
+  ja: y = a x^2 + b x + c の放物線。係数と描画範囲を指定できる。
+  en: Parabola y = a x^2 + b x + c with adjustable coefficients and domain.
+tags: [pgfplots, parabola, function, math]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  a:     { type: number, default: 1,  min: -10, max: 10 }
+  b:     { type: number, default: 0,  min: -20, max: 20 }
+  c:     { type: number, default: 0,  min: -20, max: 20 }
+  xmin:  { type: number, default: -3, min: -20, max: 20 }
+  xmax:  { type: number, default: 3,  min: -20, max: 20 }
+  color: { type: enum, default: blue, choices: [blue, red, green, black, orange, purple] }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$}, ylabel={$y$},
+    xmin={{xmin}}, xmax={{xmax}},
+    samples=100, grid=both,
+    width=8cm, height=6cm,
+  ]
+    \addplot[domain={{xmin}}:{{xmax}}, thick, {{color}}] { ({{a}})*x^2 + ({{b}})*x + ({{c}}) };
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { a: 1, b: 0, c: 0, xmin: -3, xmax: 3, color: blue }

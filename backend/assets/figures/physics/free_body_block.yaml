@@ -1,0 +1,27 @@
+id: physics.free_body_block
+category: physics
+subcategory: mechanics
+title:
+  ja: 自由体図 (ブロック)
+  en: Free-body diagram (block)
+description:
+  ja: 水平面上のブロックに働く重力・垂直抗力・摩擦力・外力を矢印で表した自由体図。
+  en: Block on a horizontal surface with gravity, normal force, friction, and applied force.
+tags: [tikz, mechanics, forces, free body]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta, calc, patterns]
+parameters:
+  show_friction: { type: boolean, default: true }
+  show_applied:  { type: boolean, default: true }
+body: |
+  \begin{tikzpicture}[>=Stealth, thick]
+    \draw[fill=gray!20] (-1,0) rectangle (1,1.2);
+    \node at (0,0.6) {$m$};
+    \draw[pattern=north east lines] (-2.5,0) rectangle (2.5,-0.2);
+    \draw[->, blue, very thick] (0,0.6) -- (0,-1.3) node[below] {$mg$};
+    \draw[->, red, very thick]  (0,0.6) -- (0,2.1)  node[above] {$N$};
+    {% if show_applied == "true" %}\draw[->, violet, very thick] (1,0.8) -- (2.3,0.8) node[right] {$F$};{% endif %}
+    {% if show_friction == "true" %}\draw[->, orange, very thick] (-1,0.3) -- (-2.1,0.3) node[left] {$f$};{% endif %}
+  \end{tikzpicture}
+preview:
+  params: { show_friction: true, show_applied: true }

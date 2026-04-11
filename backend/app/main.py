@@ -6,7 +6,7 @@ from pathlib import Path
 import pydantic
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, JSONResponse, StreamingResponse
+from fastapi.responses import Response, JSONResponse, StreamingResponse, FileResponse
 
 from .models import DocumentModel, ErrorResponse, BatchRequest, BatchResponse, BatchResultItem
 from .pdf_service import compile_pdf, compile_raw_latex, generate_latex, PDFGenerationError
@@ -66,10 +66,52 @@ async def _startup_warmup():
     from .tex_env import start_background_warmup
     from .database import engine
     from .db_models import Base
+    from .figures import get_registry
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
+    n_figs = get_registry().load()
+    logger.info("Figure asset registry loaded: %d assets", n_figs)
     start_background_warmup()
     logger.info("Background TeX warmup triggered")
+
+
+# ─── Figure asset library ─────────────────────────────────────────────
+
+@app.get("/api/figures")
+async def list_figures_endpoint(
+    category: str | None = None,
+    query: str | None = None,
+    limit: int = 50,
+):
+    from .figures import get_registry
+    return get_registry().list(category=category, query=query, limit=limit)
+
+
+@app.get("/api/figures/{asset_id}")
+async def get_figure_endpoint(asset_id: str):
+    from .figures import get_registry
+    data = get_registry().get(asset_id)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"unknown figure: {asset_id}")
+    return data
+
+
+@app.get("/api/figures/{asset_id}/preview.png")
+async def figure_preview_endpoint(asset_id: str):
+    from .figures.preview import PreviewError, ensure_preview
+    from .figures import get_registry
+
+    if not get_registry().get_raw(asset_id):
+        raise HTTPException(status_code=404, detail=f"unknown figure: {asset_id}")
+    try:
+        path = await ensure_preview(asset_id)
+    except PreviewError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.get("/")

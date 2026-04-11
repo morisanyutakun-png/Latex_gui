@@ -125,6 +125,97 @@ AGENT_TOOLS = {
                 },
             },
         },
+        {
+            "name": "list_figures",
+            "description": (
+                "Browse the curated figure asset library (math plots, circuit diagrams, physics "
+                "diagrams). Use this BEFORE hand-writing any TikZ / pgfplots / circuitikz code — "
+                "a curated asset is more reliable and matches the template style. "
+                "Returns compact entries with id, title, tags. Call get_figure next to see parameters."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": "Filter by category: 'math', 'circuit', or 'physics'. Omit to list everything.",
+                        "enum": ["math", "circuit", "physics"],
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Free-text search over title, tags, and subcategory (e.g. 'sine', 'opamp', 'free body').",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max number of entries (default 20, max 100).",
+                    },
+                },
+            },
+        },
+        {
+            "name": "get_figure",
+            "description": (
+                "Fetch full metadata for a single figure asset by id, including its parameter schema "
+                "(types, defaults, min/max, enum choices) and preview URL. Use this to learn which "
+                "parameters to supply to insert_figure."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Asset id like 'math.quadratic' or 'circuit.rc_series'.",
+                    },
+                },
+                "required": ["id"],
+            },
+        },
+        {
+            "name": "insert_figure",
+            "description": (
+                "Render a curated figure asset with the given parameters and splice it into the "
+                "current LaTeX source. Automatically loads any required packages and TikZ libraries. "
+                "Prefer this over writing raw TikZ by hand. After calling this you MUST run "
+                "compile_check(quick=false) like any other write."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Asset id from list_figures / get_figure.",
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": (
+                            "Parameter values for the asset (e.g. {\"a\": 2, \"color\": \"red\"}). "
+                            "Unknown keys are ignored; missing keys fall back to each parameter's default."
+                        ),
+                    },
+                    "anchor_text": {
+                        "type": "string",
+                        "description": (
+                            "Existing substring in the source to insert the figure AFTER. Must appear "
+                            "exactly once. If omitted (or not unique), the figure is inserted right "
+                            "after \\begin{document}."
+                        ),
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Caption text (only used when float_env is true).",
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Label suffix — becomes \\label{fig:<label>}.",
+                    },
+                    "float_env": {
+                        "type": "boolean",
+                        "description": "Wrap the figure in a 'figure' float environment with \\centering (default true).",
+                    },
+                },
+                "required": ["id"],
+            },
+        },
     ]
 }
 
@@ -201,6 +292,23 @@ LuaLaTeX を前提とする。日本語テンプレなら `luatexja-preset[haran
 
 ### 許可パッケージ (allowlist 方式)
 {pkg_doc}
+
+### 図の挿入 (Figure library — TikZ / pgfplots / circuitikz)
+**TikZ / pgfplots / circuitikz を自分でゼロから書く前に、必ず図アセットライブラリを確認せよ。**
+ライブラリはカテゴリ別にキュレーションされた、確実にコンパイル可能な図のカタログ:
+
+- `math` — 関数グラフ、座標軸、三角形、円、ベクトル場、数直線など
+- `circuit` — RC/RL/RLC 回路、整流回路、オペアンプ、分圧、ホイートストンブリッジ
+- `physics` — 自由体図、斜面、振り子、ばね、波、光線図、斜方投射、電気力線
+
+ワークフロー:
+1. `list_figures(category="...", query="...")` で候補を検索
+2. ヒットしたら `get_figure(id="...")` で parameter_schema を確認
+3. `insert_figure(id="...", params={{...}}, caption="...", label="...")` で文書に挿入
+4. 必ず `compile_check(quick=false)` で検証
+
+自力で TikZ を書いてよいのは、ライブラリに適切な候補が無いことを `list_figures` で確認した後のみ。
+パラメータは parameter_schema に従って型と範囲を守ること (例: `color` が enum なら choices 内の値だけ)。
 
 ### 禁止事項
 - `\input`, `\include`, `\write18`, `\directlua` などのファイルアクセス・シェル実行系
@@ -290,6 +398,23 @@ For Japanese documents use `\usepackage[haranoaji]{{luatexja-preset}}`.
 
 ### Allowed packages (allowlist)
 {pkg_doc}
+
+### Figure library (TikZ / pgfplots / circuitikz)
+**Before writing any TikZ / pgfplots / circuitikz by hand, browse the curated figure library.**
+Categories:
+
+- `math` — function plots, axes, triangles, circles, vector fields, number lines
+- `circuit` — RC / RL / RLC, rectifier, inverting op-amp, voltage divider, Wheatstone bridge
+- `physics` — free-body diagrams, inclines, pendulum, spring-mass, waves, lens rays, projectile, field lines
+
+Workflow:
+1. `list_figures(category="...", query="...")` to search
+2. If a match exists, `get_figure(id="...")` to see its parameter_schema
+3. `insert_figure(id="...", params={{...}}, caption="...", label="...")` to splice it in
+4. Always `compile_check(quick=false)` afterward
+
+Only hand-write TikZ when `list_figures` returns nothing suitable. Stay within the declared
+parameter types/ranges (e.g. an `enum` color must come from its `choices`).
 
 ### Forbidden
 - `\input`, `\include`, `\write18`, `\directlua`, and any file/shell escape commands
@@ -614,6 +739,108 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
         }
 
 
+def _execute_list_figures(document: dict, args: dict) -> dict:
+    from .figures import get_registry
+    reg = get_registry()
+    try:
+        return reg.list(
+            category=args.get("category"),
+            query=args.get("query"),
+            limit=int(args.get("limit", 20) or 20),
+        )
+    except Exception as e:
+        return {"error": f"list_figures failed: {e}"}
+
+
+def _execute_get_figure(document: dict, args: dict) -> dict:
+    from .figures import get_registry
+    asset_id = args.get("id")
+    if not isinstance(asset_id, str) or not asset_id:
+        return {"error": "id must be a non-empty string"}
+    data = get_registry().get(asset_id)
+    if not data:
+        return {"error": "not_found", "message": f"unknown figure id: {asset_id}"}
+    return data
+
+
+def _execute_insert_figure(document: dict, args: dict) -> dict:
+    from .figures import get_registry
+    from .figures.render import ParameterError, apply_figure_to_source
+    from .security import validate_latex_security
+
+    asset_id = args.get("id")
+    if not isinstance(asset_id, str) or not asset_id:
+        return {"error": "id must be a non-empty string"}
+
+    reg = get_registry()
+    asset = reg.get_raw(asset_id)
+    if not asset:
+        return {"error": "not_found", "message": f"unknown figure id: {asset_id}"}
+
+    params = args.get("params") or {}
+    if not isinstance(params, dict):
+        return {"error": "params must be an object"}
+
+    try:
+        rendered = reg.render(asset_id, params)
+    except ParameterError as e:
+        return {"error": "invalid_params", "message": str(e)}
+    except Exception as e:
+        return {"error": f"render failed: {e}"}
+
+    caption = args.get("caption")
+    label = args.get("label")
+    float_env = bool(args.get("float_env", True))
+    anchor_text = args.get("anchor_text") or None
+
+    # Sanitize caption / label the same way as string parameters
+    if caption is not None and not isinstance(caption, str):
+        return {"error": "caption must be a string"}
+    if caption and any(ch in caption for ch in "\\%${}#&^~\n\r"):
+        return {"error": "caption contains forbidden characters"}
+    if label is not None and not isinstance(label, str):
+        return {"error": "label must be a string"}
+    if label and not _re.match(r"^[A-Za-z][A-Za-z0-9_:-]{0,48}$", label):
+        return {"error": "label must match [A-Za-z][A-Za-z0-9_:-]*"}
+
+    current = document.get("latex", "") or ""
+    new_src, line = apply_figure_to_source(
+        current,
+        rendered,
+        caption=caption,
+        label=label,
+        float_env=float_env,
+        anchor_text=anchor_text,
+    )
+
+    if new_src == current:
+        return {
+            "error": "insert_failed",
+            "message": "could not locate insertion point (no \\begin{document}?)",
+        }
+
+    # Defense in depth: scan the final source against the security allowlist.
+    violations = validate_latex_security(new_src)
+    if violations:
+        return {
+            "error": "security_violation",
+            "violations": violations[:5],
+            "message": "rendered figure failed security scan — aborted insertion",
+        }
+
+    document["latex"] = new_src
+    return {
+        "applied": True,
+        "asset_id": asset_id,
+        "latex_length": len(new_src),
+        "inserted_at_line": line,
+        "preview_url": f"/api/figures/{asset_id}/preview.png",
+        "required_packages_added": rendered.required_packages,
+        "required_tikzlibraries_added": rendered.required_tikzlibraries,
+        "message": f"図 {asset_id} を挿入しました（L{line} 付近）",
+    }
+
+
 def _execute_tool(name: str, document: dict, args: dict) -> dict:
     if name == "read_latex":
         return _execute_read_latex(document, args)
@@ -623,6 +850,12 @@ def _execute_tool(name: str, document: dict, args: dict) -> dict:
         return _execute_replace_in_latex(document, args)
     if name == "compile_check":
         return _execute_compile_check(document, args)
+    if name == "list_figures":
+        return _execute_list_figures(document, args)
+    if name == "get_figure":
+        return _execute_get_figure(document, args)
+    if name == "insert_figure":
+        return _execute_insert_figure(document, args)
     return {"error": f"Unknown tool: {name}"}
 
 
@@ -638,6 +871,16 @@ def _summarize_result(name: str, result: dict) -> str:
     if name == "compile_check":
         ok = result.get("success", False)
         return "Build ✓" if ok else f"Build ✗: {result.get('message', 'エラー')[:80]}"
+    if name == "list_figures":
+        return f"Figures: {result.get('returned', 0)}/{result.get('total', 0)}件"
+    if name == "get_figure":
+        if result.get("error"):
+            return f"Figure ✗: {result.get('message', result['error'])}"
+        return f"Figure: {result.get('id', '?')}"
+    if name == "insert_figure":
+        if result.get("error"):
+            return f"InsertFig ✗: {result.get('message', result['error'])[:80]}"
+        return f"InsertFig: {result.get('asset_id', '?')} @ L{result.get('inserted_at_line', '?')}"
     return json.dumps(result, ensure_ascii=False)[:80]
 
 

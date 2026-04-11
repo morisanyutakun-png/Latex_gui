@@ -1,0 +1,28 @@
+id: circuit.opamp_inverting
+category: circuit
+subcategory: opamp
+title:
+  ja: 反転増幅器 (オペアンプ)
+  en: Inverting op-amp amplifier
+description:
+  ja: 入力抵抗 R1 と帰還抵抗 Rf を用いた反転増幅回路。ゲインは -Rf/R1。
+  en: Standard inverting op-amp with input resistor R1 and feedback Rf.
+tags: [circuitikz, opamp, amplifier, inverting]
+required_packages: [circuitikz]
+required_tikzlibraries: []
+parameters:
+  r1_label: { type: string, default: "R_1", max_len: 12 }
+  rf_label: { type: string, default: "R_f", max_len: 12 }
+body: |
+  \begin{circuitikz}
+    \draw (0,0) node[op amp] (A) {};
+    \draw (A.-) -- ++(-0.6,0) coordinate (n1)
+          to[R, l=${{r1_label}}$] ++(-2.4,0) node[left] {$v_{in}$};
+    \draw (A.+) -- ++(-0.6,0) node[ground] {};
+    \draw (A.out) -- ++(1.2,0) node[right] {$v_{out}$};
+    \draw (n1) -- ++(0,1.4) coordinate (n2)
+                 to[R, l=${{rf_label}}$] (n2 -| A.out)
+                 -- (A.out);
+  \end{circuitikz}
+preview:
+  params: { r1_label: "R_1", rf_label: "R_f" }
