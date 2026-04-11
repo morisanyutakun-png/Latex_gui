@@ -1383,6 +1383,24 @@ function TitleBlockRenderer({ segment, latex, applyRangeEdit }: TitleBlockRender
   );
 }
 
+// 「この環境は生 TikZ 片 (tikzpicture / circuitikz / figure{...tikzpicture...})
+//  なのでサーバで PNG に焼いて表示できる」という判定。
+const TIKZ_LIKE_ENVS = new Set([
+  "tikzpicture",
+  "circuitikz",
+  "circuittikz",
+  "pgfpicture",
+  "figure",
+  "figure*",
+]);
+
+function segmentContainsTikz(segment: Segment): boolean {
+  const envName = segment.meta?.envName ?? "";
+  if (TIKZ_LIKE_ENVS.has(envName)) return true;
+  const body = segment.body ?? "";
+  return /\\begin\{(?:tikzpicture|circuitikz|pgfpicture)\}/.test(body);
+}
+
 function RawPlaceholder({ segment }: { segment: Segment }) {
   const isStandalone = segment.meta?.isStandalone === "true";
   const isEnv = segment.meta?.isEnvironment === "true";
@@ -1391,13 +1409,16 @@ function RawPlaceholder({ segment }: { segment: Segment }) {
   // \maketitle / \tableofcontents / \newpage / `\\[10mm]` 等は完全に非表示。
   if (isStandalone) return null;
 
-  // 図アセットライブラリ由来の図は、サーバが生成した PNG プレビューで
-  // 置き換える。KaTeX は TikZ をレンダリングできないため、この経路だけが
-  // 「生 LaTeX を画面に出さない」原則を守りつつ図を可視化する方法。
+  // 1) 図アセットライブラリ由来の図は id を使って固定 URL からすぐ PNG を取得。
   if (isEnv && figureId) {
-    return (
-      <FigureAssetPreview figureId={figureId} />
-    );
+    return <FigureAssetPreview figureId={figureId} />;
+  }
+
+  // 2) マーカ無しの生 TikZ / circuitikz (AI が自作した図) も、サーバ側に
+  //    スニペット一時コンパイル endpoint があるので body を POST して PNG を取得する。
+  //    KaTeX は TikZ を描けないため、この経路が唯一の可視化方法。
+  if (isEnv && segmentContainsTikz(segment)) {
+    return <FigureSnippetPreview source={segment.body ?? ""} envLabel={segment.meta?.envName ?? ""} />;
   }
 
   if (isEnv) {
@@ -1448,6 +1469,109 @@ function FigureAssetPreview({ figureId }: { figureId: string }) {
       />
       <span className="text-[10px] text-foreground/40 font-mono tracking-wide">
         {figureId}
+      </span>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────
+// FigureSnippetPreview — 生の tikzpicture / circuitikz ブロックを
+// サーバの /api/figures/snippet/compile に POST して PNG を受け取り表示する。
+// ライブラリ id が無い (AI が自作した図) でもブラウザで見えるようにする。
+// 編集のたびに無駄にコンパイルしないよう debounce してから fetch する。
+// ─────────────────────────────────────
+function FigureSnippetPreview({
+  source,
+  envLabel,
+}: {
+  source: string;
+  envLabel: string;
+}) {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ok"; url: string }
+    | { kind: "error"; message: string }
+  >({ kind: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ kind: "loading" });
+    // Debounce: 編集中に連続発火するのを抑える
+    const t = window.setTimeout(async () => {
+      try {
+        const resp = await fetch("/api/figures/snippet/compile", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ source }),
+        });
+        if (cancelled) return;
+        if (!resp.ok) {
+          const detail = await resp.text().catch(() => "");
+          setState({
+            kind: "error",
+            message: detail.slice(0, 160) || `HTTP ${resp.status}`,
+          });
+          return;
+        }
+        const json = (await resp.json()) as { url?: string; key?: string };
+        if (cancelled) return;
+        if (!json.url) {
+          setState({ kind: "error", message: "no url in response" });
+          return;
+        }
+        setState({ kind: "ok", url: json.url });
+      } catch (e) {
+        if (cancelled) return;
+        setState({
+          kind: "error",
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [source]);
+
+  if (state.kind === "loading") {
+    return (
+      <div
+        className="my-3 px-3 py-2 rounded border border-dashed border-foreground/15 bg-foreground/[0.015] inline-flex items-center gap-2 text-foreground/40 text-[11.5px]"
+        contentEditable={false}
+      >
+        <span className="font-mono text-[10px]">❖</span>
+        <span>図をコンパイル中… ({envLabel || "tikz"})</span>
+      </div>
+    );
+  }
+  if (state.kind === "error") {
+    return (
+      <div
+        className="my-3 px-3 py-2 rounded border border-dashed border-red-500/30 bg-red-500/[0.04] inline-flex items-center gap-2 text-red-600/70 text-[11.5px]"
+        contentEditable={false}
+        title={state.message}
+      >
+        <span className="font-mono text-[10px]">⚠</span>
+        <span>図のプレビュー失敗: {state.message.slice(0, 80)}</span>
+      </div>
+    );
+  }
+  return (
+    <div
+      className="my-3 flex flex-col items-center gap-1"
+      contentEditable={false}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={state.url}
+        alt="tikz figure"
+        loading="lazy"
+        draggable={false}
+        className="max-w-full max-h-[360px] object-contain select-none bg-white rounded border border-foreground/10"
+      />
+      <span className="text-[10px] text-foreground/40 font-mono tracking-wide">
+        {envLabel || "tikz"} (自動生成)
       </span>
     </div>
   );

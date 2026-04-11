@@ -16,11 +16,19 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
   const suffix = path.map((p) => encodeURIComponent(p)).join("/");
   const qs = req.nextUrl.search || "";
   const url = `${BACKEND}/api/figures/${suffix}${qs}`;
-  const upstream = await fetch(url, {
+  const init: RequestInit = {
     method: req.method,
-    headers: { Accept: req.headers.get("accept") || "*/*" },
+    headers: {
+      Accept: req.headers.get("accept") || "*/*",
+    },
     signal: AbortSignal.timeout(55000),
-  });
+  };
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    const ct = req.headers.get("content-type");
+    if (ct) (init.headers as Record<string, string>)["content-type"] = ct;
+    init.body = await req.text();
+  }
+  const upstream = await fetch(url, init);
   const body = await upstream.arrayBuffer();
   const headers = new Headers();
   const ct = upstream.headers.get("content-type");
@@ -34,6 +42,21 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
 }
 
 export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> },
+) {
+  try {
+    const { path } = await params;
+    return await proxy(req, path ?? []);
+  } catch (err) {
+    return NextResponse.json(
+      { error: "figures proxy failed", detail: String(err) },
+      { status: 502 },
+    );
+  }
+}
+
+export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {

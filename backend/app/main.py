@@ -114,6 +114,45 @@ async def figure_preview_endpoint(asset_id: str):
     )
 
 
+class _SnippetRequest(pydantic.BaseModel):
+    source: str
+
+
+@app.post("/api/figures/snippet/compile")
+async def figure_snippet_compile_endpoint(req: _SnippetRequest):
+    """Compile an arbitrary user-supplied tikz/circuitikz/pgfplots snippet
+    to a cached PNG. Returns { key } — the PNG can then be fetched from
+    GET /api/figures/snippet/{key}.png. Used by the Visual Editor to show
+    an image for freestyle figures (no library id marker)."""
+    from .figures.snippet import SnippetError, compile_snippet
+
+    try:
+        _path, key = await compile_snippet(req.source)
+    except SnippetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("snippet compile failed")
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"key": key, "url": f"/api/figures/snippet/{key}.png"}
+
+
+@app.get("/api/figures/snippet/{key}.png")
+async def figure_snippet_png_endpoint(key: str):
+    from .figures.snippet import snippet_png_path
+
+    # Only allow the 32-char lowercase hex keys we mint ourselves.
+    if not key or len(key) != 32 or not all(c in "0123456789abcdef" for c in key):
+        raise HTTPException(status_code=400, detail="invalid snippet key")
+    path = snippet_png_path(key)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="snippet not found or expired")
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/")
 async def root_health():
     return {"status": "ok"}

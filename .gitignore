@@ -32,3 +32,5 @@ build/
 
 # Figure preview cache (generated on demand from YAML sources)
 backend/assets/figures/_previews/
+# Ad-hoc figure snippet compile cache (freestyle tikz → PNG, hashed)
+backend/assets/figures/_snippets/

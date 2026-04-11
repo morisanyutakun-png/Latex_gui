@@ -259,17 +259,26 @@ ALLOWED_PACKAGES = {
 
 # TikZ ライブラリの許可リスト
 ALLOWED_TIKZ_LIBRARIES = {
-    "shapes", "arrows", "arrows.meta", "positioning", "calc",
+    "shapes", "shapes.geometric", "shapes.symbols",
+    "shapes.arrows", "shapes.misc", "shapes.multipart",
+    "shapes.callouts",
+    "arrows", "arrows.meta", "positioning", "calc",
     "decorations", "decorations.markings", "decorations.pathmorphing",
     "decorations.pathreplacing", "decorations.text",
+    "decorations.shapes", "decorations.fractals", "decorations.footprints",
     "automata", "fit", "backgrounds", "chains",
-    "matrix", "patterns", "plotmarks", "shadows",
+    "matrix", "patterns", "patterns.meta", "plotmarks", "shadows",
     "trees", "mindmap", "calendar", "circuits",
     "circuits.ee", "circuits.ee.IEC", "circuits.logic",
     "circuits.logic.US", "circuits.logic.IEC",
     "intersections", "through", "babel",
     "external", "folding", "lindenmayersystems",
     "petri", "spy", "turtle", "3d",
+    "angles", "quotes",                 # angle labels & `edge[quotes]`
+    "pgfplots.groupplots", "pgfplots.fillbetween",
+    "pgfplots.statistics", "pgfplots.dateplot",
+    "datavisualization", "datavisualization.formats.functions",
+    "graphs", "graphdrawing",
 }
 
 
