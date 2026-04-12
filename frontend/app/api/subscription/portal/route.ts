@@ -17,7 +17,7 @@ export async function POST() {
       headers: {
         "x-user-id": session.user.id,
         "x-user-email": session.user.email ?? "",
-        "x-user-name": session.user.name ?? "",
+        "x-user-name": encodeURIComponent(session.user.name ?? ""),
         ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
       },
     });

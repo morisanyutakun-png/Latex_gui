@@ -2,6 +2,7 @@
 import os
 import logging
 from typing import Optional
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
@@ -50,8 +51,10 @@ def get_or_create_user(
     if not x_user_id:
         return None
     user = db.query(User).filter(User.id == x_user_id).first()
+    # フロントエンドで encodeURIComponent された日本語名をデコード
+    decoded_name = unquote(x_user_name) if x_user_name else x_user_name
     if not user:
-        user = User(id=x_user_id, email=x_user_email, name=x_user_name)
+        user = User(id=x_user_id, email=x_user_email, name=decoded_name)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -62,8 +65,8 @@ def get_or_create_user(
         if x_user_email and user.email != x_user_email:
             user.email = x_user_email
             changed = True
-        if x_user_name and user.name != x_user_name:
-            user.name = x_user_name
+        if decoded_name and user.name != decoded_name:
+            user.name = decoded_name
             changed = True
         if changed:
             db.commit()

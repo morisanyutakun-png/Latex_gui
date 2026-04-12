@@ -16,7 +16,7 @@ export async function GET() {
       headers: {
         "x-user-id": session.user.id,
         "x-user-email": session.user.email ?? "",
-        "x-user-name": session.user.name ?? "",
+        "x-user-name": encodeURIComponent(session.user.name ?? ""),
         ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
       },
       // サブスク状態は毎回最新を取得する
