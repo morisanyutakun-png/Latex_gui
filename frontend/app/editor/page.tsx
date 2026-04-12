@@ -36,6 +36,7 @@ export default function EditorPage() {
   const toggleSourcePanel = useUIStore((s) => s.toggleSourcePanel);
   const triggerOMR = useUIStore((s) => s.triggerOMR);
   const openGrading = useUIStore((s) => s.openGrading);
+  const gradingMode = useUIStore((s) => s.gradingMode);
   const isMobile = useIsMobile();
 
   const doc = useDocumentStore((s) => s.document);
@@ -163,18 +164,23 @@ export default function EditorPage() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f5f4f0] dark:bg-[#111110]">
       <OMRSplitView />
-      <GradingMode />
 
       <AppHeader isAIActive={isAIActive} />
 
-      <EditToolbar />
+      {!gradingMode && <EditToolbar />}
 
-      <EditorHints />
+      {!gradingMode && <EditorHints />}
 
       <div className="flex flex-1 overflow-hidden min-h-0">
         <div className="flex-1 overflow-hidden min-w-0 relative">
-          <DocumentEditor />
-          <WelcomeOverlay />
+          {gradingMode ? (
+            <GradingMode />
+          ) : (
+            <>
+              <DocumentEditor />
+              <WelcomeOverlay />
+            </>
+          )}
         </div>
 
         {sidebarOpen && (

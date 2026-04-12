@@ -247,7 +247,7 @@ export function GradingMode() {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-background flex flex-col animate-in fade-in duration-200"
+      className="h-full bg-background flex flex-col animate-in fade-in duration-200"
       role="dialog"
       aria-label={t("grading.header.title")}
     >

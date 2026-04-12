@@ -543,18 +543,20 @@ export function AIChatPanel() {
 
             <div className="grid grid-cols-2 gap-2 w-full">
               {([
-                { text: t("chat.suggestion.1"), icon: PenLine },
-                { text: t("chat.suggestion.2"), icon: Calculator },
-                { text: t("chat.suggestion.3"), icon: TableProperties },
-                { text: t("chat.suggestion.4"), icon: Bug },
-              ] as const).map(({ text, icon: Icon }) => (
+                { text: t("chat.suggestion.1"), icon: PenLine, bg: "bg-gradient-to-br from-amber-400 to-orange-500" },
+                { text: t("chat.suggestion.2"), icon: Calculator, bg: "bg-gradient-to-br from-violet-400 to-purple-600" },
+                { text: t("chat.suggestion.3"), icon: TableProperties, bg: "bg-gradient-to-br from-emerald-400 to-teal-600" },
+                { text: t("chat.suggestion.4"), icon: Bug, bg: "bg-gradient-to-br from-rose-400 to-pink-600" },
+              ] as const).map(({ text, icon: Icon, bg }) => (
                 <button
                   key={text}
                   onClick={() => { setInput(text); textareaRef.current?.focus(); }}
-                  className="chat-suggestion-card flex items-start gap-2 text-left text-[12px] px-3 py-2.5 rounded-xl text-foreground/75 leading-snug font-medium"
+                  className="chat-suggestion-card flex items-start gap-2.5 text-left text-[12px] px-3 py-2.5 rounded-xl text-foreground/75 leading-snug font-medium"
                 >
-                  <Icon className="h-4 w-4 mt-0.5 shrink-0 text-amber-700 dark:text-amber-400" />
-                  <span>{text}</span>
+                  <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 shadow-sm ${bg}`}>
+                    <Icon className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <span className="mt-1">{text}</span>
                 </button>
               ))}
             </div>

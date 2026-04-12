@@ -39,6 +39,7 @@ import {
   Brain,
   Wrench,
   Hammer,
+  Play,
 } from "lucide-react";
 
 /* ── Floating math formulas background ── */
@@ -288,6 +289,18 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
   const opacity = e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1800)
                 : e < 600 ? e / 600 : 1;
 
+  // Step label for progress bar
+  const stepLabel =
+    e < T.type1    ? (isJa ? "デモ開始..." : "Starting...") :
+    e < T.send1    ? (isJa ? "ユーザーが入力中" : "User typing...") :
+    e < T.ai1      ? (isJa ? "AIが分析中..." : "AI thinking...") :
+    e < T.applied1 ? (isJa ? "紙面に反映中" : "Applying to page...") :
+    e < T.type2    ? (isJa ? "問題が完成" : "Problems created") :
+    e < T.send2    ? (isJa ? "追加指示を入力中" : "New instruction...") :
+    e < T.ai2      ? (isJa ? "AIが更新中..." : "AI updating...") :
+    e < T.fadeOut   ? (isJa ? "更新完了" : "Updated") :
+    (isJa ? "もう一度再生..." : "Replaying...");
+
   // ── Activity log card (mirrors real ThinkingIndicator) ──
   const ActivityLog = ({ data }: { data: { steps: { icon: React.ElementType; label: string; tone: "thinking" | "tool" | "done" }[]; elapsedSec: number } }) => (
     <div className="flex gap-1.5 items-start">
@@ -384,6 +397,10 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
             {isJa ? "数学Ⅰ　確認テスト" : "Math I — Quiz"}
           </span>
           <div className="ml-auto flex items-center gap-2">
+            <span className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 font-bold border border-violet-500/15">
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+              {isJa ? "デモ再生中" : "LIVE DEMO"}
+            </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/15">
               {isJa ? "PDF出力" : "Export PDF"}
             </span>
@@ -535,6 +552,20 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
             <div className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground/25">
               <CheckSquare className="h-3 w-3" />
             </div>
+          </div>
+        </div>
+
+        {/* Demo progress bar */}
+        <div className="border-t border-foreground/[0.06] bg-foreground/[0.015] px-4 py-1.5 flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-[10px] text-violet-500/60 shrink-0">
+            <Play className="h-2.5 w-2.5 fill-current" />
+            <span className="font-medium">{stepLabel}</span>
+          </div>
+          <div className="flex-1 h-[3px] bg-foreground/[0.04] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-violet-500/70 to-fuchsia-500/70 rounded-full"
+              style={{ width: `${(e / CYCLE) * 100}%` }}
+            />
           </div>
         </div>
       </div>
@@ -1363,6 +1394,10 @@ export function TemplateGallery() {
               {isJa
                 ? "AIに指示を出すと、コンパイル済みのPDFが紙面にそのまま表示。数式も図もきれいに組版された状態で直接編集できます。"
                 : "Type a prompt, and Eddivom renders the finished PDF right on the page. Equations and layout are print-ready."}
+            </p>
+            <p className="flex items-center justify-center gap-1.5 text-[12px] text-violet-500/70 font-medium mt-5">
+              <Play className="h-3.5 w-3.5 fill-current" />
+              {isJa ? "30秒デモをご覧ください" : "Watch the 30-second demo"}
             </p>
           </div>
 

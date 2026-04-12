@@ -106,20 +106,17 @@ export function WelcomeOverlay() {
         className="pointer-events-auto w-full max-w-3xl rounded-2xl border border-border/60 bg-background/95 backdrop-blur-xl shadow-2xl shadow-foreground/10 overflow-hidden animate-in fade-in zoom-in-95 duration-300"
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-border/40 bg-gradient-to-br from-amber-50/60 via-violet-50/40 to-sky-50/40 dark:from-amber-950/20 dark:via-violet-950/15 dark:to-sky-950/20">
+        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-border/40 bg-gradient-to-br from-amber-50/80 via-violet-50/50 to-sky-50/50 dark:from-amber-950/25 dark:via-violet-950/20 dark:to-sky-950/25">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-md shadow-amber-500/30">
-                <Sparkles className="h-3.5 w-3.5 text-white" />
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                <Sparkles className="h-5 w-5 text-white" />
               </div>
-              <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground/70">
-                {t("welcome.eyebrow")}
-              </span>
+              <h2 className="text-xl font-bold text-foreground/90 leading-tight">
+                {t("welcome.title")}
+              </h2>
             </div>
-            <h2 className="text-xl font-bold text-foreground/90 leading-tight">
-              {t("welcome.title")}
-            </h2>
-            <p className="text-[13px] text-muted-foreground/80 mt-1 leading-relaxed">
+            <p className="text-[13px] text-muted-foreground/70 leading-relaxed">
               {t("welcome.subtitle")}
             </p>
           </div>
@@ -130,20 +127,17 @@ export function WelcomeOverlay() {
             title={t("welcome.dismiss")}
             aria-label={t("welcome.dismiss")}
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Mode cards grid */}
         <div className="p-5">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5 px-1">
-            {t("welcome.choose_path")}
-          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {/* 1. AI Chat */}
             <ModeCard
               accent="amber"
-              icon={<Sparkles className="h-4 w-4" />}
+              icon={<Sparkles className="h-5 w-5" />}
               badge={t("welcome.card.ai.badge")}
               title={t("welcome.card.ai.title")}
               desc={t("welcome.card.ai.desc")}
@@ -154,7 +148,7 @@ export function WelcomeOverlay() {
             {/* 2. Templates — uses the existing TemplatePicker as the action */}
             <TemplateCard
               accent="violet"
-              icon={<LayoutTemplate className="h-4 w-4" />}
+              icon={<LayoutTemplate className="h-5 w-5" />}
               badge={t("welcome.card.template.badge")}
               title={t("welcome.card.template.title")}
               desc={t("welcome.card.template.desc")}
@@ -166,7 +160,7 @@ export function WelcomeOverlay() {
             {/* 3. Scan PDF */}
             <ModeCard
               accent="emerald"
-              icon={<ScanLine className="h-4 w-4" />}
+              icon={<ScanLine className="h-5 w-5" />}
               badge={t("welcome.card.scan.badge")}
               title={t("welcome.card.scan.title")}
               desc={t("welcome.card.scan.desc")}
@@ -177,7 +171,7 @@ export function WelcomeOverlay() {
             {/* 4. Grading */}
             <ModeCard
               accent="rose"
-              icon={<ClipboardCheck className="h-4 w-4" />}
+              icon={<ClipboardCheck className="h-5 w-5" />}
               badge={t("welcome.card.grading.badge")}
               title={t("welcome.card.grading.title")}
               desc={t("welcome.card.grading.desc")}
@@ -189,9 +183,6 @@ export function WelcomeOverlay() {
 
         {/* Toolbar tips */}
         <div className="px-5 pb-4 pt-1">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2 px-1">
-            {t("welcome.toolbar_tips")}
-          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <ToolbarTip
               icon={<Eye className="h-3 w-3" />}
@@ -241,23 +232,23 @@ type Accent = "amber" | "violet" | "emerald" | "rose";
 
 const ACCENT_STYLES: Record<Accent, { iconBg: string; ring: string; badge: string }> = {
   amber: {
-    iconBg: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    ring: "hover:border-amber-400/60 hover:shadow-amber-500/10",
+    iconBg: "bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/25",
+    ring: "hover:border-amber-400/50 hover:shadow-lg hover:shadow-amber-500/10",
     badge: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   },
   violet: {
-    iconBg: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-    ring: "hover:border-violet-400/60 hover:shadow-violet-500/10",
+    iconBg: "bg-gradient-to-br from-violet-400 to-purple-600 text-white shadow-lg shadow-violet-500/25",
+    ring: "hover:border-violet-400/50 hover:shadow-lg hover:shadow-violet-500/10",
     badge: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
   },
   emerald: {
-    iconBg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    ring: "hover:border-emerald-400/60 hover:shadow-emerald-500/10",
+    iconBg: "bg-gradient-to-br from-emerald-400 to-teal-600 text-white shadow-lg shadow-emerald-500/25",
+    ring: "hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-500/10",
     badge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   },
   rose: {
-    iconBg: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-    ring: "hover:border-rose-400/60 hover:shadow-rose-500/10",
+    iconBg: "bg-gradient-to-br from-rose-400 to-pink-600 text-white shadow-lg shadow-rose-500/25",
+    ring: "hover:border-rose-400/50 hover:shadow-lg hover:shadow-rose-500/10",
     badge: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
   },
 };
@@ -278,28 +269,16 @@ function ModeCard({ accent, icon, badge, title, desc, cta, onClick }: ModeCardPr
     <button
       type="button"
       onClick={onClick}
-      className={`group flex items-start gap-3 p-3.5 rounded-xl border border-border/40 bg-background hover:bg-foreground/[0.02] text-left transition-all duration-200 hover:shadow-lg ${style.ring}`}
+      className={`group flex items-center gap-3.5 p-4 rounded-xl border border-border/40 bg-background hover:bg-foreground/[0.02] text-left transition-all duration-200 hover:shadow-lg ${style.ring}`}
     >
-      <div className={`shrink-0 h-9 w-9 rounded-lg flex items-center justify-center ${style.iconBg}`}>
+      <div className={`shrink-0 h-11 w-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${style.iconBg}`}>
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-0.5">
-          <span className={`text-[8.5px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${style.badge}`}>
-            {badge}
-          </span>
-        </div>
-        <div className="text-[13px] font-semibold text-foreground/90 mb-0.5">
-          {title}
-        </div>
-        <div className="text-[11px] text-muted-foreground/75 leading-snug mb-1.5">
-          {desc}
-        </div>
-        <div className="text-[11px] font-medium text-foreground/60 group-hover:text-foreground inline-flex items-center gap-1 transition-colors">
-          <span>{cta}</span>
-          <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-        </div>
+        <div className="text-[14px] font-bold text-foreground/90">{title}</div>
+        <div className="text-[11px] text-muted-foreground/60 leading-snug mt-0.5">{desc}</div>
       </div>
+      <ArrowRight className="h-4 w-4 text-foreground/20 group-hover:text-foreground/50 shrink-0 transition-all group-hover:translate-x-0.5" />
     </button>
   );
 }
@@ -319,27 +298,15 @@ function TemplateCard({ accent, icon, badge, title, desc, cta, currentId, onSele
   const style = ACCENT_STYLES[accent];
   return (
     <div
-      className={`group relative flex items-start gap-3 p-3.5 rounded-xl border border-border/40 bg-background hover:bg-foreground/[0.02] text-left transition-all duration-200 hover:shadow-lg ${style.ring}`}
+      className={`group relative flex items-start gap-3.5 p-4 rounded-xl border border-border/40 bg-background hover:bg-foreground/[0.02] text-left transition-all duration-200 hover:shadow-lg ${style.ring}`}
     >
-      <div className={`shrink-0 h-9 w-9 rounded-lg flex items-center justify-center ${style.iconBg}`}>
+      <div className={`shrink-0 h-11 w-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${style.iconBg}`}>
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-0.5">
-          <span className={`text-[8.5px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${style.badge}`}>
-            {badge}
-          </span>
-        </div>
-        <div className="text-[13px] font-semibold text-foreground/90 mb-0.5">
-          {title}
-        </div>
-        <div className="text-[11px] text-muted-foreground/75 leading-snug mb-2">
-          {desc}
-        </div>
-        {/* Inline TemplatePicker — opens its own modal/popover */}
-        <div className="-ml-1">
-          <TemplatePicker currentId={currentId} onSelect={onSelect} label={cta} />
-        </div>
+        <div className="text-[14px] font-bold text-foreground/90">{title}</div>
+        <div className="text-[11px] text-muted-foreground/60 leading-snug mt-0.5 mb-2">{desc}</div>
+        <TemplatePicker currentId={currentId} onSelect={onSelect} label={cta} />
       </div>
     </div>
   );
