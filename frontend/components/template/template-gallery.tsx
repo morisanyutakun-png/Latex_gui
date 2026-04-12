@@ -882,10 +882,10 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
   const fadeIn = useFadeIn(0);
 
   return (
-    <section ref={fadeIn.ref} className={`relative py-24 border-t border-foreground/[0.04] overflow-hidden transition-all duration-1000 ${fadeIn.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+    <section ref={fadeIn.ref} className={`relative py-28 border-t border-foreground/[0.04] overflow-hidden transition-all duration-1000 ${fadeIn.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_50%,hsl(var(--primary)/0.025),transparent_70%)]" />
       <div className="relative max-w-5xl mx-auto px-6">
-        <div className="text-center mb-14">
+        <div className="text-center mb-16">
           <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
             Before / After
           </p>
@@ -899,74 +899,145 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 md:gap-4 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-8 md:gap-6 items-center">
           {/* Before */}
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-4">
             <span className="text-[10px] font-bold tracking-wider uppercase px-3 py-1 rounded-full border border-foreground/[0.08] text-muted-foreground/50 bg-foreground/[0.02]">
               {isJa ? "元の教材" : "Before"}
             </span>
-            <div className="relative w-full max-w-[230px] mx-auto">
-              <div className="bg-[#fdfcf4] dark:bg-[#2c2a1e] rounded-lg border border-amber-200/40 dark:border-amber-800/30 shadow-lg p-5 rotate-[-1.5deg] hover:rotate-0 transition-transform duration-300">
-                <div className="space-y-1 mb-3">
-                  <div className="h-2 bg-gray-700/30 rounded-full w-2/3 mx-auto" />
-                  <div className="h-1.5 bg-gray-500/20 rounded-full w-1/2 mx-auto" />
-                </div>
-                <div className="border-t border-gray-400/20 pt-3 space-y-3 opacity-70">
+            <div className="relative w-full max-w-[270px] mx-auto group">
+              {/* Desk shadow */}
+              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-[65%] h-5 bg-black/[0.06] dark:bg-black/15 rounded-[50%] blur-lg" />
+              {/* Paper */}
+              <div
+                className="relative rounded-sm overflow-hidden transition-transform duration-500 group-hover:rotate-0"
+                style={{
+                  aspectRatio: "210/297",
+                  transform: "rotate(-2deg)",
+                  background: "linear-gradient(160deg, #f2ead0 0%, #ebe1c0 50%, #e4d8b4 100%)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.3)",
+                  border: "1px solid rgba(180,160,120,0.25)",
+                }}
+              >
+                {/* Age spots */}
+                <div className="absolute right-[15%] top-[8%] h-14 w-14 rounded-full bg-amber-800/[0.04] blur-lg pointer-events-none" />
+                <div className="absolute left-[10%] bottom-[20%] h-10 w-10 rounded-full bg-amber-700/[0.03] blur-md pointer-events-none" />
+                {/* Fold crease */}
+                <div className="absolute left-0 right-0 top-[48%] h-[2px] pointer-events-none"
+                  style={{ background: "linear-gradient(90deg, transparent 3%, rgba(140,120,70,0.06) 15%, rgba(140,120,70,0.1) 50%, rgba(140,120,70,0.06) 85%, transparent 97%)" }} />
+                {/* Scan lines */}
+                <div className="absolute inset-0 pointer-events-none opacity-[0.025]"
+                  style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.12) 3px, rgba(0,0,0,0.12) 4px)" }} />
+                {/* Vignette */}
+                <div className="absolute inset-0 pointer-events-none rounded-sm"
+                  style={{ boxShadow: "inset 0 0 30px rgba(0,0,0,0.04)" }} />
+
+                {/* Content skeleton */}
+                <div className="relative h-full p-[9%] flex flex-col">
+                  {/* Title */}
+                  <div className="mb-[5%] pb-[4%] border-b-[1.5px] border-gray-700/15">
+                    <div className="h-2.5 bg-gray-800/18 rounded-[1px] w-[50%] mx-auto mb-2" />
+                    <div className="h-1.5 bg-gray-600/10 rounded-[1px] w-[30%] mx-auto" />
+                  </div>
+                  {/* Info row */}
+                  <div className="flex items-center gap-2 mb-[5%]">
+                    <div className="h-1 bg-gray-500/12 rounded-[1px] w-[15%]" />
+                    <div className="flex-1 border-b border-gray-400/15" />
+                  </div>
+                  {/* Section 1 */}
+                  <div className="h-2 bg-gray-700/15 rounded-[1px] w-[35%] mb-1.5" />
+                  <div className="h-1 bg-gray-500/10 rounded-[1px] w-[55%] mb-[4%]" />
                   {[1, 2, 3].map((n) => (
-                    <div key={n} className="flex gap-1.5">
-                      <span className="text-[8px] text-gray-500/60 mt-0.5 shrink-0">({n})</span>
-                      <div className="flex-1 space-y-1">
-                        <div className="h-1 bg-gray-600/20 rounded-full w-full" />
-                        <div className="h-1 bg-gray-500/15 rounded-full w-4/5" />
-                        <div className="h-6 border-b border-dashed border-gray-400/20" />
+                    <div key={n} className="mb-[5%]">
+                      <div className="flex gap-[3%] mb-1">
+                        <span className="text-[5px] text-gray-600/25 shrink-0">({n})</span>
+                        <div className="flex-1 space-y-1">
+                          <div className="h-1 bg-gray-600/12 rounded-[1px]" style={{ width: `${60 + n * 10}%` }} />
+                          <div className="h-1 bg-gray-500/8 rounded-[1px]" style={{ width: `${40 + n * 12}%` }} />
+                        </div>
                       </div>
+                      <div className="ml-[7%] h-5 border-b border-dashed border-gray-400/12 mt-0.5" />
                     </div>
                   ))}
+                  {/* Section 2 */}
+                  <div className="h-2 bg-gray-700/15 rounded-[1px] w-[30%] mb-1.5 mt-[2%]" />
+                  <div className="mb-[3%]">
+                    <div className="flex gap-[3%] mb-1">
+                      <span className="text-[5px] text-gray-600/25 shrink-0">(1)</span>
+                      <div className="flex-1">
+                        <div className="h-1 bg-gray-600/12 rounded-[1px] w-[70%]" />
+                      </div>
+                    </div>
+                    <div className="ml-[7%] h-4 border-b border-dashed border-gray-400/12 mt-0.5" />
+                  </div>
+                  {/* Footer */}
+                  <div className="mt-auto pt-2 border-t border-gray-400/8 flex justify-center">
+                    <div className="h-0.5 bg-gray-500/8 rounded-[1px] w-[10%]" />
+                  </div>
                 </div>
-                <div className="absolute inset-0 rounded-lg pointer-events-none opacity-[0.06]"
-                  style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.02) 3px, rgba(0,0,0,0.02) 4px)" }} />
               </div>
             </div>
-            <p className="text-[12px] text-muted-foreground/70 text-center leading-snug">
+            <p className="text-[12px] text-muted-foreground/60 text-center">
               {isJa ? "過去問・古いプリント・スキャンPDF" : "Old exams, scanned worksheets, PDFs"}
             </p>
           </div>
 
-          {/* Steps connector */}
-          <div className="hidden md:flex flex-col items-center justify-start gap-1 pt-10 min-w-[120px]">
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
-                <Upload className="h-4 w-4 text-white" />
-              </div>
-              <p className="text-[9px] text-muted-foreground/50 text-center leading-tight">
-                {isJa ? "アップロード\nAI抽出" : "Upload\nAI extract"}
-              </p>
-              <div className="h-6 w-px bg-gradient-to-b from-violet-500/30 to-fuchsia-500/30" />
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
-                <PenLine className="h-4 w-4 text-white" />
-              </div>
-              <p className="text-[9px] text-muted-foreground/50 text-center leading-tight">
-                {isJa ? "編集・類題\n追加" : "Edit &\nadd variants"}
-              </p>
-              <div className="h-6 w-px bg-gradient-to-b from-fuchsia-500/30 to-emerald-500/30" />
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                <FileDown className="h-4 w-4 text-white" />
-              </div>
-              <p className="text-[9px] text-muted-foreground/50 text-center leading-tight">
-                {isJa ? "PDF出力" : "Export PDF"}
-              </p>
-            </div>
+          {/* Steps connector — mobile */}
+          <div className="flex md:hidden items-center justify-center gap-3 py-2">
+            {[
+              { Icon: Upload, from: "from-blue-500", to: "to-violet-600" },
+              { Icon: PenLine, from: "from-violet-500", to: "to-fuchsia-500" },
+              { Icon: FileDown, from: "from-emerald-500", to: "to-teal-500" },
+            ].map(({ Icon, from, to }, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/25" />}
+                <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${from} ${to} flex items-center justify-center shadow-md`}>
+                  <Icon className="h-4 w-4 text-white" />
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+          {/* Steps connector — desktop */}
+          <div className="hidden md:flex flex-col items-center justify-center min-w-[130px]">
+            {[
+              { Icon: Upload, label: isJa ? "アップロード\nAI抽出" : "Upload\nAI extract", from: "from-blue-500", to: "to-violet-600", shadow: "shadow-violet-500/20" },
+              { Icon: PenLine, label: isJa ? "編集・類題\n追加" : "Edit &\nadd variants", from: "from-violet-500", to: "to-fuchsia-500", shadow: "shadow-fuchsia-500/20" },
+              { Icon: FileDown, label: isJa ? "PDF出力" : "Export PDF", from: "from-emerald-500", to: "to-teal-500", shadow: "shadow-emerald-500/20" },
+            ].map(({ Icon, label, from, to, shadow }, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && (
+                  <div className="flex flex-col items-center my-0.5">
+                    <div className="h-4 w-px bg-foreground/[0.08]" />
+                    <ChevronDown className="h-3 w-3 text-muted-foreground/20 -my-0.5" />
+                  </div>
+                )}
+                <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${from} ${to} flex items-center justify-center shadow-lg ${shadow}`}>
+                  <Icon className="h-4 w-4 text-white" />
+                </div>
+                <p className="text-[8px] text-muted-foreground/45 text-center leading-tight mt-1.5 whitespace-pre-line">{label}</p>
+              </React.Fragment>
+            ))}
           </div>
 
           {/* After */}
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-4">
             <span className="text-[10px] font-bold tracking-wider uppercase px-3 py-1 rounded-full border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/[0.06]">
               {isJa ? "完成品" : "After"}
             </span>
-            <div className="relative w-full max-w-[230px] mx-auto">
-              <WorksheetPaper variant="answer" isJa={isJa} />
+            <div className="relative w-full max-w-[270px] mx-auto">
+              {/* Ambient glow */}
+              <div className="absolute -inset-4 -z-10 bg-gradient-to-br from-blue-400/[0.06] via-violet-400/[0.06] to-emerald-400/[0.06] dark:from-blue-400/[0.03] dark:via-violet-400/[0.03] dark:to-emerald-400/[0.03] rounded-3xl blur-2xl" />
+              {/* Stacked pages */}
+              <div className="absolute inset-0 translate-x-3 translate-y-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200/40 dark:border-gray-700/25 shadow-sm" />
+              <div className="absolute inset-0 translate-x-1.5 translate-y-1.5 bg-white dark:bg-gray-900 rounded-lg border border-gray-200/50 dark:border-gray-700/35 shadow-md" />
+              {/* Main paper */}
+              <div className="relative" style={{ transform: "perspective(1200px) rotateY(-2deg)" }}>
+                <WorksheetPaper variant="answer" isJa={isJa} />
+              </div>
+              {/* Desk shadow */}
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-[70%] h-5 bg-black/[0.05] dark:bg-black/15 rounded-[50%] blur-lg" />
             </div>
-            <p className="text-[12px] text-muted-foreground/70 text-center leading-snug">
+            <p className="text-[12px] text-muted-foreground/60 text-center">
               {isJa ? "美しく組版された印刷品質のPDF" : "Beautifully typeset, print-ready PDF"}
             </p>
           </div>
