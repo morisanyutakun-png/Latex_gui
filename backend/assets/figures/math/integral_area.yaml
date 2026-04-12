@@ -1,0 +1,37 @@
+id: math.integral_area
+category: math
+subcategory: plot
+title:
+  ja: 定積分の面積
+  en: Integral as area under curve
+description:
+  ja: 関数 y = f(x) と x 軸に挟まれた面積を区間 [a, b] で塗りつぶして表示。
+  en: Shaded area between y = f(x) and the x-axis over [a, b].
+tags: [pgfplots, integral, area, calculus, fillbetween]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  a:    { type: number, default: -1, min: -10, max: 10 }
+  b:    { type: number, default: 2,  min: -10, max: 10 }
+  xmin: { type: number, default: -3, min: -20, max: 0 }
+  xmax: { type: number, default: 3,  min: 0,   max: 20 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$}, ylabel={$y$},
+    xmin={{xmin}}, xmax={{xmax}},
+    samples=100, grid=both,
+    width=9cm, height=6cm,
+  ]
+    \addplot[name path=f, domain={{xmin}}:{{xmax}}, thick, blue] { 0.5*x^2 + 0.5 };
+    \addplot[name path=axis, draw=none, domain={{a}}:{{b}}] { 0 };
+    \addplot[blue!25] fill between[of=f and axis, soft clip={domain={{a}}:{{b}}}];
+    \draw[dashed, gray!70] (axis cs:{{a}}, 0) -- (axis cs:{{a}}, { 0.5*({{a}})*({{a}}) + 0.5 });
+    \draw[dashed, gray!70] (axis cs:{{b}}, 0) -- (axis cs:{{b}}, { 0.5*({{b}})*({{b}}) + 0.5 });
+    \node[below] at (axis cs:{{a}}, 0) {$a$};
+    \node[below] at (axis cs:{{b}}, 0) {$b$};
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { a: -1, b: 2, xmin: -3, xmax: 3 }

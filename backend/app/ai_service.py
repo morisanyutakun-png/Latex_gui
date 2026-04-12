@@ -171,12 +171,51 @@ AGENT_TOOLS = {
             },
         },
         {
+            "name": "draft_figure",
+            "description": (
+                "ESCAPE HATCH for figures not covered by the asset library. Only use this "
+                "AFTER two `list_figures` searches returned no match. Compiles an arbitrary "
+                "tikzpicture / circuitikz / pgfplots snippet through LuaLaTeX, returns a "
+                "PNG preview key, and prefixes the body with a tracking comment. The returned "
+                "`tikz_body_marked` is what you then splice into the document via "
+                "`replace_in_latex` — do NOT hand-write TikZ without this tool, because it "
+                "(a) enforces the security allowlist, (b) verifies the figure actually "
+                "compiles in isolation, and (c) logs the attempt so the library can grow."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tikz_body": {
+                        "type": "string",
+                        "description": (
+                            "A complete \\begin{tikzpicture}...\\end{tikzpicture} (or "
+                            "\\begin{circuitikz}/\\begin{pgfpicture}) block. No preamble, "
+                            "no \\documentclass, no \\usepackage — the server adds those."
+                        ),
+                    },
+                    "category_hint": {
+                        "type": "string",
+                        "description": "math | circuit | physics | other — best-fit category",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": (
+                            "Short explanation of why no library asset fit (e.g. "
+                            "'ユーザー要求: 三次関数の変曲点入り、該当 id 無し')."
+                        ),
+                    },
+                },
+                "required": ["tikz_body", "reason"],
+            },
+        },
+        {
             "name": "insert_figure",
             "description": (
                 "Render a curated figure asset with the given parameters and splice it into the "
-                "current LaTeX source. Automatically loads any required packages and TikZ libraries. "
-                "Prefer this over writing raw TikZ by hand. After calling this you MUST run "
-                "compile_check(quick=false) like any other write."
+                "current LaTeX source. Automatically loads any required packages and TikZ libraries, "
+                "runs a pre-commit compile check, and ROLLS BACK on failure. Prefer this over "
+                "writing raw TikZ by hand. On success the document source is already verified "
+                "to compile — no separate compile_check needed."
             ),
             "parameters": {
                 "type": "object",
@@ -231,8 +270,30 @@ AGENT_TOOLS = {
 from .security import get_allowed_packages_doc as _get_pkg_doc
 
 
+def _build_figure_catalog_block() -> str:
+    """Render the current figure asset catalog as a compact markdown block for
+    the system prompt. Called lazily when the prompt is first built so the
+    registry is already loaded."""
+    try:
+        from .figures import get_registry
+        reg = get_registry()
+        reg.ensure_loaded()
+        by_cat: dict[str, list[str]] = {}
+        for entry in reg.list(limit=500)["figures"]:
+            by_cat.setdefault(entry["category"], []).append(entry["id"])
+        lines: list[str] = []
+        for cat in sorted(by_cat.keys()):
+            ids = ", ".join(sorted(by_cat[cat]))
+            lines.append(f"- **{cat}** ({len(by_cat[cat])}): {ids}")
+        return "\n".join(lines) or "- (registry empty)"
+    except Exception as e:
+        logger.warning("figure catalog block unavailable: %s", e)
+        return "- (catalog unavailable — call `list_figures` to browse)"
+
+
 def _build_system_prompt_ja() -> str:
     pkg_doc = _get_pkg_doc(lang="ja")
+    catalog_block = _build_figure_catalog_block()
     return rf"""
 あなたは **EddivomAI** — テンプレート駆動 LaTeX エディタ「Eddivom」に組み込まれた自律型 AI エージェントです。
 Claude Code / OpenAI Codex のように、ユーザーの指示に応じて自分で考え、計画し、ツールを使って raw LaTeX を直接編集する。
@@ -294,31 +355,32 @@ LuaLaTeX を前提とする。日本語テンプレなら `luatexja-preset[haran
 {pkg_doc}
 
 ### 図の挿入 (Figure library) — **厳守フロー**
-ユーザーが以下のいずれかを要求したら、**100% `list_figures` をまず呼べ**。例外なし:
-- 「図を書いて」「図を入れて」「図を追加」「図解して」「作図して」「描いて」
-- 「グラフ」「関数のグラフ」「プロット」
-- 「回路」「電気回路」「回路図」「電子回路」
-- 「自由体図」「力の図」「ばね」「振り子」「斜面」「光線図」「投射」「電場」
-- 「ベクトル場」「三角形」「円」「数直線」
-- 数学・物理・電気の問題文に図が付くことが自然なとき (問題集・教材作成はほぼ全て該当)
 
-**絶対禁止**: 自力で `\begin{{tikzpicture}}` / `\begin{{circuitikz}}` / `\begin{{axis}}` を書くこと。
-まず `list_figures` を呼ばずに TikZ を手書きするのは **プロトコル違反** とみなす。
+ユーザーが図・グラフ・回路・自由体図・振り子・ばね・斜面・光線・投射・電場・ベクトル場・三角形・円・数直線・関数プロットなどを要求 (教材作成では大半が該当) したら、必ず以下の順:
 
-必須ワークフロー (この順番を崩すな):
-1. `list_figures(category="...", query="...")` — 関連するカテゴリ/キーワードで検索
-2. 該当 id があれば `get_figure(id="...")` で parameter_schema を確認
-3. `insert_figure(id="...", params={{...}}, caption="...", label="...")` で挿入
-4. `compile_check(quick=false)` で検証 (必須)
+#### 1) まず `list_figures` を **2 回** 呼ぶ (2-query ルール)
+- 1 回目: 具体的なキーワード (例: `query="quadratic"`, `category="math"`)
+- 2 回目: 空振りなら **広めのキーワード** で再検索 (例: `query="function"`, `category="math"`)
+- 2 回ともヒット無しだったときだけ `draft_figure` 使用を許可する
 
-アセットカタログ (カテゴリとキーワード):
-- `math` — quadratic (二次関数), sine_wave (正弦波), tangent_line (接線), axes_2d/axes_3d (座標軸), triangle_labeled (三角形), circle_angle (中心角), vector_field (ベクトル場), number_line (数直線)
-- `circuit` — rc_series, rl_series, rlc_series, rc_parallel, series_parallel_mix (直列と並列の混合), diode_half_wave (半波整流), opamp_inverting (反転増幅), voltage_divider (分圧), wheatstone_bridge
-- `physics` — free_body_block (自由体図), incline_forces (斜面), pendulum (振り子), spring_mass (ばね質量系), transverse_wave (横波), lens_ray_diagram (凸レンズ), projectile (斜方投射), electric_field_lines (電場線)
+#### 2) ヒットしたら `get_figure(id)` で parameter_schema 確認 → `insert_figure(id, params, caption, label)`
+- `insert_figure` は挿入後に **自動で pre-compile 検証** を実行。成功したら文書にコミット、失敗したらロールバックして `error=compile_failed` を返す
+- 成功後の `compile_check` は不要 (既に検証済み)
+- 失敗時は params を見直すか別 id を試す
 
-**ライブラリに無い特殊な図**のときだけ、`list_figures` で空ヒットを確認した後に自力で TikZ を書いてよい。その場合も 1 回で通すために `compile_check` を必ず使え。
+#### 3) 2 回の list_figures が両方空だった場合のみ `draft_figure`
+- `tikz_body` にフル `\begin{{tikzpicture}}...\end{{tikzpicture}}` (または circuitikz / pgfpicture) を渡す。preamble 不要
+- `reason` に「なぜライブラリで足りないか」を必ず書く (ログに残り、将来のカタログ拡張判断に使う)
+- 成功すると `snippet_key` と `tikz_body_marked` が返る
+- その `tikz_body_marked` を `replace_in_latex` で文書に差し込む
+- 最後に `compile_check(quick=false)` を必ず呼ぶ
 
-**複数の図が必要なとき**: 1 つずつ `insert_figure` → `compile_check` を繰り返せ。まとめて手書きするな。
+**絶対禁止**: 上記 3 フローを通さずに `set_latex` / `replace_in_latex` で `\begin{{tikzpicture}}` / `\begin{{circuitikz}}` / `\begin{{pgfpicture}}` を直接書くこと。**ツールレベルで弾かれて `error: protocol_violation` が返る**のでコストの無駄。必ず `insert_figure` か `draft_figure` を使え。
+
+#### 現在のカタログ (id 一覧)
+{catalog_block}
+
+**複数の図が必要なとき**: 1 つずつ `insert_figure` (または `draft_figure` → `replace_in_latex`) を繰り返せ。まとめて手書きするな。
 
 パラメータ: parameter_schema の型・範囲・enum 選択肢を守れ。迷ったら `get_figure` で確認せよ。
 
@@ -349,6 +411,7 @@ LuaLaTeX を前提とする。日本語テンプレなら `luatexja-preset[haran
 
 def _build_system_prompt_en() -> str:
     pkg_doc = _get_pkg_doc(lang="en")
+    catalog_block = _build_figure_catalog_block()
     return rf"""
 You are **EddivomAI** — an autonomous AI agent embedded in the template-driven LaTeX editor "Eddivom".
 Like Claude Code or OpenAI Codex, you reason, plan, and call tools to edit raw LaTeX directly on behalf of the user.
@@ -412,31 +475,39 @@ For Japanese documents use `\usepackage[haranoaji]{{luatexja-preset}}`.
 {pkg_doc}
 
 ### Figure library — **MANDATORY FLOW**
-Whenever the user asks for any of the following, **you MUST call `list_figures` first**. No exceptions:
-- "draw / insert / add / make a figure", "visualize", "diagram", "illustrate"
-- "graph", "plot", "function"
-- "circuit", "schematic"
-- "free-body diagram", "FBD", "incline", "pendulum", "spring", "lens", "projectile", "field lines"
-- "vector field", "triangle", "circle", "number line"
-- Any math / physics / electronics problem where a figure is naturally expected
 
-**STRICTLY FORBIDDEN**: hand-writing `\begin{{tikzpicture}}` / `\begin{{circuitikz}}` / `\begin{{axis}}`
-before calling `list_figures`. Doing so is a protocol violation.
+For any figure / graph / circuit / FBD / pendulum / spring / incline / lens / projectile /
+field lines / vector field / triangle / circle / number line / function plot request
+(most teaching-material work qualifies), follow this order:
 
-Required workflow (do not deviate):
-1. `list_figures(category="...", query="...")` — search with the best category and keyword
-2. On a hit, `get_figure(id="...")` to inspect the parameter_schema
-3. `insert_figure(id="...", params={{...}}, caption="...", label="...")`
-4. `compile_check(quick=false)` (mandatory)
+#### 1) Call `list_figures` **twice** (2-query rule)
+- First: specific keyword (e.g. `query="quadratic"`, `category="math"`)
+- Second (only if empty): broader keyword (e.g. `query="function"`, `category="math"`)
+- Only if BOTH return empty may you use `draft_figure`.
 
-Catalog (category → ids):
-- `math` — quadratic, sine_wave, tangent_line, axes_2d, axes_3d, triangle_labeled, circle_angle, vector_field, number_line
-- `circuit` — rc_series, rl_series, rlc_series, rc_parallel, series_parallel_mix, diode_half_wave, opamp_inverting, voltage_divider, wheatstone_bridge
-- `physics` — free_body_block, incline_forces, pendulum, spring_mass, transverse_wave, lens_ray_diagram, projectile, electric_field_lines
+#### 2) On a hit → `get_figure(id)` → `insert_figure(id, params, caption, label)`
+- `insert_figure` now performs a **pre-commit compile check** automatically.
+  On success the document is already verified; on failure the tool rolls back
+  and returns `error=compile_failed` so you can retry with different params or
+  pick another id. **No separate `compile_check` is needed after `insert_figure`.**
 
-Only hand-write TikZ after `list_figures` returns an empty result for your query. Even then,
-run `compile_check` on the first attempt. When multiple figures are needed, call
-`insert_figure` once per figure — never paste multiple tikzpictures at once.
+#### 3) If both list_figures queries returned empty → `draft_figure`
+- Pass the full `\begin{{tikzpicture}}...\end{{tikzpicture}}` (or circuitikz / pgfpicture)
+  in `tikz_body`. No preamble.
+- Always supply `reason` (why the library didn't cover it) — it's logged for catalog growth.
+- On success you get `snippet_key` + `tikz_body_marked`. Splice `tikz_body_marked` into
+  the document via `replace_in_latex`, then call `compile_check(quick=false)`.
+
+**STRICTLY FORBIDDEN**: hand-writing `\begin{{tikzpicture}}` / `\begin{{circuitikz}}` /
+`\begin{{pgfpicture}}` via `set_latex` / `replace_in_latex` without going through
+`insert_figure` or `draft_figure`. **The tools will reject this at runtime with
+`error: protocol_violation`**, so wasting a turn on it costs tokens for nothing.
+
+#### Current catalog (id list)
+{catalog_block}
+
+When multiple figures are needed, call `insert_figure` (or `draft_figure` →
+`replace_in_latex`) once per figure. Never paste multiple tikzpictures at once.
 
 Stay within each parameter's declared type and range (e.g. an `enum` must come from its `choices`).
 
@@ -554,11 +625,55 @@ def _execute_read_latex(document: dict, args: dict) -> dict:
     }
 
 
+_TIKZ_ENV_BEGIN_RE = _re.compile(
+    r"\\begin\{(tikzpicture|circuitikz|circuittikz|pgfpicture)\}"
+)
+_FIGURE_MARKER_RE = _re.compile(r"%\s*eddivom-figure:")
+
+
+def _find_unmarked_tikz_envs(added_text: str) -> list[str]:
+    """Return env names of any tikz-like environment in `added_text` that
+    lacks an `% eddivom-figure:` marker in the immediately surrounding
+    lines. Used by _execute_set_latex / _execute_replace_in_latex to enforce
+    the "figures must go through insert_figure / draft_figure" protocol."""
+    offenders: list[str] = []
+    for m in _TIKZ_ENV_BEGIN_RE.finditer(added_text):
+        env = m.group(1)
+        # Window: 200 chars before and 400 after the \begin{...}
+        start = max(0, m.start() - 200)
+        end = min(len(added_text), m.end() + 400)
+        window = added_text[start:end]
+        if not _FIGURE_MARKER_RE.search(window):
+            offenders.append(env)
+    return offenders
+
+
+_TIKZ_GUARD_MESSAGE = (
+    "TikZ 図は set_latex / replace_in_latex で直接書けません (プロトコル違反)。"
+    "insert_figure (ライブラリ経由) か draft_figure (escape hatch) を使ってください。"
+    "既存の図をそのまま移動させる場合は `% eddivom-figure: id=...` マーカも一緒に含めてください。"
+)
+
+
 def _execute_set_latex(document: dict, args: dict) -> dict:
     """Replace the entire LaTeX source."""
     new_latex = args.get("latex", "")
     if not isinstance(new_latex, str):
         return {"error": "latex must be a string"}
+
+    # Protocol guard: reject new unmarked TikZ envs to prevent the AI from
+    # freestyling around insert_figure / draft_figure.
+    current = document.get("latex", "") or ""
+    new_unmarked = _find_unmarked_tikz_envs(new_latex)
+    old_unmarked = _find_unmarked_tikz_envs(current)
+    # Only the *added* offenders count — existing ones shouldn't block edits.
+    if len(new_unmarked) > len(old_unmarked):
+        return {
+            "error": "protocol_violation",
+            "offender_envs": new_unmarked,
+            "message": _TIKZ_GUARD_MESSAGE,
+        }
+
     document["latex"] = new_latex
     return {
         "applied": True,
@@ -590,6 +705,18 @@ def _execute_replace_in_latex(document: dict, args: dict) -> dict:
             "message": f"find文字列が{occurrences}箇所一致しました。一意に特定できる文字列で再試行してください。",
         }
 
+    # Protocol guard: new tikz envs in the replacement text need the marker.
+    # We compute "added" as "in replace but not in find" — if a tikz begin
+    # appears in `replace` that wasn't in `find`, it's a new unmarked figure.
+    find_unmarked = _find_unmarked_tikz_envs(find)
+    replace_unmarked = _find_unmarked_tikz_envs(replace)
+    if len(replace_unmarked) > len(find_unmarked):
+        return {
+            "error": "protocol_violation",
+            "offender_envs": replace_unmarked,
+            "message": _TIKZ_GUARD_MESSAGE,
+        }
+
     new_latex = current.replace(find, replace, 1)
     document["latex"] = new_latex
     return {
@@ -600,12 +727,28 @@ def _execute_replace_in_latex(document: dict, args: dict) -> dict:
     }
 
 
-def _execute_compile_check(document: dict, args: dict) -> dict:
-    """LuaLaTeX で実際にコンパイル検証する。
+def _compile_latex_snapshot(
+    raw_latex_source: str,
+    *,
+    allow_autofix: bool = True,
+    timeout: int = 30,
+) -> dict:
+    """Core compile routine shared by compile_check and insert_figure rollback.
 
-    本番の compile_pdf と同じパッケージ補完 (autofix) を適用してから検証するため、
-    AI が「\\dfrac を使ったが amsmath を読み込んでいない」など軽微な不足を指摘するより、
-    コンパイル成功と判定して次のステップに進める。
+    Accepts a raw LaTeX string (not a document dict) so callers can compile a
+    hypothetical new version without mutating `document["latex"]`. Returns the
+    same result shape as _execute_compile_check so existing summarizers and
+    prompt fragments can consume it unchanged.
+
+    Keys returned:
+        success: bool
+        phase: "syntax" | "compile" | "error"
+        issues: list[str]
+        latex_source: str    (post-autofix — caller may want to commit this)
+        pdf_size: int        (only on success)
+        errors: list[str]    (only on failure)
+        error_line: int|None
+        message: str
     """
     import subprocess
     import tempfile
@@ -616,8 +759,9 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
         from .security import get_compile_args
         from .latex_autofix import autofix_latex, autofix_after_failure
 
-        raw_latex_source = document.get("latex", "") or ""
-        latex_source = autofix_latex(raw_latex_source)
+        latex_source = (
+            autofix_latex(raw_latex_source) if allow_autofix else (raw_latex_source or "")
+        )
 
         # ── Phase 1: 構文チェック ──
         issues = []
@@ -645,21 +789,11 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
                 "success": False,
                 "phase": "syntax",
                 "issues": issues,
+                "latex_source": latex_source,
                 "message": f"構文エラー {len(issues)}件 — コンパイル前に修正が必要",
             }
 
-        quick = args.get("quick", False)
-        if quick:
-            return {
-                "success": True,
-                "phase": "syntax",
-                "issues": [],
-                "latex_length": len(latex_source),
-                "message": f"構文チェック OK（{len(latex_source)}文字）",
-            }
-
         # ── Phase 2: 実コンパイル ──
-        # 内部ヘルパ: 1 回コンパイル → (success, pdf_size or 0, log)
         def _run_once(source: str) -> tuple[bool, int, str]:
             with tempfile.TemporaryDirectory() as tmpdir:
                 tex_path = Path(tmpdir) / "check.tex"
@@ -670,7 +804,7 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
                     cmd_args,
                     capture_output=True,
                     text=True,
-                    timeout=30,
+                    timeout=timeout,
                     cwd=tmpdir,
                     env=TEX_ENV,
                 )
@@ -684,7 +818,7 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
             ok, pdf_size, log = _run_once(latex_source)
 
             # autofix リトライ — 不足パッケージ / no-op stub を最大 3 回まで補完
-            if not ok:
+            if not ok and allow_autofix:
                 max_rounds = int(os.environ.get("LATEX_AUTOFIX_MAX_ROUNDS", "3"))
                 current = latex_source
                 for _round in range(max_rounds):
@@ -695,8 +829,6 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
                     current = retry_source
                     if ok:
                         latex_source = retry_source
-                        # AI が次の編集で同じ問題を起こさないよう、補完済みのソースを document に反映
-                        document["latex"] = retry_source
                         break
 
             if ok:
@@ -711,6 +843,7 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
                     "phase": "compile",
                     "issues": warnings[:5] if warnings else [],
                     "pdf_size": pdf_size,
+                    "latex_source": latex_source,
                     "latex_length": len(latex_source),
                     "message": f"コンパイル成功 ✓（PDF {pdf_size//1024}KB）"
                                + (f" — 警告{len(warnings)}件" if warnings else ""),
@@ -735,6 +868,8 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
                 "issues": errors[:8],
                 "errors": errors[:8],
                 "error_line": error_line,
+                "latex_source": latex_source,
+                "log_tail": log[-1500:],
                 "message": f"コンパイル失敗 ✗ — {errors[0][:100]}",
             }
 
@@ -743,6 +878,7 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
                 "success": False,
                 "phase": "compile",
                 "issues": ["コンパイルタイムアウト (30秒)"],
+                "latex_source": latex_source,
                 "message": "コンパイルタイムアウト — 文書が複雑すぎるか無限ループの可能性",
             }
         except FileNotFoundError:
@@ -750,6 +886,7 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
                 "success": True,
                 "phase": "syntax",
                 "issues": [],
+                "latex_source": latex_source,
                 "latex_length": len(latex_source),
                 "message": f"構文チェック OK（{len(latex_source)}文字）— コンパイラ未検出のため構文のみ",
             }
@@ -759,8 +896,75 @@ def _execute_compile_check(document: dict, args: dict) -> dict:
             "success": False,
             "phase": "error",
             "issues": [str(e)[:200]],
+            "latex_source": raw_latex_source or "",
             "message": f"検証エラー: {str(e)[:200]}",
         }
+
+
+def _syntax_check(latex_source: str) -> list[str]:
+    """Brace / environment balance only. No subprocess."""
+    issues: list[str] = []
+    depth = 0
+    for ch in latex_source:
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+        if depth < 0:
+            issues.append("閉じ括弧 } が多すぎます")
+            break
+    if depth > 0:
+        issues.append(f"開き括弧 {{ が {depth} 個閉じられていません")
+
+    begins = _re.findall(r'\\begin\{(\w+)\}', latex_source)
+    ends = _re.findall(r'\\end\{(\w+)\}', latex_source)
+    for env in set(begins):
+        bc, ec = begins.count(env), ends.count(env)
+        if bc != ec:
+            issues.append(f"\\begin{{{env}}} / \\end{{{env}}} 不一致 ({bc} vs {ec})")
+    return issues
+
+
+def _execute_compile_check(document: dict, args: dict) -> dict:
+    """LuaLaTeX で実際にコンパイル検証する。
+
+    quick=True は subprocess を使わず brace/env balance だけ。
+    quick=False は _compile_latex_snapshot ヘルパ経由で実コンパイル。
+    """
+    from .latex_autofix import autofix_latex
+
+    raw_latex_source = document.get("latex", "") or ""
+    latex_source = autofix_latex(raw_latex_source)
+
+    quick = args.get("quick", False)
+    if quick:
+        issues = _syntax_check(latex_source)
+        if issues:
+            return {
+                "success": False,
+                "phase": "syntax",
+                "issues": issues,
+                "message": f"構文エラー {len(issues)}件 — コンパイル前に修正が必要",
+            }
+        return {
+            "success": True,
+            "phase": "syntax",
+            "issues": [],
+            "latex_length": len(latex_source),
+            "message": f"構文チェック OK（{len(latex_source)}文字）",
+        }
+
+    result = _compile_latex_snapshot(raw_latex_source, allow_autofix=True)
+
+    # autofix 済みソースがあれば document に反映 (旧挙動と互換)
+    fixed = result.get("latex_source")
+    if fixed and fixed != raw_latex_source and result.get("success"):
+        document["latex"] = fixed
+
+    clean = dict(result)
+    clean.pop("latex_source", None)
+    clean.pop("log_tail", None)
+    return clean
 
 
 def _execute_list_figures(document: dict, args: dict) -> dict:
@@ -853,6 +1057,30 @@ def _execute_insert_figure(document: dict, args: dict) -> dict:
             "message": "rendered figure failed security scan — aborted insertion",
         }
 
+    # Pre-commit compile validation. If lualatex rejects the resulting document
+    # we leave `document["latex"]` untouched so the AI can retry with different
+    # parameters or pick a different asset, without polluting the source.
+    skip_compile = bool(args.get("_skip_compile"))  # test hook
+    if not skip_compile:
+        compile_result = _compile_latex_snapshot(new_src, allow_autofix=True)
+        if not compile_result.get("success"):
+            return {
+                "error": "compile_failed",
+                "asset_id": asset_id,
+                "phase": compile_result.get("phase"),
+                "errors": compile_result.get("errors", compile_result.get("issues", []))[:5],
+                "error_line": compile_result.get("error_line"),
+                "log_tail": (compile_result.get("log_tail") or "")[-800:],
+                "message": (
+                    f"図 {asset_id} 挿入後のコンパイルが失敗したためロールバックしました。"
+                    "params を見直すか別の id を試してください。"
+                ),
+            }
+        # autofix がパッケージ追加等で new_src を書き換えていれば、その版を採用。
+        fixed = compile_result.get("latex_source")
+        if fixed:
+            new_src = fixed
+
     document["latex"] = new_src
     return {
         "applied": True,
@@ -862,7 +1090,61 @@ def _execute_insert_figure(document: dict, args: dict) -> dict:
         "preview_url": f"/api/figures/{asset_id}/preview.png",
         "required_packages_added": rendered.required_packages,
         "required_tikzlibraries_added": rendered.required_tikzlibraries,
-        "message": f"図 {asset_id} を挿入しました（L{line} 付近）",
+        "compile_verified": not skip_compile,
+        "message": (
+            f"図 {asset_id} を挿入し compile 検証 OK（L{line} 付近）"
+            if not skip_compile
+            else f"図 {asset_id} を挿入しました（L{line} 付近、compile 検証スキップ）"
+        ),
+    }
+
+
+def _execute_draft_figure(document: dict, args: dict) -> dict:
+    from .figures.snippet import SnippetError, compile_snippet_sync
+
+    tikz_body = args.get("tikz_body") or ""
+    if not isinstance(tikz_body, str) or not tikz_body.strip():
+        return {"error": "tikz_body must be a non-empty string"}
+    category_hint = args.get("category_hint") or None
+    reason = args.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return {"error": "reason is required (why no library asset fits)"}
+
+    try:
+        _path, key = compile_snippet_sync(
+            tikz_body, category_hint=category_hint, reason=reason
+        )
+    except SnippetError as e:
+        return {
+            "error": "compile_failed",
+            "message": f"draft_figure コンパイル失敗: {str(e)[:200]}",
+        }
+    except Exception as e:
+        return {"error": f"draft_figure internal error: {str(e)[:200]}"}
+
+    # Inject a freestyle marker so the Visual Editor still renders the PNG.
+    marker = f"% eddivom-figure: freestyle key={key}"
+    lines = tikz_body.splitlines()
+    # Insert marker on the line right after the first \begin{...}
+    for i, ln in enumerate(lines):
+        if _re.match(r"\s*\\begin\{(tikzpicture|circuitikz|pgfpicture)\}", ln):
+            lines.insert(i + 1, marker)
+            break
+    else:
+        lines.insert(0, marker)
+    marked = "\n".join(lines)
+
+    return {
+        "applied": False,  # AI still needs to splice it into the document
+        "compile_verified": True,
+        "snippet_key": key,
+        "preview_url": f"/api/figures/snippet/{key}.png",
+        "tikz_body_marked": marked,
+        "category_hint": category_hint,
+        "message": (
+            f"draft_figure OK — key={key}. tikz_body_marked を "
+            "replace_in_latex で文書に挿入してください。"
+        ),
     }
 
 
@@ -881,6 +1163,8 @@ def _execute_tool(name: str, document: dict, args: dict) -> dict:
         return _execute_get_figure(document, args)
     if name == "insert_figure":
         return _execute_insert_figure(document, args)
+    if name == "draft_figure":
+        return _execute_draft_figure(document, args)
     return {"error": f"Unknown tool: {name}"}
 
 
@@ -906,6 +1190,10 @@ def _summarize_result(name: str, result: dict) -> str:
         if result.get("error"):
             return f"InsertFig ✗: {result.get('message', result['error'])[:80]}"
         return f"InsertFig: {result.get('asset_id', '?')} @ L{result.get('inserted_at_line', '?')}"
+    if name == "draft_figure":
+        if result.get("error"):
+            return f"DraftFig ✗: {result.get('message', result['error'])[:80]}"
+        return f"DraftFig ✓: key={result.get('snippet_key', '?')}"
     return json.dumps(result, ensure_ascii=False)[:80]
 
 

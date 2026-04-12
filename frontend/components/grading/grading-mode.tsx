@@ -24,7 +24,7 @@ import { Step3Grading, type ProgressLogItem } from "./step-3-grading";
 import { Step4Result } from "./step-4-result";
 import { toast } from "sonner";
 
-const PHASE_LABELS: Record<string, string> = {
+const PHASE_LABELS_JA: Record<string, string> = {
   extracting_pages: "答案を読み込んでいます",
   parsing_rubric: "採点基準を読み込みました",
   ai_grading: "AIが採点中…",
@@ -32,8 +32,17 @@ const PHASE_LABELS: Record<string, string> = {
   rendering: "採点結果を整理中…",
 };
 
+const PHASE_LABELS_EN: Record<string, string> = {
+  extracting_pages: "Loading the student's answers",
+  parsing_rubric: "Loaded the grading rubric",
+  ai_grading: "AI is grading…",
+  retrying: "Retrying…",
+  rendering: "Organising the result…",
+};
+
 export function GradingMode() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const phaseLabels = locale === "en" ? PHASE_LABELS_EN : PHASE_LABELS_JA;
   const gradingMode = useUIStore((s) => s.gradingMode);
   const phase = useUIStore((s) => s.gradingPhase);
   const setPhase = useUIStore((s) => s.setGradingPhase);
@@ -80,11 +89,11 @@ export function GradingMode() {
 
   const handleStartGrading = useCallback(async () => {
     if (!rubricBundle || rubricBundle.rubrics.length === 0) {
-      toast.error("採点基準が設定されていません");
+      toast.error(locale === "en" ? "No grading rubric is set" : "採点基準が設定されていません");
       return;
     }
     if (answerFiles.length === 0) {
-      toast.error("答案ファイルがアップロードされていません");
+      toast.error(locale === "en" ? "No answer files uploaded" : "答案ファイルがアップロードされていません");
       return;
     }
 
@@ -107,10 +116,11 @@ export function GradingMode() {
           studentName,
           studentId,
           files: answerFiles,
+          locale,
         },
         (event: GradingStreamEvent) => {
           if (event.type === "progress") {
-            const userText = PHASE_LABELS[event.phase] ?? event.message;
+            const userText = phaseLabels[event.phase] ?? event.message;
             // 既存の in_progress を done にして、新しい行を in_progress で追加
             setProgressLog((log) => {
               const next = log.map((item) =>
@@ -129,9 +139,13 @@ export function GradingMode() {
               const next = [...log];
               next.push({
                 kind: "question",
-                text: `${event.questionId} 採点完了`,
+                text: locale === "en"
+                  ? `${event.questionId} graded`
+                  : `${event.questionId} 採点完了`,
                 status: "done",
-                detail: `${event.awarded}/${event.max}点`,
+                detail: locale === "en"
+                  ? `${event.awarded}/${event.max} pts`
+                  : `${event.awarded}/${event.max}点`,
               });
               return next;
             });
@@ -141,7 +155,7 @@ export function GradingMode() {
             updateLastInProgress("done");
             setProgressLog((log) => [
               ...log,
-              { kind: "stage", text: "採点が完了しました", status: "done" },
+              { kind: "stage", text: locale === "en" ? "Grading complete" : "採点が完了しました", status: "done" },
             ]);
           } else if (event.type === "error") {
             updateLastInProgress("error");
@@ -158,7 +172,7 @@ export function GradingMode() {
       // 余韻 0.4s でステップ4へ
       setTimeout(() => setPhase("step4-result"), 400);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "採点に失敗しました";
+      const msg = e instanceof Error ? e.message : (locale === "en" ? "Grading failed" : "採点に失敗しました");
       toast.error(msg);
       setProgressLog((log) => [
         ...log,
@@ -169,7 +183,7 @@ export function GradingMode() {
       abortRef.current = null;
     }
   }, [
-    rubricBundle, answerFiles, problemLatex, studentName, studentId,
+    rubricBundle, answerFiles, problemLatex, studentName, studentId, locale, phaseLabels,
     setPhase, setProcessing, setProgress, setResult, updateLastInProgress,
   ]);
 
@@ -235,7 +249,7 @@ export function GradingMode() {
     <div
       className="fixed inset-0 z-50 bg-background flex flex-col animate-in fade-in duration-200"
       role="dialog"
-      aria-label="採点モード"
+      aria-label={t("grading.header.title")}
     >
       {/* ── ヘッダ ── */}
       <div className="h-12 border-b border-border/40 bg-background/95 backdrop-blur flex items-center justify-between px-4 shrink-0">

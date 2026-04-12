@@ -54,7 +54,7 @@ export function Step3Grading({ log, highlightPage }: Props) {
         >
           <ul className="space-y-2.5">
             {log.length === 0 && (
-              <li className="text-sm text-muted-foreground">準備中…</li>
+              <li className="text-sm text-muted-foreground">{t("grading.upload.status.preparing")}</li>
             )}
             {log.map((item, i) => (
               <li

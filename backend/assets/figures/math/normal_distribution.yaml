@@ -1,0 +1,37 @@
+id: math.normal_distribution
+category: math
+subcategory: statistics
+title:
+  ja: 正規分布 N(μ, σ²)
+  en: Normal distribution
+description:
+  ja: 平均 μ・標準偏差 σ の正規分布密度曲線と ±σ バンドの塗り分け。
+  en: Normal density curve with ±σ band shaded.
+tags: [pgfplots, normal, gaussian, statistics]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  mu:    { type: number, default: 0, min: -20, max: 20 }
+  sigma: { type: number, default: 1, min: 0.1, max: 10 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$}, ylabel={$f(x)$},
+    xmin={{ mu - 4*sigma }}, xmax={{ mu + 4*sigma }},
+    ymin=0, ymax={{ 1.1 / (sigma * 2.5066) }},
+    samples=120, grid=both,
+    width=9cm, height=5.5cm,
+  ]
+    \addplot[name path=f, domain={{ mu - 4*sigma }}:{{ mu + 4*sigma }}, thick, blue]
+      { (1/({{sigma}}*sqrt(2*pi))) * exp(-0.5 * ((x - {{mu}})/({{sigma}}))^2) };
+    \addplot[name path=axis, draw=none, domain={{ mu - sigma }}:{{ mu + sigma }}] { 0 };
+    \addplot[blue!20] fill between[of=f and axis, soft clip={domain={{ mu - sigma }}:{{ mu + sigma }}}];
+    \draw[dashed, gray!70] (axis cs:{{mu}}, 0) -- (axis cs:{{mu}}, { 1/({{sigma}}*2.5066) });
+    \node[below] at (axis cs:{{mu}}, 0) {$\mu$};
+    \node[below] at (axis cs:{{ mu - sigma }}, 0) {$\mu - \sigma$};
+    \node[below] at (axis cs:{{ mu + sigma }}, 0) {$\mu + \sigma$};
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { mu: 0, sigma: 1 }

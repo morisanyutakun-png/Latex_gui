@@ -1,0 +1,41 @@
+id: math.inequality_region
+category: math
+subcategory: plot
+title:
+  ja: 2 次不等式の領域
+  en: Quadratic inequality region
+description:
+  ja: 放物線 y = a x^2 + b x + c に対して y >= f(x) または y <= f(x) の領域を塗りつぶす。
+  en: Shaded region above/below a parabola.
+tags: [pgfplots, inequality, region, quadratic]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  a:     { type: number, default: 1,  min: -5, max: 5 }
+  b:     { type: number, default: 0,  min: -10, max: 10 }
+  c:     { type: number, default: -2, min: -20, max: 20 }
+  above: { type: boolean, default: true }
+  xmin:  { type: number, default: -3, min: -20, max: 0 }
+  xmax:  { type: number, default: 3,  min: 0,   max: 20 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$}, ylabel={$y$},
+    xmin={{xmin}}, xmax={{xmax}},
+    ymin=-5, ymax=5,
+    samples=100, grid=both,
+    width=8cm, height=6cm,
+  ]
+    \addplot[name path=f, domain={{xmin}}:{{xmax}}, thick, blue] { ({{a}})*x^2 + ({{b}})*x + ({{c}}) };
+    \addplot[name path=top, draw=none, domain={{xmin}}:{{xmax}}] { 5 };
+    \addplot[name path=bot, draw=none, domain={{xmin}}:{{xmax}}] { -5 };
+    {% if above == "true" %}
+    \addplot[blue!20] fill between[of=f and top];
+    {% else %}
+    \addplot[blue!20] fill between[of=f and bot];
+    {% endif %}
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { a: 1, b: 0, c: -2, above: true, xmin: -3, xmax: 3 }

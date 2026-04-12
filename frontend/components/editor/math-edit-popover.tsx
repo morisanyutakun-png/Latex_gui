@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { JapaneseMathInput } from "./math-japanese-input";
+import { EnglishMathInput } from "./math-english-input";
 import { MathRenderer } from "./math-editor";
 import { useI18n } from "@/lib/i18n";
 import { latexToJapanese } from "@/lib/math-japanese";
@@ -24,10 +25,13 @@ interface MathEditPopoverProps {
  * (ユーザーが入力欄に触ると override は自動でクリアされ、日本語が再パースされる)
  */
 export function MathEditPopover({ initialLatex, onApply, onClose }: MathEditPopoverProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  const initialJapanese = useMemo(() => latexToJapanese(initialLatex), [initialLatex]);
+  const initialJapanese = useMemo(
+    () => (locale === "ja" ? latexToJapanese(initialLatex) : ""),
+    [initialLatex, locale],
+  );
   const hasInitial = initialLatex.trim().length > 0;
 
   // Esc で閉じる
@@ -87,16 +91,27 @@ export function MathEditPopover({ initialLatex, onApply, onClose }: MathEditPopo
           </div>
         )}
 
-        {/* JapaneseMathInput 本体 — 既存式の場合は日本語訳がデフォルトで入力済み */}
+        {/* Math input — Japanese locale uses the Japanese phrase-to-LaTeX
+            converter; everyone else gets a direct LaTeX editor with autocomplete. */}
         <div className="p-3 max-h-[60vh] overflow-y-auto">
-          <JapaneseMathInput
-            initialSourceText={hasInitial ? initialJapanese : ""}
-            initialOverrideLatex={hasInitial ? initialLatex : null}
-            onApply={(latex) => {
-              handleApply(latex);
-              onClose();
-            }}
-          />
+          {locale === "ja" ? (
+            <JapaneseMathInput
+              initialSourceText={hasInitial ? initialJapanese : ""}
+              initialOverrideLatex={hasInitial ? initialLatex : null}
+              onApply={(latex) => {
+                handleApply(latex);
+                onClose();
+              }}
+            />
+          ) : (
+            <EnglishMathInput
+              initialLatex={hasInitial ? initialLatex : ""}
+              onApply={(latex) => {
+                handleApply(latex);
+                onClose();
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

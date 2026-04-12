@@ -41,8 +41,84 @@ export const PROJECT_KATEX_MACROS: Record<string, string> = {
   "\\bm": "\\boldsymbol{#1}",
   // 角度・度・対数の短縮
   "\\degree": "^{\\circ}",
-  // よく使う環境の代用 (KaTeX が知らない環境を text として描く場合の安全弁ではないが、
-  // \begin{align*} 等は KaTeX が標準対応しているのでここでは特に何もしない)
+
+  // ─── siunitx (LaTeX で多用、KaTeX は標準で知らない) ───
+  // \SI{2}{\ohm} → "2 Ω", \SI[per-mode=symbol]{3}{\m\per\s} → "3 m/s"
+  // KaTeX では引数の分解ができないので、1st arg (数値) + 2nd arg (単位テキスト) を
+  // 並べた最小形を返す。単位コマンドは後述の個別マクロで解決する。
+  "\\SI": "#1\\,#2",
+  "\\si": "#1",
+  "\\num": "#1",
+  "\\qty": "#1\\,#2",
+  "\\qtylist": "#1",
+  "\\qtyrange": "#1\\text{--}#2\\,#3",
+  "\\numlist": "#1",
+  "\\numrange": "#1\\text{--}#2",
+
+  // siunitx の単位コマンド (\ohm, \kilo, \ampere 等) を text に落とす
+  "\\ohm": "\\Omega",
+  "\\kilo": "\\text{k}",
+  "\\milli": "\\text{m}",
+  "\\micro": "\\mu",
+  "\\mega": "\\text{M}",
+  "\\giga": "\\text{G}",
+  "\\nano": "\\text{n}",
+  "\\pico": "\\text{p}",
+  "\\centi": "\\text{c}",
+  "\\volt": "\\text{V}",
+  "\\ampere": "\\text{A}",
+  "\\watt": "\\text{W}",
+  "\\joule": "\\text{J}",
+  "\\newton": "\\text{N}",
+  "\\coulomb": "\\text{C}",
+  "\\farad": "\\text{F}",
+  "\\henry": "\\text{H}",
+  "\\tesla": "\\text{T}",
+  "\\metre": "\\text{m}",
+  "\\meter": "\\text{m}",
+  "\\second": "\\text{s}",
+  "\\kilogram": "\\text{kg}",
+  "\\gram": "\\text{g}",
+  "\\kelvin": "\\text{K}",
+  "\\celsius": "^{\\circ}\\text{C}",
+  "\\hertz": "\\text{Hz}",
+  "\\pascal": "\\text{Pa}",
+  "\\mole": "\\text{mol}",
+  "\\candela": "\\text{cd}",
+  "\\per": "/",
+  "\\square": "^2",
+  "\\cubic": "^3",
+
+  // ─── physics package ───
+  // \vb{F} → \mathbf{F} (bold vector), \va{v} / \vu{n} / \vdot / \abs{x} ...
+  "\\vb": "\\mathbf{#1}",
+  "\\va": "\\vec{#1}",
+  "\\vu": "\\hat{#1}",
+  "\\vdot": "\\cdot",
+  "\\vcross": "\\times",
+  "\\vnabla": "\\nabla",
+  "\\grad": "\\nabla",
+  "\\div": "\\nabla\\cdot",
+  "\\curl": "\\nabla\\times",
+  "\\abs": "\\left|#1\\right|",
+  "\\norm": "\\left\\|#1\\right\\|",
+  "\\order": "\\mathcal{O}\\!\\left(#1\\right)",
+  "\\dd": "\\mathrm{d}",
+  "\\dv": "\\frac{\\mathrm{d}#1}{\\mathrm{d}#2}",
+  "\\pdv": "\\frac{\\partial #1}{\\partial #2}",
+  "\\eval": "\\bigg|",
+  "\\expval": "\\left\\langle #1\\right\\rangle",
+  "\\matrixel": "\\left\\langle #1\\middle|#2\\middle|#3\\right\\rangle",
+  "\\ev": "\\left\\langle #1\\right\\rangle",
+  "\\mel": "\\left\\langle #1\\middle|#2\\middle|#3\\right\\rangle",
+
+  // ─── 日本語テンプレで見かける短縮 ───
+  // 空集合、実数、自然数などの黒板文字
+  "\\R": "\\mathbb{R}",
+  "\\N": "\\mathbb{N}",
+  "\\Z": "\\mathbb{Z}",
+  "\\Q": "\\mathbb{Q}",
+  "\\C": "\\mathbb{C}",
 };
 
 export interface RenderMathOptions {
@@ -57,22 +133,39 @@ export interface RenderMathResult {
 }
 
 /**
+ * KaTeX の lenient 出力に含まれる `<span class="katex-error" ...>\command</span>` を
+ * 「生 LaTeX を露出しない安全な見た目」に置換する。
+ * - 1 文字のコマンド (例: `\ohm`) は `⟨cmd⟩` のような chip にまとめる
+ * - 長いエラーは短縮して `⟨?⟩` にする
+ * title 属性 (エラーメッセージ) は残して hover で原因が見えるようにする。
+ */
+function sanitizeLenientKatexHtml(html: string): string {
+  return html.replace(
+    /<span class="katex-error"([^>]*)>([^<]*)<\/span>/g,
+    (_m, attrs, inner) => {
+      // inner is the raw LaTeX that failed. Replace with a short safe chip.
+      const label = inner.length > 0 ? "?" : "?";
+      return `<span class="katex-error-safe"${attrs} data-katex-error="1">\u27E8${label}\u27E9</span>`;
+    },
+  );
+}
+
+/**
  * KaTeX に投げて HTML を返す。
- * 失敗時は ok=false を返すが、html は空文字にしておく
- * (呼び元で「[数式]」プレースホルダを差し込むため)。
- *
- * `throwOnError: true` にしてあるのは、`false` だと KaTeX が
- * `<span class="katex-error">SOURCE</span>` を返してしまい
- * **生 LaTeX が画面に出る**ため。throwOnError: true なら例外を catch して
- * こちらで安全なフォールバックを返せる。
+ * 2 段階フォールバック:
+ *   1. strict (throwOnError: true) — 全てが解析できた場合のクリーンな出力
+ *   2. lenient (throwOnError: false) — 失敗箇所を赤スパンで描くがほぼレンダリング成功
+ *      → `sanitizeLenientKatexHtml` で生 LaTeX を剥がしてから返す
+ *   3. どちらも例外を投げた場合のみ placeholder
  */
 export function renderMathHTML(latex: string, opts: RenderMathOptions = {}): RenderMathResult {
   const src = latex.trim();
   if (!src) return { html: "", ok: false };
+  const displayMode = opts.displayMode ?? false;
   try {
     const html = katex.renderToString(src, {
       throwOnError: true,
-      displayMode: opts.displayMode ?? false,
+      displayMode,
       trust: true,
       strict: "ignore",
       output: "html",
@@ -80,7 +173,22 @@ export function renderMathHTML(latex: string, opts: RenderMathOptions = {}): Ren
     });
     return { html, ok: true };
   } catch {
-    return { html: "", ok: false };
+    // strict failed — fall back to lenient mode. KaTeX では `throwOnError: false`
+    // のとき、問題のあった部分だけ `<span class="katex-error">` でラップして
+    // その他は正しくレンダリングされる。生 LaTeX を剥がしてから返す。
+    try {
+      const html = katex.renderToString(src, {
+        throwOnError: false,
+        displayMode,
+        trust: true,
+        strict: "ignore",
+        output: "html",
+        macros: PROJECT_KATEX_MACROS,
+      });
+      return { html: sanitizeLenientKatexHtml(html), ok: true };
+    } catch {
+      return { html: "", ok: false };
+    }
   }
 }
 

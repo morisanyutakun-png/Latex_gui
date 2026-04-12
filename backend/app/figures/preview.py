@@ -69,6 +69,9 @@ def _standalone_doc(asset: dict[str, Any]) -> str:
         lines.append(f"\\usetikzlibrary{{{','.join(libs)}}}")
     if "pgfplots" in pkgs:
         lines.append(r"\pgfplotsset{compat=1.18}")
+        # pgfplots sub-libraries we load by default for asset bodies because
+        # they're cheap and widely used (integral area, stacked plots, stats).
+        lines.append(r"\usepgfplotslibrary{fillbetween}")
     lines.append(r"\begin{document}")
     lines.append(rendered.tikz_body)
     lines.append(r"\end{document}")

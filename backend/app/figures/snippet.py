@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import re
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from ..security import (
@@ -46,6 +48,49 @@ class SnippetError(RuntimeError):
 
 def snippet_cache_dir() -> Path:
     return asset_root() / "_snippets"
+
+
+def freestyle_log_path() -> Path:
+    return asset_root() / "_freestyle_log.jsonl"
+
+
+def _log_attempt(
+    *,
+    body: str,
+    pkgs: list[str],
+    libs: list[str],
+    key: str,
+    success: bool,
+    category_hint: str | None,
+    reason: str | None,
+    error: str | None = None,
+) -> None:
+    """Append a freestyle compile attempt to the JSONL log.
+
+    Used by both the low-level `compile_snippet` path (Visual Editor fallback)
+    and the AI-facing `draft_figure` tool. Entries feed the catalog-upgrade
+    review loop (`python -m app.figures.freestyle_stats`).
+    """
+    path = freestyle_log_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts": int(time.time()),
+            "key": key,
+            "category": category_hint or "unknown",
+            "reason": (reason or "")[:200],
+            "packages": pkgs,
+            "libraries": libs,
+            "body_bytes": len(body),
+            "body_sample": body[:240],
+            "success": success,
+        }
+        if error:
+            entry["error"] = error[:200]
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        logger.exception("[figures] failed to append freestyle log")
 
 
 def _normalize_body(src: str) -> str:
@@ -110,6 +155,7 @@ def _build_standalone(body: str, pkgs: list[str], libs: list[str]) -> str:
         lines.append(f"\\usetikzlibrary{{{','.join(libs)}}}")
     if "pgfplots" in pkgs:
         lines.append(r"\pgfplotsset{compat=1.18}")
+        lines.append(r"\usepgfplotslibrary{fillbetween}")
     lines.append(r"\begin{document}")
     lines.append(body)
     lines.append(r"\end{document}")
@@ -170,13 +216,80 @@ def _build_png_sync(key: str, body: str, pkgs: list[str], libs: list[str]) -> Pa
     return out
 
 
-async def compile_snippet(source: str) -> tuple[Path, str]:
+def compile_snippet_sync(
+    source: str,
+    *,
+    category_hint: str | None = None,
+    reason: str | None = None,
+    log: bool = True,
+) -> tuple[Path, str]:
+    """Synchronous variant of compile_snippet for use from sync call sites
+    (e.g. OpenAI tool-call executors which run inside FastAPI's event loop)."""
+    if not source or len(source) > _MAX_SNIPPET_LEN:
+        raise SnippetError(f"snippet too large (>{_MAX_SNIPPET_LEN} bytes) or empty")
+
+    body = _normalize_body(source)
+    pkgs = _detect_packages(source)
+    libs = _detect_libraries(source)
+
+    violations = validate_latex_security(body)
+    if violations:
+        if log:
+            _log_attempt(
+                body=body, pkgs=pkgs, libs=libs,
+                key="-", success=False,
+                category_hint=category_hint, reason=reason,
+                error=f"security: {violations[:3]}",
+            )
+        raise SnippetError(f"security violation: {violations[:3]}")
+
+    key = snippet_hash(body, pkgs, libs)
+    out = snippet_png_path(key)
+    if out.exists() and out.stat().st_size > 0:
+        if log:
+            _log_attempt(
+                body=body, pkgs=pkgs, libs=libs,
+                key=key, success=True,
+                category_hint=category_hint, reason=reason,
+            )
+        return out, key
+
+    try:
+        path = _build_png_sync(key, body, pkgs, libs)
+    except Exception as e:
+        if log:
+            _log_attempt(
+                body=body, pkgs=pkgs, libs=libs,
+                key=key, success=False,
+                category_hint=category_hint, reason=reason,
+                error=str(e),
+            )
+        raise SnippetError(str(e)) from e
+    if log:
+        _log_attempt(
+            body=body, pkgs=pkgs, libs=libs,
+            key=key, success=True,
+            category_hint=category_hint, reason=reason,
+        )
+    return path, key
+
+
+async def compile_snippet(
+    source: str,
+    *,
+    category_hint: str | None = None,
+    reason: str | None = None,
+    log: bool = True,
+) -> tuple[Path, str]:
     """Compile an arbitrary tikz/circuitikz snippet → PNG path + cache key.
 
     `source` can be either just the `\\begin{tikzpicture}...\\end{tikzpicture}`
     block or a longer string that contains one. Packages / tikz libraries are
     auto-detected from the surrounding text when available, otherwise inferred
     from the body (e.g. `\\addplot` → pgfplots, `\\begin{circuitikz}` → circuitikz).
+
+    When `log=True`, the attempt is appended to _freestyle_log.jsonl so human
+    reviewers can discover patterns worth promoting to the curated catalog.
     """
     if not source or len(source) > _MAX_SNIPPET_LEN:
         raise SnippetError(f"snippet too large (>{_MAX_SNIPPET_LEN} bytes) or empty")
@@ -189,18 +302,51 @@ async def compile_snippet(source: str) -> tuple[Path, str]:
     # This rejects \input / \write18 / unknown \usepackage etc.
     violations = validate_latex_security(body)
     if violations:
+        if log:
+            _log_attempt(
+                body=body, pkgs=pkgs, libs=libs,
+                key="-", success=False,
+                category_hint=category_hint, reason=reason,
+                error=f"security: {violations[:3]}",
+            )
         raise SnippetError(f"security violation: {violations[:3]}")
 
     key = snippet_hash(body, pkgs, libs)
     out = snippet_png_path(key)
     if out.exists() and out.stat().st_size > 0:
+        if log:
+            _log_attempt(
+                body=body, pkgs=pkgs, libs=libs,
+                key=key, success=True,
+                category_hint=category_hint, reason=reason,
+            )
         return out, key
 
     async with _snippet_semaphore:
         if out.exists() and out.stat().st_size > 0:
+            if log:
+                _log_attempt(
+                    body=body, pkgs=pkgs, libs=libs,
+                    key=key, success=True,
+                    category_hint=category_hint, reason=reason,
+                )
             return out, key
         loop = asyncio.get_event_loop()
-        return (
-            await loop.run_in_executor(None, _build_png_sync, key, body, pkgs, libs),
-            key,
-        )
+        try:
+            path = await loop.run_in_executor(None, _build_png_sync, key, body, pkgs, libs)
+        except Exception as e:
+            if log:
+                _log_attempt(
+                    body=body, pkgs=pkgs, libs=libs,
+                    key=key, success=False,
+                    category_hint=category_hint, reason=reason,
+                    error=str(e),
+                )
+            raise
+        if log:
+            _log_attempt(
+                body=body, pkgs=pkgs, libs=libs,
+                key=key, success=True,
+                category_hint=category_hint, reason=reason,
+            )
+        return path, key

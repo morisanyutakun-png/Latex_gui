@@ -15,11 +15,12 @@ import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
-import { Sparkles, Globe, FileText, ClipboardCheck } from "lucide-react";
+import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { EditorHints } from "@/components/layout/editor-hints";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
+import { WelcomeOverlay } from "@/components/editor/welcome-overlay";
 
 type SidebarTab = "ai";
 
@@ -29,6 +30,12 @@ export default function EditorPage() {
 
   const { locale, setLocale, t } = useI18n();
   const isChatLoading = useUIStore((s) => s.isChatLoading);
+  const showPdfPanel = useUIStore((s) => s.showPdfPanel);
+  const showSourcePanel = useUIStore((s) => s.showSourcePanel);
+  const togglePdfPanel = useUIStore((s) => s.togglePdfPanel);
+  const toggleSourcePanel = useUIStore((s) => s.toggleSourcePanel);
+  const triggerOMR = useUIStore((s) => s.triggerOMR);
+  const openGrading = useUIStore((s) => s.openGrading);
   const isMobile = useIsMobile();
 
   const doc = useDocumentStore((s) => s.document);
@@ -114,7 +121,7 @@ export default function EditorPage() {
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium text-muted-foreground border border-border/30 hover:bg-muted/40 transition-colors"
           >
             <Globe className="h-3.5 w-3.5" />
-            <span className="uppercase font-mono">{locale}</span>
+            <span className="uppercase font-mono">{locale === "ja" ? "JA" : "EN"}</span>
           </button>
           {isChatLoading && <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" />}
         </header>
@@ -165,8 +172,9 @@ export default function EditorPage() {
       <EditorHints />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        <div className="flex-1 overflow-hidden min-w-0">
+        <div className="flex-1 overflow-hidden min-w-0 relative">
           <DocumentEditor />
+          <WelcomeOverlay />
         </div>
 
         {sidebarOpen && (
@@ -193,48 +201,75 @@ export default function EditorPage() {
             )}
           </div>
 
-          <div className="activity-bar w-11 flex flex-col items-center pt-2 pb-2 gap-0.5 border-l border-foreground/[0.05] bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
+          <div className="activity-bar w-[68px] flex flex-col items-stretch pt-2 pb-2 gap-0.5 border-l border-foreground/[0.05] bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
+            {/* AI Chat */}
             {(() => {
               const isActive = sidebarOpen && activeTab === "ai";
               return (
-                <button onClick={() => handleTabClick("ai")} title={t("side.tooltip.ai")}
-                  className={`relative h-10 w-full flex items-center justify-center transition-all duration-200 ${
-                    isActive ? "" : "text-foreground/25 hover:text-amber-500/80 hover:bg-amber-50/50 dark:hover:bg-amber-500/10 rounded-lg mx-0.5"
-                  }`}
-                >
-                  {isActive ? (
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-md shadow-amber-500/30 transition-all duration-200">
-                      <Sparkles className="h-[15px] w-[15px] text-white" />
-                    </div>
-                  ) : (
-                    <Sparkles className="h-[17px] w-[17px]" />
-                  )}
-                  {isChatLoading && (
-                    <span className={`absolute top-1.5 right-1.5 h-2 w-2 rounded-full animate-pulse ring-2 ${
-                      isActive ? "bg-white ring-amber-600/60" : "bg-amber-500 ring-surface-0/80"
-                    }`} />
-                  )}
-                </button>
+                <ActivityBtn
+                  active={isActive}
+                  accent="amber"
+                  icon={<Sparkles className={isActive ? "h-[15px] w-[15px] text-white" : "h-[17px] w-[17px]"} />}
+                  label={t("side.label.ai")}
+                  onClick={() => handleTabClick("ai")}
+                  title={t("side.tooltip.ai")}
+                  badge={isChatLoading}
+                />
               );
             })()}
 
-            <button
-              onClick={() => useUIStore.getState().openGrading(doc.latex, doc.metadata.title || "")}
+            {/* Scan / OMR */}
+            <ActivityBtn
+              accent="emerald"
+              icon={<ScanLine className="h-[17px] w-[17px]" />}
+              label={t("side.label.scan")}
+              onClick={triggerOMR}
+              title={t("side.tooltip.scan")}
+            />
+
+            {/* Grading */}
+            <ActivityBtn
+              accent="rose"
+              icon={<ClipboardCheck className="h-[17px] w-[17px]" />}
+              label={t("side.label.grading")}
+              onClick={() => openGrading(doc.latex, doc.metadata.title || "")}
               title={t("side.tooltip.grading")}
-              className="activity-btn-glow relative h-10 w-full flex items-center justify-center rounded-lg mx-0.5 transition-all duration-200 text-foreground/20 hover:text-emerald-500 dark:hover:text-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-500/10"
-            >
-              <ClipboardCheck className="h-[17px] w-[17px]" />
-            </button>
+            />
+
+            <div className="h-px bg-foreground/[0.06] mx-2 my-1" />
+
+            {/* PDF preview toggle */}
+            <ActivityBtn
+              accent="sky"
+              active={showPdfPanel}
+              icon={<Eye className={showPdfPanel ? "h-[16px] w-[16px] text-white" : "h-[16px] w-[16px]"} />}
+              label={t("side.label.preview")}
+              onClick={togglePdfPanel}
+              title={t("side.tooltip.preview")}
+            />
+
+            {/* LaTeX source toggle */}
+            <ActivityBtn
+              accent="violet"
+              active={showSourcePanel}
+              icon={<Braces className={showSourcePanel ? "h-[16px] w-[16px] text-white" : "h-[16px] w-[16px]"} />}
+              label={t("side.label.source")}
+              onClick={toggleSourcePanel}
+              title={t("side.tooltip.source")}
+            />
 
             <div className="flex-1" />
 
+            {/* Locale toggle */}
             <button
               onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
               title={locale === "ja" ? t("side.tooltip.lang.toEn") : t("side.tooltip.lang.toJa")}
-              className="h-9 w-full flex flex-col items-center justify-center gap-0.5 rounded-lg mx-0.5 text-foreground/15 hover:text-foreground/40 hover:bg-foreground/[0.04] transition-all duration-200"
+              className="mx-1 mt-1 h-11 flex flex-col items-center justify-center gap-0.5 rounded-lg text-foreground/30 hover:text-foreground/70 hover:bg-foreground/[0.05] transition-all duration-200"
             >
               <Globe className="h-3.5 w-3.5" />
-              <span className="text-[7px] font-mono uppercase tracking-wider">{locale === "ja" ? "EN" : "JA"}</span>
+              <span className="text-[8.5px] font-mono uppercase tracking-wider font-semibold">
+                {locale === "ja" ? "JA" : "EN"}
+              </span>
             </button>
           </div>
         </div>
@@ -243,5 +278,75 @@ export default function EditorPage() {
       <StatusBar />
       <PricingModal />
     </div>
+  );
+}
+
+// ─── Activity bar button (icon + label) ────────────────────────
+
+type ActivityAccent = "amber" | "emerald" | "rose" | "sky" | "violet";
+
+const ACCENT_CLASSES: Record<ActivityAccent, { active: string; hover: string; text: string }> = {
+  amber: {
+    active: "bg-gradient-to-br from-amber-500 to-amber-600 shadow-md shadow-amber-500/30",
+    hover: "hover:text-amber-500 hover:bg-amber-50/50 dark:hover:bg-amber-500/10",
+    text: "text-amber-600 dark:text-amber-400",
+  },
+  emerald: {
+    active: "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-md shadow-emerald-500/30",
+    hover: "hover:text-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-500/10",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
+  rose: {
+    active: "bg-gradient-to-br from-rose-500 to-rose-600 shadow-md shadow-rose-500/30",
+    hover: "hover:text-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-500/10",
+    text: "text-rose-600 dark:text-rose-400",
+  },
+  sky: {
+    active: "bg-gradient-to-br from-sky-500 to-sky-600 shadow-md shadow-sky-500/30",
+    hover: "hover:text-sky-500 hover:bg-sky-50/50 dark:hover:bg-sky-500/10",
+    text: "text-sky-600 dark:text-sky-400",
+  },
+  violet: {
+    active: "bg-gradient-to-br from-violet-500 to-violet-600 shadow-md shadow-violet-500/30",
+    hover: "hover:text-violet-500 hover:bg-violet-50/50 dark:hover:bg-violet-500/10",
+    text: "text-violet-600 dark:text-violet-400",
+  },
+};
+
+interface ActivityBtnProps {
+  accent: ActivityAccent;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  title?: string;
+  active?: boolean;
+  badge?: boolean;
+}
+
+function ActivityBtn({ accent, icon, label, onClick, title, active = false, badge = false }: ActivityBtnProps) {
+  const style = ACCENT_CLASSES[accent];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`relative mx-1 h-[52px] flex flex-col items-center justify-center gap-0.5 rounded-lg transition-all duration-200 ${
+        active
+          ? `${style.text} bg-foreground/[0.04]`
+          : `text-foreground/35 ${style.hover}`
+      }`}
+    >
+      {active ? (
+        <div className={`h-7 w-7 rounded-full ${style.active} flex items-center justify-center`}>
+          {icon}
+        </div>
+      ) : (
+        <div className="h-7 w-7 flex items-center justify-center">{icon}</div>
+      )}
+      <span className="text-[9px] font-medium leading-none tracking-tight">{label}</span>
+      {badge && (
+        <span className="absolute top-1 right-2 h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+      )}
+    </button>
   );
 }

@@ -29,6 +29,10 @@ from ..grading_renderer import (
 )
 from ..pdf_service import compile_raw_latex, PDFGenerationError
 
+
+def _loc(locale: str, en: str, ja: str) -> str:
+    return en if (locale or "").lower().startswith("en") else ja
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/grading", tags=["grading"])
@@ -75,6 +79,7 @@ async def write_rubric_endpoint(req: WriteRubricRequest) -> WriteRubricResponse:
 
 class ExtractRubricRequest(BaseModel):
     latex: str = ""
+    locale: str = "ja"
 
 
 @router.post("/extract-rubric/stream")
@@ -90,7 +95,11 @@ async def extract_rubric_stream_endpoint(req: ExtractRubricRequest):
         raise HTTPException(
             status_code=503,
             detail={
-                "message": "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "message": _loc(
+                    req.locale,
+                    "Set ANTHROPIC_API_KEY in the backend environment to use AI features.",
+                    "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                ),
                 "code": "MISSING_API_KEY",
             },
         )
@@ -98,11 +107,11 @@ async def extract_rubric_stream_endpoint(req: ExtractRubricRequest):
     if not (req.latex or "").strip():
         raise HTTPException(
             status_code=400,
-            detail={"message": "問題LaTeX が空です"},
+            detail={"message": _loc(req.locale, "Problem LaTeX is empty.", "問題LaTeX が空です")},
         )
 
     return StreamingResponse(
-        extract_rubric_with_ai_stream(req.latex),
+        extract_rubric_with_ai_stream(req.latex, locale=req.locale),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -127,22 +136,28 @@ async def grade_stream_endpoint(
     """AI 採点 SSE エンドポイント。
 
     multipart フォーム:
-    - request_json: JSON 文字列 { rubrics, problemLatex, studentName, studentId }
+    - request_json: JSON 文字列 { rubrics, problemLatex, studentName, studentId, locale? }
     - answers[]:    1 つ以上の答案画像/PDF
     """
+    try:
+        req_data = _json.loads(request_json)
+    except _json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail={"message": "request_json is not valid JSON."})
+
+    locale = req_data.get("locale") or "ja"
+
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
             detail={
-                "message": "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "message": _loc(
+                    locale,
+                    "Set ANTHROPIC_API_KEY in the backend environment to use AI features.",
+                    "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                ),
                 "code": "MISSING_API_KEY",
             },
         )
-
-    try:
-        req_data = _json.loads(request_json)
-    except _json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail={"message": "request_json の JSON が壊れています"})
 
     rubrics_raw = req_data.get("rubrics") or {}
     problem_latex = req_data.get("problemLatex") or ""
@@ -152,13 +167,21 @@ async def grade_stream_endpoint(
     try:
         rubrics = RubricBundle.model_validate(rubrics_raw)
     except Exception as e:
-        raise HTTPException(status_code=400, detail={"message": f"rubrics の検証に失敗: {str(e)[:160]}"})
+        raise HTTPException(status_code=400, detail={"message": _loc(
+            locale,
+            f"Invalid rubric bundle: {str(e)[:160]}",
+            f"rubrics の検証に失敗: {str(e)[:160]}",
+        )})
 
     if not rubrics.rubrics:
-        raise HTTPException(status_code=400, detail={"message": "採点基準が空です"})
+        raise HTTPException(status_code=400, detail={"message": _loc(
+            locale, "The grading rubric is empty.", "採点基準が空です",
+        )})
 
     if not answers:
-        raise HTTPException(status_code=400, detail={"message": "答案ファイルが指定されていません"})
+        raise HTTPException(status_code=400, detail={"message": _loc(
+            locale, "No answer files were provided.", "答案ファイルが指定されていません",
+        )})
 
     # ファイル読み込み + 検証
     file_tuples: list[tuple[bytes, str, str]] = []
@@ -167,13 +190,21 @@ async def grade_stream_endpoint(
         if len(data) > _MAX_ANSWER_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail={"message": f"{f.filename} は 20MB を超えています"},
+                detail={"message": _loc(
+                    locale,
+                    f"{f.filename} exceeds the 20MB limit.",
+                    f"{f.filename} は 20MB を超えています",
+                )},
             )
         mime = f.content_type or "application/octet-stream"
         if mime not in _ALLOWED_ANSWER_MIME:
             raise HTTPException(
                 status_code=400,
-                detail={"message": f"{f.filename}: 対応形式は JPEG/PNG/GIF/WEBP/PDF です ({mime})"},
+                detail={"message": _loc(
+                    locale,
+                    f"{f.filename}: supported formats are JPEG/PNG/GIF/WEBP/PDF ({mime}).",
+                    f"{f.filename}: 対応形式は JPEG/PNG/GIF/WEBP/PDF です ({mime})",
+                )},
             )
         file_tuples.append((data, mime, f.filename or "answer"))
 
@@ -184,6 +215,7 @@ async def grade_stream_endpoint(
             answer_files=file_tuples,
             student_name=student_name,
             student_id=student_id,
+            locale=locale,
         ),
         media_type="text/event-stream",
         headers={
@@ -197,19 +229,24 @@ async def grade_stream_endpoint(
 
 class RenderFeedbackRequest(BaseModel):
     result: GradingResult
+    locale: str = "ja"
 
 
 @router.post("/render-feedback")
 async def render_feedback_endpoint(req: RenderFeedbackRequest) -> Response:
     """採点結果からフィードバック文書 PDF を生成する。"""
-    latex_source = render_feedback_latex(req.result)
+    latex_source = render_feedback_latex(req.result, locale=req.locale)
     try:
         pdf_bytes = await compile_raw_latex(latex_source)
     except PDFGenerationError as e:
         raise HTTPException(
             status_code=422,
             detail={
-                "message": "フィードバックPDFの生成に失敗しました",
+                "message": _loc(
+                    req.locale,
+                    "Failed to generate the feedback PDF.",
+                    "フィードバックPDFの生成に失敗しました",
+                ),
                 "detail": (e.detail or "")[:2000],
             },
         )
@@ -228,6 +265,7 @@ async def render_feedback_endpoint(req: RenderFeedbackRequest) -> Response:
 
 class RenderMarkedRequest(BaseModel):
     result: GradingResult
+    locale: str = "ja"
 
 
 @router.post("/render-marked")
@@ -242,7 +280,11 @@ async def render_marked_endpoint(req: RenderMarkedRequest) -> Response:
         if not page.image_url or not page.image_url.startswith("data:"):
             raise HTTPException(
                 status_code=400,
-                detail={"message": f"ページ {i + 1} の画像が data URL 形式ではありません"},
+                detail={"message": _loc(
+                    req.locale,
+                    f"Page {i + 1} image is not a data URL.",
+                    f"ページ {i + 1} の画像が data URL 形式ではありません",
+                )},
             )
         _header, _, b64 = page.image_url.partition(",")
         try:
@@ -250,13 +292,17 @@ async def render_marked_endpoint(req: RenderMarkedRequest) -> Response:
         except Exception:
             raise HTTPException(
                 status_code=400,
-                detail={"message": f"ページ {i + 1} の画像をデコードできませんでした"},
+                detail={"message": _loc(
+                    req.locale,
+                    f"Could not decode page {i + 1} image.",
+                    f"ページ {i + 1} の画像をデコードできませんでした",
+                )},
             )
         images.append((img_bytes, f"page-{i + 1}.png"))
 
     # ファイル名列を作る
     image_filenames = [name for _, name in images]
-    latex_source = render_marked_pdf_latex(req.result, image_filenames)
+    latex_source = render_marked_pdf_latex(req.result, image_filenames, locale=req.locale)
 
     try:
         pdf_bytes = await compile_with_images(latex_source, images)
@@ -264,7 +310,11 @@ async def render_marked_endpoint(req: RenderMarkedRequest) -> Response:
         raise HTTPException(
             status_code=422,
             detail={
-                "message": "赤入れPDFの生成に失敗しました",
+                "message": _loc(
+                    req.locale,
+                    "Failed to generate the marked-up PDF.",
+                    "赤入れPDFの生成に失敗しました",
+                ),
                 "detail": (e.detail or "")[:2000],
             },
         )

@@ -491,11 +491,13 @@ export async function analyzeImageOMR(
   imageFile: File,
   doc: DocumentModel,
   hint: string = "",
+  locale: AILocale = "en",
 ): Promise<OMRAnalyzeResponse> {
   const formData = new FormData();
   formData.append("image", imageFile);
   formData.append("document", JSON.stringify(doc));
   formData.append("hint", hint);
+  formData.append("locale", locale);
 
   const res = await fetch(`${API_BASE}/api/omr/analyze`, {
     method: "POST",
@@ -505,7 +507,10 @@ export async function analyzeImageOMR(
 
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    const msg = err?.detail?.message || err?.detail || `OMR解析に失敗しました (HTTP ${res.status})`;
+    const msg = err?.detail?.message || err?.detail
+      || (locale === "en"
+        ? `Scan failed (HTTP ${res.status})`
+        : `OMR解析に失敗しました (HTTP ${res.status})`);
     throw new Error(msg);
   }
 
@@ -522,11 +527,13 @@ export async function streamOMRAnalyze(
   onEvent: (event: OMRStreamEvent) => void,
   hint: string = "",
   signal?: AbortSignal,
+  locale: AILocale = "en",
 ): Promise<OMRAnalyzeResponse> {
   const formData = new FormData();
   formData.append("image", imageFile);
   formData.append("document", JSON.stringify(doc));
   formData.append("hint", hint);
+  formData.append("locale", locale);
 
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/omr/analyze/stream`
@@ -540,11 +547,16 @@ export async function streamOMRAnalyze(
 
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    const msg = err?.detail?.message || err?.detail || `OMR解析に失敗しました (HTTP ${res.status})`;
+    const msg = err?.detail?.message || err?.detail
+      || (locale === "en"
+        ? `Scan failed (HTTP ${res.status})`
+        : `OMR解析に失敗しました (HTTP ${res.status})`);
     throw new Error(msg);
   }
 
-  if (!res.body) throw new Error("ストリーミングレスポンスが空です");
+  if (!res.body) throw new Error(locale === "en"
+    ? "Streaming response is empty"
+    : "ストリーミングレスポンスが空です");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -657,6 +669,7 @@ export async function extractRubricStream(
   latex: string,
   onEvent: (event: ExtractRubricEvent) => void,
   signal?: AbortSignal,
+  locale: AILocale = "en",
 ): Promise<{ latex: string; rubrics: RubricBundle }> {
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/grading/extract-rubric/stream`
@@ -664,15 +677,19 @@ export async function extractRubricStream(
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ latex }),
+    body: JSON.stringify({ latex, locale }),
     signal: signal || AbortSignal.timeout(120000),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail?.message || `ルーブリック抽出に失敗しました (HTTP ${res.status})`);
+    throw new Error(err?.detail?.message || (locale === "en"
+      ? `Rubric extraction failed (HTTP ${res.status})`
+      : `ルーブリック抽出に失敗しました (HTTP ${res.status})`));
   }
-  if (!res.body) throw new Error("ストリーミングレスポンスが空です");
+  if (!res.body) throw new Error(locale === "en"
+    ? "Streaming response is empty"
+    : "ストリーミングレスポンスが空です");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -727,6 +744,7 @@ export interface GradeAnswerArgs {
   studentName: string;
   studentId: string;
   files: File[];
+  locale?: AILocale;
 }
 
 export async function gradeAnswerStream(
@@ -734,12 +752,14 @@ export async function gradeAnswerStream(
   onEvent: (event: GradingStreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<GradingResult> {
+  const locale: AILocale = args.locale || "en";
   const formData = new FormData();
   formData.append("request_json", JSON.stringify({
     rubrics: args.rubrics,
     problemLatex: args.problemLatex,
     studentName: args.studentName,
     studentId: args.studentId,
+    locale,
   }));
   for (const f of args.files) {
     formData.append("answers", f);
@@ -756,9 +776,13 @@ export async function gradeAnswerStream(
 
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail?.message || `採点に失敗しました (HTTP ${res.status})`);
+    throw new Error(err?.detail?.message || (locale === "en"
+      ? `Grading failed (HTTP ${res.status})`
+      : `採点に失敗しました (HTTP ${res.status})`));
   }
-  if (!res.body) throw new Error("ストリーミングレスポンスが空です");
+  if (!res.body) throw new Error(locale === "en"
+    ? "Streaming response is empty"
+    : "ストリーミングレスポンスが空です");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -804,30 +828,40 @@ export async function gradeAnswerStream(
   return finalResult;
 }
 
-export async function renderFeedbackPdf(result: GradingResult): Promise<Blob> {
+export async function renderFeedbackPdf(
+  result: GradingResult,
+  locale: AILocale = "en",
+): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/grading/render-feedback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ result }),
+    body: JSON.stringify({ result, locale }),
     signal: AbortSignal.timeout(120000),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail?.message || "フィードバックPDFの生成に失敗しました");
+    throw new Error(err?.detail?.message || (locale === "en"
+      ? "Failed to generate the feedback PDF"
+      : "フィードバックPDFの生成に失敗しました"));
   }
   return res.blob();
 }
 
-export async function renderMarkedPdf(result: GradingResult): Promise<Blob> {
+export async function renderMarkedPdf(
+  result: GradingResult,
+  locale: AILocale = "en",
+): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/grading/render-marked`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ result }),
+    body: JSON.stringify({ result, locale }),
     signal: AbortSignal.timeout(120000),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail?.message || "赤入れPDFの生成に失敗しました");
+    throw new Error(err?.detail?.message || (locale === "en"
+      ? "Failed to generate the marked-up PDF"
+      : "赤入れPDFの生成に失敗しました"));
   }
   return res.blob();
 }

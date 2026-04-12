@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { MathRenderer } from "./math-editor";
+import { useI18n } from "@/lib/i18n";
 
 // ──── Snippet definitions ────
 // User types shortcut → expands to LaTeX with cursor position
@@ -187,6 +188,7 @@ export function MathAutocompleteInput({
   className = "",
   onFocus,
 }: MathAutocompleteInputProps) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -420,9 +422,9 @@ export function MathAutocompleteInput({
             </button>
           ))}
           <div className="px-3 py-1.5 bg-muted/30 border-t text-[9px] text-muted-foreground flex items-center gap-3">
-            <span><kbd className="px-1 rounded bg-muted font-mono">↑↓</kbd> 選択</span>
-            <span><kbd className="px-1 rounded bg-muted font-mono">Space</kbd> 適用</span>
-            <span><kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> 終了</span>
+            <span><kbd className="px-1 rounded bg-muted font-mono">↑↓</kbd> {t("math.auto.key.select")}</span>
+            <span><kbd className="px-1 rounded bg-muted font-mono">Space</kbd> {t("math.auto.key.insert")}</span>
+            <span><kbd className="px-1 rounded bg-muted font-mono">Tab</kbd> {t("math.auto.key.dismiss")}</span>
           </div>
         </div>
       )}
@@ -433,6 +435,7 @@ export function MathAutocompleteInput({
 // ──── Shortcut Reference (shown below input) ────
 
 export function SnippetReference({ className = "" }: { className?: string }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const categories = [...new Set(SNIPPETS.map((s) => s.category))];
 
@@ -443,8 +446,8 @@ export function SnippetReference({ className = "" }: { className?: string }) {
         className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
       >
         <span>{expanded ? "▾" : "▸"}</span>
-        <span>ショートカット一覧</span>
-        <span className="text-muted-foreground/50">（例: // → 分数, sum → 総和, alp → α）</span>
+        <span>{t("math.auto.ref.toggle")}</span>
+        <span className="text-muted-foreground/50">{t("math.auto.ref.hint")}</span>
       </button>
 
       {expanded && (

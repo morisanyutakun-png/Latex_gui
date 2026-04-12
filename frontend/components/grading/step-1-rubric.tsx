@@ -22,7 +22,7 @@ import { RubricTable } from "./rubric-table";
 import { toast } from "sonner";
 
 export function Step1Rubric() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const problemLatex = useUIStore((s) => s.gradingProblemLatex);
   const rubricBundle = useUIStore((s) => s.gradingRubrics);
@@ -53,7 +53,9 @@ export function Step1Rubric() {
         setWarnings(b.parseWarnings);
       })
       .catch((e) => {
-        toast.error(e instanceof Error ? e.message : "ルーブリック解析に失敗しました");
+        toast.error(e instanceof Error ? e.message : (locale === "en"
+          ? "Failed to parse the rubric"
+          : "ルーブリック解析に失敗しました"));
       })
       .finally(() => setParsing(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,7 +70,7 @@ export function Step1Rubric() {
         if (event.type === "progress") {
           setExtractStatus(event.message);
         }
-      });
+      }, undefined, locale);
 
       // バックエンドから返ってきた更新済み LaTeX を採用
       useUIStore.setState({ gradingProblemLatex: result.latex });
@@ -76,9 +78,13 @@ export function Step1Rubric() {
       setRubrics(result.rubrics.rubrics);
       setWarnings(result.rubrics.parseWarnings);
       setDirty(false);
-      toast.success("AI が採点基準を生成しました");
+      toast.success(locale === "en"
+        ? "AI generated the grading rubric"
+        : "AI が採点基準を生成しました");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "AI 抽出に失敗しました";
+      const msg = e instanceof Error ? e.message : (locale === "en"
+        ? "AI extraction failed"
+        : "AI 抽出に失敗しました");
       toast.error(msg);
       setExtractStatus("");
     } finally {
@@ -98,9 +104,13 @@ export function Step1Rubric() {
       setRubrics(fresh.rubrics);
       setWarnings(fresh.parseWarnings);
       setDirty(false);
-      toast.success("採点基準を保存しました");
+      toast.success(locale === "en"
+        ? "Rubric saved"
+        : "採点基準を保存しました");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "保存に失敗しました");
+      toast.error(e instanceof Error ? e.message : (locale === "en"
+        ? "Save failed"
+        : "保存に失敗しました"));
     } finally {
       setSaving(false);
     }
@@ -308,7 +318,7 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
           onClick={() => runCompile(latex)}
           disabled={!latex.trim() || compiling}
           className="rounded p-1 text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-30"
-          title="再コンパイル"
+          title={t("grading.rubric.recompile")}
         >
           <RefreshCw className="h-3.5 w-3.5" />
         </button>
@@ -337,7 +347,7 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
               onClick={() => runCompile(latex)}
               className="rounded-md bg-rose-500 px-3 py-1 text-xs font-medium text-white hover:bg-rose-600"
             >
-              再試行
+              {t("grading.rubric.retry")}
             </button>
           </div>
         )}
@@ -345,7 +355,7 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
         {!compileError && previewUrl && (
           <iframe
             src={previewUrl}
-            title="問題プレビュー"
+            title={t("grading.rubric.preview")}
             className="h-full w-full border-0"
           />
         )}
@@ -353,8 +363,8 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
         {!compileError && !previewUrl && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             {compiling
-              ? "問題 PDF を生成中…"
-              : (latex.trim() ? "プレビューを準備中…" : "(問題 LaTeX が空)")}
+              ? t("grading.rubric.pdf_generating")
+              : (latex.trim() ? t("grading.rubric.preview_preparing") : t("grading.rubric.empty_problem"))}
           </div>
         )}
       </div>

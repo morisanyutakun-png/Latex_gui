@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
+import { useI18n } from "@/lib/i18n";
 import { downloadAsJSON } from "@/lib/storage";
 import { generatePDF } from "@/lib/api";
 import { toast } from "sonner";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 export function useKeyboardShortcuts() {
   const store = useDocumentStore;
   const uiStore = useUIStore;
+  const { t } = useI18n();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -38,7 +40,7 @@ export function useKeyboardShortcuts() {
         e.preventDefault();
         if (document) {
           downloadAsJSON(document, `${document.metadata.title || "document"}.json`);
-          toast.success("JSONを保存しました");
+          toast.success(t("toast.saved"));
         }
         return;
       }
@@ -57,7 +59,7 @@ export function useKeyboardShortcuts() {
               });
               a.click();
               URL.revokeObjectURL(url);
-              toast.success("PDFを生成しました");
+              toast.success(t("toast.pdf.done"));
             })
             .catch((err: Error) => toast.error(err.message))
             .finally(() => uiStore.getState().setGenerating(false));
@@ -68,5 +70,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [store, uiStore]);
+  }, [store, uiStore, t]);
 }

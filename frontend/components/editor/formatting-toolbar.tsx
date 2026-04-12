@@ -31,6 +31,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useDocumentStore } from "@/store/document-store";
+import { useI18n } from "@/lib/i18n";
 
 const COMMIT_EVENT = "latex-gui:commit-now";
 
@@ -335,6 +336,7 @@ function ToolBtn({ onClick, title, active, children }: ToolBtnProps) {
 }
 
 export function FormattingToolbar() {
+  const { t } = useI18n();
   const [colorOpen, setColorOpen] = useState(false);
   const [boxOpen, setBoxOpen] = useState(false);
   const colorRef = useRef<HTMLButtonElement>(null);
@@ -357,20 +359,20 @@ export function FormattingToolbar() {
   );
 
   return (
-    <div className="flex items-center gap-0.5 shrink-0" role="toolbar" aria-label="書式">
-      <ToolBtn onClick={applyBold} title="太字 (Bold)">
+    <div className="flex items-center gap-0.5 shrink-0" role="toolbar" aria-label={t("fmt.toolbar.label")}>
+      <ToolBtn onClick={applyBold} title={t("fmt.bold")}>
         <Bold className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyItalic} title="斜体 (Italic)">
+      <ToolBtn onClick={applyItalic} title={t("fmt.italic")}>
         <Italic className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyCode} title="等幅 (Code)">
+      <ToolBtn onClick={applyCode} title={t("fmt.code")}>
         <Code2 className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyFbox} title="枠で囲む (Frame)">
+      <ToolBtn onClick={applyFbox} title={t("fmt.frame")}>
         <SquareDashed className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={insertMathChip} title="数式を挿入 (Math)">
+      <ToolBtn onClick={insertMathChip} title={t("fmt.math")}>
         <Sigma className="h-3.5 w-3.5" />
       </ToolBtn>
 
@@ -382,7 +384,7 @@ export function FormattingToolbar() {
         type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setColorOpen((v) => !v)}
-        title="文字色 (Text color)"
+        title={t("fmt.color")}
         className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
       >
         <Palette className="h-3.5 w-3.5" />
@@ -396,7 +398,7 @@ export function FormattingToolbar() {
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => setBoxOpen((v) => !v)}
-          title="ボックスを挿入 (Insert box)"
+          title={t("fmt.box")}
           className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
         >
           <Box className="h-3.5 w-3.5" />

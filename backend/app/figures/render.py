@@ -203,6 +203,36 @@ def ensure_figure_libraries(src: str, libs: list[str]) -> str:
     return src
 
 
+_USEPACKAGE_PGFPLOTS_RE = re.compile(
+    r"(\\usepackage(?:\[[^\]]*\])?\{[^}]*pgfplots[^}]*\})"
+)
+
+
+def ensure_pgfplots_libraries_in_src(src: str) -> str:
+    """Ensure `\\usepgfplotslibrary{fillbetween}` is loaded whenever pgfplots
+    is used. Idempotent. Mirrors the tikz-library injection but for pgfplots
+    sub-libraries (which use `\\usepgfplotslibrary`, not `\\usetikzlibrary`).
+    Also emits `\\pgfplotsset{compat=1.18}` once if absent, to suppress the
+    backwards-compatibility warning."""
+    pgfplots_pkg = _USEPACKAGE_PGFPLOTS_RE.search(src)
+    if not pgfplots_pkg:
+        return src
+
+    has_fillbetween = "\\usepgfplotslibrary{fillbetween}" in src
+    has_compat = "\\pgfplotsset{compat=" in src
+
+    insertions: list[str] = []
+    if not has_compat:
+        insertions.append(r"\pgfplotsset{compat=1.18}")
+    if not has_fillbetween:
+        insertions.append(r"\usepgfplotslibrary{fillbetween}")
+    if not insertions:
+        return src
+
+    pos = pgfplots_pkg.end()
+    return src[:pos] + "\n" + "\n".join(insertions) + src[pos:]
+
+
 def splice_figure(
     src: str,
     fragment: str,
@@ -301,6 +331,8 @@ def apply_figure_to_source(
     """High-level helper: inject packages + libraries + splice the fragment."""
     new_src = _inject_packages(src, rendered.required_packages)
     new_src = ensure_figure_libraries(new_src, rendered.required_tikzlibraries)
+    if "pgfplots" in rendered.required_packages:
+        new_src = ensure_pgfplots_libraries_in_src(new_src)
 
     body_with_marker = _inject_marker_into_tikz_body(rendered.tikz_body, asset_id)
     if float_env:

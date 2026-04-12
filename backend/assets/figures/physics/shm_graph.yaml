@@ -1,0 +1,33 @@
+id: physics.shm_graph
+category: physics
+subcategory: oscillation
+title:
+  ja: 単振動の変位-時刻グラフ
+  en: Simple harmonic motion displacement
+description:
+  ja: x(t) = A cos(ω t + φ) の単振動グラフ。
+  en: Plot of x(t) = A cos(ω t + φ) for simple harmonic motion.
+tags: [pgfplots, shm, oscillation, sinusoid]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  amplitude: { type: number, default: 1, min: 0.1, max: 10 }
+  omega:     { type: number, default: 2, min: 0.1, max: 20 }
+  phi:       { type: number, default: 0, min: -6.3, max: 6.3 }
+  tmax:      { type: number, default: 6, min: 1, max: 30 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$t$}, ylabel={$x$},
+    xmin=0, xmax={{tmax}},
+    ymin={{ -amplitude - 0.5 }}, ymax={{ amplitude + 0.5 }},
+    samples=200, grid=both,
+    width=9cm, height=5cm,
+  ]
+    \addplot[domain=0:{{tmax}}, thick, blue]
+      { ({{amplitude}}) * cos(deg( ({{omega}})*x + ({{phi}}) )) };
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { amplitude: 1, omega: 2, phi: 0, tmax: 6 }

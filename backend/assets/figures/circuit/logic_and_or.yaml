@@ -1,0 +1,29 @@
+id: circuit.logic_and_or
+category: circuit
+subcategory: logic
+title:
+  ja: 論理ゲート (AND / OR)
+  en: Logic gates (AND / OR)
+description:
+  ja: AND ゲートと OR ゲートを並べた基本図。入力 A, B と出力 Y。
+  en: Basic AND and OR logic gates side by side with inputs A, B and outputs Y.
+tags: [circuitikz, logic, gate, and, or]
+required_packages: [circuitikz]
+required_tikzlibraries: [positioning]
+parameters: {}
+body: |
+  \begin{circuitikz}
+    \draw (0,0) node[and port] (A) {};
+    \draw (A.in 1) -- ++(-0.6,0) node[left] {$A$};
+    \draw (A.in 2) -- ++(-0.6,0) node[left] {$B$};
+    \draw (A.out) -- ++(0.6,0) node[right] {$Y_{\wedge}$};
+    \node[below=0.5cm of A] {AND};
+
+    \draw (4,0) node[or port] (O) {};
+    \draw (O.in 1) -- ++(-0.6,0) node[left] {$A$};
+    \draw (O.in 2) -- ++(-0.6,0) node[left] {$B$};
+    \draw (O.out) -- ++(0.6,0) node[right] {$Y_{\vee}$};
+    \node[below=0.5cm of O] {OR};
+  \end{circuitikz}
+preview:
+  params: {}

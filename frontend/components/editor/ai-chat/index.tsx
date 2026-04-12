@@ -452,7 +452,7 @@ export function AIChatPanel() {
 
     try {
       const { analyzeImageOMR } = await import("@/lib/api");
-      const result = await analyzeImageOMR(file, document);
+      const result = await analyzeImageOMR(file, document, "", locale);
       incrementUsage();
       if (result.latex) {
         applyLatex(result.latex);
@@ -597,6 +597,7 @@ export function AIChatPanel() {
         isChatLoading={isChatLoading}
         agentMode={true}
         textareaRef={textareaRef}
+        onAttach={() => fileInputRef.current?.click()}
       />
     </div>
   );

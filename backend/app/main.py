@@ -474,6 +474,12 @@ async def audit_logs(limit: int = 100):
 
 # ═══ AI チャット ═══
 
+
+def _localized(locale: str, en: str, ja: str) -> str:
+    """Return `en` when locale starts with 'en', otherwise `ja`."""
+    return en if (locale or "").lower().startswith("en") else ja
+
+
 class ChatRequest(pydantic.BaseModel):
     messages: list[dict] = []
     document: dict = {}
@@ -489,13 +495,19 @@ async def ai_chat_endpoint(request: ChatRequest):
         raise HTTPException(
             status_code=503,
             detail={
-                "message": "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "message": _localized(
+                    request.locale,
+                    "Set ANTHROPIC_API_KEY in the backend environment to use AI features.",
+                    "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                ),
                 "code": "MISSING_API_KEY",
             },
         )
 
     if not request.messages:
-        raise HTTPException(status_code=400, detail={"message": "messages が空です"})
+        raise HTTPException(status_code=400, detail={"message": _localized(
+            request.locale, "messages is empty.", "messages が空です",
+        )})
 
     try:
         result = await ai_chat(request.messages, request.document, locale=request.locale)
@@ -506,7 +518,11 @@ async def ai_chat_endpoint(request: ChatRequest):
         logger.error("AI chat error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"message": f"AIエラー: {type(e).__name__}: {str(e)[:200]}"},
+            detail={"message": _localized(
+                request.locale,
+                f"AI error: {type(e).__name__}: {str(e)[:200]}",
+                f"AIエラー: {type(e).__name__}: {str(e)[:200]}",
+            )},
         )
 
 
@@ -518,13 +534,19 @@ async def ai_chat_stream_endpoint(request: ChatRequest):
         raise HTTPException(
             status_code=503,
             detail={
-                "message": "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "message": _localized(
+                    request.locale,
+                    "Set ANTHROPIC_API_KEY in the backend environment to use AI features.",
+                    "AI機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                ),
                 "code": "MISSING_API_KEY",
             },
         )
 
     if not request.messages:
-        raise HTTPException(status_code=400, detail={"message": "messages が空です"})
+        raise HTTPException(status_code=400, detail={"message": _localized(
+            request.locale, "messages is empty.", "messages が空です",
+        )})
 
     logger.info("[stream] Starting SSE stream: %d messages", len(request.messages))
 
@@ -546,13 +568,18 @@ async def omr_analyze_endpoint(
     image: UploadFile = File(...),
     document: str = Form("{}"),
     hint: str = Form(""),
+    locale: str = Form("ja"),
 ):
     """OMR解析 — 画像から raw LaTeX を抽出"""
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
             detail={
-                "message": "OMR機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "message": _localized(
+                    locale,
+                    "Set ANTHROPIC_API_KEY in the backend environment to use the scan feature.",
+                    "OMR機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                ),
                 "code": "MISSING_API_KEY",
             },
         )
@@ -562,7 +589,11 @@ async def omr_analyze_endpoint(
     if len(image_bytes) > max_size:
         raise HTTPException(
             status_code=400,
-            detail={"message": "ファイルサイズは20MB以下にしてください"},
+            detail={"message": _localized(
+                locale,
+                "File size must be 20MB or less.",
+                "ファイルサイズは20MB以下にしてください",
+            )},
         )
 
     media_type = image.content_type or "image/jpeg"
@@ -570,7 +601,11 @@ async def omr_analyze_endpoint(
     if media_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail={"message": "JPEG, PNG, GIF, WEBP, PDF に対応しています"},
+            detail={"message": _localized(
+                locale,
+                "Supported formats: JPEG, PNG, GIF, WEBP, PDF.",
+                "JPEG, PNG, GIF, WEBP, PDF に対応しています",
+            )},
         )
 
     try:
@@ -579,15 +614,20 @@ async def omr_analyze_endpoint(
         doc_dict = {}
 
     try:
-        result = await omr_analyze_image(image_bytes, media_type, doc_dict, hint)
+        result = await omr_analyze_image(image_bytes, media_type, doc_dict, hint, locale=locale)
         return {"success": True, **result}
     except ValueError as e:
         raise HTTPException(status_code=503, detail={"message": str(e)})
     except Exception as e:
         logger.error("OMR analyze error: %s", e)
+        err_msg = (
+            "An error occurred while analyzing the image."
+            if (locale or "").lower() == "en"
+            else "画像解析中にエラーが発生しました。"
+        )
         raise HTTPException(
             status_code=500,
-            detail={"message": "画像解析中にエラーが発生しました。"},
+            detail={"message": err_msg},
         )
 
 
@@ -596,13 +636,18 @@ async def omr_analyze_stream_endpoint(
     image: UploadFile = File(...),
     document: str = Form("{}"),
     hint: str = Form(""),
+    locale: str = Form("ja"),
 ):
     """OMR解析 SSEストリーミング"""
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
             detail={
-                "message": "OMR機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                "message": _localized(
+                    locale,
+                    "Set ANTHROPIC_API_KEY in the backend environment to use the scan feature.",
+                    "OMR機能を使うにはバックエンドで ANTHROPIC_API_KEY を設定してください。",
+                ),
                 "code": "MISSING_API_KEY",
             },
         )
@@ -612,7 +657,11 @@ async def omr_analyze_stream_endpoint(
     if len(image_bytes) > max_size:
         raise HTTPException(
             status_code=400,
-            detail={"message": "ファイルサイズは20MB以下にしてください"},
+            detail={"message": _localized(
+                locale,
+                "File size must be 20MB or less.",
+                "ファイルサイズは20MB以下にしてください",
+            )},
         )
 
     media_type = image.content_type or "image/jpeg"
@@ -620,7 +669,11 @@ async def omr_analyze_stream_endpoint(
     if media_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail={"message": "JPEG, PNG, GIF, WEBP, PDF に対応しています"},
+            detail={"message": _localized(
+                locale,
+                "Supported formats: JPEG, PNG, GIF, WEBP, PDF.",
+                "JPEG, PNG, GIF, WEBP, PDF に対応しています",
+            )},
         )
 
     try:
@@ -629,7 +682,7 @@ async def omr_analyze_stream_endpoint(
         doc_dict = {}
 
     return StreamingResponse(
-        omr_analyze_image_stream(image_bytes, media_type, doc_dict, hint),
+        omr_analyze_image_stream(image_bytes, media_type, doc_dict, hint, locale=locale),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -1,0 +1,36 @@
+id: physics.collision_before_after
+category: physics
+subcategory: mechanics
+title:
+  ja: 衝突前後の運動量
+  en: Collision — before and after
+description:
+  ja: 2 つの質量 m1, m2 の衝突前後の速度ベクトルを並べた図。
+  en: Two-panel diagram showing velocities of m1 and m2 before and after a collision.
+tags: [tikz, momentum, collision, mechanics]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta, calc]
+parameters: {}
+body: |
+  \begin{tikzpicture}[>=Stealth, thick]
+    % Before
+    \node[font=\small\bfseries] at (0,2.3) {Before};
+    \draw[fill=blue!20] (-1.7,0.5) rectangle (-0.7,1.5);
+    \node at (-1.2,1) {$m_1$};
+    \draw[->, blue, very thick] (-0.7,1) -- ++(1.2,0) node[above] {$\vec{v_1}$};
+    \draw[fill=red!20] (1.3,0.5) rectangle (2.3,1.5);
+    \node at (1.8,1) {$m_2$};
+    \draw[->, red, very thick] (1.3,1) -- ++(-0.7,0) node[above] {$\vec{v_2}$};
+    % Arrow between panels
+    \draw[->, very thick, gray] (3.2,1) -- ++(1.6,0);
+    % After
+    \node[font=\small\bfseries] at (7,2.3) {After};
+    \draw[fill=blue!20] (5.3,0.5) rectangle (6.3,1.5);
+    \node at (5.8,1) {$m_1$};
+    \draw[->, blue, very thick] (5.3,1) -- ++(-0.7,0) node[above] {$\vec{v_1'}$};
+    \draw[fill=red!20] (7.7,0.5) rectangle (8.7,1.5);
+    \node at (8.2,1) {$m_2$};
+    \draw[->, red, very thick] (8.7,1) -- ++(1.4,0) node[above] {$\vec{v_2'}$};
+  \end{tikzpicture}
+preview:
+  params: {}

@@ -1,0 +1,34 @@
+id: math.piecewise
+category: math
+subcategory: plot
+title:
+  ja: 区分的に定義された関数
+  en: Piecewise-defined function
+description:
+  ja: "2 区間の区分的関数 (例: x<0 は線形、x>=0 は二次) をプロット。"
+  en: "Two-piece function — linear left of 0, quadratic right of 0."
+tags: [pgfplots, piecewise, function]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  left_slope: { type: number, default: 1,  min: -10, max: 10 }
+  left_const: { type: number, default: 0,  min: -20, max: 20 }
+  right_a:    { type: number, default: 1,  min: -10, max: 10 }
+  xmin:       { type: number, default: -3, min: -20, max: 0 }
+  xmax:       { type: number, default: 3,  min: 0,   max: 20 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$x$}, ylabel={$y$},
+    xmin={{xmin}}, xmax={{xmax}},
+    samples=100, grid=both,
+    width=8cm, height=6cm,
+  ]
+    \addplot[domain={{xmin}}:0, thick, blue] { ({{left_slope}})*x + ({{left_const}}) };
+    \addplot[domain=0:{{xmax}}, thick, red]  { ({{right_a}})*x^2 };
+    \addplot[only marks, mark=*, mark size=2pt, black] coordinates {(0, {{left_const}})};
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { left_slope: 1, left_const: 0, right_a: 1, xmin: -3, xmax: 3 }

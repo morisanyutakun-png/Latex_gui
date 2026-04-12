@@ -54,7 +54,7 @@ export function GradingStepper() {
   return (
     <div
       role="tablist"
-      aria-label="採点モード ステップ"
+      aria-label={t("grading.stepper.aria")}
       className="flex items-center justify-center gap-1 px-6 py-3 border-b border-border/40 bg-background/95"
     >
       {STEPS.map((step, i) => {

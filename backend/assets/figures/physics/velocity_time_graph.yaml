@@ -1,0 +1,36 @@
+id: physics.velocity_time_graph
+category: physics
+subcategory: kinematics
+title:
+  ja: 速度-時間グラフ
+  en: Velocity-time graph
+description:
+  ja: 等加速度運動の v-t グラフ。直線 v = v0 + a t と、時刻 [0, T] の面積 = 変位を塗りつぶし表示。
+  en: Uniform-acceleration v-t line, with shaded area [0, T] representing displacement.
+tags: [pgfplots, kinematics, velocity, graph]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  v0: { type: number, default: 2, min: -10, max: 20 }
+  a:  { type: number, default: 1, min: -5,  max: 10 }
+  T:  { type: number, default: 4, min: 0.5, max: 20 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$t$ [s]}, ylabel={$v$ [m/s]},
+    xmin=0, xmax={{ T * 1.15 }},
+    ymin=0, ymax={{ v0 + a*T + 2 }},
+    width=9cm, height=5.5cm,
+  ]
+    \addplot[name path=v, domain=0:{{ T * 1.15 }}, thick, blue]
+      { ({{v0}}) + ({{a}})*x };
+    \addplot[name path=axis, draw=none, domain=0:{{T}}] { 0 };
+    \addplot[blue!20] fill between[of=v and axis, soft clip={domain=0:{{T}}}];
+    \draw[dashed, gray!70] (axis cs:{{T}}, 0) -- (axis cs:{{T}}, { ({{v0}}) + ({{a}})*({{T}}) });
+    \node[below] at (axis cs:{{T}}, 0) {$T$};
+    \node at (axis cs:{{ T/2 }}, { ( ({{v0}}) + ({{a}})*({{T}})/2 ) / 2 }) {\small$\Delta x$};
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { v0: 2, a: 1, T: 4 }

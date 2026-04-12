@@ -1,0 +1,33 @@
+id: physics.position_time_graph
+category: physics
+subcategory: kinematics
+title:
+  ja: 位置-時間グラフ
+  en: Position-time graph
+description:
+  ja: 等加速度運動の x-t グラフ (放物線)。
+  en: Uniform-acceleration x-t graph (parabola).
+tags: [pgfplots, kinematics, position, graph]
+required_packages: [pgfplots]
+required_tikzlibraries: []
+parameters:
+  x0: { type: number, default: 0, min: -20, max: 20 }
+  v0: { type: number, default: 1, min: -10, max: 20 }
+  a:  { type: number, default: 1, min: -5,  max: 10 }
+  T:  { type: number, default: 4, min: 0.5, max: 20 }
+body: |
+  \begin{tikzpicture}
+  \begin{axis}[
+    axis lines=middle,
+    xlabel={$t$ [s]}, ylabel={$x$ [m]},
+    xmin=0, xmax={{ T * 1.1 }},
+    ymin=0,
+    samples=100, grid=both,
+    width=9cm, height=6cm,
+  ]
+    \addplot[domain=0:{{ T * 1.1 }}, thick, blue]
+      { ({{x0}}) + ({{v0}})*x + 0.5*({{a}})*x^2 };
+  \end{axis}
+  \end{tikzpicture}
+preview:
+  params: { x0: 0, v0: 1, a: 1, T: 4 }

@@ -36,18 +36,18 @@ export function Step2Upload() {
         continue;
       }
       if (f.size > MAX_SIZE) {
-        toast.error(`${f.name} は 20MB を超えています`);
+        toast.error(t("grading.upload.too_large").replace("{name}", f.name));
         continue;
       }
       accepted.push(f);
     }
     if (rejected > 0) {
-      toast.error("対応形式は JPG / PNG / GIF / WEBP / PDF です");
+      toast.error(t("grading.upload.unsupported"));
     }
     if (accepted.length > 0) {
       setFiles([...files, ...accepted]);
     }
-  }, [files, setFiles]);
+  }, [files, setFiles, t]);
 
   const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -136,7 +136,7 @@ export function Step2Upload() {
             type="text"
             value={studentName}
             onChange={(e) => setStudentName(e.target.value)}
-            placeholder="例: 山田 太郎"
+            placeholder={t("grading.upload.student_name.ph")}
             className="w-full h-9 px-3 text-sm rounded-md border border-border/40 bg-background"
           />
         </div>
@@ -148,7 +148,7 @@ export function Step2Upload() {
             type="text"
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}
-            placeholder="例: 2024001"
+            placeholder={t("grading.upload.student_id.ph")}
             className="w-full h-9 px-3 text-sm rounded-md border border-border/40 bg-background font-mono"
           />
         </div>

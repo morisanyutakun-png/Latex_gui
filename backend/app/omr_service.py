@@ -17,10 +17,10 @@ from .ai_service import get_client, MODEL_VISION, max_tokens_param
 logger = logging.getLogger(__name__)
 
 
-OMR_SYSTEM_PROMPT = r"""\
+_OMR_SYSTEM_PROMPT_JA = r"""\
 You are an OMR (Optical Mark Recognition) assistant inside a Japanese LaTeX
-editor (Eddivom / かんたんPDFメーカー). The editor uses a *raw LaTeX* document
-model — you must output a complete, compilable LaTeX document.
+editor (Eddivom). The editor uses a *raw LaTeX* document model — you must
+output a complete, compilable LaTeX document.
 
 ## What to extract
 - Text headings → \section / \subsection / \subsubsection
@@ -62,34 +62,204 @@ multicol, etc.) when needed.
 """
 
 
-OMR_PDF_SYSTEM_PROMPT = OMR_SYSTEM_PROMPT + """
+_OMR_SYSTEM_PROMPT_EN = r"""\
+You are an OMR (Optical Mark Recognition) assistant inside an English LaTeX
+editor (Eddivom). The editor uses a *raw LaTeX* document model — you must
+output a complete, compilable LaTeX document.
 
-## PDF-specific instructions
-- The user uploaded a multi-page PDF. Treat it as one continuous document.
-- Use the extracted text as the primary source and the page images for verification.
-- Number sections naturally (e.g. "第1章", "1.", "問1") if the original has them.
+## What to extract
+- Text headings → \section / \subsection / \subsubsection
+- Body text → ordinary paragraphs
+- Math → use $...$ for inline math and \[ ... \] (or $$...$$) for display math
+- Lists → itemize / enumerate
+- Tables → tabular / booktabs
+- Chemical formulas → \ce{...} (mhchem)
+- Diagrams / figures → \begin{figure} ... \end{figure} placeholder
+- Multi-choice answer sheets → list with \item entries
+
+## How to respond
+You MUST call the `set_latex` tool with a single argument `latex` containing
+the FULL LaTeX source. The source MUST be a complete document that compiles
+under LuaLaTeX for English.
+
+### Required preamble
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb, amsthm, mathtools}
+\usepackage{geometry}
+\geometry{margin=20mm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
+
+You may add other allowed packages (tikz, mhchem, hyperref, xcolor, tcolorbox,
+multicol, etc.) when needed. **Do not add `luatexja-preset` — this is an
+English document.**
+
+### CRITICAL rules
+- Always call set_latex once. Do NOT print the LaTeX in the chat reply.
+- Always wrap math correctly:
+  * inline: $x^2 + 1$
+  * display: \[ \int_0^1 f(x)\,dx \]
+- Preserve paragraph breaks visible in the source.
+- If something is unclear, transcribe what you can read and mark it "(unclear)".
+- Respond in English for any chat reply.
+- Do NOT use forbidden commands: \input, \include, \write18, \directlua, etc.
+- Do NOT mix Japanese preamble packages — this is an English-first workflow.
 """
 
 
-OMR_HANDWRITING_PROMPT = OMR_SYSTEM_PROMPT + """
+def _omr_prompts(locale: str) -> dict[str, str]:
+    """Return the four OMR prompt variants (base / pdf / handwriting / text-only)
+    for the given UI locale. Falls back to Japanese for any non-'en' locale."""
+    if (locale or "").lower() == "en":
+        base = _OMR_SYSTEM_PROMPT_EN
+        pdf_extra = (
+            "\n\n## PDF-specific instructions\n"
+            "- The user uploaded a multi-page PDF. Treat it as one continuous document.\n"
+            "- Use the extracted text as the primary source and the page images for verification.\n"
+            "- Number sections naturally (e.g. 'Chapter 1', '1.', 'Problem 1') if the original has them.\n"
+        )
+        hw_extra = (
+            "\n\n## Handwriting mode\n"
+            "The image is HANDWRITTEN (notebook, whiteboard, exam answer). Be extra careful with:\n"
+            "- Greek letters (α/a, β/B, ε/E, θ/0, π/n)\n"
+            "- Sub/superscripts\n"
+            "- Fractions / square roots / matrices\n"
+            "- Crossed-out / struck-through content → SKIP\n"
+            "Where unsure, transcribe what you see and mark it '(unclear)'.\n"
+        )
+        text_extra = (
+            "\n\n## Text-only PDF instructions\n"
+            "You only have raw extracted text (no images). Reconstruct the logical structure\n"
+            "from line breaks and section numbering.\n"
+        )
+    else:
+        base = _OMR_SYSTEM_PROMPT_JA
+        pdf_extra = (
+            "\n\n## PDF-specific instructions\n"
+            "- The user uploaded a multi-page PDF. Treat it as one continuous document.\n"
+            "- Use the extracted text as the primary source and the page images for verification.\n"
+            '- Number sections naturally (e.g. "第1章", "1.", "問1") if the original has them.\n'
+        )
+        hw_extra = (
+            "\n\n## Handwriting mode\n"
+            "The image is HANDWRITTEN (notebook, board, exam answer). Be extra careful with:\n"
+            "- Greek letters (α/a, β/B, ε/E, θ/0, π/n)\n"
+            "- Sub/superscripts\n"
+            "- Fractions / square roots / matrices\n"
+            "- 日本語の崩し字\n"
+            "- Crossed-out / struck-through content → SKIP\n"
+            'Where unsure, transcribe + "(要確認)".\n'
+        )
+        text_extra = (
+            "\n\n## Text-only PDF instructions\n"
+            "You only have raw extracted text (no images). Reconstruct the logical structure\n"
+            "from line breaks and section numbering.\n"
+        )
+    return {
+        "base": base,
+        "pdf": base + pdf_extra,
+        "handwriting": base + hw_extra,
+        "text_only": base + text_extra,
+    }
 
-## Handwriting mode
-The image is HANDWRITTEN (notebook, board, exam answer). Be extra careful with:
-- Greek letters (α/a, β/B, ε/E, θ/0, π/n)
-- Sub/superscripts
-- Fractions / square roots / matrices
-- 日本語の崩し字
-- Crossed-out / struck-through content → SKIP
-Where unsure, transcribe + "(要確認)".
-"""
+
+# Japanese-locale defaults (kept for backward compatibility).
+OMR_SYSTEM_PROMPT = _OMR_SYSTEM_PROMPT_JA
+OMR_PDF_SYSTEM_PROMPT = _omr_prompts("ja")["pdf"]
+OMR_HANDWRITING_PROMPT = _omr_prompts("ja")["handwriting"]
+OMR_TEXT_ONLY_PROMPT = _omr_prompts("ja")["text_only"]
 
 
-OMR_TEXT_ONLY_PROMPT = OMR_SYSTEM_PROMPT + """
-
-## Text-only PDF instructions
-You only have raw extracted text (no images). Reconstruct the logical structure
-from line breaks and section numbering.
-"""
+def _omr_status(locale: str) -> dict[str, str]:
+    """Return status/progress strings for the OMR streaming responses."""
+    if (locale or "").lower() == "en":
+        return {
+            "analyzing_image": "Analyzing image...",
+            "detecting_mode": "Detecting handwritten vs printed…",
+            "handwriting_mode": "Reading in handwriting mode",
+            "ai_recognizing": "AI is recognizing content...",
+            "retrying": "Retrying… (attempt {attempt}/{total})",
+            "building_latex": "Building LaTeX...",
+            "pdf_analyzing": "Analyzing PDF...",
+            "pdf_pages": "Detected {pages} page(s) (method: {method})",
+            "extract_failed": "Could not extract content from the PDF.",
+            "ai_text_images": "AI is analyzing text and page images for {pages} page(s)...",
+            "ai_images": "AI is analyzing {pages} page image(s)...",
+            "ai_text_only": "AI is reconstructing LaTeX from the extracted text...",
+            "ai_error": "AI analysis error: {err}",
+            "extracted_summary": "Extracted {chars} characters of LaTeX from the image.",
+            "extracted_summary_pdf": "Extracted {chars} characters of LaTeX from the PDF ({pages} pages).",
+            "pdf_label_multi": "{pages}-page PDF",
+            "pdf_label_single": "1-page PDF",
+            "user_prompt_image": "Extract the document structure from this image and return the full LaTeX via the set_latex tool.",
+            "user_prompt_image_hinted": "Extract the document structure from this image. {hint}",
+            "user_prompt_pdf_multi_with_text": (
+                "Review the extracted text and page images from this {label} and return the full "
+                "LaTeX source via the set_latex tool. Treat the whole document as one continuous piece."
+            ),
+            "user_prompt_pdf_multi_with_text_hinted": "Extract the document structure from this {label}. {hint}",
+            "user_prompt_pdf_images_only": (
+                "Read the text, math and tables from this {label} and return the full LaTeX "
+                "source via the set_latex tool. Treat the whole document as one continuous piece."
+            ),
+            "user_prompt_pdf_images_only_hinted": "Extract the document structure from this {label}. {hint}",
+            "user_prompt_pdf_text_only": (
+                "Below is the raw text extracted from this {label}.\n"
+                "Parse it and return the full LaTeX source via the set_latex tool.\n"
+                "Convert headings, body text, math, lists and tables into proper LaTeX syntax.\n\n"
+            ),
+            "user_prompt_pdf_text_only_hinted": "Below is the raw text extracted from this {label}. {hint}\n\n",
+            "page_block_label": "--- Page {i}/{n} ---",
+            "page_block_text_label": "--- Page {i}/{n} ---\n[Extracted text]\n{text}",
+            "page_block_text_empty": "(no text)",
+            "page_separator_text_only": "\n\n=== Page {i}/{n} ===\n\n",
+        }
+    return {
+        "analyzing_image": "画像を解析中...",
+        "detecting_mode": "手書き / 活字を判定中...",
+        "handwriting_mode": "手書きモードで読み取ります",
+        "ai_recognizing": "AIがコンテンツを認識中...",
+        "retrying": "再解析中... (試行 {attempt}/{total})",
+        "building_latex": "LaTeXを構成中...",
+        "pdf_analyzing": "PDFを解析中...",
+        "pdf_pages": "{pages}ページを検出 (方式: {method})",
+        "extract_failed": "PDFからコンテンツを抽出できませんでした。",
+        "ai_text_images": "AIが{pages}ページのテキストと画像を解析中...",
+        "ai_images": "AIが{pages}ページの画像を解析中...",
+        "ai_text_only": "AIがテキストからLaTeXを構成中...",
+        "ai_error": "AI解析エラー: {err}",
+        "extracted_summary": "画像から{chars}文字のLaTeXソースを抽出しました。",
+        "extracted_summary_pdf": "PDFから{chars}文字のLaTeXソースを抽出しました（{pages}ページ）。",
+        "pdf_label_multi": "{pages}ページのPDF",
+        "pdf_label_single": "1ページのPDF",
+        "user_prompt_image": "この画像からドキュメント構造を抽出して、set_latexツールで完全なLaTeXソースを返してください。",
+        "user_prompt_image_hinted": "この画像からドキュメント構造を抽出してください。{hint}",
+        "user_prompt_pdf_multi_with_text": (
+            "上記の{label}から抽出したテキストとページ画像を確認し、"
+            "set_latex ツールで完全なLaTeXソースを返してください。"
+            "全ページを通して1つの連続したドキュメントとして処理してください。"
+        ),
+        "user_prompt_pdf_multi_with_text_hinted": "この{label}からドキュメント構造を抽出してください。{hint}",
+        "user_prompt_pdf_images_only": (
+            "この{label}のページ画像からテキスト・数式・表などを読み取り、"
+            "set_latex ツールで完全なLaTeXソースを返してください。"
+            "全ページを通して1つの連続したドキュメントとして処理してください。"
+        ),
+        "user_prompt_pdf_images_only_hinted": "この{label}からドキュメント構造を抽出してください。{hint}",
+        "user_prompt_pdf_text_only": (
+            "以下は{label}から抽出した生テキストです。\n"
+            "このテキストを解析して、set_latex ツールで完全なLaTeXソースを返してください。\n"
+            "見出し、本文、数式、リスト、表などを適切な LaTeX 構文に変換してください。\n\n"
+        ),
+        "user_prompt_pdf_text_only_hinted": "以下は{label}から抽出したテキストです。{hint}\n\n",
+        "page_block_label": "--- ページ {i}/{n} ---",
+        "page_block_text_label": "--- ページ {i}/{n} ---\n[抽出テキスト]\n{text}",
+        "page_block_text_empty": "(テキストなし)",
+        "page_separator_text_only": "\n\n=== ページ {i}/{n} ===\n\n",
+    }
 
 
 # ─── Tool definition (simplified set_latex for OMR) ──────────────────────────
@@ -305,10 +475,13 @@ async def analyze_image(
     media_type: str,
     document_context: dict,
     hint: str = "",
+    locale: str = "ja",
 ) -> dict:
     """OpenAI Vision で画像/PDFを解析し、raw LaTeX を返す。"""
     result = {"description": "", "latex": None}
-    async for event_str in analyze_image_stream(image_bytes, media_type, document_context, hint):
+    async for event_str in analyze_image_stream(
+        image_bytes, media_type, document_context, hint, locale=locale,
+    ):
         if event_str.startswith("data: "):
             try:
                 event = json.loads(event_str[6:])
@@ -368,16 +541,20 @@ async def analyze_image_stream(
     media_type: str,
     document_context: dict,
     hint: str = "",
+    locale: str = "ja",
 ):
     """SSEストリーミング版のOMR解析（OpenAI Vision）。"""
     import asyncio
 
+    status = _omr_status(locale)
+    prompts = _omr_prompts(locale)
+
     if media_type == "application/pdf":
-        async for event in _analyze_pdf_stream(image_bytes, document_context, hint):
+        async for event in _analyze_pdf_stream(image_bytes, document_context, hint, locale=locale):
             yield event
         return
 
-    yield _sse({"type": "progress", "phase": "analyzing", "message": "画像を解析中..."})
+    yield _sse({"type": "progress", "phase": "analyzing", "message": status["analyzing_image"]})
 
     client = get_client()
     data_url = _image_to_data_url(image_bytes, media_type)
@@ -388,19 +565,19 @@ async def analyze_image_stream(
     elif forced is False:
         is_handwriting = False
     else:
-        yield _sse({"type": "progress", "phase": "detecting", "message": "手書き / 活字を判定中..."})
+        yield _sse({"type": "progress", "phase": "detecting", "message": status["detecting_mode"]})
         is_handwriting = await _detect_handwriting(client, data_url)
 
     if is_handwriting:
-        yield _sse({"type": "progress", "phase": "mode", "message": "手書きモードで読み取ります"})
-        system_prompt = OMR_HANDWRITING_PROMPT
+        yield _sse({"type": "progress", "phase": "mode", "message": status["handwriting_mode"]})
+        system_prompt = prompts["handwriting"]
     else:
-        system_prompt = OMR_SYSTEM_PROMPT
+        system_prompt = prompts["base"]
 
     prompt_text = (
-        f"この画像からドキュメント構造を抽出してください。{hint}"
+        status["user_prompt_image_hinted"].format(hint=hint)
         if hint
-        else "この画像からドキュメント構造を抽出して、set_latexツールで完全なLaTeXソースを返してください。"
+        else status["user_prompt_image"]
     )
 
     messages = [
@@ -422,9 +599,10 @@ async def analyze_image_stream(
 
     for attempt in range(1, MAX_RETRIES + 1):
         if attempt > 1:
-            yield _sse({"type": "progress", "phase": "retrying", "message": f"再解析中... (試行 {attempt}/{MAX_RETRIES})"})
+            yield _sse({"type": "progress", "phase": "retrying",
+                        "message": status["retrying"].format(attempt=attempt, total=MAX_RETRIES)})
 
-        yield _sse({"type": "progress", "phase": "ai_processing", "message": "AIがコンテンツを認識中..."})
+        yield _sse({"type": "progress", "phase": "ai_processing", "message": status["ai_recognizing"]})
 
         try:
             def _call():
@@ -441,7 +619,7 @@ async def analyze_image_stream(
             logger.error("OpenAI OMR API error (attempt %d): %s", attempt, e)
             if attempt < MAX_RETRIES:
                 continue
-            yield _sse({"type": "error", "message": f"AI解析エラー: {str(e)[:200]}"})
+            yield _sse({"type": "error", "message": status["ai_error"].format(err=str(e)[:200])})
             return
 
         text_parts, latex = _extract_latex_from_response(response)
@@ -449,11 +627,11 @@ async def analyze_image_stream(
         if latex:
             break
 
-    yield _sse({"type": "progress", "phase": "extracting", "message": "LaTeXを構成中..."})
+    yield _sse({"type": "progress", "phase": "extracting", "message": status["building_latex"]})
 
     description = "\n".join(text_parts).strip()
     if not description and latex:
-        description = f"画像から{len(latex)}文字のLaTeXソースを抽出しました。"
+        description = status["extracted_summary"].format(chars=len(latex))
 
     yield _sse({
         "type": "done",
@@ -468,11 +646,15 @@ async def _analyze_pdf_stream(
     pdf_bytes: bytes,
     document_context: dict,
     hint: str = "",
+    locale: str = "ja",
 ):
     """PDFからテキスト+画像を抽出し、OpenAI APIで raw LaTeX に変換する。"""
     import asyncio
 
-    yield _sse({"type": "progress", "phase": "converting", "message": "PDFを解析中..."})
+    status = _omr_status(locale)
+    prompts = _omr_prompts(locale)
+
+    yield _sse({"type": "progress", "phase": "converting", "message": status["pdf_analyzing"]})
 
     extraction = await _extract_pdf_content(pdf_bytes)
 
@@ -484,16 +666,20 @@ async def _analyze_pdf_stream(
     has_images = len(images) > 0
 
     if page_count == 0 and not has_text:
-        yield _sse({"type": "error", "message": "PDFからコンテンツを抽出できませんでした。"})
+        yield _sse({"type": "error", "message": status["extract_failed"]})
         return
 
     yield _sse({"type": "progress", "phase": "converted",
-                "message": f"{page_count}ページを検出 (方式: {method})"})
+                "message": status["pdf_pages"].format(pages=page_count, method=method)})
 
     client = get_client()
     tools = _build_omr_tools()
 
-    page_label = f"{page_count}ページのPDF" if page_count > 1 else "1ページのPDF"
+    page_label = (
+        status["pdf_label_multi"].format(pages=page_count)
+        if page_count > 1
+        else status["pdf_label_single"]
+    )
 
     forced = _hint_forces_handwriting(hint)
     is_handwriting = False
@@ -502,30 +688,30 @@ async def _analyze_pdf_stream(
     elif forced is False:
         is_handwriting = False
     elif has_images and not has_text:
-        yield _sse({"type": "progress", "phase": "detecting", "message": "手書き / 活字を判定中..."})
+        yield _sse({"type": "progress", "phase": "detecting", "message": status["detecting_mode"]})
         first_data_url = _image_to_data_url(images[0][0], images[0][1])
         is_handwriting = await _detect_handwriting(client, first_data_url)
         if is_handwriting:
-            yield _sse({"type": "progress", "phase": "mode", "message": "手書きモードで読み取ります"})
+            yield _sse({"type": "progress", "phase": "mode", "message": status["handwriting_mode"]})
 
     if has_images and has_text:
         yield _sse({"type": "progress", "phase": "ai_processing",
-                    "message": f"AIが{page_count}ページのテキストと画像を解析中..."})
+                    "message": status["ai_text_images"].format(pages=page_count)})
         messages = _build_pdf_messages_with_text_and_images(
-            texts, images, page_count, page_label, hint)
-        system_prompt = OMR_PDF_SYSTEM_PROMPT
+            texts, images, page_count, page_label, hint, status)
+        system_prompt = prompts["pdf"]
     elif has_images:
         yield _sse({"type": "progress", "phase": "ai_processing",
-                    "message": f"AIが{page_count}ページの画像を解析中..."})
+                    "message": status["ai_images"].format(pages=page_count)})
         messages = _build_pdf_messages_images_only(
-            images, page_count, page_label, hint)
-        system_prompt = OMR_HANDWRITING_PROMPT if is_handwriting else OMR_PDF_SYSTEM_PROMPT
+            images, page_count, page_label, hint, status)
+        system_prompt = prompts["handwriting"] if is_handwriting else prompts["pdf"]
     else:
         yield _sse({"type": "progress", "phase": "ai_processing",
-                    "message": "AIがテキストからLaTeXを構成中..."})
+                    "message": status["ai_text_only"]})
         messages = _build_pdf_messages_text_only(
-            texts, page_count, page_label, hint)
-        system_prompt = OMR_TEXT_ONLY_PROMPT
+            texts, page_count, page_label, hint, status)
+        system_prompt = prompts["text_only"]
 
     messages.insert(0, {"role": "system", "content": system_prompt})
 
@@ -536,7 +722,7 @@ async def _analyze_pdf_stream(
     for attempt in range(1, MAX_RETRIES + 1):
         if attempt > 1:
             yield _sse({"type": "progress", "phase": "retrying",
-                        "message": f"再解析中... (試行 {attempt}/{MAX_RETRIES})"})
+                        "message": status["retrying"].format(attempt=attempt, total=MAX_RETRIES)})
 
         try:
             def _call():
@@ -553,7 +739,7 @@ async def _analyze_pdf_stream(
             logger.error("OpenAI OMR PDF API error (attempt %d): %s", attempt, e)
             if attempt < MAX_RETRIES:
                 continue
-            yield _sse({"type": "error", "message": f"AI解析エラー: {str(e)[:200]}"})
+            yield _sse({"type": "error", "message": status["ai_error"].format(err=str(e)[:200])})
             return
 
         resp_text_parts, latex = _extract_latex_from_response(response)
@@ -561,11 +747,11 @@ async def _analyze_pdf_stream(
         if latex:
             break
 
-    yield _sse({"type": "progress", "phase": "extracting", "message": "LaTeXを構成中..."})
+    yield _sse({"type": "progress", "phase": "extracting", "message": status["building_latex"]})
 
     description = "\n".join(resp_text_parts).strip()
     if not description and latex:
-        description = f"PDFから{len(latex)}文字のLaTeXソースを抽出しました（{page_count}ページ）。"
+        description = status["extracted_summary_pdf"].format(chars=len(latex), pages=page_count)
 
     yield _sse({
         "type": "done",
@@ -579,13 +765,15 @@ async def _analyze_pdf_stream(
 def _build_pdf_messages_with_text_and_images(
     texts: list[str], images: list[tuple[bytes, str]],
     page_count: int, page_label: str, hint: str,
+    status: dict[str, str],
 ) -> list[dict]:
     content_parts: list[dict] = []
 
     for i in range(page_count):
+        page_text = texts[i] if i < len(texts) else status["page_block_text_empty"]
         content_parts.append({
             "type": "text",
-            "text": f"--- ページ {i + 1}/{page_count} ---\n[抽出テキスト]\n{texts[i] if i < len(texts) else '(テキストなし)'}",
+            "text": status["page_block_text_label"].format(i=i + 1, n=page_count, text=page_text),
         })
         if i < len(images):
             data_url = _image_to_data_url(images[i][0], images[i][1])
@@ -595,13 +783,9 @@ def _build_pdf_messages_with_text_and_images(
             })
 
     prompt = (
-        f"この{page_label}からドキュメント構造を抽出してください。{hint}"
+        status["user_prompt_pdf_multi_with_text_hinted"].format(label=page_label, hint=hint)
         if hint
-        else (
-            f"上記の{page_label}から抽出したテキストとページ画像を確認し、"
-            "set_latex ツールで完全なLaTeXソースを返してください。"
-            "全ページを通して1つの連続したドキュメントとして処理してください。"
-        )
+        else status["user_prompt_pdf_multi_with_text"].format(label=page_label)
     )
     content_parts.append({"type": "text", "text": prompt})
 
@@ -611,12 +795,16 @@ def _build_pdf_messages_with_text_and_images(
 def _build_pdf_messages_images_only(
     images: list[tuple[bytes, str]],
     page_count: int, page_label: str, hint: str,
+    status: dict[str, str],
 ) -> list[dict]:
     content_parts: list[dict] = []
 
     for i in range(min(page_count, len(images))):
         if page_count > 1:
-            content_parts.append({"type": "text", "text": f"--- ページ {i + 1}/{page_count} ---"})
+            content_parts.append({
+                "type": "text",
+                "text": status["page_block_label"].format(i=i + 1, n=page_count),
+            })
         data_url = _image_to_data_url(images[i][0], images[i][1])
         content_parts.append({
             "type": "image_url",
@@ -624,13 +812,9 @@ def _build_pdf_messages_images_only(
         })
 
     prompt = (
-        f"この{page_label}からドキュメント構造を抽出してください。{hint}"
+        status["user_prompt_pdf_images_only_hinted"].format(label=page_label, hint=hint)
         if hint
-        else (
-            f"この{page_label}のページ画像からテキスト・数式・表などを読み取り、"
-            "set_latex ツールで完全なLaTeXソースを返してください。"
-            "全ページを通して1つの連続したドキュメントとして処理してください。"
-        )
+        else status["user_prompt_pdf_images_only"].format(label=page_label)
     )
     content_parts.append({"type": "text", "text": prompt})
 
@@ -640,22 +824,19 @@ def _build_pdf_messages_images_only(
 def _build_pdf_messages_text_only(
     texts: list[str],
     page_count: int, page_label: str, hint: str,
+    status: dict[str, str],
 ) -> list[dict]:
     combined_text = ""
     for i, text in enumerate(texts):
         if text.strip():
             if page_count > 1:
-                combined_text += f"\n\n=== ページ {i + 1}/{page_count} ===\n\n"
+                combined_text += status["page_separator_text_only"].format(i=i + 1, n=page_count)
             combined_text += text
 
     prompt = (
-        f"以下は{page_label}から抽出したテキストです。{hint}\n\n"
+        status["user_prompt_pdf_text_only_hinted"].format(label=page_label, hint=hint)
         if hint
-        else (
-            f"以下は{page_label}から抽出した生テキストです。\n"
-            "このテキストを解析して、set_latex ツールで完全なLaTeXソースを返してください。\n"
-            "見出し、本文、数式、リスト、表などを適切な LaTeX 構文に変換してください。\n\n"
-        )
+        else status["user_prompt_pdf_text_only"].format(label=page_label)
     )
 
     return [{"role": "user", "content": prompt + combined_text}]

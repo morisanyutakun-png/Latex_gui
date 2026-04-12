@@ -1,0 +1,41 @@
+id: physics.circular_motion
+category: physics
+subcategory: mechanics
+title:
+  ja: 等速円運動
+  en: Uniform circular motion
+description:
+  ja: 半径 r の円上を運動する物体と、向心力 F および接線速度 v ベクトル。
+  en: Object on a circle of radius r with centripetal force and tangent velocity vectors.
+tags: [tikz, circular motion, centripetal, mechanics]
+required_packages: [tikz]
+required_tikzlibraries: [arrows.meta, calc]
+parameters:
+  radius:    { type: number, default: 2.2, min: 1, max: 5 }
+  angle_deg: { type: number, default: 50, min: 0, max: 359 }
+body: |
+  \begin{tikzpicture}[>=Stealth, thick]
+    \draw[dashed, gray!70] (0,0) circle ({{radius}});
+    \coordinate (O) at (0,0);
+    \coordinate (P) at ({ {{radius}} *cos({{angle_deg}}) }, { {{radius}} *sin({{angle_deg}}) });
+    % Radius line
+    \draw[thick] (O) -- (P);
+    \node[below left] at (O) {$O$};
+    % Radius label (offset perpendicular to OP)
+    \node at ({ 0.55*{{radius}}*cos({{angle_deg}}) - 0.28*sin({{angle_deg}}) },
+              { 0.55*{{radius}}*sin({{angle_deg}}) + 0.28*cos({{angle_deg}}) })
+         {$r$};
+    % Object (drawn after line so it covers the endpoint cleanly)
+    \filldraw[fill=blue!25, draw=blue!70!black] (P) circle (0.22);
+    \node[right=3pt] at (P) {$m$};
+    % Centripetal force: from P toward O (70% of the way)
+    \draw[->, red, very thick]
+      (P) -- ($(P)!0.7!(O)$)
+      node[midway, above right, font=\small, fill=white, inner sep=1pt] {$\vec{F}$};
+    % Tangent velocity: perpendicular to OP, anti-clockwise direction
+    \draw[->, blue, very thick]
+      (P) -- ++({ -1.1*sin({{angle_deg}}) }, { 1.1*cos({{angle_deg}}) })
+      node[above left, font=\small] {$\vec{v}$};
+  \end{tikzpicture}
+preview:
+  params: { radius: 2.2, angle_deg: 50 }

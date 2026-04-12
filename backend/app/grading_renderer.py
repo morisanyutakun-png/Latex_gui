@@ -77,9 +77,9 @@ def _sanitize_math(text: str) -> str:
 
 # ════════════════ Phase 6: フィードバック PDF ════════════════
 
-FEEDBACK_PREAMBLE = r"""\documentclass[a4paper,11pt]{article}
-\usepackage[haranoaji]{luatexja-preset}
-\usepackage[margin=20mm]{geometry}
+# 共通部分: 色と設定。preamble ヘッダ (engine / font package) は locale ごとに
+# 別々に先頭に付与する (Japanese は luatexja-preset, English は lmodern)。
+_FEEDBACK_COMMON = r"""\usepackage[margin=20mm]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{xcolor}
 \definecolor{fbok}{HTML}{16a34a}
@@ -96,10 +96,34 @@ FEEDBACK_PREAMBLE = r"""\documentclass[a4paper,11pt]{article}
 \usepackage{fancyhdr}
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\color{fbmuted}採点フィードバック}
-\fancyhead[R]{\small\color{fbmuted}\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
 """
+
+
+def _feedback_preamble(locale: str) -> str:
+    is_en = (locale or "").lower() == "en"
+    if is_en:
+        header = (
+            r"\documentclass[a4paper,11pt]{article}" "\n"
+            r"\usepackage[T1]{fontenc}" "\n"
+            r"\usepackage{lmodern}" "\n"
+        )
+        header_label = "Grading feedback"
+    else:
+        header = (
+            r"\documentclass[a4paper,11pt]{article}" "\n"
+            r"\usepackage[haranoaji]{luatexja-preset}" "\n"
+        )
+        header_label = "採点フィードバック"
+    footer = (
+        rf"\fancyhead[L]{{\small\color{{fbmuted}}{header_label}}}" "\n"
+        r"\fancyhead[R]{\small\color{fbmuted}\thepage}" "\n"
+        r"\renewcommand{\headrulewidth}{0.4pt}" "\n"
+    )
+    return header + _FEEDBACK_COMMON + footer
+
+
+# Backwards-compatible alias (Japanese default).
+FEEDBACK_PREAMBLE = _feedback_preamble("ja")
 
 
 def _status_color(awarded: int, maximum: int) -> str:
@@ -113,18 +137,41 @@ def _status_color(awarded: int, maximum: int) -> str:
     return "fbng"
 
 
-def render_feedback_latex(result: GradingResult) -> str:
+_FEEDBACK_LABELS = {
+    "en": {
+        "title": "Grading feedback",
+        "no_name": "(name not entered)",
+        "total": "Total",
+        "per_question": "Per-question evaluation",
+        "overall": "Overall feedback",
+        "pts_unit": " pts",
+    },
+    "ja": {
+        "title": "採点フィードバック",
+        "no_name": "(氏名未記入)",
+        "total": "合計",
+        "per_question": "設問別評価",
+        "overall": "全体講評",
+        "pts_unit": "点",
+    },
+}
+
+
+def render_feedback_latex(result: GradingResult, locale: str = "ja") -> str:
     """採点結果から個人別フィードバック LaTeX を生成する。"""
-    name = _escape(result.student_name) or "(氏名未記入)"
+    is_en = (locale or "").lower() == "en"
+    labels = _FEEDBACK_LABELS["en" if is_en else "ja"]
+
+    name = _escape(result.student_name) or labels["no_name"]
     sid = _escape(result.student_id)
     total = result.total_points
     maximum = result.max_points
     pct = result.percentage
 
-    lines: list[str] = [FEEDBACK_PREAMBLE]
+    lines: list[str] = [_feedback_preamble(locale)]
     lines.append(r"\begin{document}")
     lines.append(r"\begin{center}")
-    lines.append(r"{\LARGE\bfseries 採点フィードバック}\\[0.5em]")
+    lines.append(rf"{{\LARGE\bfseries {labels['title']}}}\\[0.5em]")
     lines.append(rf"{{\large {name}}}")
     if sid:
         lines.append(rf"\quad{{\small\color{{fbmuted}}\texttt{{{sid}}}}}")
@@ -136,7 +183,7 @@ def render_feedback_latex(result: GradingResult) -> str:
     lines.append(r"\begin{center}")
     lines.append(
         rf"\fbox{{\parbox{{0.7\textwidth}}{{\centering "
-        rf"\textbf{{合計}}\quad"
+        rf"\textbf{{{labels['total']}}}\quad"
         rf"{{\Huge\color{{{summary_color}}}{total}}}"
         rf"\;/\;{maximum}"
         rf"\quad({pct:.1f}\%)}}}}"
@@ -145,13 +192,13 @@ def render_feedback_latex(result: GradingResult) -> str:
     lines.append(r"\vspace{1.2em}")
 
     # 設問別
-    lines.append(r"\section*{設問別評価}")
+    lines.append(rf"\section*{{{labels['per_question']}}}")
     for q in result.questions:
         q_label = _escape(q.question_label or q.question_id)
         q_color = _status_color(q.awarded_points, q.max_points)
         lines.append(
             rf"\subsection*{{{q_label}\hfill"
-            rf"\normalsize\color{{{q_color}}}{q.awarded_points}/{q.max_points}点}}"
+            rf"\normalsize\color{{{q_color}}}{q.awarded_points}/{q.max_points}{labels['pts_unit']}}}"
         )
 
         if q.criteria_results:
@@ -178,7 +225,7 @@ def render_feedback_latex(result: GradingResult) -> str:
 
     # 全体講評
     if result.overall_feedback:
-        lines.append(r"\section*{全体講評}")
+        lines.append(rf"\section*{{{labels['overall']}}}")
         lines.append(_sanitize_math(result.overall_feedback))
 
     lines.append(r"\end{document}")
@@ -187,7 +234,7 @@ def render_feedback_latex(result: GradingResult) -> str:
 
 # ════════════════ Phase 7: 赤入れ PDF (TikZ overlay) ════════════════
 
-MARKED_PREAMBLE = r"""\documentclass[11pt]{article}
+_MARKED_PREAMBLE_JA = r"""\documentclass[11pt]{article}
 \usepackage[haranoaji]{luatexja-preset}
 \usepackage{geometry}
 \usepackage{graphicx}
@@ -199,6 +246,26 @@ MARKED_PREAMBLE = r"""\documentclass[11pt]{article}
 \definecolor{markgreen}{HTML}{16a34a}
 \pagestyle{empty}
 """
+
+_MARKED_PREAMBLE_EN = r"""\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning, calc}
+\usepackage{xcolor}
+\definecolor{markred}{HTML}{d92626}
+\definecolor{markblue}{HTML}{1d4ed8}
+\definecolor{markgreen}{HTML}{16a34a}
+\pagestyle{empty}
+"""
+
+MARKED_PREAMBLE = _MARKED_PREAMBLE_JA
+
+
+def _marked_preamble(locale: str) -> str:
+    return _MARKED_PREAMBLE_EN if (locale or "").lower() == "en" else _MARKED_PREAMBLE_JA
 
 
 def _marks_for_page(marks: list[Mark], page_index: int) -> list[tuple[str, BBox, str]]:
@@ -244,18 +311,25 @@ def _write_image_file(data_url: str, dest: Path) -> tuple[int, int]:
         return (0, 0)
 
 
-def render_marked_pdf_latex(result: GradingResult, image_filenames: list[str]) -> str:
+def render_marked_pdf_latex(
+    result: GradingResult,
+    image_filenames: list[str],
+    locale: str = "ja",
+) -> str:
     """採点結果と画像ファイル名列から TikZ overlay LaTeX を生成する。
 
     画像ファイル名は tmpdir 相対 (例: `page-1.png`)。寸法は紙面サイズ設定に使用するため、
     呼び出し側で width/height を `answer_pages[i].width_px/height_px` に必ず設定しておく。
     """
+    is_en = (locale or "").lower() == "en"
+    memo_label = "Grader notes:" if is_en else "採点メモ:"
+
     # 全 marks を page 別に grouping
     all_marks: list[Mark] = []
     for q in result.questions:
         all_marks.extend(q.marks)
 
-    lines: list[str] = [MARKED_PREAMBLE, r"\begin{document}"]
+    lines: list[str] = [_marked_preamble(locale), r"\begin{document}"]
 
     for i, page in enumerate(result.answer_pages):
         img_name = image_filenames[i] if i < len(image_filenames) else None
@@ -334,7 +408,7 @@ def render_marked_pdf_latex(result: GradingResult, image_filenames: list[str]) -
                 rf"($(p{i}.south west) + (0.05\paperwidth, 0.02\paperheight)$) "
                 r"{"
             )
-            lines.append(r"\textbf{採点メモ:}\\")
+            lines.append(rf"\textbf{{{memo_label}}}\\")
             for kind, text in fallback:
                 lines.append(rf"{{\textbullet\ {_sanitize_math(text)}\par}}")
             lines.append("};")
@@ -398,21 +472,24 @@ def _compile_with_images_sync(
             )
         except FileNotFoundError:
             raise PDFGenerationError(
-                "LuaLaTeX エンジンが見つかりません。",
+                "LuaLaTeX engine not found.",
                 detail="lualatex command not found",
+                code="lualatex_not_found",
             )
         except subprocess.TimeoutExpired:
             raise PDFGenerationError(
-                "PDF生成に時間がかかりすぎました。",
+                "PDF generation took too long.",
                 detail=f"lualatex timeout ({timeout}s)",
+                code="lualatex_timeout",
             )
 
         if result.returncode != 0 or not pdf_path.exists():
             log_output = result.stdout + "\n" + result.stderr
             logger.error("marked/feedback PDF compile failed: %s", log_output[-2000:])
             raise PDFGenerationError(
-                "PDF生成に失敗しました。",
+                "PDF generation failed.",
                 detail=log_output[-2000:],
+                code="lualatex_compile_failed",
             )
 
         pdf_bytes = pdf_path.read_bytes()

@@ -10,7 +10,7 @@ import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
 
 export function OMRSplitView() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const omrMode = useUIStore((s) => s.omrMode);
   const sourceUrl = useUIStore((s) => s.omrSourceUrl);
@@ -40,6 +40,9 @@ export function OMRSplitView() {
         (event: OMRStreamEvent) => {
           if (event.type === "progress") setOMRProgress(event.message);
         },
+        "",
+        undefined,
+        locale,
       );
 
       if (result.latex) {
@@ -54,7 +57,7 @@ export function OMRSplitView() {
     } finally {
       setOMRProcessing(false);
     }
-  }, [doc, t, setOMRLatex, setOMRProcessing, setOMRProgress]);
+  }, [doc, t, locale, setOMRLatex, setOMRProcessing, setOMRProgress]);
 
   // 承認: 抽出されたLaTeXを文書に適用
   const handleApprove = useCallback(() => {

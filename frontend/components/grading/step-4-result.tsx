@@ -33,7 +33,7 @@ function triggerDownload(url: string, name: string) {
 }
 
 export function Step4Result() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const result = useUIStore((s) => s.gradingResult);
   const files = useUIStore((s) => s.gradingAnswerFiles);
   const markedUrl = useUIStore((s) => s.gradingMarkedPdfUrl);
@@ -52,13 +52,13 @@ export function Step4Result() {
     if (!result || markedUrl || renderingMarked) return;
     setRenderingMarked(true);
     setMarkedError(null);
-    renderMarkedPdf(result)
+    renderMarkedPdf(result, locale)
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         setMarkedUrl(url);
       })
       .catch((e) => {
-        const msg = e instanceof Error ? e.message : "赤入れPDF生成に失敗しました";
+        const msg = e instanceof Error ? e.message : t("grading.result.marked_fail");
         setMarkedError(msg);
       })
       .finally(() => setRenderingMarked(false));
@@ -73,12 +73,12 @@ export function Step4Result() {
     }
     setRenderingFeedback(true);
     try {
-      const blob = await renderFeedbackPdf(result);
+      const blob = await renderFeedbackPdf(result, locale);
       const url = URL.createObjectURL(blob);
       setFeedbackUrl(url);
       triggerDownload(url, fileName(result.studentName, "feedback"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "フィードバックPDF生成に失敗しました");
+      toast.error(e instanceof Error ? e.message : t("grading.result.feedback_fail"));
     } finally {
       setRenderingFeedback(false);
     }
@@ -92,7 +92,7 @@ export function Step4Result() {
   if (!result) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        採点結果がまだありません
+        {t("grading.result.no_result")}
       </div>
     );
   }
@@ -115,12 +115,11 @@ export function Step4Result() {
           <div className="text-sm text-rose-800 dark:text-rose-200 leading-relaxed">
             <div className="font-semibold mb-0.5">
               {allOffTopic
-                ? "アップロードされた画像は、この問題への答案ではないようです"
-                : "この答案からは有効な解答記述が読み取れませんでした"}
+                ? t("grading.result.all_invalid_off_topic")
+                : t("grading.result.all_invalid_blank")}
             </div>
             <div className="text-[12px] text-rose-700/85 dark:text-rose-300/85">
-              採点を行うため、問題と一致する答案画像を Step 2 から再アップロードしてください。
-              （AI が無関係なファイルに点数を付けてしまうのを防ぐため、自動的に 0 点としています。）
+              {t("grading.result.all_invalid_hint")}
             </div>
           </div>
         </div>
@@ -153,7 +152,7 @@ export function Step4Result() {
         <div className="flex flex-col min-h-0 border border-border/40 rounded-lg bg-background overflow-hidden">
           <div className="px-3 py-2 border-b border-border/30 bg-muted/30">
             <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-              設問別
+              {t("grading.result.per_question")}
             </span>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -177,12 +176,12 @@ export function Step4Result() {
         <div className="flex flex-col min-h-0 border border-border/40 rounded-lg bg-background overflow-hidden">
           <div className="px-3 py-2 border-b border-border/30 bg-muted/30 flex items-center justify-between">
             <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-              赤入れPDFプレビュー
+              {t("grading.result.marked_preview")}
             </span>
             {renderingMarked && (
               <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                生成中
+                {t("grading.result.rendering_short")}
               </span>
             )}
           </div>
@@ -190,7 +189,7 @@ export function Step4Result() {
             {renderingMarked && (
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-                <span className="text-xs">LuaLaTeX でコンパイル中…</span>
+                <span className="text-xs">{t("grading.result.compiling")}</span>
               </div>
             )}
             {!renderingMarked && markedError && (
@@ -204,7 +203,7 @@ export function Step4Result() {
                   }}
                   className="text-[11px] text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  もう一度生成
+                  {t("grading.result.retry_generate")}
                 </button>
               </div>
             )}
@@ -218,7 +217,7 @@ export function Step4Result() {
             {!renderingMarked && !markedError && !markedUrl && (
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                 <ImageIcon className="h-8 w-8 opacity-30" />
-                <span className="text-xs">プレビューなし</span>
+                <span className="text-xs">{t("grading.result.no_preview")}</span>
               </div>
             )}
           </div>
@@ -237,7 +236,7 @@ export function Step4Result() {
         {/* ── 右: 出力ボタン群 ── */}
         <div className="flex flex-col gap-2">
           <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider px-1">
-            出力
+            {t("grading.result.exports")}
           </span>
           <button
             type="button"

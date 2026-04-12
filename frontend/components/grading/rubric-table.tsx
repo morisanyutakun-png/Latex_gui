@@ -21,13 +21,18 @@ function newCriterion(): RubricCriterion {
   return { description: "", weight: 1, hint: null };
 }
 
-function newRubric(index: number): Rubric {
+function newRubric(index: number, locale: "ja" | "en" = "en"): Rubric {
+  const isEn = locale === "en";
   return {
     questionId: `q${index}`,
-    questionLabel: `問${index}`,
+    questionLabel: isEn ? `Problem ${index}` : `問${index}`,
     maxPoints: 5,
     criteria: [
-      { description: "正しく解答できているか", weight: 5, hint: null },
+      {
+        description: isEn ? "Solved the problem correctly" : "正しく解答できているか",
+        weight: 5,
+        hint: null,
+      },
     ],
     hint: null,
     sourceLine: null,
@@ -35,7 +40,7 @@ function newRubric(index: number): Rubric {
 }
 
 export function RubricTable({ rubrics, onChange, disabled = false }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const updateRubric = (idx: number, patch: Partial<Rubric>) => {
     const next = rubrics.map((r, i) => (i === idx ? { ...r, ...patch } : r));
@@ -71,7 +76,7 @@ export function RubricTable({ rubrics, onChange, disabled = false }: Props) {
   };
 
   const addRubric = () => {
-    onChange([...rubrics, newRubric(rubrics.length + 1)]);
+    onChange([...rubrics, newRubric(rubrics.length + 1, locale)]);
   };
 
   const removeRubric = (idx: number) => {
@@ -113,7 +118,7 @@ export function RubricTable({ rubrics, onChange, disabled = false }: Props) {
               onClick={() => removeRubric(rIdx)}
               disabled={disabled}
               className="p-1 text-muted-foreground/40 hover:text-red-500 transition-colors"
-              title="この設問を削除"
+              title={t("grading.rubric.delete_question")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -145,7 +150,7 @@ export function RubricTable({ rubrics, onChange, disabled = false }: Props) {
                   onClick={() => removeCriterion(rIdx, cIdx)}
                   disabled={disabled || r.criteria.length <= 1}
                   className="p-1 text-muted-foreground/40 hover:text-red-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="この観点を削除"
+                  title={t("grading.rubric.delete_criterion")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -158,7 +163,7 @@ export function RubricTable({ rubrics, onChange, disabled = false }: Props) {
               className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 mt-1"
             >
               <Plus className="h-3 w-3" />
-              観点を追加
+              {t("grading.rubric.add_criterion")}
             </button>
           </div>
         </div>
@@ -173,7 +178,7 @@ export function RubricTable({ rubrics, onChange, disabled = false }: Props) {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg border border-emerald-500/30 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />
-          設問を追加
+          {t("grading.rubric.add_question")}
         </button>
         <span className="text-sm font-medium tabular-nums">
           {t("grading.rubric.total")}: {totalPoints} {t("grading.rubric.col.points")}
