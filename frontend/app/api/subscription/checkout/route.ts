@@ -19,7 +19,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(`${BACKEND}/api/subscription/checkout`, {
+    const url = `${BACKEND}/api/subscription/checkout`;
+    console.log("[checkout] POST →", url, "user:", session.user.id);
+    const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -31,9 +33,14 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(body),
     });
 
-    const data = await res.json();
+    const text = await res.text();
+    console.log("[checkout] backend responded:", res.status, text);
+    let data;
+    try { data = JSON.parse(text); } catch { data = { detail: text }; }
     return NextResponse.json(data, { status: res.status });
-  } catch {
-    return NextResponse.json({ detail: "Stripe接続に失敗しました" }, { status: 502 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[checkout] fetch error:", msg);
+    return NextResponse.json({ detail: `バックエンド接続エラー: ${msg}` }, { status: 502 });
   }
 }
