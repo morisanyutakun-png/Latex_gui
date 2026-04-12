@@ -1024,6 +1024,30 @@ export function TemplateGallery() {
     router.push("/editor");
   };
 
+  const handlePlanSelect = async (planId: "starter" | "pro" | "premium") => {
+    // 認証チェック → 未ログインならログインへ
+    try {
+      const { getSession, signIn } = await import("next-auth/react");
+      const session = await getSession();
+      if (!session) {
+        signIn("google", { callbackUrl: "/" });
+        return;
+      }
+    } catch {
+      return;
+    }
+    // Stripe Checkout へリダイレクト
+    try {
+      const { createCheckoutSession } = await import("@/lib/subscription-api");
+      const url = await createCheckoutSession(planId);
+      if (url) {
+        window.location.href = url;
+      }
+    } catch {
+      // エラー時は何もしない
+    }
+  };
+
   const handleResume = () => {
     const doc = loadFromLocalStorage();
     if (doc) { setDocument(doc); router.push("/editor"); }
@@ -1601,7 +1625,7 @@ export function TemplateGallery() {
                   : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
               </p>
               <button
-                onClick={handleStart}
+                onClick={() => handlePlanSelect("pro")}
                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[13px] shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
               >
                 {isJa ? "7日間無料で試す" : "Start 7-day free trial"}
@@ -1642,7 +1666,7 @@ export function TemplateGallery() {
                   : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
               </p>
               <button
-                onClick={handleStart}
+                onClick={() => handlePlanSelect("premium")}
                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-[13px] shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
               >
                 {isJa ? "14日間無料で試す" : "Start 14-day free trial"}

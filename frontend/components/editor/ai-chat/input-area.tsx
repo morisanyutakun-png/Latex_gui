@@ -8,14 +8,13 @@ import { ArrowUp, Loader2, Paperclip, Sparkles, X, Wand2, FileText, Calculator, 
 interface QuickAction {
   icon: React.ReactNode;
   labelKey: string;
-  promptKey: string;
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { icon: <Wand2 className="h-3 w-3" />, labelKey: "chat.quick.create", promptKey: "chat.quick.create.prompt" },
-  { icon: <Calculator className="h-3 w-3" />, labelKey: "chat.quick.math", promptKey: "chat.quick.math.prompt" },
-  { icon: <Table className="h-3 w-3" />, labelKey: "chat.quick.table", promptKey: "chat.quick.table.prompt" },
-  { icon: <FileText className="h-3 w-3" />, labelKey: "chat.quick.fix", promptKey: "chat.quick.fix.prompt" },
+  { icon: <Wand2 className="h-3 w-3" />, labelKey: "chat.quick.create" },
+  { icon: <Calculator className="h-3 w-3" />, labelKey: "chat.quick.math" },
+  { icon: <Table className="h-3 w-3" />, labelKey: "chat.quick.table" },
+  { icon: <FileText className="h-3 w-3" />, labelKey: "chat.quick.fix" },
 ];
 
 export function InputArea({
@@ -51,8 +50,8 @@ export function InputArea({
     else setShowQuick(true);
   }, [input]);
 
-  const handleQuick = (key: string) => {
-    setInput(t(key));
+  const handleQuick = (labelKey: string) => {
+    setInput(t(labelKey));
     requestAnimationFrame(() => {
       textareaRef.current?.focus();
     });
@@ -67,7 +66,7 @@ export function InputArea({
             <button
               key={qa.labelKey}
               type="button"
-              onClick={() => handleQuick(qa.promptKey)}
+              onClick={() => handleQuick(qa.labelKey)}
               className="group inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-medium text-foreground/55 bg-foreground/[0.04] hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 border border-transparent hover:border-amber-200/60 dark:hover:border-amber-500/20 transition-all"
             >
               <span className="text-amber-500/70 group-hover:text-amber-500">{qa.icon}</span>
