@@ -17,17 +17,24 @@ export async function fetchMySubscription(): Promise<SubscriptionStatus> {
 
 /**
  * Stripe Checkout Session を作成してリダイレクト先URLを返す。
- * エラー時は null を返す。
+ * エラー時は理由付きで例外を投げる。
  */
-export async function createCheckoutSession(planId: PlanId): Promise<string | null> {
+export async function createCheckoutSession(planId: PlanId): Promise<string> {
   const res = await fetch("/api/subscription/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ plan_id: planId }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detail = body.detail || `HTTP ${res.status}`;
+    throw new Error(`Checkout failed: ${detail}`);
+  }
   const data = await res.json();
-  return data.checkout_url ?? null;
+  if (!data.checkout_url) {
+    throw new Error("Checkout URL was empty");
+  }
+  return data.checkout_url;
 }
 
 /**

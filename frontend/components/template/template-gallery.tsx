@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { createDefaultDocument } from "@/lib/types";
 import { loadFromLocalStorage } from "@/lib/storage";
@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { UserMenu } from "@/components/auth/user-menu";
+import { toast } from "sonner";
 import "katex/dist/katex.min.css";
 import { renderMathHTML } from "@/lib/katex-render";
 import {
@@ -977,6 +978,7 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
 
 export function TemplateGallery() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setDocument = useDocumentStore((s) => s.setDocument);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [powerOpen, setPowerOpen] = useState(false);
@@ -1030,23 +1032,45 @@ export function TemplateGallery() {
       const { getSession, signIn } = await import("next-auth/react");
       const session = await getSession();
       if (!session) {
-        signIn("google", { callbackUrl: "/" });
+        // ログイン後に自動チェックアウトできるようプランを保存
+        sessionStorage.setItem("pending_plan", planId);
+        signIn("google", { callbackUrl: "/?plan=" + planId });
         return;
       }
-    } catch {
+    } catch (e) {
+      console.error("[handlePlanSelect] auth error:", e);
+      toast.error("ログインの確認に失敗しました");
       return;
     }
     // Stripe Checkout へリダイレクト
+    await redirectToCheckout(planId);
+  };
+
+  const redirectToCheckout = async (planId: string) => {
     try {
       const { createCheckoutSession } = await import("@/lib/subscription-api");
-      const url = await createCheckoutSession(planId);
-      if (url) {
-        window.location.href = url;
-      }
-    } catch {
-      // エラー時は何もしない
+      const url = await createCheckoutSession(planId as "starter" | "pro" | "premium");
+      window.location.href = url;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[redirectToCheckout] error:", msg);
+      toast.error("決済ページの取得に失敗しました: " + msg);
     }
   };
+
+  // ログイン後に ?plan=pro 等で戻ってきた場合、自動でStripe Checkoutへ
+  useEffect(() => {
+    const planFromUrl = searchParams.get("plan");
+    const planFromStorage = sessionStorage.getItem("pending_plan");
+    const pendingPlan = planFromUrl || planFromStorage;
+    if (pendingPlan && ["starter", "pro", "premium"].includes(pendingPlan)) {
+      sessionStorage.removeItem("pending_plan");
+      // URLパラメータをクリーン
+      window.history.replaceState({}, "", "/");
+      redirectToCheckout(pendingPlan);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleResume = () => {
     const doc = loadFromLocalStorage();
