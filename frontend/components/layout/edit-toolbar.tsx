@@ -13,7 +13,7 @@ import { createFromTemplate } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
 import { TemplatePicker } from "@/components/editor/template-picker";
 import { FormattingToolbar } from "@/components/editor/formatting-toolbar";
-import { Download, Loader2, Printer } from "lucide-react";
+import { Download, Loader2, Printer, PenTool } from "lucide-react";
 import { toast } from "sonner";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
@@ -30,6 +30,7 @@ export function EditToolbar() {
   const setDocument = useDocumentStore((s) => s.setDocument);
   const { paperSize, setPaperSize } = useUIStore();
   const { isGenerating, setGenerating } = useUIStore();
+  const openFigureEditor = useUIStore((s) => s.openFigureEditor);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfFilename, setPdfFilename] = useState("");
@@ -123,6 +124,18 @@ export function EditToolbar() {
           {/* 書式 */}
           <div className="flex items-center gap-1 px-3">
             <FormattingToolbar />
+          </div>
+
+          {/* 図エディタ */}
+          <div className="flex items-center gap-1 px-3 border-l border-foreground/[0.06]">
+            <button
+              onClick={openFigureEditor}
+              title={isJa ? "図・ダイアグラムエディタを開く" : "Open Figure / Diagram Editor"}
+              className="group flex items-center gap-1.5 h-8 px-3 rounded-lg text-[11px] font-semibold text-foreground/50 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 transition-all duration-150"
+            >
+              <PenTool className="h-3.5 w-3.5" />
+              <span>{isJa ? "図を描く" : "Draw Figure"}</span>
+            </button>
           </div>
 
           <div className="flex-1" />

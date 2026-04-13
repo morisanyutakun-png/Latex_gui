@@ -270,9 +270,11 @@ const ja = {
   "side.tooltip.source": "LaTeX ソース表示を開く / 閉じる",
   "side.label.ai": "AI",
   "side.label.scan": "読取",
+  "side.label.figure": "図",
   "side.label.grading": "採点",
   "side.label.preview": "印刷",
   "side.label.source": "ソース",
+  "side.tooltip.figure": "図・ダイアグラムエディタを開く",
 
   // OMR
   "omr.title": "読み取りモード",
@@ -774,9 +776,11 @@ const en = {
   "side.tooltip.source": "Toggle the LaTeX source view",
   "side.label.ai": "AI",
   "side.label.scan": "Scan",
+  "side.label.figure": "Figure",
   "side.label.grading": "Grade",
   "side.label.preview": "Preview",
   "side.label.source": "Source",
+  "side.tooltip.figure": "Open Figure / Diagram Editor",
 
   // OMR
   "omr.title": "Scan Mode",

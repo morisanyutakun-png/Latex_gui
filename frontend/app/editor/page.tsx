@@ -15,10 +15,11 @@ import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
-import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces } from "lucide-react";
+import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
+import { FigureEditor } from "@/components/figure-editor/figure-editor";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
 import { toast } from "sonner";
@@ -38,6 +39,8 @@ export default function EditorPage() {
   const triggerOMR = useUIStore((s) => s.triggerOMR);
   const openGrading = useUIStore((s) => s.openGrading);
   const gradingMode = useUIStore((s) => s.gradingMode);
+  const figureEditorMode = useUIStore((s) => s.figureEditorMode);
+  const openFigureEditor = useUIStore((s) => s.openFigureEditor);
   const isMobile = useIsMobile();
 
   const doc = useDocumentStore((s) => s.document);
@@ -225,6 +228,7 @@ export default function EditorPage() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f5f4f0] dark:bg-[#111110]">
       <OMRSplitView />
+      {figureEditorMode && <FigureEditor />}
 
       <AppHeader isAIActive={isAIActive} />
 
@@ -291,6 +295,17 @@ export default function EditorPage() {
               disabled={gradingMode}
             />
 
+            {/* Figure Editor — 図エディタ */}
+            <ActivityBtn
+              accent="teal"
+              active={figureEditorMode}
+              icon={<PenTool className={figureEditorMode ? "h-[15px] w-[15px] text-white" : "h-[17px] w-[17px]"} />}
+              label={t("side.label.figure")}
+              onClick={openFigureEditor}
+              title={t("side.tooltip.figure")}
+              disabled={gradingMode}
+            />
+
             {/* Grading — 採点モード時は光る */}
             <ActivityBtn
               accent="rose"
@@ -349,7 +364,7 @@ export default function EditorPage() {
 
 // ─── Activity bar button (icon + label) ────────────────────────
 
-type ActivityAccent = "amber" | "emerald" | "rose" | "sky" | "violet";
+type ActivityAccent = "amber" | "emerald" | "rose" | "sky" | "violet" | "teal";
 
 const ACCENT_CLASSES: Record<ActivityAccent, { active: string; hover: string; text: string }> = {
   amber: {
@@ -376,6 +391,11 @@ const ACCENT_CLASSES: Record<ActivityAccent, { active: string; hover: string; te
     active: "bg-gradient-to-br from-violet-500 to-violet-600 shadow-md shadow-violet-500/30",
     hover: "hover:text-violet-500 hover:bg-violet-50/50 dark:hover:bg-violet-500/10",
     text: "text-violet-600 dark:text-violet-400",
+  },
+  teal: {
+    active: "bg-gradient-to-br from-teal-500 to-cyan-600 shadow-md shadow-teal-500/30",
+    hover: "hover:text-teal-500 hover:bg-teal-50/50 dark:hover:bg-teal-500/10",
+    text: "text-teal-600 dark:text-teal-400",
   },
 };
 

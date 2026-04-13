@@ -43,6 +43,9 @@ interface UIState {
   omrProcessing: boolean;
   omrProgress: string;
 
+  // 図エディタモード (フルスクリーン)
+  figureEditorMode: boolean;
+
   // 採点モード (フルスクリーン)
   gradingMode: boolean;
   gradingPhase: GradingPhase;
@@ -106,6 +109,10 @@ interface UIState {
   setGradingProcessing: (v: boolean) => void;
   setGradingProgress: (msg: string) => void;
   setGradingError: (msg: string | null) => void;
+
+  // 図エディタ actions
+  openFigureEditor: () => void;
+  closeFigureEditor: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -128,6 +135,8 @@ export const useUIStore = create<UIState>((set) => ({
   omrExtractedLatex: null,
   omrProcessing: false,
   omrProgress: "",
+
+  figureEditorMode: false,
 
   gradingMode: false,
   gradingPhase: "idle",
@@ -260,4 +269,8 @@ export const useUIStore = create<UIState>((set) => ({
   setGradingProcessing: (v) => set({ gradingProcessing: v }),
   setGradingProgress: (msg) => set({ gradingProgress: msg }),
   setGradingError: (msg) => set({ gradingError: msg }),
+
+  // 図エディタ
+  openFigureEditor: () => set({ figureEditorMode: true }),
+  closeFigureEditor: () => set({ figureEditorMode: false }),
 }));
