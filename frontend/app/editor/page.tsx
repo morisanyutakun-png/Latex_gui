@@ -118,6 +118,15 @@ export default function EditorPage() {
     fetch("/api/health", { signal: AbortSignal.timeout(15000) }).catch(() => {});
   }, []);
 
+  // 採点モードに入ったらサイドバーを閉じる（全 Hook は early return より前に置く）
+  useEffect(() => {
+    if (gradingMode) {
+      setSidebarOpen(false);
+    }
+  }, [gradingMode]);
+
+  const isAIActive = !gradingMode && (sidebarOpen && activeTab === "ai") || isChatLoading;
+
   if (!doc) return (
     <div className="flex h-screen flex-col bg-secondary/30 dark:bg-surface-0 overflow-hidden animate-page-fade-in">
       <div className="flex items-center gap-3 px-3 h-12 border-b border-border/40 bg-background/80 shrink-0">
@@ -140,15 +149,6 @@ export default function EditorPage() {
       <div className="h-6 bg-surface-1 dark:bg-surface-0 border-t border-border/30" />
     </div>
   );
-
-  // 採点モードに入ったらサイドバーを閉じる
-  useEffect(() => {
-    if (gradingMode) {
-      setSidebarOpen(false);
-    }
-  }, [gradingMode]);
-
-  const isAIActive = !gradingMode && (sidebarOpen && activeTab === "ai") || isChatLoading;
 
   const handleTabClick = (tab: SidebarTab) => {
     if (sidebarOpen && activeTab === tab) {
