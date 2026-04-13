@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useI18n } from "@/lib/i18n";
-import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, Loader2, Paperclip, Sparkles, X, Wand2, FileText, Calculator, Table } from "lucide-react";
 
 interface QuickAction {
@@ -50,9 +49,7 @@ export function InputArea({
 
   const handleQuick = (labelKey: string) => {
     setInput(t(labelKey));
-    requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-    });
+    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   return (
@@ -74,20 +71,18 @@ export function InputArea({
         </div>
       )}
 
-      {/* Single-layer input — textarea + controls in one box, no nesting */}
+      {/* Input box — single border only via box-shadow on outer div */}
       <div
-        className={`relative rounded-2xl transition-all duration-200 ${
-          focused
-            ? "bg-background shadow-[0_0_0_1.5px_rgba(217,119,6,0.45),0_0_0_4px_rgba(245,158,11,0.08)]"
-            : "bg-background shadow-[0_0_0_1px_rgba(0,0,0,0.08)] hover:shadow-[0_0_0_1px_rgba(0,0,0,0.15)]"
-        } dark:${
-          focused
-            ? "shadow-[0_0_0_1.5px_rgba(245,158,11,0.40),0_0_0_4px_rgba(245,158,11,0.06)]"
-            : "shadow-[0_0_0_1px_rgba(255,255,255,0.08)] hover:shadow-[0_0_0_1px_rgba(255,255,255,0.15)]"
-        }`}
+        style={{
+          borderRadius: 16,
+          background: "var(--color-background, #fff)",
+          boxShadow: focused
+            ? "0 0 0 1.5px rgba(217,119,6,0.50), 0 0 0 4px rgba(245,158,11,0.08)"
+            : "0 0 0 1px rgba(0,0,0,0.10)",
+          transition: "box-shadow 0.15s ease",
+        }}
       >
         <div className="flex items-end gap-1.5 px-3 py-2">
-          {/* Attach */}
           {onAttach && (
             <button
               type="button"
@@ -100,8 +95,8 @@ export function InputArea({
             </button>
           )}
 
-          {/* Textarea — no border, no ring, no outline */}
-          <Textarea
+          {/* Raw textarea — no component wrapper, zero styling from shadcn */}
+          <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -109,17 +104,31 @@ export function InputArea({
               if (composingRef.current) return;
               onKeyDown(e);
             }}
-            onCompositionStart={() => (composingRef.current = true)}
-            onCompositionEnd={() => (composingRef.current = false)}
+            onCompositionStart={() => { composingRef.current = true; }}
+            onCompositionEnd={() => { composingRef.current = false; }}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={t("chat.input.placeholder")}
-            className="min-h-[28px] max-h-[200px] text-[14px] resize-none flex-1 bg-transparent border-none shadow-none ring-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:ring-0 focus:outline-none outline-none placeholder:text-foreground/30 leading-[1.55]"
             disabled={isChatLoading}
             rows={1}
+            style={{
+              minHeight: 28,
+              maxHeight: 200,
+              fontSize: 14,
+              lineHeight: 1.55,
+              resize: "none",
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              boxShadow: "none",
+              padding: 0,
+              margin: 0,
+              color: "inherit",
+              fontFamily: "inherit",
+            }}
           />
 
-          {/* Clear */}
           {hasInput && !isChatLoading && (
             <button
               type="button"
@@ -130,7 +139,6 @@ export function InputArea({
             </button>
           )}
 
-          {/* Send */}
           <button
             type="button"
             onClick={() => onSend()}
@@ -152,11 +160,9 @@ export function InputArea({
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-1.5 px-1">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-[10px] font-medium text-amber-600/50 dark:text-amber-400/40">
-            <Sparkles className="h-2.5 w-2.5" />
-            <span>{t("chat.model.badge")}</span>
-          </div>
+        <div className="flex items-center gap-1 text-[10px] font-medium text-amber-600/50 dark:text-amber-400/40">
+          <Sparkles className="h-2.5 w-2.5" />
+          <span>{t("chat.model.badge")}</span>
         </div>
         <span className="text-[10px] text-muted-foreground/30 font-mono tracking-wide">
           {input.length > 0 ? `${input.length} ${t("status.chars")}` : t("chat.input.hint")}
