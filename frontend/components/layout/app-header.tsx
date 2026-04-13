@@ -15,7 +15,6 @@ import {
   Loader2,
   Sparkles,
   Printer,
-  ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
@@ -31,7 +30,6 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
   const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
   const { isGenerating, setGenerating, lastAIAction, isChatLoading } = useUIStore();
   const [indicatorVisible, setIndicatorVisible] = useState(false);
-  const omrFileRef = useRef<HTMLInputElement>(null);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
   useEffect(() => {
@@ -90,16 +88,6 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
     toast.success(t("toast.exported"));
   };
 
-
-  const handleOMRFromToolbar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !doc) return;
-    e.target.value = "";
-
-    // OMR split-view モードを開く
-    const sourceUrl = URL.createObjectURL(file);
-    useUIStore.getState().openOMR(sourceUrl, file.name);
-  };
 
   // PDF保存ダイアログ（ファイル名入力）
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -264,24 +252,7 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
       {/* Tools */}
       <div className="flex items-center gap-1">
-        {/* OMR — 画像/PDF読み取り（メイン CTA） */}
-        <input ref={omrFileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" className="hidden" onChange={handleOMRFromToolbar} />
-        <button
-          onClick={() => omrFileRef.current?.click()}
-          disabled={isGenerating}
-          className="group relative flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm hover:shadow-[0_0_10px_rgba(16,185,129,0.35)] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.97] shrink-0 overflow-hidden"
-          title={t("header.scan.tooltip")}
-        >
-          {/* subtle shimmer */}
-          <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 pointer-events-none" />
-          <ScanLine className="h-3.5 w-3.5 shrink-0" />
-          <span className="hidden sm:inline">
-            {t("header.scan.label")}
-          </span>
-        </button>
-
         <ThemeToggle />
-
         <UserMenu />
       </div>
 
