@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * EditToolbar — 2段構成の高さをとったリッチツールバー。
- * 上段: テンプレート・用紙 | 書式
- * 下段: PDFプレビュー・ソース確認 | アクション
- * 各ボタンに説明テキストがあり、見た目だけで機能がわかる。
+ * EditToolbar — テンプレートを主役に据えたリッチツールバー。
+ * 上段: テンプレート（大きく目立つ）+ 用紙 | 書式ボタン
+ * 下段: PDFプレビュー・ソース確認 | 画像読取 | PDF保存
+ * 全ボタンに hover tooltip で「何ができるか」を表示。
  */
 
 import { useState } from "react";
@@ -21,8 +21,6 @@ import {
   Loader2,
   Eye,
   Braces,
-  LayoutTemplate,
-  Image,
 } from "lucide-react";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
@@ -75,53 +73,48 @@ export function EditToolbar() {
 
   return (
     <div className="editor-toolbar shrink-0 bg-background/80 backdrop-blur-md border-b border-foreground/[0.04]">
-      {/* ━━ Row 1: テンプレート + 用紙 | 書式 ━━ */}
-      <div className="flex items-center gap-0 px-2.5 h-10">
-        {/* テンプレート — メインの選択体験 */}
-        <div className="flex items-center gap-2 pr-3 border-r border-foreground/[0.06] shrink-0">
-          <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-            <LayoutTemplate className="h-4 w-4 text-violet-500" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-foreground/30 leading-none">
-              {isJa ? "テンプレート" : "Template"}
-            </span>
-            <div className="flex items-center gap-1.5 -mt-0.5">
-              <TemplatePicker
-                currentId={document?.template ?? "blank"}
-                onSelect={handleTemplateChange}
-                label=""
-              />
-              <select
-                value={paperSize}
-                onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-                className="h-6 px-1 rounded border border-foreground/[0.06] bg-transparent text-[10px] text-foreground/50 hover:text-foreground focus:outline-none cursor-pointer font-mono"
-              >
-                {PAPER_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+
+      {/* ━━ Row 1: テンプレート（主役）+ 書式 ━━ */}
+      <div className="flex items-center gap-0 px-2.5 py-1.5">
+
+        {/* テンプレート — 大きく、dashed border で「ここを選んで」と誘導 */}
+        <div className="flex items-center gap-2 pr-4 border-r border-foreground/[0.06] shrink-0">
+          <TemplatePicker
+            currentId={document?.template ?? "blank"}
+            onSelect={handleTemplateChange}
+            label=""
+            large
+          />
+          <select
+            value={paperSize}
+            onChange={(e) => setPaperSize(e.target.value as PaperSize)}
+            title={isJa ? "用紙サイズを変更" : "Change paper size"}
+            className="h-8 px-2 rounded-lg border border-foreground/[0.08] bg-white/70 dark:bg-white/5 text-[11px] text-foreground/60 hover:text-foreground hover:border-foreground/[0.15] focus:outline-none cursor-pointer transition-colors font-mono"
+          >
+            {PAPER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         </div>
 
-        {/* 書式 */}
-        <div className="flex items-center gap-1 px-3 border-r border-foreground/[0.06]">
+        {/* 書式ボタン群 */}
+        <div className="flex items-center gap-1 px-3">
           <FormattingToolbar />
         </div>
 
         <div className="flex-1" />
       </div>
 
-      {/* ━━ Row 2: 表示パネル + アクション ━━ */}
+      {/* ━━ Row 2: 表示切替 + アクション ━━ */}
       <div className="flex items-center gap-1.5 px-2.5 h-9 border-t border-foreground/[0.03]">
-        {/* PDFプレビュー — 大きめトグル */}
+
+        {/* PDFプレビュー */}
         <PanelToggle
           active={showPdfPanel}
           onClick={togglePdfPanel}
           icon={<Eye className="h-3.5 w-3.5" />}
           label={isJa ? "PDFプレビュー" : "PDF Preview"}
-          desc={isJa ? "印刷イメージを確認" : "See print result"}
+          tooltip={isJa ? "右側に印刷時の仕上がりを表示します" : "Show print preview on the right"}
           color="sky"
         />
 
@@ -131,7 +124,7 @@ export function EditToolbar() {
           onClick={toggleSourcePanel}
           icon={<Braces className="h-3.5 w-3.5" />}
           label={isJa ? "ソース確認" : "Source Code"}
-          desc={isJa ? "LaTeXコードを表示・編集" : "View & edit LaTeX"}
+          tooltip={isJa ? "LaTeXのソースコードを直接表示・編集できます" : "View and edit the LaTeX source directly"}
           color="violet"
         />
 
@@ -140,39 +133,42 @@ export function EditToolbar() {
         {/* 画像読取 */}
         <button
           onClick={() => useUIStore.getState().triggerOMR()}
-          className="group flex items-center gap-2 h-7 px-3 rounded-lg text-[11px] font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm transition-all duration-150 active:scale-[0.97] shrink-0"
-          title={t("edit.toolbar.scan.tooltip")}
+          className="group relative flex items-center gap-2 h-7 px-3 rounded-lg text-[11px] font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm transition-all duration-150 active:scale-[0.97] shrink-0"
+          title={isJa ? "画像やPDFをアップロードしてLaTeXに自動変換します" : "Upload an image or PDF to auto-convert to LaTeX"}
         >
           <ScanLine className="h-3.5 w-3.5 shrink-0" />
           <span>{isJa ? "画像読取" : "Scan"}</span>
+          <Tooltip text={isJa ? "画像・PDFをLaTeXに変換" : "Convert image/PDF to LaTeX"} />
         </button>
 
         <div className="flex-1" />
 
-        {/* PDFダウンロード */}
+        {/* PDF保存 */}
         <button
           onClick={handleDownloadPDF}
           disabled={!document || downloading}
-          className="flex items-center gap-2 h-7 px-4 rounded-lg text-[11px] font-bold bg-foreground text-background shadow-sm hover:opacity-90 transition-all duration-150 active:scale-[0.97] shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="group relative flex items-center gap-2 h-7 px-4 rounded-lg text-[11px] font-bold bg-foreground text-background shadow-sm hover:opacity-90 transition-all duration-150 active:scale-[0.97] shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+          title={isJa ? "現在の書類をPDFファイルとしてダウンロードします" : "Download current document as PDF"}
         >
           {downloading
             ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
             : <Download className="h-3.5 w-3.5 shrink-0" />
           }
           <span>{isJa ? "PDF保存" : "Save PDF"}</span>
+          <Tooltip text={isJa ? "PDFファイルをダウンロード" : "Download as PDF file"} />
         </button>
       </div>
     </div>
   );
 }
 
-/* ── パネルトグル: アイコン + ラベル + 説明 ── */
-function PanelToggle({ active, onClick, icon, label, desc, color }: {
+/* ── パネルトグル ── */
+function PanelToggle({ active, onClick, icon, label, tooltip, color }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
-  desc: string;
+  tooltip: string;
   color: "sky" | "violet";
 }) {
   const c = color === "sky"
@@ -183,7 +179,8 @@ function PanelToggle({ active, onClick, icon, label, desc, color }: {
     <button
       type="button"
       onClick={onClick}
-      className={`group flex items-center gap-2 h-7 px-2.5 rounded-lg border transition-all duration-150 active:scale-[0.98] ${
+      title={tooltip}
+      className={`group relative flex items-center gap-2 h-7 px-2.5 rounded-lg border transition-all duration-150 active:scale-[0.98] ${
         active
           ? `${c.on} font-semibold`
           : "border-foreground/[0.06] text-foreground/50 hover:bg-foreground/[0.03] hover:text-foreground/75 hover:border-foreground/[0.12]"
@@ -192,11 +189,19 @@ function PanelToggle({ active, onClick, icon, label, desc, color }: {
       <div className={`h-5 w-5 rounded flex items-center justify-center shrink-0 ${active ? c.iconBg : "bg-foreground/[0.04]"}`}>
         {icon}
       </div>
-      <div className="flex flex-col items-start leading-none">
-        <span className="text-[11px] font-semibold">{label}</span>
-        <span className={`text-[8px] ${active ? "opacity-60" : "opacity-40"} hidden lg:block`}>{desc}</span>
-      </div>
+      <span className="text-[11px] font-semibold">{label}</span>
       {active && <div className={`h-1.5 w-1.5 rounded-full ${c.dot} shrink-0 ml-0.5`} />}
+      <Tooltip text={tooltip} />
     </button>
+  );
+}
+
+/* ── ホバー Tooltip ── */
+function Tooltip({ text }: { text: string }) {
+  return (
+    <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-3 py-1.5 rounded-lg bg-foreground text-background text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-50">
+      {text}
+      <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
+    </span>
   );
 }

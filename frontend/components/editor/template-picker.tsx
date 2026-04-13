@@ -26,9 +26,11 @@ interface TemplatePickerProps {
   label: string;
   /** Render a minimal pill-style trigger instead of the full toolbar button */
   compact?: boolean;
+  /** Large prominent trigger for toolbar hero placement */
+  large?: boolean;
 }
 
-export function TemplatePicker({ currentId, onSelect, label, compact }: TemplatePickerProps) {
+export function TemplatePicker({ currentId, onSelect, label, compact, large }: TemplatePickerProps) {
   const { locale } = useI18n();
   const isJa = locale === "ja";
   const [open, setOpen] = useState(false);
@@ -102,7 +104,21 @@ export function TemplatePicker({ currentId, onSelect, label, compact }: Template
   return (
     <div ref={wrapperRef} className="relative shrink-0">
       {/* ── Trigger ── */}
-      {compact ? (
+      {large ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="group flex items-center gap-3 h-12 px-4 rounded-xl border-2 border-dashed border-violet-300/50 dark:border-violet-500/30 bg-violet-50/50 dark:bg-violet-500/[0.06] hover:bg-violet-100/70 dark:hover:bg-violet-500/[0.12] hover:border-violet-400/70 dark:hover:border-violet-500/50 transition-all duration-200"
+        >
+          <span className="text-2xl leading-none">{current.icon}</span>
+          <div className="flex flex-col items-start">
+            <span className="text-[13px] font-bold text-foreground/80 group-hover:text-foreground">{isJa ? current.name : current.nameEn}</span>
+            <span className="text-[10px] text-violet-500/60 group-hover:text-violet-500">{isJa ? "クリックして変更" : "Click to change"}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-violet-400/50 group-hover:text-violet-500 ml-1 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      ) : compact ? (
         <button
           ref={triggerRef}
           type="button"
