@@ -1,18 +1,12 @@
 "use client";
 
 /**
- * FigureEditor — Full-screen figure/diagram editor mode.
+ * FigureEditor — Full-screen figure/diagram editor mode (v2).
  *
- * Layout:
- *   ┌────────────────────────────────────────────────────────┐
- *   │ Header bar (title, TikZ toggle, Insert, Close)       │
- *   ├──────┬──────────────────────────────────┬─────────────┤
- *   │ Tool │          SVG Canvas              │ Properties  │
- *   │ bar  │   (grid, shapes, handles)        │  panel      │
- *   │ 240px│                                  │  200px      │
- *   ├──────┴──────────────────────────────────┴─────────────┤
- *   │ TikZ code panel (collapsible)                         │
- *   └────────────────────────────────────────────────────────┘
+ * Changes from v1:
+ *   - No zoom controls in header (canvas handles Ctrl+scroll & discrete steps)
+ *   - Insert size selector: choose output scale when inserting into document
+ *   - Keyboard shortcut hints
  */
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -25,25 +19,38 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import {
   X, Code2, ChevronDown, ChevronUp, ClipboardCopy, Check,
-  ImagePlus, RotateCcw, ZoomIn, ZoomOut, Maximize2,
+  ImagePlus, Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
-
-// ── Locale helper ───────────────────────────────────────────────
 
 function useIsJa() {
   if (typeof window === "undefined") return false;
   try { return localStorage.getItem("lx-locale") === "ja"; } catch { return false; }
 }
 
+// ── Insert size presets ─────────────────────────────────────────
+
+interface SizePreset {
+  label: string;
+  labelJa: string;
+  scale: string; // TikZ scale value or "none"
+  description: string;
+  descriptionJa: string;
+}
+
+const SIZE_PRESETS: SizePreset[] = [
+  { label: "Small",    labelJa: "小",  scale: "0.6",  description: "~5cm wide", descriptionJa: "約5cm幅" },
+  { label: "Medium",   labelJa: "中",  scale: "0.8",  description: "~7cm wide", descriptionJa: "約7cm幅" },
+  { label: "Original", labelJa: "原寸", scale: "none", description: "As drawn",  descriptionJa: "描画そのまま" },
+  { label: "Large",    labelJa: "大",  scale: "1.2",  description: "~12cm wide", descriptionJa: "約12cm幅" },
+  { label: "Full",     labelJa: "全幅", scale: "1.5",  description: "Full width", descriptionJa: "ページ全幅" },
+];
+
 export function FigureEditor() {
   const isJa = useIsJa();
 
   const shapes = useFigureStore((s) => s.shapes);
   const connections = useFigureStore((s) => s.connections);
-  const viewport = useFigureStore((s) => s.viewport);
-  const setViewport = useFigureStore((s) => s.setViewport);
-  const resetViewport = useFigureStore((s) => s.resetViewport);
   const resetAll = useFigureStore((s) => s.reset);
   const closeFigureEditor = useUIStore((s) => s.closeFigureEditor);
 
@@ -52,8 +59,10 @@ export function FigureEditor() {
 
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [selectedSize, setSelectedSize] = useState(2); // "Original" index
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
-  // ── TikZ code generation ──────────────────────────────────────
+  // ── TikZ code ─────────────────────────────────────────────────
 
   const tikzCode = useMemo(
     () => generateTikZ(shapes, connections),
@@ -65,15 +74,24 @@ export function FigureEditor() {
     [shapes, connections]
   );
 
-  // ── Actions ───────────────────────────────────────────────────
+  // ── Insert with scale ─────────────────────────────────────────
+
+  const scaledCode = useMemo(() => {
+    const preset = SIZE_PRESETS[selectedSize];
+    if (preset.scale === "none") return fullCode;
+    // Wrap tikzpicture with scale option
+    return fullCode.replace(
+      "\\begin{tikzpicture}",
+      `\\begin{tikzpicture}[scale=${preset.scale}, every node/.style={scale=${preset.scale}}]`
+    );
+  }, [fullCode, selectedSize]);
 
   const handleInsert = useCallback(() => {
     if (!doc || shapes.length === 0) return;
 
-    const code = `\n${fullCode}\n`;
+    const code = `\n\\begin{center}\n${scaledCode}\n\\end{center}\n`;
     const currentLatex = doc.latex;
 
-    // Find a good insertion point (before \end{document} if present)
     const endDocIdx = currentLatex.lastIndexOf("\\end{document}");
     let newLatex: string;
     if (endDocIdx >= 0) {
@@ -86,29 +104,21 @@ export function FigureEditor() {
     toast.success(isJa ? "図を挿入しました" : "Figure inserted into document");
     closeFigureEditor();
     resetAll();
-  }, [doc, shapes, fullCode, setLatex, closeFigureEditor, resetAll, isJa]);
+  }, [doc, shapes, scaledCode, setLatex, closeFigureEditor, resetAll, isJa]);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(fullCode).then(() => {
+    navigator.clipboard.writeText(scaledCode).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast.success(isJa ? "TikZコードをコピーしました" : "TikZ code copied");
     });
-  }, [fullCode, isJa]);
+  }, [scaledCode, isJa]);
 
   const handleClose = useCallback(() => {
     if (shapes.length > 0 && !confirm(isJa ? "編集中の図を破棄しますか？" : "Discard current figure?")) return;
     closeFigureEditor();
     resetAll();
   }, [shapes.length, closeFigureEditor, resetAll, isJa]);
-
-  const handleZoomIn = useCallback(() => {
-    setViewport({ zoom: Math.min(5, viewport.zoom * 1.2) });
-  }, [viewport.zoom, setViewport]);
-
-  const handleZoomOut = useCallback(() => {
-    setViewport({ zoom: Math.max(0.2, viewport.zoom / 1.2) });
-  }, [viewport.zoom, setViewport]);
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-[#f5f4f0] dark:bg-[#111110] animate-page-fade-in">
@@ -125,92 +135,136 @@ export function FigureEditor() {
             {isJa ? "図エディタ" : "Figure Editor"}
           </h1>
           <span className="px-2 py-0.5 rounded-full bg-foreground/[0.05] text-[10px] font-semibold text-foreground/40">
-            {shapes.length} {isJa ? "個のオブジェクト" : shapes.length === 1 ? "object" : "objects"}
+            {shapes.length} {isJa ? "個" : shapes.length === 1 ? "object" : "objects"}
           </span>
         </div>
 
-        {/* Center — zoom controls */}
+        {/* Center — insert size selector */}
         <div className="flex-1 flex items-center justify-center gap-1">
-          <button onClick={handleZoomOut} className="p-1.5 rounded-lg text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.05] transition-colors" title="Zoom out">
-            <ZoomOut size={15} />
-          </button>
-          <span className="text-[11px] font-mono text-foreground/40 w-12 text-center">
-            {Math.round(viewport.zoom * 100)}%
+          <span className="text-[10px] text-foreground/35 mr-1.5 font-medium">
+            {isJa ? "挿入サイズ" : "Insert size"}:
           </span>
-          <button onClick={handleZoomIn} className="p-1.5 rounded-lg text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.05] transition-colors" title="Zoom in">
-            <ZoomIn size={15} />
-          </button>
-          <button onClick={resetViewport} className="p-1.5 rounded-lg text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.05] transition-colors" title={isJa ? "リセット" : "Reset view"}>
-            <Maximize2 size={15} />
-          </button>
+          {SIZE_PRESETS.map((preset, i) => (
+            <button
+              key={preset.label}
+              onClick={() => setSelectedSize(i)}
+              title={isJa ? preset.descriptionJa : preset.description}
+              className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all duration-150 ${
+                selectedSize === i
+                  ? "bg-teal-500/15 text-teal-700 dark:text-teal-400 ring-1 ring-teal-500/30"
+                  : "text-foreground/35 hover:text-foreground/60 hover:bg-foreground/[0.04]"
+              }`}
+            >
+              {isJa ? preset.labelJa : preset.label}
+            </button>
+          ))}
         </div>
 
         {/* Right — actions */}
-        <div className="flex items-center gap-2">
-          {/* Toggle TikZ code */}
+        <div className="flex items-center gap-1.5">
+          {/* Shortcuts help */}
           <button
-            onClick={() => setShowCode(!showCode)}
-            className={`flex items-center gap-1.5 h-8 px-3 rounded-lg text-[11px] font-semibold transition-all ${
-              showCode
-                ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400"
-                : "text-foreground/50 hover:bg-foreground/[0.05] hover:text-foreground/70"
+            onClick={() => setShowShortcuts(!showShortcuts)}
+            className={`p-1.5 rounded-lg transition-colors ${
+              showShortcuts ? "text-teal-600 bg-teal-50 dark:bg-teal-500/10" : "text-foreground/30 hover:text-foreground/50 hover:bg-foreground/[0.04]"
             }`}
+            title={isJa ? "ショートカット" : "Keyboard shortcuts"}
           >
-            <Code2 size={14} />
-            <span>TikZ</span>
-            {showCode ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+            <Keyboard size={14} />
           </button>
 
-          {/* Copy TikZ */}
+          {/* TikZ code toggle */}
+          <button
+            onClick={() => setShowCode(!showCode)}
+            className={`flex items-center gap-1 h-7 px-2.5 rounded-lg text-[10px] font-semibold transition-all ${
+              showCode
+                ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400"
+                : "text-foreground/40 hover:bg-foreground/[0.04] hover:text-foreground/60"
+            }`}
+          >
+            <Code2 size={12} />
+            <span>TikZ</span>
+          </button>
+
+          {/* Copy */}
           <button
             onClick={handleCopy}
             disabled={shapes.length === 0}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[11px] font-semibold text-foreground/50 hover:bg-foreground/[0.05] hover:text-foreground/70 transition-all disabled:opacity-30"
+            className="flex items-center gap-1 h-7 px-2.5 rounded-lg text-[10px] font-semibold text-foreground/40 hover:bg-foreground/[0.04] hover:text-foreground/60 transition-all disabled:opacity-30"
           >
-            {copied ? <Check size={14} className="text-green-500" /> : <ClipboardCopy size={14} />}
-            <span>{copied ? (isJa ? "コピー済" : "Copied") : (isJa ? "コピー" : "Copy")}</span>
+            {copied ? <Check size={12} className="text-green-500" /> : <ClipboardCopy size={12} />}
+            <span>{copied ? (isJa ? "済" : "Done") : (isJa ? "コピー" : "Copy")}</span>
           </button>
 
-          {/* Insert button */}
+          <div className="w-px h-5 bg-foreground/[0.08] mx-0.5" />
+
+          {/* Insert */}
           <button
             onClick={handleInsert}
             disabled={shapes.length === 0}
-            className="flex items-center gap-2 h-8 px-5 rounded-full text-[12px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md hover:opacity-90 transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 h-8 px-4 rounded-full text-[11px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md hover:opacity-90 transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <ImagePlus size={14} />
-            <span>{isJa ? "文書に挿入" : "Insert into Document"}</span>
+            <ImagePlus size={13} />
+            <span>{isJa ? "挿入" : "Insert"}</span>
           </button>
 
           {/* Close */}
           <button
             onClick={handleClose}
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.05] transition-colors"
+            className="h-7 w-7 flex items-center justify-center rounded-lg text-foreground/35 hover:text-foreground/60 hover:bg-foreground/[0.04] transition-colors"
             title={isJa ? "閉じる" : "Close"}
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
       </header>
 
+      {/* ══════════ SHORTCUTS PANEL ══════════ */}
+      {showShortcuts && (
+        <div className="shrink-0 border-b border-foreground/[0.06] bg-teal-50/50 dark:bg-teal-500/5 px-4 py-2">
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10px] text-foreground/50">
+            <span><kbd className="kbd">V</kbd> {isJa ? "選択" : "Select"}</span>
+            <span><kbd className="kbd">R</kbd> {isJa ? "四角" : "Rect"}</span>
+            <span><kbd className="kbd">C</kbd> {isJa ? "円" : "Circle"}</span>
+            <span><kbd className="kbd">L</kbd> {isJa ? "線" : "Line"}</span>
+            <span><kbd className="kbd">T</kbd> {isJa ? "文字" : "Text"}</span>
+            <span><kbd className="kbd">Space</kbd>+drag = {isJa ? "パン" : "Pan"}</span>
+            <span><kbd className="kbd">Ctrl</kbd>+scroll = {isJa ? "ズーム" : "Zoom"}</span>
+            <span>scroll = {isJa ? "パン" : "Pan"}</span>
+            <span><kbd className="kbd">Del</kbd> {isJa ? "削除" : "Delete"}</span>
+            <span><kbd className="kbd">Ctrl+Z</kbd> {isJa ? "戻す" : "Undo"}</span>
+            <span><kbd className="kbd">Ctrl+D</kbd> {isJa ? "複製" : "Duplicate"}</span>
+            <span><kbd className="kbd">Esc</kbd> {isJa ? "ツール解除" : "Deselect"}</span>
+          </div>
+        </div>
+      )}
+
       {/* ══════════ MAIN AREA ══════════ */}
       <div className="flex flex-1 overflow-hidden min-h-0">
-
-        {/* Left — toolbar */}
         <FigureToolbar />
-
-        {/* Center — canvas */}
         <FigureCanvas />
-
-        {/* Right — properties */}
         <FigureProperties />
       </div>
 
       {/* ══════════ TIKZ CODE PANEL ══════════ */}
       {showCode && (
-        <div className="shrink-0 border-t border-foreground/[0.06] bg-background/90 backdrop-blur-md">
-          <div className="h-[200px] overflow-auto p-3">
-            <pre className="text-[11px] font-mono text-foreground/70 leading-relaxed whitespace-pre-wrap select-all">
-              {fullCode || (isJa ? "% 図形を追加してください" : "% Add shapes to generate TikZ code")}
+        <div className="shrink-0 border-t border-foreground/[0.06] bg-background/90 backdrop-blur-md animate-slide-up">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-foreground/[0.04]">
+            <span className="text-[10px] font-semibold text-foreground/40">
+              {isJa ? "生成されたTikZコード" : "Generated TikZ Code"}
+              {selectedSize !== 2 && (
+                <span className="ml-2 text-teal-600 dark:text-teal-400">
+                  (scale={SIZE_PRESETS[selectedSize].scale})
+                </span>
+              )}
+            </span>
+            <button onClick={() => setShowCode(false)} className="p-1 rounded text-foreground/30 hover:text-foreground/50">
+              <ChevronDown size={12} />
+            </button>
+          </div>
+          <div className="h-[180px] overflow-auto px-3 py-2">
+            <pre className="text-[11px] font-mono text-foreground/65 leading-relaxed whitespace-pre-wrap select-all">
+              {scaledCode || (isJa ? "% 図形を追加してください" : "% Add shapes to generate TikZ code")}
             </pre>
           </div>
         </div>

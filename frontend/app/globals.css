@@ -2394,6 +2394,37 @@ html {
   filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.25));
 }
 
+/* Keyboard shortcut badge */
+.kbd {
+  display: inline-block;
+  padding: 0 4px;
+  margin: 0 1px;
+  font-size: 9px;
+  font-family: monospace;
+  line-height: 1.6;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+}
+.dark .kbd {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Slide up animation for TikZ code panel */
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slide-up 0.15s ease-out;
+}
+
+/* Click-to-place cursor */
+.cursor-cell { cursor: cell; }
+
 /* Scrollbar-none utility for palette tabs */
 .scrollbar-none {
   -ms-overflow-style: none;

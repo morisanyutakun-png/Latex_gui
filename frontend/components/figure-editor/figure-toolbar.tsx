@@ -10,7 +10,7 @@ import { useFigureStore } from "./figure-store";
 import { CATEGORIES, getItemsByCategory, type CategoryMeta } from "./domain-palettes";
 import type { DomainCategory, DomainPaletteItem, ToolMode } from "./types";
 import {
-  MousePointer2, Hand, Square, Circle, Minus, ArrowRight,
+  MousePointer2, Square, Circle, Minus, ArrowRight,
   Type, Triangle, Pen, Undo2, Redo2, Trash2, Copy,
   Grid3x3, Magnet, MoveVertical, MoveDown,
 } from "lucide-react";
@@ -257,15 +257,14 @@ export function FigureToolbar() {
       {/* ── Top tools ── */}
       <div className="px-2.5 py-2 border-b border-foreground/[0.06]">
         <div className="flex items-center gap-0.5 flex-wrap">
-          <ToolBtn tool="select" icon={<MousePointer2 size={16} />} label={isJa ? "選択" : "Select"} active={activeTool === "select"} onClick={() => setActiveTool("select")} />
-          <ToolBtn tool="pan" icon={<Hand size={16} />} label={isJa ? "パン" : "Pan"} active={activeTool === "pan"} onClick={() => setActiveTool("pan")} />
+          <ToolBtn tool="select" icon={<MousePointer2 size={16} />} label={isJa ? "選択 (V)" : "Select (V)"} active={activeTool === "select"} onClick={() => setActiveTool("select")} />
           <div className="w-px h-5 bg-foreground/[0.08] mx-0.5" />
-          <ToolBtn tool="rect" icon={<Square size={16} />} label={isJa ? "四角形" : "Rectangle"} active={activeTool === "rect"} onClick={() => setActiveTool("rect")} />
-          <ToolBtn tool="circle" icon={<Circle size={16} />} label={isJa ? "円" : "Circle"} active={activeTool === "circle"} onClick={() => setActiveTool("circle")} />
-          <ToolBtn tool="line" icon={<Minus size={16} />} label={isJa ? "直線" : "Line"} active={activeTool === "line"} onClick={() => setActiveTool("line")} />
+          <ToolBtn tool="rect" icon={<Square size={16} />} label={isJa ? "四角形 (R)" : "Rect (R)"} active={activeTool === "rect"} onClick={() => setActiveTool("rect")} />
+          <ToolBtn tool="circle" icon={<Circle size={16} />} label={isJa ? "円 (C)" : "Circle (C)"} active={activeTool === "circle"} onClick={() => setActiveTool("circle")} />
+          <ToolBtn tool="line" icon={<Minus size={16} />} label={isJa ? "直線 (L)" : "Line (L)"} active={activeTool === "line"} onClick={() => setActiveTool("line")} />
           <ToolBtn tool="arrow" icon={<ArrowRight size={16} />} label={isJa ? "矢印" : "Arrow"} active={activeTool === "arrow"} onClick={() => setActiveTool("arrow")} />
-          <ToolBtn tool="text" icon={<Type size={16} />} label={isJa ? "テキスト" : "Text"} active={activeTool === "text"} onClick={() => setActiveTool("text")} />
-          <ToolBtn tool="freehand" icon={<Pen size={16} />} label={isJa ? "フリー" : "Freehand"} active={activeTool === "freehand"} onClick={() => setActiveTool("freehand")} />
+          <ToolBtn tool="text" icon={<Type size={16} />} label={isJa ? "テキスト (T)" : "Text (T)"} active={activeTool === "text"} onClick={() => setActiveTool("text")} />
+          <ToolBtn tool="freehand" icon={<Pen size={16} />} label={isJa ? "フリー" : "Free"} active={activeTool === "freehand"} onClick={() => setActiveTool("freehand")} />
         </div>
       </div>
 
