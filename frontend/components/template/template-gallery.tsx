@@ -1107,27 +1107,6 @@ export function TemplateGallery() {
     return () => clearTimeout(t);
   }, []);
 
-  const handleStart = async () => {
-    // 認証が設定されている場合のみログインチェック
-    try {
-      // @ts-ignore — next-auth is optional; absence is caught below
-      const { getSession } = await import("next-auth/react");
-      const session = await getSession();
-      if (!session) {
-        // セッション取得できるが未ログイン → ログインへ
-        // @ts-ignore
-        const { signIn } = await import("next-auth/react");
-        signIn("google", { callbackUrl: "/editor?new=1" });
-        return;
-      }
-    } catch {
-      // 認証未設定 or エラー → そのまま続行
-    }
-    const doc = createDefaultDocument("blank", "");
-    setDocument(doc);
-    router.push("/editor");
-  };
-
   const handlePlanSelect = async (planId: "free" | "starter" | "pro" | "premium") => {
     // 認証チェック → 未ログインならログインへ
     try {
@@ -1224,7 +1203,7 @@ export function TemplateGallery() {
             <ThemeToggle />
             <UserMenu />
             <button
-              onClick={handleStart}
+              onClick={() => handlePlanSelect("free")}
               className="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full bg-foreground text-background text-[13px] font-semibold hover:opacity-90 transition-opacity"
             >
               {isJa ? "無料で始める" : "Get started"}
@@ -1274,7 +1253,7 @@ export function TemplateGallery() {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
               <button
-                onClick={handleStart}
+                onClick={() => handlePlanSelect("free")}
                 className="group relative flex items-center gap-3 px-9 py-4 rounded-full bg-foreground text-background font-bold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300 overflow-hidden"
               >
                 <span className="absolute inset-0 bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-600 opacity-0 group-hover:opacity-[0.08] transition-opacity duration-300" />
@@ -1316,7 +1295,7 @@ export function TemplateGallery() {
         </div>
       </section>
 
-      <SampleShowcase isJa={isJa} onTryNow={handleStart} />
+      <SampleShowcase isJa={isJa} onTryNow={() => handlePlanSelect("free")} />
 
       {/* ━━ Who is this for ━━ */}
       <section className="relative py-24 overflow-hidden">
@@ -1502,7 +1481,7 @@ export function TemplateGallery() {
 
           <div className="text-center mt-12">
             <button
-              onClick={handleStart}
+              onClick={() => handlePlanSelect("free")}
               className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[14px] shadow-2xl shadow-blue-500/25 hover:shadow-blue-500/35 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
             >
               {isJa ? "PDFから始めてみる" : "Try it with your PDF"}
@@ -1723,9 +1702,9 @@ export function TemplateGallery() {
               <div className="flex items-baseline gap-1 mb-1">
                 <span className="text-[32px] font-black tracking-tight">¥0</span>
               </div>
-              <p className="text-[12px] text-muted-foreground mb-5">{isJa ? "ずっと無料・カード不要" : "Free forever · No credit card"}</p>
+              <p className="text-[12px] text-muted-foreground mb-5">{isJa ? "ずっと無料・カード登録不要" : "Free forever · No card required"}</p>
               <button
-                onClick={handleStart}
+                onClick={() => handlePlanSelect("free")}
                 className="w-full py-2.5 rounded-xl border border-foreground/[0.1] text-foreground font-semibold text-[13px] hover:bg-foreground/[0.04] transition-all duration-300 mb-5"
               >
                 {isJa ? "無料で始める" : "Get started free"}
@@ -1915,7 +1894,7 @@ export function TemplateGallery() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
-              onClick={handleStart}
+              onClick={() => handlePlanSelect("free")}
               className="group relative inline-flex items-center gap-3 px-12 py-5 rounded-full font-bold text-[16px] text-white overflow-hidden shadow-2xl shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.04] active:scale-[0.97] transition-all duration-300"
             >
               <span className="absolute inset-0 bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-600" />
