@@ -56,64 +56,62 @@ const COLOR_PRESETS: Array<{ name: string; css: string; label: string }> = [
 interface BoxPreset {
   id: string;
   label: string;
+  labelEn: string;
   description: string;
-  /** 挿入するスニペット。先頭は必ず新しい段落として追加される。 */
+  descriptionEn: string;
   snippet: string;
-  /** このテンプレート ID でのみ表示する (空なら全テンプレ) */
   templates?: string[];
 }
 
 const BOX_PRESETS: BoxPreset[] = [
-  // beamer 用
   {
     id: "block",
-    label: "ブロック",
-    description: "青帯付きの情報ブロック",
+    label: "ブロック", labelEn: "Block",
+    description: "青帯付きの情報ブロック", descriptionEn: "Blue info block",
     snippet: "\\begin{block}{タイトル}\n  ここに内容を書きます。\n\\end{block}",
     templates: ["beamer"],
   },
   {
     id: "alertblock",
-    label: "警告ブロック",
-    description: "赤帯付きの強調ブロック",
+    label: "警告ブロック", labelEn: "Alert Block",
+    description: "赤帯付きの強調ブロック", descriptionEn: "Red emphasis block",
     snippet: "\\begin{alertblock}{重要}\n  ここに内容を書きます。\n\\end{alertblock}",
     templates: ["beamer"],
   },
   {
     id: "exampleblock",
-    label: "例ブロック",
-    description: "緑帯付きの例示ブロック",
+    label: "例ブロック", labelEn: "Example Block",
+    description: "緑帯付きの例示ブロック", descriptionEn: "Green example block",
     snippet: "\\begin{exampleblock}{例}\n  ここに内容を書きます。\n\\end{exampleblock}",
     templates: ["beamer"],
   },
   {
     id: "columns",
-    label: "2 カラム",
-    description: "左右分割のレイアウト",
+    label: "2 カラム", labelEn: "2 Columns",
+    description: "左右分割のレイアウト", descriptionEn: "Side-by-side layout",
     snippet:
       "\\begin{columns}[T]\n  \\begin{column}{0.48\\textwidth}\n    左側の内容\n  \\end{column}\n  \\begin{column}{0.48\\textwidth}\n    右側の内容\n  \\end{column}\n\\end{columns}",
     templates: ["beamer"],
   },
-  // article / report 用 (テンプレが tcolorbox を使っている場合)
   {
     id: "note",
-    label: "注記ボックス",
-    description: "参考情報を枠で囲む",
+    label: "注記ボックス", labelEn: "Note Box",
+    description: "参考情報を枠で囲む", descriptionEn: "Framed note for reference",
     snippet: "\\begin{note}\n  ここに注記を書きます。\n\\end{note}",
     templates: ["report"],
   },
   {
     id: "daimon",
-    label: "大問ボックス",
-    description: "番号付きの大問枠",
+    label: "大問ボックス", labelEn: "Question Box",
+    description: "番号付きの大問枠", descriptionEn: "Numbered question frame",
     snippet:
       "\\begin{daimon}{第 N 問\\quad テーマ \\haiten{10}}\n  ここに問題文を書きます。\n\\end{daimon}",
     templates: ["common-test", "kokuko-niji", "school-test"],
   },
   {
     id: "displayMath",
-    label: "数式ブロック",
-    description: "中央に表示する数式",
+    label: "数式ブロック", labelEn: "Math Block",
+    description: "中央に表示する数式", descriptionEn: "Centered display math",
     snippet: "\\[\n  f(x) = \\frac{1}{1 + e^{-x}}\n\\]",
   },
 ];
@@ -332,7 +330,7 @@ function ToolBtn({ onClick, title, desc, active, children }: ToolBtnProps) {
     >
       {children}
       {/* カスタム tooltip */}
-      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-50 flex flex-col items-center">
+      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-[10000] flex flex-col items-center">
         <span>{title}</span>
         {desc && <span className="text-[9px] opacity-60 mt-0.5">{desc}</span>}
         <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
@@ -395,7 +393,7 @@ export function FormattingToolbar() {
       >
         <Palette className="h-3.5 w-3.5" />
         <ChevronDown className={`h-3 w-3 transition-transform ${colorOpen ? "rotate-180" : ""}`} />
-        <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-50 flex flex-col items-center">
+        <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-[10000] flex flex-col items-center">
           <span>{t("fmt.color")}</span>
           <span className="text-[9px] opacity-60 mt-0.5">{isJa ? "文字の色を変更する" : "Change text color"}</span>
           <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
@@ -413,7 +411,7 @@ export function FormattingToolbar() {
         >
           <Box className="h-3.5 w-3.5" />
           <ChevronDown className={`h-3 w-3 transition-transform ${boxOpen ? "rotate-180" : ""}`} />
-          <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-50 flex flex-col items-center">
+          <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-[10000] flex flex-col items-center">
             <span>{t("fmt.box")}</span>
             <span className="text-[9px] opacity-60 mt-0.5">{isJa ? "装飾ブロックを追加する" : "Add a styled block"}</span>
             <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
@@ -423,7 +421,7 @@ export function FormattingToolbar() {
 
       <Popover triggerRef={colorRef} open={colorOpen} onClose={() => setColorOpen(false)}>
         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-2 px-0.5">
-          文字色
+          {isJa ? "文字色" : "Text Color"}
         </div>
         <div className="grid grid-cols-6 gap-1.5">
           {COLOR_PRESETS.map((c) => (
@@ -440,13 +438,16 @@ export function FormattingToolbar() {
           ))}
         </div>
         <div className="mt-3 pt-2 border-t border-border/40 text-[10.5px] text-muted-foreground/70 leading-snug">
-          選択した文字に <span className="font-mono">\textcolor</span> を適用します。
+          {isJa
+            ? <>選択した文字に <span className="font-mono">\textcolor</span> を適用します。</>
+            : <>Applies <span className="font-mono">\textcolor</span> to selected text.</>
+          }
         </div>
       </Popover>
 
       <Popover triggerRef={boxRef} open={boxOpen} onClose={() => setBoxOpen(false)} widthClass="w-[280px]">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-2 px-0.5">
-          ボックスを挿入
+          {isJa ? "ボックスを挿入" : "Insert Box"}
         </div>
         <div className="flex flex-col gap-1">
           {availableBoxes.map((b) => (
@@ -457,13 +458,13 @@ export function FormattingToolbar() {
               onClick={() => handleBox(b.snippet)}
               className="flex flex-col items-start text-left px-2 py-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors"
             >
-              <span className="text-[12px] font-semibold text-foreground/90">{b.label}</span>
-              <span className="text-[10.5px] text-muted-foreground/70">{b.description}</span>
+              <span className="text-[12px] font-semibold text-foreground/90">{isJa ? b.label : b.labelEn}</span>
+              <span className="text-[10.5px] text-muted-foreground/70">{isJa ? b.description : b.descriptionEn}</span>
             </button>
           ))}
         </div>
         <div className="mt-2 pt-2 border-t border-border/40 text-[10.5px] text-muted-foreground/70 leading-snug">
-          本文の末尾にブロックが追加されます。
+          {isJa ? "本文の末尾にブロックが追加されます。" : "The block will be added at the end of the document."}
         </div>
       </Popover>
     </div>
