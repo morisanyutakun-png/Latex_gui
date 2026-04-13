@@ -45,25 +45,32 @@ def create_or_get_customer(db: Session, user: User) -> str:
 
 def create_checkout_session(customer_id: str, plan_id: str, user_id: str = "") -> str:
     """Stripe Checkout Session を作成してURLを返す。"""
+
+    # ── Free プラン: mode="setup" で初回確認のみ（¥0 請求も発生しない） ──
+    if plan_id == "free":
+        session = stripe.checkout.Session.create(
+            customer=customer_id,
+            mode="setup",
+            success_url=f"{FRONTEND_URL}/editor?checkout=success&plan=free",
+            cancel_url=f"{FRONTEND_URL}/",
+            metadata={"plan_id": "free", "user_id": user_id},
+        )
+        return session.url
+
+    # ── 有料プラン: 通常の subscription checkout ──
     price_id = PLAN_PRICE_IDS.get(plan_id)
     if not price_id:
         raise ValueError(f"Unknown plan_id or price not configured: {plan_id}")
 
-    checkout_params: dict = {
-        "customer": customer_id,
-        "line_items": [{"price": price_id, "quantity": 1}],
-        "mode": "subscription",
-        "success_url": f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}",
-        "cancel_url": f"{FRONTEND_URL}/",
-        "metadata": {"plan_id": plan_id, "user_id": user_id},
-        "subscription_data": {"metadata": {"user_id": user_id, "plan_id": plan_id}},
-    }
-
-    # Free プラン (¥0): カード不要で通す（ユーザー識別が目的）
-    if plan_id == "free":
-        checkout_params["payment_method_collection"] = "if_required"
-
-    session = stripe.checkout.Session.create(**checkout_params)
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        line_items=[{"price": price_id, "quantity": 1}],
+        mode="subscription",
+        success_url=f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}",
+        cancel_url=f"{FRONTEND_URL}/",
+        metadata={"plan_id": plan_id, "user_id": user_id},
+        subscription_data={"metadata": {"user_id": user_id, "plan_id": plan_id}},
+    )
     return session.url
 
 
@@ -147,13 +154,33 @@ def _handle_checkout_completed(session_obj: dict, db: Session) -> None:
         db.commit()
         logger.info("Linked Stripe customer %s to user %s", customer_id, meta_user_id)
 
-    # subscription が webhook の順番によってまだ来ていない場合があるので、
-    # checkout session の subscription ID を使って即座に subscription を作成
+    plan_id = (session_obj.get("metadata") or {}).get("plan_id", "unknown")
+    checkout_mode = session_obj.get("mode")
+
+    # ── Free プラン (mode="setup"): Stripe subscription は作らない ──
+    # DB にだけ free の subscription レコードを作成（ユーザー識別済みフラグ）
+    if checkout_mode == "setup" and plan_id == "free":
+        fake_sub_id = f"free_{meta_user_id}"
+        existing = db.query(Subscription).filter(Subscription.id == fake_sub_id).first()
+        if not existing:
+            sub = Subscription(
+                id=fake_sub_id,
+                user_id=meta_user_id,
+                stripe_price_id="",
+                plan_id="free",
+                status="active",
+                cancel_at_period_end=False,
+            )
+            db.add(sub)
+            db.commit()
+            logger.info("Created free plan record for user %s (setup mode)", meta_user_id)
+        return
+
+    # ── 有料プラン: subscription ID を使って即座に subscription を作成 ──
     sub_id = session_obj.get("subscription")
     if sub_id:
         existing = db.query(Subscription).filter(Subscription.id == sub_id).first()
         if not existing:
-            plan_id = (session_obj.get("metadata") or {}).get("plan_id", "unknown")
             sub = Subscription(
                 id=sub_id,
                 user_id=meta_user_id,
