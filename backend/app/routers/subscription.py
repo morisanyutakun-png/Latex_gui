@@ -136,14 +136,25 @@ async def create_checkout(
     if body.plan_id not in ("free", "starter", "pro", "premium"):
         raise HTTPException(status_code=400, detail="無効なプランIDです")
 
+    # ── Free プラン: Stripe Checkout 不要。DB に直接登録してリダイレクト先を返す ──
+    if body.plan_id == "free":
+        try:
+            stripe_service.activate_free_plan(db, user)
+        except Exception as e:
+            logger.error("Free plan activation error: %s", e)
+            raise HTTPException(status_code=500, detail=f"Free プランの有効化に失敗: {e}")
+        frontend_url = stripe_service.FRONTEND_URL
+        return CheckoutResponse(checkout_url=f"{frontend_url}/editor?checkout=success&plan=free")
+
+    # ── 有料プラン: Stripe Checkout ──
     try:
         customer_id = stripe_service.create_or_get_customer(db, user)
         checkout_url = stripe_service.create_checkout_session(customer_id, body.plan_id, user_id=user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error("Stripe checkout error: %s", e)
-        raise HTTPException(status_code=500, detail="Stripe決済の初期化に失敗しました")
+        logger.error("Stripe checkout error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Stripe決済の初期化に失敗しました: {type(e).__name__}: {str(e)[:200]}")
 
     return CheckoutResponse(checkout_url=checkout_url)
 
