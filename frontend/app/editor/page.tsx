@@ -13,7 +13,7 @@ import { useResizePanel } from "@/hooks/use-resize-panel";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
 import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -52,6 +52,15 @@ export default function EditorPage() {
 
   const [mobileTab, setMobileTab] = useState<"ai" | "preview">("ai");
 
+  // ── URL パラメータを同期的に検出（レンダー中に確定、effect より前） ──
+  const skipRedirect = useRef(false);
+  if (typeof window !== "undefined" && !skipRedirect.current) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success" || params.get("new") === "1") {
+      skipRedirect.current = true;
+    }
+  }
+
   // Handle ?new=1 from login redirect — create blank document
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -63,7 +72,6 @@ export default function EditorPage() {
   }, [doc, setDocument]);
 
   // Handle ?checkout=success — Stripe / Free 登録からの復帰
-  const [checkoutHandled, setCheckoutHandled] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -71,13 +79,12 @@ export default function EditorPage() {
 
     const planParam = params.get("plan") || "";
 
-    // 1. ドキュメントを即座に作成（リダイレクト防止のため先にやる）
+    // 1. ドキュメントを即座に作成
     if (!useDocumentStore.getState().document) {
       useDocumentStore.getState().setDocument(createDefaultDocument("blank", ""));
     }
-    setCheckoutHandled(true);
 
-    // 2. URL をクリーン（ドキュメント作成後）
+    // 2. URL をクリーン
     window.history.replaceState({}, "", "/editor");
 
     // 3. サブスクリプション状態を非同期で取得
@@ -85,9 +92,7 @@ export default function EditorPage() {
       const { fetchSubscription } = usePlanStore.getState();
       await fetchSubscription();
       const { currentPlan } = usePlanStore.getState();
-      // Free プランの場合はリトライ不要（DB に既に登録済み）
       if (planParam === "free") return currentPlan;
-      // 有料プランで まだ free のまま → webhook 待ち
       if (currentPlan === "free" && retries > 0) {
         await new Promise((r) => setTimeout(r, 2000));
         return fetchWithRetry(retries - 1);
@@ -108,11 +113,11 @@ export default function EditorPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // doc がない場合は LP へ（ただし checkout/new リダイレクト中はスキップ）
   useEffect(() => {
-    // checkout 処理中はリダイレクトしない
-    if (checkoutHandled) return;
+    if (skipRedirect.current) return;
     if (!doc) router.push("/");
-  }, [doc, router, checkoutHandled]);
+  }, [doc, router]);
 
   useEffect(() => {
     fetch("/api/health", { signal: AbortSignal.timeout(15000) }).catch(() => {});
