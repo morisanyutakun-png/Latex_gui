@@ -1161,7 +1161,18 @@ export function TemplateGallery() {
   };
 
   // ログイン後に ?plan=pro 等で戻ってきた場合、自動でStripe Checkoutへ
+  // また ?checkout=success で戻ってきた場合は editor へリダイレクト
   useEffect(() => {
+    // checkout 完了ハンドリング (旧 success_url が / を向いていた場合のフォールバック)
+    if (searchParams.get("checkout") === "success") {
+      const plan = searchParams.get("plan") || "";
+      window.history.replaceState({}, "", "/");
+      const doc = loadFromLocalStorage() || createDefaultDocument("blank", "");
+      setDocument(doc);
+      router.push(`/editor?checkout=success${plan ? `&plan=${plan}` : ""}`);
+      return;
+    }
+
     const planFromUrl = searchParams.get("plan");
     const planFromStorage = sessionStorage.getItem("pending_plan");
     const pendingPlan = planFromUrl || planFromStorage;

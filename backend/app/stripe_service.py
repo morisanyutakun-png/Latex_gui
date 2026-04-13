@@ -42,7 +42,7 @@ def create_or_get_customer(db: Session, user: User) -> str:
     return customer.id
 
 
-def create_checkout_session(customer_id: str, plan_id: str) -> str:
+def create_checkout_session(customer_id: str, plan_id: str, user_id: str = "") -> str:
     """Stripe Checkout Session を作成してURLを返す。"""
     price_id = PLAN_PRICE_IDS.get(plan_id)
     if not price_id:
@@ -52,9 +52,10 @@ def create_checkout_session(customer_id: str, plan_id: str) -> str:
         customer=customer_id,
         line_items=[{"price": price_id, "quantity": 1}],
         mode="subscription",
-        success_url=f"{FRONTEND_URL}/?checkout=success",
+        success_url=f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}",
         cancel_url=f"{FRONTEND_URL}/",
-        metadata={"plan_id": plan_id},
+        metadata={"plan_id": plan_id, "user_id": user_id},
+        subscription_data={"metadata": {"user_id": user_id, "plan_id": plan_id}},
     )
     return session.url
 
@@ -121,22 +122,57 @@ def _handle_checkout_completed(session_obj: dict, db: Session) -> None:
     # metadata.user_id でユーザーを特定
     meta_user_id = (session_obj.get("metadata") or {}).get("user_id")
     if not meta_user_id:
-        # subscription の metadata から引く (フォールバック)
+        # customer_id からユーザーを引く (フォールバック)
+        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+        if user:
+            logger.info("checkout.completed: user %s already linked to customer %s", user.id, customer_id)
+        else:
+            logger.warning("checkout.completed: no user_id in metadata and no user for customer %s", customer_id)
         return
 
     user = db.query(User).filter(User.id == meta_user_id).first()
-    if user and not user.stripe_customer_id:
+    if not user:
+        logger.warning("checkout.completed: user %s not found in DB", meta_user_id)
+        return
+
+    if not user.stripe_customer_id:
         user.stripe_customer_id = customer_id
         db.commit()
         logger.info("Linked Stripe customer %s to user %s", customer_id, meta_user_id)
 
+    # subscription が webhook の順番によってまだ来ていない場合があるので、
+    # checkout session の subscription ID を使って即座に subscription を作成
+    sub_id = session_obj.get("subscription")
+    if sub_id:
+        existing = db.query(Subscription).filter(Subscription.id == sub_id).first()
+        if not existing:
+            plan_id = (session_obj.get("metadata") or {}).get("plan_id", "unknown")
+            sub = Subscription(
+                id=sub_id,
+                user_id=meta_user_id,
+                stripe_price_id=PLAN_PRICE_IDS.get(plan_id, ""),
+                plan_id=plan_id,
+                status="active",
+                cancel_at_period_end=False,
+            )
+            db.add(sub)
+            db.commit()
+            logger.info("Created subscription %s from checkout for user %s plan=%s", sub_id, meta_user_id, plan_id)
+
 
 def _get_plan_from_subscription(sub_obj: dict) -> str:
     """Stripe Subscription オブジェクトから plan_id を解決する。"""
+    # 1. Price ID から逆引き
     items = sub_obj.get("items", {}).get("data", [])
     if items:
         price_id = items[0].get("price", {}).get("id", "")
-        return PRICE_TO_PLAN.get(price_id, "unknown")
+        plan = PRICE_TO_PLAN.get(price_id)
+        if plan:
+            return plan
+    # 2. metadata.plan_id フォールバック (subscription_data で設定した値)
+    meta_plan = (sub_obj.get("metadata") or {}).get("plan_id")
+    if meta_plan:
+        return meta_plan
     return "unknown"
 
 
@@ -150,6 +186,17 @@ def _handle_subscription_created(sub_obj: dict, db: Session) -> None:
     sub_id = sub_obj["id"]
     customer_id = sub_obj.get("customer")
     user_id = _get_user_id_from_customer(customer_id, db)
+    # subscription metadata からのフォールバック
+    if not user_id:
+        meta_user_id = (sub_obj.get("metadata") or {}).get("user_id")
+        if meta_user_id:
+            user = db.query(User).filter(User.id == meta_user_id).first()
+            if user:
+                user_id = user.id
+                # customer_id も紐付け
+                if not user.stripe_customer_id and customer_id:
+                    user.stripe_customer_id = customer_id
+                    db.commit()
     if not user_id:
         logger.warning("subscription.created: no user found for customer %s", customer_id)
         return

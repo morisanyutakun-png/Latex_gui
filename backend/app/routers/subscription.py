@@ -138,7 +138,7 @@ async def create_checkout(
 
     try:
         customer_id = stripe_service.create_or_get_customer(db, user)
-        checkout_url = stripe_service.create_checkout_session(customer_id, body.plan_id)
+        checkout_url = stripe_service.create_checkout_session(customer_id, body.plan_id, user_id=user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

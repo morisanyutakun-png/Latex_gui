@@ -20,7 +20,10 @@ import { useI18n } from "@/lib/i18n";
 import { EditorHints } from "@/components/layout/editor-hints";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
-import { WelcomeOverlay } from "@/components/editor/welcome-overlay";
+import { QuickStartBar } from "@/components/editor/quick-start-bar";
+import { usePlanStore } from "@/store/plan-store";
+import { PLANS } from "@/lib/plans";
+import { toast } from "sonner";
 
 type SidebarTab = "ai";
 
@@ -59,7 +62,50 @@ export default function EditorPage() {
     }
   }, [doc, setDocument]);
 
+  // Handle ?checkout=success — Stripe からの復帰時にサブスク再取得＋トースト
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+
+    const planParam = params.get("plan") || "";
+    window.history.replaceState({}, "", "/editor");
+
+    // サブスクリプション状態を再取得（webhook がまだ来ていない場合もあるのでポーリング）
+    const fetchWithRetry = async (retries: number) => {
+      const { fetchSubscription } = usePlanStore.getState();
+      await fetchSubscription();
+      const { currentPlan } = usePlanStore.getState();
+      if (currentPlan === "free" && retries > 0) {
+        // webhook がまだ処理されていない → 少し待ってリトライ
+        await new Promise((r) => setTimeout(r, 2000));
+        return fetchWithRetry(retries - 1);
+      }
+      return currentPlan;
+    };
+
+    fetchWithRetry(5).then((plan) => {
+      const planName = plan !== "free" ? PLANS[plan]?.name || plan : planParam;
+      toast.success(
+        locale === "en"
+          ? `${planName} plan activated! Enjoy your upgraded features.`
+          : `${planName} プランが有効になりました！`,
+        { duration: 6000 },
+      );
+      // ドキュメントがない場合は空白ドキュメントを作成
+      if (!useDocumentStore.getState().document) {
+        useDocumentStore.getState().setDocument(createDefaultDocument("blank", ""));
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // checkout=success で戻ってきた場合はリダイレクトしない（ドキュメントが後から作成される）
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("checkout") === "success") return;
+    }
     if (!doc) router.push("/");
   }, [doc, router]);
 
@@ -90,7 +136,14 @@ export default function EditorPage() {
     </div>
   );
 
-  const isAIActive = (sidebarOpen && activeTab === "ai") || isChatLoading;
+  // 採点モードに入ったらサイドバーを閉じる
+  useEffect(() => {
+    if (gradingMode) {
+      setSidebarOpen(false);
+    }
+  }, [gradingMode]);
+
+  const isAIActive = !gradingMode && (sidebarOpen && activeTab === "ai") || isChatLoading;
 
   const handleTabClick = (tab: SidebarTab) => {
     if (sidebarOpen && activeTab === tab) {
@@ -170,16 +223,14 @@ export default function EditorPage() {
       {!gradingMode && <EditToolbar />}
 
       {!gradingMode && <EditorHints />}
+      {!gradingMode && <QuickStartBar />}
 
       <div className="flex flex-1 overflow-hidden min-h-0">
         <div className="flex-1 overflow-hidden min-w-0 relative">
           {gradingMode ? (
             <GradingMode />
           ) : (
-            <>
-              <DocumentEditor />
-              <WelcomeOverlay />
-            </>
+            <DocumentEditor />
           )}
         </div>
 
@@ -208,18 +259,19 @@ export default function EditorPage() {
           </div>
 
           <div className="activity-bar w-[68px] flex flex-col items-stretch pt-2 pb-2 gap-0.5 border-l border-foreground/[0.05] bg-black/[0.02] dark:bg-white/[0.02] shrink-0">
-            {/* AI Chat */}
+            {/* AI Chat — 採点モード中は無効 */}
             {(() => {
-              const isActive = sidebarOpen && activeTab === "ai";
+              const isActive = !gradingMode && sidebarOpen && activeTab === "ai";
               return (
                 <ActivityBtn
                   active={isActive}
                   accent="amber"
                   icon={<Sparkles className={isActive ? "h-[15px] w-[15px] text-white" : "h-[17px] w-[17px]"} />}
                   label={t("side.label.ai")}
-                  onClick={() => handleTabClick("ai")}
-                  title={t("side.tooltip.ai")}
+                  onClick={() => { if (!gradingMode) handleTabClick("ai"); }}
+                  title={gradingMode ? "" : t("side.tooltip.ai")}
                   badge={isChatLoading}
+                  disabled={gradingMode}
                 />
               );
             })()}
@@ -231,15 +283,18 @@ export default function EditorPage() {
               label={t("side.label.scan")}
               onClick={triggerOMR}
               title={t("side.tooltip.scan")}
+              disabled={gradingMode}
             />
 
-            {/* Grading */}
+            {/* Grading — 採点モード時は光る */}
             <ActivityBtn
               accent="rose"
-              icon={<ClipboardCheck className="h-[17px] w-[17px]" />}
+              active={gradingMode}
+              icon={<ClipboardCheck className={gradingMode ? "h-[15px] w-[15px] text-white" : "h-[17px] w-[17px]"} />}
               label={t("side.label.grading")}
               onClick={() => openGrading(doc.latex, doc.metadata.title || "")}
               title={t("side.tooltip.grading")}
+              pulse={gradingMode}
             />
 
             <div className="h-px bg-foreground/[0.06] mx-2 my-1" />
@@ -327,23 +382,28 @@ interface ActivityBtnProps {
   title?: string;
   active?: boolean;
   badge?: boolean;
+  disabled?: boolean;
+  pulse?: boolean;
 }
 
-function ActivityBtn({ accent, icon, label, onClick, title, active = false, badge = false }: ActivityBtnProps) {
+function ActivityBtn({ accent, icon, label, onClick, title, active = false, badge = false, disabled = false, pulse = false }: ActivityBtnProps) {
   const style = ACCENT_CLASSES[accent];
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
+      disabled={disabled}
       className={`relative mx-1 h-[52px] flex flex-col items-center justify-center gap-0.5 rounded-lg transition-all duration-200 ${
-        active
+        disabled && !active
+          ? "text-foreground/15 cursor-not-allowed"
+          : active
           ? `${style.text} bg-foreground/[0.04]`
           : `text-foreground/35 ${style.hover}`
       }`}
     >
       {active ? (
-        <div className={`h-7 w-7 rounded-full ${style.active} flex items-center justify-center`}>
+        <div className={`h-7 w-7 rounded-full ${style.active} flex items-center justify-center ${pulse ? "animate-pulse" : ""}`}>
           {icon}
         </div>
       ) : (

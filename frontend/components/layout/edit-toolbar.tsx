@@ -1,12 +1,11 @@
 "use client";
 
 /**
- * EditToolbar — テンプレ選択・PDF出力・OMR取り込み・補助パネル切替。
+ * EditToolbar — テンプレ選択・書式・プレビュー/ソース切替・OMR・PDF。
  * raw LaTeX 駆動だが、ユーザーには LaTeX という単語を出さない。
  */
 
 import { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
 import { generatePDF, CompileError, formatCompileError } from "@/lib/api";
@@ -19,10 +18,9 @@ import {
   ScanLine,
   FileText,
   Loader2,
-  ChevronDown,
-  Sliders,
   Eye,
   Braces,
+  LayoutTemplate,
 } from "lucide-react";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
@@ -38,6 +36,7 @@ function Sep() {
 
 export function EditToolbar() {
   const { t, locale } = useI18n();
+  const isJa = locale !== "en";
   const document = useDocumentStore((s) => s.document);
   const setDocument = useDocumentStore((s) => s.setDocument);
   const { paperSize, setPaperSize } = useUIStore();
@@ -52,7 +51,6 @@ export function EditToolbar() {
     if (document && document.latex.trim() && !confirm(t("edit.toolbar.template.confirm_overwrite"))) {
       return;
     }
-    // 現在の UI ロケールに合わせて ja / en 版テンプレを選択
     setDocument(createFromTemplate(id, locale));
   };
 
@@ -68,7 +66,6 @@ export function EditToolbar() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      // Phase 2: 構造化エラーを i18n でローカライズして表示
       if (e instanceof CompileError) {
         const view = formatCompileError(e, t);
         const body = [view.title, ...view.lines, view.hint].filter(Boolean).join("\n");
@@ -82,57 +79,90 @@ export function EditToolbar() {
   };
 
   return (
-    <div className="editor-toolbar flex items-center gap-1 px-3 h-10 shrink-0 bg-background/72 backdrop-blur-md">
-      {/* モードバッジ */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold mr-1 shrink-0 bg-foreground/[0.05] text-foreground/75 border border-foreground/[0.10]">
+    <div className="editor-toolbar flex items-center gap-1.5 px-3 h-10 shrink-0 bg-background/72 backdrop-blur-md">
+      {/* ── モードバッジ ── */}
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold mr-0.5 shrink-0 bg-foreground/[0.05] text-foreground/75 border border-foreground/[0.10]">
         <FileText className="h-3 w-3" />
         <span>{t("edit.toolbar.mode_badge")}</span>
       </div>
 
       <Sep />
 
-      {/* ── テンプレート選択 (カテゴリ別カードグリッド) ── */}
-      <TemplatePicker
-        currentId={document?.template ?? "blank"}
-        onSelect={handleTemplateChange}
-        label={t("edit.toolbar.template.label")}
-      />
+      {/* ── テンプレート選択 — アイコン付きで目立たせる ── */}
+      <div className="flex items-center gap-1 shrink-0">
+        <div className="h-6 w-6 rounded-md bg-violet-500/10 flex items-center justify-center shrink-0">
+          <LayoutTemplate className="h-3.5 w-3.5 text-violet-500" />
+        </div>
+        <TemplatePicker
+          currentId={document?.template ?? "blank"}
+          onSelect={handleTemplateChange}
+          label={t("edit.toolbar.template.label")}
+        />
+      </div>
 
       <Sep />
 
-      {/* ── 書式バー (選択範囲への装飾 + ブロック挿入) ── */}
+      {/* ── 書式バー ── */}
       <FormattingToolbar />
+
+      <Sep />
+
+      {/* ── プレビュー / ソース トグル — 直接ボタンで見せる ── */}
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={togglePdfPanel}
+          className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] ${
+            showPdfPanel
+              ? "bg-sky-500/10 border-sky-500/30 text-sky-600 dark:text-sky-400 font-semibold"
+              : "bg-transparent border-foreground/[0.10] text-foreground/50 hover:bg-foreground/[0.04] hover:text-foreground/80"
+          }`}
+          title={t("edit.toolbar.tools.pdf.desc")}
+        >
+          <Eye className="h-3 w-3 shrink-0" />
+          <span className="hidden md:inline">{isJa ? "プレビュー" : "Preview"}</span>
+          {showPdfPanel && (
+            <span className="text-[8px] px-1 py-0.5 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-mono uppercase tracking-wider leading-none">
+              ON
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleSourcePanel}
+          className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] ${
+            showSourcePanel
+              ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400 font-semibold"
+              : "bg-transparent border-foreground/[0.10] text-foreground/50 hover:bg-foreground/[0.04] hover:text-foreground/80"
+          }`}
+          title={t("edit.toolbar.tools.source.desc")}
+        >
+          <Braces className="h-3 w-3 shrink-0" />
+          <span className="hidden md:inline">{isJa ? "ソース" : "Source"}</span>
+          {showSourcePanel && (
+            <span className="text-[8px] px-1 py-0.5 rounded bg-violet-500/15 text-violet-600 dark:text-violet-400 font-mono uppercase tracking-wider leading-none">
+              ON
+            </span>
+          )}
+        </button>
+      </div>
 
       <div className="flex-1" />
 
-      {/* ── 補助ビュー (オーバーフロー) ── */}
-      <ViewToolsMenu
-        showSourcePanel={showSourcePanel}
-        showPdfPanel={showPdfPanel}
-        onToggleSource={toggleSourcePanel}
-        onTogglePdf={togglePdfPanel}
-        label={t("edit.toolbar.tools.label")}
-        sourceLabel={t("edit.toolbar.tools.source")}
-        sourceDesc={t("edit.toolbar.tools.source.desc")}
-        pdfLabel={t("edit.toolbar.tools.pdf")}
-        pdfDesc={t("edit.toolbar.tools.pdf.desc")}
-      />
-
-      <Sep />
-
-      {/* OMR */}
+      {/* ── OMR ── */}
       <button
         onClick={() => useUIStore.getState().triggerOMR()}
         className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-sm transition-all duration-150 active:scale-[0.97] shrink-0"
         title={t("edit.toolbar.scan.tooltip")}
       >
         <ScanLine className="h-3 w-3 shrink-0" />
-        <span className="hidden sm:inline">{t("header.scan.label")}</span>
+        <span className="hidden sm:inline">{isJa ? "画像読取" : "Scan"}</span>
       </button>
 
       <Sep />
 
-      {/* PDFダウンロード */}
+      {/* ── PDFダウンロード ── */}
       <button
         onClick={handleDownloadPDF}
         disabled={!document || downloading}
@@ -149,9 +179,9 @@ export function EditToolbar() {
 
       <Sep />
 
-      {/* 用紙サイズ */}
+      {/* ── 用紙サイズ ── */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">{t("toolbar.paper")}</span>
+        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">{isJa ? "用紙" : "Paper"}</span>
         <select
           value={paperSize}
           onChange={(e) => setPaperSize(e.target.value as PaperSize)}
@@ -163,177 +193,5 @@ export function EditToolbar() {
         </select>
       </div>
     </div>
-  );
-}
-
-// ─────────────────────────────────────
-// ViewToolsMenu — 補助パネル切替 (LaTeX という単語を表に出さない)
-// ─────────────────────────────────────
-
-interface ViewToolsMenuProps {
-  showSourcePanel: boolean;
-  showPdfPanel: boolean;
-  onToggleSource: () => void;
-  onTogglePdf: () => void;
-  label: string;
-  sourceLabel: string;
-  sourceDesc: string;
-  pdfLabel: string;
-  pdfDesc: string;
-}
-
-function ViewToolsMenu({
-  showSourcePanel,
-  showPdfPanel,
-  onToggleSource,
-  onTogglePdf,
-  label,
-  sourceLabel,
-  sourceDesc,
-  pdfLabel,
-  pdfDesc,
-}: ViewToolsMenuProps) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  // open 時にトリガー位置を計算 (viewport 座標。position: fixed で配置するので)
-  useEffect(() => {
-    if (!open) return;
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const update = () => {
-      const rect = trigger.getBoundingClientRect();
-      setPos({
-        top: rect.bottom + 6,
-        right: window.innerWidth - rect.right,
-      });
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
-    };
-  }, [open]);
-
-  // 外側クリック / Esc で閉じる
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (popoverRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("mousedown", onClick);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onClick);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const anyActive = showSourcePanel || showPdfPanel;
-
-  return (
-    <div className="relative shrink-0">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-medium border transition-all duration-150 active:scale-[0.97] ${
-          anyActive
-            ? "bg-foreground/[0.06] border-foreground/[0.18] text-foreground/85"
-            : "bg-transparent border-foreground/[0.10] text-foreground/55 hover:bg-foreground/[0.04] hover:text-foreground/80"
-        }`}
-        title={label}
-      >
-        <Sliders className="h-3 w-3 shrink-0" />
-        <span className="hidden md:inline">{label}</span>
-        <ChevronDown className={`h-3 w-3 text-foreground/40 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {open && pos && typeof document !== "undefined" && createPortal(
-        <div
-          ref={popoverRef}
-          className="fixed w-[280px] rounded-xl border border-border/60 bg-popover shadow-2xl shadow-foreground/20 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150"
-          style={{ top: pos.top, right: pos.right, zIndex: 9999 }}
-        >
-          <div className="px-3 py-2 border-b border-border/40 bg-muted/30">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              {label}
-            </div>
-          </div>
-          <div className="py-1">
-            <ToolToggleRow
-              icon={Eye}
-              label={pdfLabel}
-              desc={pdfDesc}
-              active={showPdfPanel}
-              onClick={() => {
-                onTogglePdf();
-                setOpen(false);
-              }}
-            />
-            <ToolToggleRow
-              icon={Braces}
-              label={sourceLabel}
-              desc={sourceDesc}
-              active={showSourcePanel}
-              onClick={() => {
-                onToggleSource();
-                setOpen(false);
-              }}
-            />
-          </div>
-        </div>,
-        document.body,
-      )}
-    </div>
-  );
-}
-
-interface ToolToggleRowProps {
-  icon: React.ElementType;
-  label: string;
-  desc: string;
-  active: boolean;
-  onClick: () => void;
-}
-
-function ToolToggleRow({ icon: Icon, label, desc, active, onClick }: ToolToggleRowProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full flex items-start gap-2.5 px-3 py-2.5 text-left hover:bg-foreground/[0.04] transition-colors"
-    >
-      <div className={`shrink-0 h-8 w-8 rounded-lg flex items-center justify-center border ${
-        active
-          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-          : "bg-foreground/[0.04] border-foreground/[0.08] text-foreground/55"
-      }`}>
-        <Icon className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[12px] font-semibold text-foreground/90">{label}</span>
-          {active && (
-            <span className="text-[8.5px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono uppercase tracking-wider">
-              ON
-            </span>
-          )}
-        </div>
-        <div className="text-[10.5px] text-muted-foreground/70 mt-0.5 leading-snug">
-          {desc}
-        </div>
-      </div>
-    </button>
   );
 }

@@ -2,8 +2,10 @@
 
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
+import { usePlanStore } from "@/store/plan-store";
+import { PLANS, PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Zap, Crown, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
@@ -13,11 +15,33 @@ const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
   { value: "letter", label: "Letter" },
 ];
 
+const PLAN_BADGE_COLORS: Record<PlanId, string> = {
+  free: "bg-slate-500/10 text-slate-500",
+  starter: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  pro: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+  premium: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+};
+
+const PLAN_ICON: Record<PlanId, typeof Zap> = {
+  free: Zap,
+  starter: Zap,
+  pro: Sparkles,
+  premium: Crown,
+};
+
 export function StatusBar() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isJa = locale !== "en";
   const latex = useDocumentStore((s) => s.document?.latex ?? "");
   const template = useDocumentStore((s) => s.document?.template ?? "blank");
   const { paperSize, setPaperSize } = useUIStore();
+  const currentPlan = usePlanStore((s) => s.currentPlan);
+  const setShowPricing = usePlanStore((s) => s.setShowPricing);
+  const todayUsage = usePlanStore((s) => s.todayUsage)();
+  const dailyLimit = usePlanStore((s) => s.dailyLimit)();
+
+  const planDef = PLANS[currentPlan];
+  const PlanIcon = PLAN_ICON[currentPlan];
 
   const [showPaperMenu, setShowPaperMenu] = useState(false);
   const paperMenuRef = useRef<HTMLDivElement>(null);
@@ -50,6 +74,20 @@ export function StatusBar() {
       </div>
 
       <div className="flex items-center gap-1">
+        {/* Plan badge */}
+        <button
+          onClick={() => setShowPricing(true)}
+          className={`flex items-center gap-1 px-2 h-[18px] rounded-full text-[10px] font-semibold transition-colors hover:opacity-80 ${PLAN_BADGE_COLORS[currentPlan]}`}
+          title={isJa ? "プランを変更" : "Change plan"}
+        >
+          <PlanIcon className="h-2.5 w-2.5" />
+          <span>{planDef.name}</span>
+          <span className="opacity-50 font-normal">{todayUsage}/{dailyLimit}</span>
+        </button>
+
+        <div className="w-px h-3 bg-foreground/[0.06] mx-0.5 shrink-0" />
+
+        {/* Paper size */}
         <div className="relative" ref={paperMenuRef}>
           <button
             onClick={() => setShowPaperMenu(!showPaperMenu)}

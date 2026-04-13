@@ -24,9 +24,11 @@ interface TemplatePickerProps {
   currentId: string;
   onSelect: (id: string) => void;
   label: string;
+  /** Render a minimal pill-style trigger instead of the full toolbar button */
+  compact?: boolean;
 }
 
-export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerProps) {
+export function TemplatePicker({ currentId, onSelect, label, compact }: TemplatePickerProps) {
   const { locale } = useI18n();
   const isJa = locale === "ja";
   const [open, setOpen] = useState(false);
@@ -100,28 +102,41 @@ export function TemplatePicker({ currentId, onSelect, label }: TemplatePickerPro
   return (
     <div ref={wrapperRef} className="relative shrink-0">
       {/* ── Trigger ── */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">
-          {label}
-        </span>
+      {compact ? (
         <button
           ref={triggerRef}
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.10] bg-white/70 dark:bg-white/5 text-[11px] text-foreground/85 hover:bg-white dark:hover:bg-white/10 transition-colors"
+          className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[10.5px] font-medium bg-violet-500/10 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20 transition-colors shrink-0"
         >
-          <span className="text-[13px] leading-none">{current.icon}</span>
-          <span className="font-medium">{isJa ? current.name : current.nameEn}</span>
-          {(isJa ? current.tag : current.tagEn) && (
-            <span className="text-[9px] px-1 py-0.5 rounded bg-foreground/[0.06] text-foreground/55 font-mono uppercase tracking-wider">
-              {isJa ? current.tag : current.tagEn}
-            </span>
-          )}
-          <ChevronDown
-            className={`h-3 w-3 text-foreground/40 transition-transform ${open ? "rotate-180" : ""}`}
-          />
+          <span className="text-[12px] leading-none">{current.icon}</span>
+          <span>{label}</span>
+          <ChevronDown className={`h-2.5 w-2.5 opacity-50 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
-      </div>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground/40 font-mono select-none hidden sm:inline">
+            {label}
+          </span>
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.10] bg-white/70 dark:bg-white/5 text-[11px] text-foreground/85 hover:bg-white dark:hover:bg-white/10 transition-colors"
+          >
+            <span className="text-[13px] leading-none">{current.icon}</span>
+            <span className="font-medium">{isJa ? current.name : current.nameEn}</span>
+            {(isJa ? current.tag : current.tagEn) && (
+              <span className="text-[9px] px-1 py-0.5 rounded bg-foreground/[0.06] text-foreground/55 font-mono uppercase tracking-wider">
+                {isJa ? current.tag : current.tagEn}
+              </span>
+            )}
+            <ChevronDown
+              className={`h-3 w-3 text-foreground/40 transition-transform ${open ? "rotate-180" : ""}`}
+            />
+          </button>
+        </div>
+      )}
 
       {/* ── Popover (portal でツールバーの stacking context 外に描画) ── */}
       {open && pos && typeof document !== "undefined" && createPortal(
