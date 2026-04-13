@@ -18,7 +18,7 @@
  *  - カラーボックス (プレゼン等): \begin{alertblock}{...} 等のブロック挿入
  */
 
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useRef, useState, useEffect, forwardRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   Bold,
@@ -310,34 +310,161 @@ function Popover({ triggerRef, open, onClose, children, widthClass }: PopoverPro
   );
 }
 
+// ── Portal tooltip (always renders on top of everything) ──
+
+function PortalTooltip({
+  anchorRef,
+  show,
+  title,
+  desc,
+}: {
+  anchorRef: React.RefObject<HTMLElement | null>;
+  show: boolean;
+  title: string;
+  desc?: string;
+}) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!show || !anchorRef.current) {
+      setPos(null);
+      return;
+    }
+    const update = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPos({ top: rect.bottom + 8, left: rect.left + rect.width / 2 });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [show, anchorRef]);
+
+  if (!show || !pos || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="pointer-events-none fixed flex flex-col items-center"
+      style={{ top: pos.top, left: pos.left, transform: "translateX(-50%)", zIndex: 99999 }}
+    >
+      <span className="relative px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap shadow-lg flex flex-col items-center animate-in fade-in duration-150">
+        <span>{title}</span>
+        {desc && <span className="text-[9px] opacity-60 mt-0.5">{desc}</span>}
+        <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
+      </span>
+    </div>,
+    document.body,
+  );
+}
+
 interface ToolBtnProps {
   onClick: () => void;
   title: string;
   desc?: string;
   active?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 function ToolBtn({ onClick, title, desc, active, children }: ToolBtnProps) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [hover, setHover] = useState(false);
+
   return (
-    <button
-      type="button"
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      className={`group relative inline-flex items-center justify-center h-7 w-7 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors ${
-        active ? "bg-foreground/[0.08] text-foreground" : ""
-      }`}
-    >
-      {children}
-      {/* カスタム tooltip */}
-      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-[10000] flex flex-col items-center">
-        <span>{title}</span>
-        {desc && <span className="text-[9px] opacity-60 mt-0.5">{desc}</span>}
-        <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
-      </span>
-    </button>
+    <>
+      <button
+        ref={ref}
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors ${
+          active ? "bg-foreground/[0.08] text-foreground" : ""
+        }`}
+      >
+        {children}
+      </button>
+      <PortalTooltip anchorRef={ref} show={hover} title={title} desc={desc} />
+    </>
   );
 }
+
+// ── Dropdown buttons with portal tooltip ──
+
+const ColorButton = forwardRef<
+  HTMLButtonElement,
+  { open: boolean; onToggle: () => void; title: string; desc: string }
+>(function ColorButton({ open, onToggle, title, desc }, ref) {
+  const innerRef = useRef<HTMLButtonElement>(null);
+  const [hover, setHover] = useState(false);
+
+  // Merge forwarded ref with inner ref
+  const setRefs = useCallback(
+    (el: HTMLButtonElement | null) => {
+      (innerRef as React.MutableRefObject<HTMLButtonElement | null>).current = el;
+      if (typeof ref === "function") ref(el);
+      else if (ref) (ref as React.MutableRefObject<HTMLButtonElement | null>).current = el;
+    },
+    [ref],
+  );
+
+  return (
+    <>
+      <button
+        ref={setRefs}
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onToggle}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+      >
+        <Palette className="h-3.5 w-3.5" />
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      <PortalTooltip anchorRef={innerRef} show={hover && !open} title={title} desc={desc} />
+    </>
+  );
+});
+
+const BoxButton = forwardRef<
+  HTMLButtonElement,
+  { open: boolean; onToggle: () => void; title: string; desc: string }
+>(function BoxButton({ open, onToggle, title, desc }, ref) {
+  const innerRef = useRef<HTMLButtonElement>(null);
+  const [hover, setHover] = useState(false);
+
+  const setRefs = useCallback(
+    (el: HTMLButtonElement | null) => {
+      (innerRef as React.MutableRefObject<HTMLButtonElement | null>).current = el;
+      if (typeof ref === "function") ref(el);
+      else if (ref) (ref as React.MutableRefObject<HTMLButtonElement | null>).current = el;
+    },
+    [ref],
+  );
+
+  return (
+    <>
+      <button
+        ref={setRefs}
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onToggle}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+      >
+        <Box className="h-3.5 w-3.5" />
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      <PortalTooltip anchorRef={innerRef} show={hover && !open} title={title} desc={desc} />
+    </>
+  );
+});
 
 export function FormattingToolbar() {
   const { t, locale } = useI18n();
@@ -365,58 +492,42 @@ export function FormattingToolbar() {
 
   return (
     <div className="flex items-center gap-0.5 shrink-0" role="toolbar" aria-label={t("fmt.toolbar.label")}>
-      <ToolBtn onClick={applyBold} title={t("fmt.bold")} desc={isJa ? "選択テキストを太字にする" : "Make selected text bold"}>
+      <ToolBtn onClick={applyBold} title={t("fmt.bold")} desc={isJa ? "選択テキストを太字にする" : "Apply bold formatting to selection"}>
         <Bold className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyItalic} title={t("fmt.italic")} desc={isJa ? "選択テキストを斜体にする" : "Make selected text italic"}>
+      <ToolBtn onClick={applyItalic} title={t("fmt.italic")} desc={isJa ? "選択テキストを斜体にする" : "Apply italic formatting to selection"}>
         <Italic className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyCode} title={t("fmt.code")} desc={isJa ? "等幅フォントで表示する" : "Display in monospace font"}>
+      <ToolBtn onClick={applyCode} title={t("fmt.code")} desc={isJa ? "等幅フォントで表示する" : "Format as monospaced / code text"}>
         <Code2 className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyFbox} title={t("fmt.frame")} desc={isJa ? "選択部分を枠線で囲む" : "Add a border frame"}>
+      <ToolBtn onClick={applyFbox} title={t("fmt.frame")} desc={isJa ? "選択部分を枠線で囲む" : "Wrap selection in a border frame"}>
         <SquareDashed className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={insertMathChip} title={t("fmt.math")} desc={isJa ? "数式エディタを開く" : "Open math editor"}>
+      <ToolBtn onClick={insertMathChip} title={t("fmt.math")} desc={isJa ? "数式エディタを開く" : "Open the math equation editor"}>
         <Sigma className="h-3.5 w-3.5" />
       </ToolBtn>
 
       <div className="w-px h-4 bg-border/30 mx-1 shrink-0" />
 
       {/* カラーパレット */}
-      <button
+      <ColorButton
         ref={colorRef}
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setColorOpen((v) => !v)}
-        className="group relative inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
-      >
-        <Palette className="h-3.5 w-3.5" />
-        <ChevronDown className={`h-3 w-3 transition-transform ${colorOpen ? "rotate-180" : ""}`} />
-        <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-[10000] flex flex-col items-center">
-          <span>{t("fmt.color")}</span>
-          <span className="text-[9px] opacity-60 mt-0.5">{isJa ? "文字の色を変更する" : "Change text color"}</span>
-          <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
-        </span>
-      </button>
+        open={colorOpen}
+        onToggle={() => setColorOpen((v) => !v)}
+        title={t("fmt.color")}
+        desc={isJa ? "文字の色を変更する" : "Change the color of selected text"}
+      />
 
       {/* ボックス挿入 */}
       {availableBoxes.length > 0 && (
-        <button
+        <BoxButton
           ref={boxRef}
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setBoxOpen((v) => !v)}
-          className="group relative inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
-        >
-          <Box className="h-3.5 w-3.5" />
-          <ChevronDown className={`h-3 w-3 transition-transform ${boxOpen ? "rotate-180" : ""}`} />
-          <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-[10000] flex flex-col items-center">
-            <span>{t("fmt.box")}</span>
-            <span className="text-[9px] opacity-60 mt-0.5">{isJa ? "装飾ブロックを追加する" : "Add a styled block"}</span>
-            <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
-          </span>
-        </button>
+          open={boxOpen}
+          onToggle={() => setBoxOpen((v) => !v)}
+          title={t("fmt.box")}
+          desc={isJa ? "装飾ブロックを追加する" : "Insert a decorative block element"}
+        />
       )}
 
       <Popover triggerRef={colorRef} open={colorOpen} onClose={() => setColorOpen(false)}>

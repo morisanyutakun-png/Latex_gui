@@ -1042,11 +1042,11 @@ const en = {
   "fmt.toolbar.label": "Formatting",
   "fmt.bold": "Bold",
   "fmt.italic": "Italic",
-  "fmt.code": "Monospace (code)",
-  "fmt.frame": "Frame (fbox)",
-  "fmt.math": "Insert math",
-  "fmt.color": "Text color",
-  "fmt.box": "Insert box",
+  "fmt.code": "Monospace",
+  "fmt.frame": "Frame",
+  "fmt.math": "Math",
+  "fmt.color": "Text Color",
+  "fmt.box": "Insert Box",
 
   // Grading — misc
   "grading.stepper.aria": "Grading mode steps",
