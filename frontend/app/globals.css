@@ -1093,39 +1093,13 @@ html {
 
 /* ── Empty state aurora orb ── */
 .chat-empty-orb {
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 40%, #fbbf24 80%, #fcd34d 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 40%, #a78bfa 80%, #c4b5fd 100%);
   box-shadow:
-    0 0 0 8px rgba(245, 158, 11, 0.08),
-    0 0 0 16px rgba(217, 119, 6, 0.04),
-    0 8px 32px rgba(217, 119, 6, 0.30),
-    0 4px 16px rgba(245, 158, 11, 0.25);
+    0 0 0 8px rgba(139, 92, 246, 0.08),
+    0 0 0 16px rgba(124, 58, 237, 0.04),
+    0 8px 32px rgba(124, 58, 237, 0.25),
+    0 4px 16px rgba(139, 92, 246, 0.20);
   animation: avatar-halo 4s ease-in-out infinite;
-}
-
-/* ── Suggestion card — soft border, gentle hover lift ── */
-.chat-suggestion-card {
-  background: rgba(255, 252, 242, 0.78);
-  border: 1.5px solid rgba(217, 119, 6, 0.18);
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
-.chat-suggestion-card:hover {
-  background: rgba(255, 252, 242, 0.96);
-  border-color: rgba(217, 119, 6, 0.42);
-  box-shadow:
-    0 4px 14px rgba(245, 158, 11, 0.10),
-    0 1px 4px rgba(0, 0, 0, 0.04);
-  transform: translateY(-1px);
-}
-.dark .chat-suggestion-card {
-  background: rgba(28, 21, 5, 0.78);
-  border-color: rgba(245, 158, 11, 0.20);
-}
-.dark .chat-suggestion-card:hover {
-  background: rgba(38, 28, 6, 0.94);
-  border-color: rgba(245, 158, 11, 0.42);
-  box-shadow:
-    0 4px 18px rgba(217, 119, 6, 0.12),
-    0 1px 4px rgba(0, 0, 0, 0.30);
 }
 
 /* ── Error bubble ── */

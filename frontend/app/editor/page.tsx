@@ -17,10 +17,8 @@ import { useEffect, useRef, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
 import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { EditorHints } from "@/components/layout/editor-hints";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
-import { QuickStartBar } from "@/components/editor/quick-start-bar";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
 import { toast } from "sonner";
@@ -231,9 +229,6 @@ export default function EditorPage() {
       <AppHeader isAIActive={isAIActive} />
 
       {!gradingMode && <EditToolbar />}
-
-      {!gradingMode && <EditorHints />}
-      {!gradingMode && <QuickStartBar />}
 
       <div className="flex flex-1 overflow-hidden min-h-0">
         <div className="flex-1 overflow-hidden min-w-0 relative">

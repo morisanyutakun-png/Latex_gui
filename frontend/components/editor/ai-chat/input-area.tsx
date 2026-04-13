@@ -67,9 +67,9 @@ export function InputArea({
               key={qa.labelKey}
               type="button"
               onClick={() => handleQuick(qa.labelKey)}
-              className="group inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-medium text-foreground/55 bg-foreground/[0.04] hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 border border-transparent hover:border-amber-200/60 dark:hover:border-amber-500/20 transition-all"
+              className="group inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-medium text-foreground/55 bg-foreground/[0.04] hover:bg-violet-50 dark:hover:bg-violet-500/10 hover:text-violet-700 dark:hover:text-violet-300 border border-transparent hover:border-violet-200/60 dark:hover:border-violet-500/20 transition-all"
             >
-              <span className="text-amber-500/70 group-hover:text-amber-500">{qa.icon}</span>
+              <span className="text-violet-500/70 group-hover:text-violet-500">{qa.icon}</span>
               <span>{t(qa.labelKey)}</span>
             </button>
           ))}
@@ -80,7 +80,7 @@ export function InputArea({
       <div
         className={`relative rounded-2xl bg-background border transition-all duration-200 ${
           focused
-            ? "border-amber-400/70 dark:border-amber-500/50 shadow-[0_0_0_3px_rgba(245,158,11,0.10)]"
+            ? "border-violet-400/70 dark:border-violet-500/50 shadow-[0_0_0_3px_rgba(139,92,246,0.10)]"
             : "border-border/50 hover:border-border"
         }`}
       >
@@ -137,7 +137,7 @@ export function InputArea({
 
           {/* Model badge */}
           <div className="ml-auto flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20">
+            <div className="hidden sm:flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-medium text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/20">
               <Sparkles className="h-2.5 w-2.5" />
               <span>{t("chat.model.badge")}</span>
             </div>
@@ -150,7 +150,7 @@ export function InputArea({
               title={t("chat.send")}
               className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 focus:outline-none ${
                 hasInput && !isChatLoading
-                  ? "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-105 active:scale-95"
+                  ? "bg-gradient-to-br from-violet-500 to-violet-600 text-white shadow-md shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-105 active:scale-95"
                   : "bg-foreground/[0.06] text-foreground/25"
               }`}
             >
