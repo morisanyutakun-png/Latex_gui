@@ -546,9 +546,9 @@ export function AIChatPanel() {
                 <button
                   key={text}
                   onClick={() => { setInput(text); textareaRef.current?.focus(); }}
-                  className="flex items-center gap-2.5 text-left text-[12px] px-3 py-2 rounded-lg text-foreground/55 hover:text-foreground/80 hover:bg-violet-50 dark:hover:bg-violet-500/10 border border-transparent hover:border-violet-200/50 dark:hover:border-violet-500/20 transition-all"
+                  className="flex items-center gap-2.5 text-left text-[12px] px-3 py-2 rounded-lg text-foreground/55 hover:text-foreground/80 hover:bg-amber-50 dark:hover:bg-amber-500/10 border border-transparent hover:border-amber-200/50 dark:hover:border-amber-500/20 transition-all"
                 >
-                  <Icon className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                  <Icon className="h-3.5 w-3.5 text-amber-400 shrink-0" />
                   <span>{text}</span>
                 </button>
               ))}
