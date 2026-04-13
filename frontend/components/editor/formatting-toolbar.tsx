@@ -315,28 +315,35 @@ function Popover({ triggerRef, open, onClose, children, widthClass }: PopoverPro
 interface ToolBtnProps {
   onClick: () => void;
   title: string;
+  desc?: string;
   active?: boolean;
   children: React.ReactNode;
 }
 
-function ToolBtn({ onClick, title, active, children }: ToolBtnProps) {
+function ToolBtn({ onClick, title, desc, active, children }: ToolBtnProps) {
   return (
     <button
       type="button"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      title={title}
-      className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors ${
+      className={`group relative inline-flex items-center justify-center h-7 w-7 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors ${
         active ? "bg-foreground/[0.08] text-foreground" : ""
       }`}
     >
       {children}
+      {/* カスタム tooltip */}
+      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-50 flex flex-col items-center">
+        <span>{title}</span>
+        {desc && <span className="text-[9px] opacity-60 mt-0.5">{desc}</span>}
+        <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
+      </span>
     </button>
   );
 }
 
 export function FormattingToolbar() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isJa = locale !== "en";
   const [colorOpen, setColorOpen] = useState(false);
   const [boxOpen, setBoxOpen] = useState(false);
   const colorRef = useRef<HTMLButtonElement>(null);
@@ -360,19 +367,19 @@ export function FormattingToolbar() {
 
   return (
     <div className="flex items-center gap-0.5 shrink-0" role="toolbar" aria-label={t("fmt.toolbar.label")}>
-      <ToolBtn onClick={applyBold} title={t("fmt.bold")}>
+      <ToolBtn onClick={applyBold} title={t("fmt.bold")} desc={isJa ? "選択テキストを太字にする" : "Make selected text bold"}>
         <Bold className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyItalic} title={t("fmt.italic")}>
+      <ToolBtn onClick={applyItalic} title={t("fmt.italic")} desc={isJa ? "選択テキストを斜体にする" : "Make selected text italic"}>
         <Italic className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyCode} title={t("fmt.code")}>
+      <ToolBtn onClick={applyCode} title={t("fmt.code")} desc={isJa ? "等幅フォントで表示する" : "Display in monospace font"}>
         <Code2 className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={applyFbox} title={t("fmt.frame")}>
+      <ToolBtn onClick={applyFbox} title={t("fmt.frame")} desc={isJa ? "選択部分を枠線で囲む" : "Add a border frame"}>
         <SquareDashed className="h-3.5 w-3.5" />
       </ToolBtn>
-      <ToolBtn onClick={insertMathChip} title={t("fmt.math")}>
+      <ToolBtn onClick={insertMathChip} title={t("fmt.math")} desc={isJa ? "数式エディタを開く" : "Open math editor"}>
         <Sigma className="h-3.5 w-3.5" />
       </ToolBtn>
 
@@ -384,11 +391,15 @@ export function FormattingToolbar() {
         type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setColorOpen((v) => !v)}
-        title={t("fmt.color")}
-        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+        className="group relative inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
       >
         <Palette className="h-3.5 w-3.5" />
         <ChevronDown className={`h-3 w-3 transition-transform ${colorOpen ? "rotate-180" : ""}`} />
+        <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-50 flex flex-col items-center">
+          <span>{t("fmt.color")}</span>
+          <span className="text-[9px] opacity-60 mt-0.5">{isJa ? "文字の色を変更する" : "Change text color"}</span>
+          <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
+        </span>
       </button>
 
       {/* ボックス挿入 */}
@@ -398,11 +409,15 @@ export function FormattingToolbar() {
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => setBoxOpen((v) => !v)}
-          title={t("fmt.box")}
-          className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+          className="group relative inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
         >
           <Box className="h-3.5 w-3.5" />
           <ChevronDown className={`h-3 w-3 transition-transform ${boxOpen ? "rotate-180" : ""}`} />
+          <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg z-50 flex flex-col items-center">
+            <span>{t("fmt.box")}</span>
+            <span className="text-[9px] opacity-60 mt-0.5">{isJa ? "装飾ブロックを追加する" : "Add a styled block"}</span>
+            <span className="absolute left-1/2 -translate-x-1/2 -top-1 h-2 w-2 rotate-45 bg-foreground" />
+          </span>
         </button>
       )}
 
