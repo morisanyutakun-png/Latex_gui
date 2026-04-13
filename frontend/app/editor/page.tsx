@@ -62,22 +62,33 @@ export default function EditorPage() {
     }
   }, [doc, setDocument]);
 
-  // Handle ?checkout=success — Stripe からの復帰時にサブスク再取得＋トースト
+  // Handle ?checkout=success — Stripe / Free 登録からの復帰
+  const [checkoutHandled, setCheckoutHandled] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") !== "success") return;
 
     const planParam = params.get("plan") || "";
+
+    // 1. ドキュメントを即座に作成（リダイレクト防止のため先にやる）
+    if (!useDocumentStore.getState().document) {
+      useDocumentStore.getState().setDocument(createDefaultDocument("blank", ""));
+    }
+    setCheckoutHandled(true);
+
+    // 2. URL をクリーン（ドキュメント作成後）
     window.history.replaceState({}, "", "/editor");
 
-    // サブスクリプション状態を再取得（webhook がまだ来ていない場合もあるのでポーリング）
-    const fetchWithRetry = async (retries: number) => {
+    // 3. サブスクリプション状態を非同期で取得
+    const fetchWithRetry = async (retries: number): Promise<string> => {
       const { fetchSubscription } = usePlanStore.getState();
       await fetchSubscription();
       const { currentPlan } = usePlanStore.getState();
+      // Free プランの場合はリトライ不要（DB に既に登録済み）
+      if (planParam === "free") return currentPlan;
+      // 有料プランで まだ free のまま → webhook 待ち
       if (currentPlan === "free" && retries > 0) {
-        // webhook がまだ処理されていない → 少し待ってリトライ
         await new Promise((r) => setTimeout(r, 2000));
         return fetchWithRetry(retries - 1);
       }
@@ -85,29 +96,23 @@ export default function EditorPage() {
     };
 
     fetchWithRetry(5).then((plan) => {
-      const planName = plan !== "free" ? PLANS[plan]?.name || plan : planParam;
+      const planDef = PLANS[plan as keyof typeof PLANS];
+      const planName = plan !== "free" ? planDef?.name || plan : "Free";
       toast.success(
         locale === "en"
-          ? `${planName} plan activated! Enjoy your upgraded features.`
+          ? `${planName} plan activated!`
           : `${planName} プランが有効になりました！`,
         { duration: 6000 },
       );
-      // ドキュメントがない場合は空白ドキュメントを作成
-      if (!useDocumentStore.getState().document) {
-        useDocumentStore.getState().setDocument(createDefaultDocument("blank", ""));
-      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    // checkout=success で戻ってきた場合はリダイレクトしない（ドキュメントが後から作成される）
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("checkout") === "success") return;
-    }
+    // checkout 処理中はリダイレクトしない
+    if (checkoutHandled) return;
     if (!doc) router.push("/");
-  }, [doc, router]);
+  }, [doc, router, checkoutHandled]);
 
   useEffect(() => {
     fetch("/api/health", { signal: AbortSignal.timeout(15000) }).catch(() => {});
