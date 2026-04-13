@@ -133,7 +133,7 @@ async def create_checkout(
     if not user:
         raise HTTPException(status_code=401, detail="認証が必要です")
 
-    if body.plan_id not in ("starter", "pro", "premium"):
+    if body.plan_id not in ("free", "starter", "pro", "premium"):
         raise HTTPException(status_code=400, detail="無効なプランIDです")
 
     try:

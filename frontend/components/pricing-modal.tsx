@@ -57,10 +57,7 @@ export function PricingModal() {
   const handleSelect = async (planId: PlanId) => {
     setShowPricing(false);
 
-    // Free プランはそのまま（ゲストもログインユーザーも無料で使える）
-    if (planId === "free") return;
-
-    // 認証チェック
+    // 認証チェック — 全プラン（Free含む）でログイン＋Stripe を通す
     try {
       const { getSession, signIn } = await import("next-auth/react");
       const session = await getSession();
@@ -69,11 +66,10 @@ export function PricingModal() {
         return;
       }
     } catch {
-      // 認証未設定環境 → そのまま続行しない
       return;
     }
 
-    // Stripe Checkout へリダイレクト
+    // Stripe Checkout へリダイレクト（Free は ¥0 だがユーザー識別のため通す）
     setIsRedirecting(true);
     try {
       const { createCheckoutSession } = await import("@/lib/subscription-api");
@@ -195,7 +191,7 @@ export function PricingModal() {
                     : isRedirecting
                     ? (isJa ? "処理中..." : "Redirecting...")
                     : planId === "free"
-                    ? (isJa ? "Freeを使う" : "Use Free")
+                    ? (isJa ? "Freeで始める" : "Start Free")
                     : (isJa ? "このプランを選択" : "Select Plan")}
                 </Button>
               </div>

@@ -17,6 +17,7 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 # plan_id → Stripe Price ID のマッピング
 PLAN_PRICE_IDS: dict[str, str] = {
+    "free": os.environ.get("STRIPE_PRICE_ID_FREE", ""),
     "starter": os.environ.get("STRIPE_PRICE_ID_STARTER", ""),
     "pro": os.environ.get("STRIPE_PRICE_ID_PRO", ""),
     "premium": os.environ.get("STRIPE_PRICE_ID_PREMIUM", ""),
@@ -48,15 +49,21 @@ def create_checkout_session(customer_id: str, plan_id: str, user_id: str = "") -
     if not price_id:
         raise ValueError(f"Unknown plan_id or price not configured: {plan_id}")
 
-    session = stripe.checkout.Session.create(
-        customer=customer_id,
-        line_items=[{"price": price_id, "quantity": 1}],
-        mode="subscription",
-        success_url=f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}",
-        cancel_url=f"{FRONTEND_URL}/",
-        metadata={"plan_id": plan_id, "user_id": user_id},
-        subscription_data={"metadata": {"user_id": user_id, "plan_id": plan_id}},
-    )
+    checkout_params: dict = {
+        "customer": customer_id,
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "mode": "subscription",
+        "success_url": f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}",
+        "cancel_url": f"{FRONTEND_URL}/",
+        "metadata": {"plan_id": plan_id, "user_id": user_id},
+        "subscription_data": {"metadata": {"user_id": user_id, "plan_id": plan_id}},
+    }
+
+    # Free プラン (¥0): カード不要で通す（ユーザー識別が目的）
+    if plan_id == "free":
+        checkout_params["payment_method_collection"] = "if_required"
+
+    session = stripe.checkout.Session.create(**checkout_params)
     return session.url
 
 

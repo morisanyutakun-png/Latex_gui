@@ -1128,13 +1128,12 @@ export function TemplateGallery() {
     router.push("/editor");
   };
 
-  const handlePlanSelect = async (planId: "starter" | "pro" | "premium") => {
+  const handlePlanSelect = async (planId: "free" | "starter" | "pro" | "premium") => {
     // 認証チェック → 未ログインならログインへ
     try {
       const { getSession, signIn } = await import("next-auth/react");
       const session = await getSession();
       if (!session) {
-        // ログイン後に自動チェックアウトできるようプランを保存
         sessionStorage.setItem("pending_plan", planId);
         signIn("google", { callbackUrl: "/?plan=" + planId });
         return;
@@ -1144,7 +1143,7 @@ export function TemplateGallery() {
       toast.error("ログインの確認に失敗しました");
       return;
     }
-    // Stripe Checkout へリダイレクト
+    // Stripe Checkout へリダイレクト（Free含む全プラン）
     await redirectToCheckout(planId);
   };
 
@@ -1176,7 +1175,7 @@ export function TemplateGallery() {
     const planFromUrl = searchParams.get("plan");
     const planFromStorage = sessionStorage.getItem("pending_plan");
     const pendingPlan = planFromUrl || planFromStorage;
-    if (pendingPlan && ["starter", "pro", "premium"].includes(pendingPlan)) {
+    if (pendingPlan && ["free", "starter", "pro", "premium"].includes(pendingPlan)) {
       sessionStorage.removeItem("pending_plan");
       // URLパラメータをクリーン
       window.history.replaceState({}, "", "/");
