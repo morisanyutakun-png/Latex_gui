@@ -41,6 +41,40 @@ function nextZoom(cur: number, dir: 1 | -1): number {
   return ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, n))];
 }
 
+// ── Grab zone detection ────────────────────────────────────────
+
+/**
+ * Returns true if the TikZ point is in the shape's "body center" — the inner region
+ * where clicks should GRAB the shape instead of passing through. Edges/terminals
+ * remain click-through for closed circuits.
+ */
+function isInGrabZone(shape: FigureShape, pt: Point): boolean {
+  const margin = 0.25; // 25% edge margin → inner 50% is grab zone
+  const innerX1 = shape.x + shape.width * margin;
+  const innerX2 = shape.x + shape.width * (1 - margin);
+  const innerY1 = shape.y + shape.height * margin;
+  const innerY2 = shape.y + shape.height * (1 - margin);
+
+  // For very thin shapes (horizontal/vertical lines/circuits), expand the grab zone perpendicularly
+  const minGrab = 0.2; // 2mm minimum on each side
+  const x1 = Math.min(innerX1, shape.x + shape.width / 2 - minGrab);
+  const x2 = Math.max(innerX2, shape.x + shape.width / 2 + minGrab);
+  const y1 = Math.min(innerY1, shape.y + shape.height / 2 - minGrab);
+  const y2 = Math.max(innerY2, shape.y + shape.height / 2 + minGrab);
+
+  return pt.x >= x1 && pt.x <= x2 && pt.y >= y1 && pt.y <= y2;
+}
+
+/** Find the topmost shape (highest zIndex) whose grab zone contains the point */
+function findGrabTarget(shapes: FigureShape[], pt: Point): string | null {
+  const sorted = [...shapes].sort((a, b) => b.zIndex - a.zIndex);
+  for (const s of sorted) {
+    if (s.locked) continue;
+    if (isInGrabZone(s, pt)) return s.id;
+  }
+  return null;
+}
+
 // ── Tool classification ─────────────────────────────────────────
 
 /** Line-like: drag A→B, component stretches between the two terminals */
@@ -165,6 +199,8 @@ export function FigureCanvas() {
   const [pendingStart, setPendingStart] = useState<Point | null>(null);
   /** 2-click mode: preview end (cursor position) */
   const [previewEnd, setPreviewEnd] = useState<Point | null>(null);
+  /** ID of shape whose grab-zone the cursor is currently over (null = cursor not on any shape body) */
+  const [grabTargetId, setGrabTargetId] = useState<string | null>(null);
 
   // Cancel pending start when tool changes
   useEffect(() => { setPendingStart(null); setPreviewEnd(null); }, [activeTool]);
@@ -287,6 +323,24 @@ export function FigureCanvas() {
     const [tx, ty] = canvasToTikz(px.x, px.y, canvasHeight, zoom, offsetX, offsetY);
     const sx = snapV(tx, gridSize, snapToGrid), sy = snapV(ty, gridSize, snapToGrid);
 
+    // ─ Grab zone: clicking on a shape's body center GRABS it, regardless of active tool ─
+    // Edges/terminals still pass through so users can start new shapes from existing endpoints
+    // (essential for closed circuits).
+    const grabId = findGrabTarget(shapes, { x: tx, y: ty });
+    if (grabId) {
+      const sh = shapes.find((s) => s.id === grabId);
+      if (sh) {
+        select(grabId, e.shiftKey); pushHistory();
+        setDragging({
+          mode: "move", startPx: px, startTikz: { x: tx, y: ty }, shapeId: grabId,
+          origShape: { ...sh, style: { ...sh.style }, points: sh.points.map((p) => ({ ...p })), tikzOptions: { ...sh.tikzOptions } },
+        });
+        // Cancel any pending 2-click draw since user is now grabbing
+        if (pendingStart) { setPendingStart(null); setPreviewEnd(null); }
+        return;
+      }
+    }
+
     if (activeTool === "select") { clearSelection(); return; }
 
     const mode = classifyTool(activeTool);
@@ -343,12 +397,18 @@ export function FigureCanvas() {
       setPendingStart(null);
       setPreviewEnd(null);
     }
-  }, [activeTool, spaceHeld, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, getSvgCoords, clearSelection, addShapeFromPalette, updateShape, pendingStart]);
+  }, [activeTool, spaceHeld, shapes, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, getSvgCoords, clearSelection, addShapeFromPalette, updateShape, select, pushHistory, pendingStart]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const px = getSvgCoords(e);
     const [tx, ty] = canvasToTikz(px.x, px.y, canvasHeight, zoom, offsetX, offsetY);
     setMousePos({ x: Math.round(tx * 100) / 100, y: Math.round(ty * 100) / 100 });
+
+    // Update grab target — only when NOT actively dragging
+    if (!dragging) {
+      const target = findGrabTarget(shapes, { x: tx, y: ty });
+      if (target !== grabTargetId) setGrabTargetId(target);
+    }
 
     // 2-click preview (between clicks, no drag in progress)
     if (pendingStart) {
@@ -393,7 +453,7 @@ export function FigureCanvas() {
       setDragging((prev) => prev ? { ...prev } : null); // trigger re-render
       return;
     }
-  }, [dragging, getSvgCoords, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, updateShape, setViewport]);
+  }, [dragging, pendingStart, shapes, grabTargetId, getSvgCoords, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, updateShape, setViewport]);
 
   const handleMouseUp = useCallback(() => {
     if (!dragging) return;
@@ -408,22 +468,10 @@ export function FigureCanvas() {
 
   // ── Shape interaction ─────────────────────────────────────────
 
-  const handleShapeMouseDown = useCallback((e: React.MouseEvent, id: string) => {
-    // When a drawing tool is active, let the click pass through to the canvas.
-    // Essential for closed circuits: users need to click at a point that is already
-    // occupied by an existing component's terminal to start a new component there.
-    if (activeTool !== "select" && !spaceHeld) return;
-
-    e.stopPropagation();
-    if (spaceHeld) { const px = getSvgCoords(e); setDragging({ mode: "pan", startPx: px, startTikz: { x: offsetX, y: offsetY } }); return; }
-    const sh = shapes.find((s) => s.id === id);
-    if (!sh || sh.locked) return;
-    select(id, e.shiftKey); pushHistory();
-    const px = getSvgCoords(e);
-    const [tx, ty] = canvasToTikz(px.x, px.y, canvasHeight, zoom, offsetX, offsetY);
-    setDragging({ mode: "move", startPx: px, startTikz: { x: tx, y: ty }, shapeId: id,
-      origShape: { ...sh, style: { ...sh.style }, points: sh.points.map((p) => ({ ...p })), tikzOptions: { ...sh.tikzOptions } } });
-  }, [activeTool, shapes, select, pushHistory, getSvgCoords, canvasHeight, zoom, offsetX, offsetY, spaceHeld]);
+  const handleShapeMouseDown = useCallback((_e: React.MouseEvent, _id: string) => {
+    // Grab/pass-through is now fully handled by canvas handleMouseDown via findGrabTarget().
+    // Always let the event bubble — don't stopPropagation here.
+  }, []);
 
   const handleResizeDown = useCallback((e: React.MouseEvent, id: string, dir: ResizeDir) => {
     // Pass through when drawing tool active (so users can click through selection handles)
@@ -545,7 +593,9 @@ export function FigureCanvas() {
   // ── Cursor ────────────────────────────────────────────────────
 
   let cursor = "cursor-default";
-  if (spaceHeld || activeTool === "pan") cursor = dragging?.mode === "pan" ? "cursor-grabbing" : "cursor-grab";
+  if (dragging?.mode === "move") cursor = "cursor-grabbing";
+  else if (spaceHeld || activeTool === "pan") cursor = dragging?.mode === "pan" ? "cursor-grabbing" : "cursor-grab";
+  else if (grabTargetId) cursor = "cursor-grab";
   else if (activeTool !== "select") cursor = "cursor-crosshair";
 
   // ── Tool hint ─────────────────────────────────────────────────
@@ -591,6 +641,16 @@ export function FigureCanvas() {
             onMouseDown={(e) => handleShapeMouseDown(e, sh.id)}
             onMouseEnter={() => setHovered(sh.id)} onMouseLeave={() => setHovered(null)} />;
         })}
+
+        {/* Grab target hover indicator */}
+        {grabTargetId && !dragging && (() => {
+          const sh = shapes.find((s) => s.id === grabTargetId);
+          if (!sh) return null;
+          const { cx, cy, pw, ph } = shapeToCanvasCoords(sh);
+          return (<rect x={cx - 2} y={cy - 2} width={pw + 4} height={ph + 4} rx={3}
+            fill="rgba(59,130,246,0.06)" stroke="rgba(59,130,246,0.5)" strokeWidth={1}
+            strokeDasharray="3,3" pointerEvents="none" />);
+        })()}
 
         {/* Draw preview */}
         {renderDrawPreview()}
