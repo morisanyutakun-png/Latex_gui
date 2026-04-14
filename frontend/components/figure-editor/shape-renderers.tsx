@@ -188,147 +188,119 @@ function RenderFreehand(p: ShapeRenderProps) {
 
 // ══════════════════════════════════════════════════════════════════
 //  CIRCUIT COMPONENTS — proper schematic-quality symbols
+//
+//  Convention: circuit components are drawn between two TERMINALS
+//  stored in shape.points[0] and shape.points[1] (relative to x,y).
+//  The component body is rendered horizontally then rotated to match.
 // ══════════════════════════════════════════════════════════════════
 
-function RenderResistor(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const midY = cy + ph / 2;
-  // Leads
-  const leadL = pw * 0.15;
-  const bodyStart = cx + leadL;
-  const bodyEnd = cx + pw - leadL;
-  const bodyW = bodyEnd - bodyStart;
-  // Zigzag: 6 peaks
-  const peaks = 6;
-  const segW = bodyW / peaks;
-  const amp = Math.min(ph * 0.35, 8); // amplitude in px, capped
-
-  let d = `M${cx},${midY} L${bodyStart},${midY}`;
-  for (let i = 0; i < peaks; i++) {
-    const xMid = bodyStart + (i + 0.5) * segW;
-    const yDir = i % 2 === 0 ? -1 : 1;
-    d += ` L${xMid},${midY + yDir * amp}`;
+/** Get absolute screen positions of start/end terminals */
+function getTerminals(p: ShapeRenderProps): { x1: number; y1: number; x2: number; y2: number; len: number; angle: number; midX: number; midY: number } {
+  if (p.pxPoints.length >= 2) {
+    const x1 = p.cx + p.pxPoints[0].x, y1 = p.cy + p.pxPoints[0].y;
+    const x2 = p.cx + p.pxPoints[1].x, y2 = p.cy + p.pxPoints[1].y;
+    const dx = x2 - x1, dy = y2 - y1;
+    return { x1, y1, x2, y2, len: Math.sqrt(dx * dx + dy * dy), angle: Math.atan2(dy, dx) * 180 / Math.PI, midX: (x1 + x2) / 2, midY: (y1 + y2) / 2 };
   }
-  d += ` L${bodyEnd},${midY} L${cx + pw},${midY}`;
+  // Fallback: horizontal left→right
+  const x1 = p.cx, y1 = p.cy + p.ph / 2, x2 = p.cx + p.pw, y2 = y1;
+  return { x1, y1, x2, y2, len: p.pw, angle: 0, midX: (x1 + x2) / 2, midY: y1 };
+}
 
-  return wrap(p, <>
-    <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    {/* Lead dots */}
-    <circle cx={cx} cy={midY} r={1.5} fill={stroke(p)} />
-    <circle cx={cx + pw} cy={midY} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={cx + pw / 2} y={cy + 2} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+/**
+ * Render a two-terminal component: draws the component body horizontally
+ * centered at origin, then transforms it to the correct position/angle.
+ * `bodyFn(len, w)` returns SVG elements drawn horizontally from (-len/2, 0) to (len/2, 0).
+ */
+function TwoTerminal(p: ShapeRenderProps, bodyFn: (len: number, w: number) => React.ReactNode) {
+  const t = getTerminals(p);
+  const w = sw(p);
+  return wrap(p, <g transform={`translate(${t.midX},${t.midY}) rotate(${t.angle})`}>
+    {bodyFn(t.len, w)}
+    {/* Terminal dots */}
+    <circle cx={-t.len / 2} cy={0} r={2} fill={stroke(p)} />
+    <circle cx={t.len / 2} cy={0} r={2} fill={stroke(p)} />
+    {/* Label above */}
+    {p.shape.label && <text x={0} y={-8} textAnchor="middle" fontSize={fs(p) * 0.85}
+      fill={stroke(p)} pointerEvents="none" transform={t.angle > 90 || t.angle < -90 ? "scale(1,-1)" : ""}>{p.shape.label}</text>}
+  </g>);
+}
+
+function RenderResistor(p: ShapeRenderProps) {
+  return TwoTerminal(p, (len, w) => {
+    const bodyL = len * 0.6, leadL = (len - bodyL) / 2;
+    const peaks = 6, segW = bodyL / peaks, amp = 6;
+    let d = `M${-len / 2},0 L${-len / 2 + leadL},0`;
+    for (let i = 0; i < peaks; i++) {
+      d += ` L${-len / 2 + leadL + (i + 0.5) * segW},${(i % 2 === 0 ? -1 : 1) * amp}`;
+    }
+    d += ` L${len / 2 - leadL},0 L${len / 2},0`;
+    return <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+  });
 }
 
 function RenderCapacitor(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const midX = cx + pw / 2;
-  const midY = cy + ph / 2;
-  const gap = Math.max(3, pw * 0.06); // gap between plates
-  const plateH = ph * 0.65;
-
-  return wrap(p, <>
-    {/* Left lead */}
-    <line x1={cx} y1={midY} x2={midX - gap} y2={midY} stroke={stroke(p)} strokeWidth={w} />
-    {/* Left plate */}
-    <line x1={midX - gap} y1={midY - plateH / 2} x2={midX - gap} y2={midY + plateH / 2}
-      stroke={stroke(p)} strokeWidth={w * 1.8} strokeLinecap="round" />
-    {/* Right plate */}
-    <line x1={midX + gap} y1={midY - plateH / 2} x2={midX + gap} y2={midY + plateH / 2}
-      stroke={stroke(p)} strokeWidth={w * 1.8} strokeLinecap="round" />
-    {/* Right lead */}
-    <line x1={midX + gap} y1={midY} x2={cx + pw} y2={midY} stroke={stroke(p)} strokeWidth={w} />
-    {/* Lead dots */}
-    <circle cx={cx} cy={midY} r={1.5} fill={stroke(p)} />
-    <circle cx={cx + pw} cy={midY} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={midX} y={cy + 2} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+  return TwoTerminal(p, (len, w) => {
+    const gap = Math.max(3, len * 0.04);
+    const plateH = 10;
+    return <>
+      <line x1={-len / 2} y1={0} x2={-gap} y2={0} stroke={stroke(p)} strokeWidth={w} />
+      <line x1={-gap} y1={-plateH} x2={-gap} y2={plateH} stroke={stroke(p)} strokeWidth={w * 1.8} strokeLinecap="round" />
+      <line x1={gap} y1={-plateH} x2={gap} y2={plateH} stroke={stroke(p)} strokeWidth={w * 1.8} strokeLinecap="round" />
+      <line x1={gap} y1={0} x2={len / 2} y2={0} stroke={stroke(p)} strokeWidth={w} />
+    </>;
+  });
 }
 
 function RenderInductor(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const midY = cy + ph / 2;
-  const leadL = pw * 0.12;
-  const bodyStart = cx + leadL;
-  const bodyEnd = cx + pw - leadL;
-  const coils = 4;
-  const coilW = (bodyEnd - bodyStart) / coils;
-  const r = coilW / 2;
-
-  let d = `M${cx},${midY} L${bodyStart},${midY}`;
-  for (let i = 0; i < coils; i++) {
-    const sx = bodyStart + i * coilW;
-    // Semi-circle bump upward
-    d += ` A${r},${r} 0 1,1 ${sx + coilW},${midY}`;
-  }
-  d += ` L${cx + pw},${midY}`;
-
-  return wrap(p, <>
-    <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" />
-    <circle cx={cx} cy={midY} r={1.5} fill={stroke(p)} />
-    <circle cx={cx + pw} cy={midY} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={cx + pw / 2} y={cy + 2} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+  return TwoTerminal(p, (len, w) => {
+    const leadL = len * 0.12;
+    const bodyS = -len / 2 + leadL, bodyE = len / 2 - leadL;
+    const coils = 4, coilW = (bodyE - bodyS) / coils, r = coilW / 2;
+    let d = `M${-len / 2},0 L${bodyS},0`;
+    for (let i = 0; i < coils; i++) {
+      d += ` A${r},${r} 0 1,0 ${bodyS + (i + 1) * coilW},0`;
+    }
+    d += ` L${len / 2},0`;
+    return <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" />;
+  });
 }
 
 function RenderVoltageSource(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const r = Math.min(pw, ph) / 2;
-  const midX = cx + pw / 2, midY = cy + ph / 2;
-  const symbolSize = Math.max(6, r * 0.35);
-
-  return wrap(p, <>
-    <circle cx={midX} cy={midY} r={r} stroke={stroke(p)} strokeWidth={w} fill="transparent" />
-    {/* + sign */}
-    <line x1={midX - symbolSize / 2} y1={midY - r * 0.35} x2={midX + symbolSize / 2} y2={midY - r * 0.35} stroke={stroke(p)} strokeWidth={w} />
-    <line x1={midX} y1={midY - r * 0.35 - symbolSize / 2} x2={midX} y2={midY - r * 0.35 + symbolSize / 2} stroke={stroke(p)} strokeWidth={w} />
-    {/* - sign */}
-    <line x1={midX - symbolSize / 2} y1={midY + r * 0.35} x2={midX + symbolSize / 2} y2={midY + r * 0.35} stroke={stroke(p)} strokeWidth={w} />
-    {/* Leads */}
-    <line x1={midX} y1={cy} x2={midX} y2={midY - r} stroke={stroke(p)} strokeWidth={w} />
-    <line x1={midX} y1={midY + r} x2={midX} y2={cy + ph} stroke={stroke(p)} strokeWidth={w} />
-    <circle cx={midX} cy={cy} r={1.5} fill={stroke(p)} />
-    <circle cx={midX} cy={cy + ph} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={midX + r + 4} y={midY} textAnchor="start" dominantBaseline="central"
-      fontSize={fs(p) * 0.85} fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+  return TwoTerminal(p, (len, w) => {
+    const r = Math.min(len * 0.22, 12);
+    const ss = Math.max(3, r * 0.35);
+    return <>
+      <line x1={-len / 2} y1={0} x2={-r} y2={0} stroke={stroke(p)} strokeWidth={w} />
+      <circle cx={0} cy={0} r={r} stroke={stroke(p)} strokeWidth={w} fill="transparent" />
+      {/* + */}
+      <line x1={-ss / 2} y1={-r * 0.35} x2={ss / 2} y2={-r * 0.35} stroke={stroke(p)} strokeWidth={w} />
+      <line x1={0} y1={-r * 0.35 - ss / 2} x2={0} y2={-r * 0.35 + ss / 2} stroke={stroke(p)} strokeWidth={w} />
+      {/* - */}
+      <line x1={-ss / 2} y1={r * 0.35} x2={ss / 2} y2={r * 0.35} stroke={stroke(p)} strokeWidth={w} />
+      <line x1={r} y1={0} x2={len / 2} y2={0} stroke={stroke(p)} strokeWidth={w} />
+    </>;
+  });
 }
 
 function RenderCurrentSource(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const r = Math.min(pw, ph) / 2;
-  const midX = cx + pw / 2, midY = cy + ph / 2;
-  const arrLen = r * 0.5;
-
-  return wrap(p, <>
-    <circle cx={midX} cy={midY} r={r} stroke={stroke(p)} strokeWidth={w} fill="transparent" />
-    {/* Arrow inside */}
-    <line x1={midX} y1={midY + arrLen} x2={midX} y2={midY - arrLen} stroke={stroke(p)} strokeWidth={w} />
-    <path d={`M${midX - 3},${midY - arrLen + 4} L${midX},${midY - arrLen} L${midX + 3},${midY - arrLen + 4}`}
-      stroke={stroke(p)} strokeWidth={w} fill="none" />
-    {/* Leads */}
-    <line x1={midX} y1={cy} x2={midX} y2={midY - r} stroke={stroke(p)} strokeWidth={w} />
-    <line x1={midX} y1={midY + r} x2={midX} y2={cy + ph} stroke={stroke(p)} strokeWidth={w} />
-    <circle cx={midX} cy={cy} r={1.5} fill={stroke(p)} />
-    <circle cx={midX} cy={cy + ph} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={midX + r + 4} y={midY} textAnchor="start" dominantBaseline="central"
-      fontSize={fs(p) * 0.85} fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+  return TwoTerminal(p, (len, w) => {
+    const r = Math.min(len * 0.22, 12);
+    const aL = r * 0.5;
+    return <>
+      <line x1={-len / 2} y1={0} x2={-r} y2={0} stroke={stroke(p)} strokeWidth={w} />
+      <circle cx={0} cy={0} r={r} stroke={stroke(p)} strokeWidth={w} fill="transparent" />
+      <line x1={0} y1={aL} x2={0} y2={-aL} stroke={stroke(p)} strokeWidth={w} />
+      <path d={`M-3,${-aL + 4} L0,${-aL} L3,${-aL + 4}`} stroke={stroke(p)} strokeWidth={w} fill="none" />
+      <line x1={r} y1={0} x2={len / 2} y2={0} stroke={stroke(p)} strokeWidth={w} />
+    </>;
+  });
 }
 
 function RenderGround(p: ShapeRenderProps) {
   const { cx, cy, pw, ph } = p;
   const w = sw(p);
   const midX = cx + pw / 2;
-
   return wrap(p, <>
     <line x1={midX} y1={cy} x2={midX} y2={cy + ph * 0.25} stroke={stroke(p)} strokeWidth={w} />
     <line x1={cx + pw * 0.1} y1={cy + ph * 0.25} x2={cx + pw * 0.9} y2={cy + ph * 0.25} stroke={stroke(p)} strokeWidth={w} />
@@ -339,73 +311,45 @@ function RenderGround(p: ShapeRenderProps) {
 }
 
 function RenderSwitch(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const midY = cy + ph / 2;
-  const dotR = 2.5;
-
-  return wrap(p, <>
-    {/* Left lead */}
-    <line x1={cx} y1={midY} x2={cx + pw * 0.3} y2={midY} stroke={stroke(p)} strokeWidth={w} />
-    {/* Left contact dot */}
-    <circle cx={cx + pw * 0.3} cy={midY} r={dotR} fill={stroke(p)} />
-    {/* Switch arm (open) */}
-    <line x1={cx + pw * 0.3} y1={midY} x2={cx + pw * 0.65} y2={midY - ph * 0.4}
-      stroke={stroke(p)} strokeWidth={w} strokeLinecap="round" />
-    {/* Right contact dot */}
-    <circle cx={cx + pw * 0.7} cy={midY} r={dotR} fill={stroke(p)} />
-    {/* Right lead */}
-    <line x1={cx + pw * 0.7} y1={midY} x2={cx + pw} y2={midY} stroke={stroke(p)} strokeWidth={w} />
-    <circle cx={cx} cy={midY} r={1.5} fill={stroke(p)} />
-    <circle cx={cx + pw} cy={midY} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={cx + pw / 2} y={cy + 2} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+  return TwoTerminal(p, (len, w) => {
+    const cL = len * 0.3, cR = len * 0.3;
+    return <>
+      <line x1={-len / 2} y1={0} x2={-len / 2 + cL} y2={0} stroke={stroke(p)} strokeWidth={w} />
+      <circle cx={-len / 2 + cL} cy={0} r={2.5} fill={stroke(p)} />
+      <line x1={-len / 2 + cL} y1={0} x2={len / 2 - cR * 0.5} y2={-8} stroke={stroke(p)} strokeWidth={w} strokeLinecap="round" />
+      <circle cx={len / 2 - cR} cy={0} r={2.5} fill={stroke(p)} />
+      <line x1={len / 2 - cR} y1={0} x2={len / 2} y2={0} stroke={stroke(p)} strokeWidth={w} />
+    </>;
+  });
 }
 
 function RenderDiode(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const midX = cx + pw / 2, midY = cy + ph / 2;
-  const triW = pw * 0.2, triH = ph * 0.5;
-
-  return wrap(p, <>
-    <line x1={cx} y1={midY} x2={midX - triW} y2={midY} stroke={stroke(p)} strokeWidth={w} />
-    {/* Triangle */}
-    <polygon points={`${midX - triW},${midY - triH / 2} ${midX - triW},${midY + triH / 2} ${midX + triW},${midY}`}
-      stroke={stroke(p)} strokeWidth={w} fill="transparent" strokeLinejoin="round" />
-    {/* Bar */}
-    <line x1={midX + triW} y1={midY - triH / 2} x2={midX + triW} y2={midY + triH / 2} stroke={stroke(p)} strokeWidth={w * 1.3} />
-    <line x1={midX + triW} y1={midY} x2={cx + pw} y2={midY} stroke={stroke(p)} strokeWidth={w} />
-    <circle cx={cx} cy={midY} r={1.5} fill={stroke(p)} />
-    <circle cx={cx + pw} cy={midY} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={midX} y={cy + 2} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+  return TwoTerminal(p, (len, w) => {
+    const triW = len * 0.15, triH = 8;
+    return <>
+      <line x1={-len / 2} y1={0} x2={-triW} y2={0} stroke={stroke(p)} strokeWidth={w} />
+      <polygon points={`${-triW},${-triH} ${-triW},${triH} ${triW},0`}
+        stroke={stroke(p)} strokeWidth={w} fill="transparent" strokeLinejoin="round" />
+      <line x1={triW} y1={-triH} x2={triW} y2={triH} stroke={stroke(p)} strokeWidth={w * 1.3} />
+      <line x1={triW} y1={0} x2={len / 2} y2={0} stroke={stroke(p)} strokeWidth={w} />
+    </>;
+  });
 }
 
 function RenderLED(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const midX = cx + pw / 2, midY = cy + ph / 2;
-  const triW = pw * 0.2, triH = ph * 0.5;
-
-  return wrap(p, <>
-    <line x1={cx} y1={midY} x2={midX - triW} y2={midY} stroke={stroke(p)} strokeWidth={w} />
-    <polygon points={`${midX - triW},${midY - triH / 2} ${midX - triW},${midY + triH / 2} ${midX + triW},${midY}`}
-      stroke={stroke(p)} strokeWidth={w} fill="transparent" strokeLinejoin="round" />
-    <line x1={midX + triW} y1={midY - triH / 2} x2={midX + triW} y2={midY + triH / 2} stroke={stroke(p)} strokeWidth={w * 1.3} />
-    <line x1={midX + triW} y1={midY} x2={cx + pw} y2={midY} stroke={stroke(p)} strokeWidth={w} />
-    {/* Light arrows */}
-    <line x1={midX + triW * 0.5} y1={midY - triH * 0.6} x2={midX + triW * 1.2} y2={midY - triH * 0.9}
-      stroke={stroke(p)} strokeWidth={w * 0.7} markerEnd={`url(#${arrowMarkerId(p.shape.id, "end")})`} />
-    <line x1={midX + triW * 0.8} y1={midY - triH * 0.5} x2={midX + triW * 1.5} y2={midY - triH * 0.8}
-      stroke={stroke(p)} strokeWidth={w * 0.7} />
-    <circle cx={cx} cy={midY} r={1.5} fill={stroke(p)} />
-    <circle cx={cx + pw} cy={midY} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={midX} y={cy + 2} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+  return TwoTerminal(p, (len, w) => {
+    const triW = len * 0.15, triH = 8;
+    return <>
+      <line x1={-len / 2} y1={0} x2={-triW} y2={0} stroke={stroke(p)} strokeWidth={w} />
+      <polygon points={`${-triW},${-triH} ${-triW},${triH} ${triW},0`}
+        stroke={stroke(p)} strokeWidth={w} fill="transparent" strokeLinejoin="round" />
+      <line x1={triW} y1={-triH} x2={triW} y2={triH} stroke={stroke(p)} strokeWidth={w * 1.3} />
+      <line x1={triW} y1={0} x2={len / 2} y2={0} stroke={stroke(p)} strokeWidth={w} />
+      {/* Light arrows */}
+      <line x1={triW * 0.3} y1={-triH * 1.1} x2={triW * 1.1} y2={-triH * 1.6} stroke={stroke(p)} strokeWidth={w * 0.6} />
+      <line x1={triW * 0.8} y1={-triH * 0.9} x2={triW * 1.6} y2={-triH * 1.4} stroke={stroke(p)} strokeWidth={w * 0.6} />
+    </>;
+  });
 }
 
 function RenderTransistor(p: ShapeRenderProps, npn: boolean) {
@@ -474,27 +418,18 @@ function RenderOpAmp(p: ShapeRenderProps) {
 // ══════════════════════════════════════════════════════════════════
 
 function RenderSpring(p: ShapeRenderProps) {
-  const { cx, cy, pw, ph } = p;
-  const w = sw(p);
-  const midY = cy + ph / 2;
-  const coils = 8;
-  const amp = Math.min(ph * 0.35, 6);
-  const leadL = pw * 0.08;
-  const bodyS = cx + leadL, bodyE = cx + pw - leadL;
-  const segW = (bodyE - bodyS) / coils;
-
-  let d = `M${cx},${midY} L${bodyS},${midY}`;
-  for (let i = 0; i < coils; i++) {
-    const x = bodyS + (i + 0.5) * segW;
-    d += ` L${x},${midY + (i % 2 === 0 ? -amp : amp)}`;
-  }
-  d += ` L${bodyE},${midY} L${cx + pw},${midY}`;
-
-  return wrap(p, <>
-    <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    {p.shape.label && <text x={cx + pw / 2} y={cy + 2} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
-  </>);
+  return TwoTerminal(p, (len, w) => {
+    const coils = 8, amp = 6;
+    const leadL = len * 0.08;
+    const bodyS = -len / 2 + leadL, bodyE = len / 2 - leadL;
+    const segW = (bodyE - bodyS) / coils;
+    let d = `M${-len / 2},0 L${bodyS},0`;
+    for (let i = 0; i < coils; i++) {
+      d += ` L${bodyS + (i + 0.5) * segW},${(i % 2 === 0 ? -1 : 1) * amp}`;
+    }
+    d += ` L${bodyE},0 L${len / 2},0`;
+    return <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+  });
 }
 
 function RenderMass(p: ShapeRenderProps) {
