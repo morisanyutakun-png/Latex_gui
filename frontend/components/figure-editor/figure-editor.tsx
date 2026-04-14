@@ -26,6 +26,7 @@ import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { LayersPanel } from "./layers-panel";
 import { CommandPalette } from "./command-palette";
+import { HelpTip } from "./help-tip";
 
 function useIsJa() {
   if (typeof window === "undefined") return false;
@@ -252,38 +253,46 @@ export function FigureEditor() {
         {/* Right — actions */}
         <div className="flex items-center gap-1.5">
           {/* Command palette (Cmd+K) */}
-          <button
-            onClick={() => setShowPalette(true)}
-            className="flex items-center gap-1.5 h-7 pl-2 pr-1.5 rounded-lg text-foreground/40 hover:text-foreground/65 hover:bg-foreground/[0.04] transition-colors"
-            title={isJa ? "コマンドパレット (⌘K)" : "Command palette (⌘K)"}
-          >
-            <Command size={12} />
-            <kbd className="text-[8.5px] font-mono bg-foreground/[0.06] px-1 py-px rounded">⌘K</kbd>
-          </button>
+          <HelpTip title={isJa ? "コマンドパレット" : "Command palette"} kbd="⌘K"
+            description={isJa ? "あらゆるツール・アクション・図形を検索して実行" : "Search and run any tool, action, or shape"}>
+            <button
+              onClick={() => setShowPalette(true)}
+              className="flex items-center gap-1.5 h-7 pl-2 pr-1.5 rounded-lg text-foreground/40 hover:text-foreground/65 hover:bg-foreground/[0.04] transition-colors"
+            >
+              <Command size={12} />
+              <kbd className="text-[8.5px] font-mono bg-foreground/[0.06] px-1 py-px rounded">⌘K</kbd>
+            </button>
+          </HelpTip>
 
           {/* Layers toggle */}
-          <button
-            onClick={() => setShowLayers(!showLayers)}
-            className={`p-1.5 rounded-lg transition-colors ${
-              showLayers ? "text-teal-600 bg-teal-50 dark:bg-teal-500/10" : "text-foreground/30 hover:text-foreground/50 hover:bg-foreground/[0.04]"
-            }`}
-            title={isJa ? "レイヤー" : "Layers"}
-          >
-            <Layers size={14} />
-          </button>
+          <HelpTip title={isJa ? "レイヤーパネル" : "Layers panel"}
+            description={isJa ? "全図形の一覧・並び替え・ロック・表示切替" : "List, reorder, lock, and toggle visibility of all shapes"}>
+            <button
+              onClick={() => setShowLayers(!showLayers)}
+              className={`p-1.5 rounded-lg transition-colors ${
+                showLayers ? "text-teal-600 bg-teal-50 dark:bg-teal-500/10" : "text-foreground/30 hover:text-foreground/50 hover:bg-foreground/[0.04]"
+              }`}
+            >
+              <Layers size={14} />
+            </button>
+          </HelpTip>
 
           {/* Shortcuts help */}
+          <HelpTip title={isJa ? "ショートカットヘルプ" : "Keyboard shortcuts"}
+            description={isJa ? "全キーボード操作の一覧を表示" : "Show the list of keyboard shortcuts"}>
           <button
             onClick={() => setShowShortcuts(!showShortcuts)}
             className={`p-1.5 rounded-lg transition-colors ${
               showShortcuts ? "text-teal-600 bg-teal-50 dark:bg-teal-500/10" : "text-foreground/30 hover:text-foreground/50 hover:bg-foreground/[0.04]"
             }`}
-            title={isJa ? "ショートカット" : "Keyboard shortcuts"}
           >
             <Keyboard size={14} />
           </button>
+          </HelpTip>
 
           {/* TikZ code toggle */}
+          <HelpTip title={isJa ? "TikZコード表示" : "Show TikZ code"}
+            description={isJa ? "生成されたTikZソースを下部に表示" : "Reveal the generated TikZ source at the bottom"}>
           <button
             onClick={() => setShowCode(!showCode)}
             className={`flex items-center gap-1 h-7 px-2.5 rounded-lg text-[10px] font-semibold transition-all ${
@@ -295,8 +304,11 @@ export function FigureEditor() {
             <Code2 size={12} />
             <span>TikZ</span>
           </button>
+          </HelpTip>
 
           {/* Copy */}
+          <HelpTip title={isJa ? "TikZをコピー" : "Copy TikZ"}
+            description={isJa ? "生成コードをクリップボードにコピー" : "Copy the generated code to clipboard"}>
           <button
             onClick={handleCopy}
             disabled={shapes.length === 0}
@@ -305,21 +317,26 @@ export function FigureEditor() {
             {copied ? <Check size={12} className="text-green-500" /> : <ClipboardCopy size={12} />}
             <span>{copied ? (isJa ? "済" : "Done") : (isJa ? "コピー" : "Copy")}</span>
           </button>
+          </HelpTip>
 
           {/* Download PDF (figure alone) */}
+          <HelpTip title={isJa ? "図だけをPDF化" : "Figure → PDF"}
+            description={isJa ? "現在の図を standalone PDFとしてダウンロード" : "Export just this figure as a standalone PDF"}>
           <button
             onClick={handleDownloadPDF}
             disabled={shapes.length === 0 || downloadingPdf}
             className="flex items-center gap-1 h-7 px-2.5 rounded-lg text-[10px] font-semibold text-foreground/40 hover:bg-foreground/[0.04] hover:text-foreground/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            title={isJa ? "この図のみをPDFでダウンロード" : "Download this figure as a standalone PDF"}
           >
             {downloadingPdf ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
             <span>{downloadingPdf ? (isJa ? "生成中" : "...") : (isJa ? "PDF" : "PDF")}</span>
           </button>
+          </HelpTip>
 
           <div className="w-px h-5 bg-foreground/[0.08] mx-0.5" />
 
           {/* Insert */}
+          <HelpTip title={isJa ? "LaTeX文書に挿入" : "Insert into LaTeX document"}
+            description={isJa ? "選んだサイズで図をエディタに挿入" : "Drop the figure into the editor at the chosen size"}>
           <button
             onClick={handleInsert}
             disabled={shapes.length === 0}
@@ -328,15 +345,18 @@ export function FigureEditor() {
             <ImagePlus size={13} />
             <span>{isJa ? "挿入" : "Insert"}</span>
           </button>
+          </HelpTip>
 
           {/* Close */}
+          <HelpTip title={isJa ? "図エディタを閉じる" : "Close figure editor"}
+            description={isJa ? "確認して戻る (編集中は警告)" : "Returns to the main editor (prompts if unsaved)"}>
           <button
             onClick={handleClose}
             className="h-7 w-7 flex items-center justify-center rounded-lg text-foreground/35 hover:text-foreground/60 hover:bg-foreground/[0.04] transition-colors"
-            title={isJa ? "閉じる" : "Close"}
           >
             <X size={16} />
           </button>
+          </HelpTip>
         </div>
       </header>
 

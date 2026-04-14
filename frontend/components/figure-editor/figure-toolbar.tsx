@@ -27,6 +27,7 @@ import {
   Undo2, Redo2, Trash2, Copy, Grid3x3, Magnet, MoveVertical, MoveDown,
   Search, X,
 } from "lucide-react";
+import { HelpTip } from "./help-tip";
 
 function useIsJa() {
   if (typeof window === "undefined") return false;
@@ -293,31 +294,33 @@ function ShapePreview({ kind, size = 24, color = "currentColor" }: PreviewProps 
 // ══════════════════════════════════════════════════════════════════
 
 function ToolBtn({
-  icon, label, active, onClick, kbd,
+  icon, label, description, active, onClick, kbd,
 }: {
   icon: React.ReactNode;
   label: string;
+  description?: string;
   active: boolean;
   onClick: () => void;
   kbd?: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={kbd ? `${label}  (${kbd})` : label}
-      className={`relative flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150 group ${
-        active
-          ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30 scale-105"
-          : "text-foreground/55 hover:bg-foreground/[0.06] hover:text-foreground/85"
-      }`}
-    >
-      {icon}
-      {kbd && !active && (
-        <span className="absolute -bottom-0.5 right-0.5 text-[7px] font-mono font-semibold text-foreground/25 group-hover:text-foreground/50 transition-colors">
-          {kbd}
-        </span>
-      )}
-    </button>
+    <HelpTip title={label} description={description} kbd={kbd} side="bottom">
+      <button
+        onClick={onClick}
+        className={`relative flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150 group ${
+          active
+            ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30 scale-105"
+            : "text-foreground/55 hover:bg-foreground/[0.06] hover:text-foreground/85"
+        }`}
+      >
+        {icon}
+        {kbd && !active && (
+          <span className="absolute -bottom-0.5 right-0.5 text-[7px] font-mono font-semibold text-foreground/25 group-hover:text-foreground/50 transition-colors">
+            {kbd}
+          </span>
+        )}
+      </button>
+    </HelpTip>
   );
 }
 
@@ -334,9 +337,13 @@ function PaletteItemBtn({
   onClick: () => void;
 }) {
   return (
+    <HelpTip
+      title={isJa ? item.labelJa : item.label}
+      description={isJa ? item.descriptionJa : item.description}
+      side="right"
+    >
     <button
       onClick={onClick}
-      title={isJa ? (item.descriptionJa || item.labelJa) : (item.description || item.label)}
       className={`group relative flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-all duration-150 ${
         active
           ? "bg-blue-500/10 ring-1 ring-blue-500/50 shadow-sm"
@@ -354,6 +361,7 @@ function PaletteItemBtn({
         {isJa ? item.labelJa : item.label}
       </span>
     </button>
+    </HelpTip>
   );
 }
 
@@ -400,7 +408,7 @@ export function FigureToolbar() {
   }, [query, activeCategory]);
 
   return (
-    <div className="w-[256px] shrink-0 flex flex-col border-r border-foreground/[0.06] bg-background/85 backdrop-blur-sm overflow-hidden">
+    <div className="w-[256px] shrink-0 my-2 ml-2 mr-0 flex flex-col rounded-xl border border-foreground/[0.08] bg-background/95 backdrop-blur-md shadow-lg shadow-foreground/[0.05] overflow-hidden ring-1 ring-foreground/[0.03]">
 
       {/* ══════ Search ══════ */}
       <div className="px-2.5 pt-2.5 pb-1.5">
@@ -424,35 +432,58 @@ export function FigureToolbar() {
       {/* ══════ Primary tools ══════ */}
       <div className="px-2.5 pb-1.5 flex items-center gap-0.5 flex-wrap">
         <ToolBtn icon={<MousePointer2 size={16} />} label={isJa ? "選択" : "Select"} kbd="V"
+          description={isJa ? "クリックで掴む、空白をドラッグで複数選択" : "Click to grab shapes, drag empty space to marquee-select"}
           active={activeTool === "select"} onClick={() => setActiveTool("select")} />
         <div className="w-px h-5 bg-foreground/[0.08] mx-0.5" />
         <ToolBtn icon={<Square size={15} />} label={isJa ? "四角形" : "Rectangle"} kbd="R"
+          description={isJa ? "対角の2点をクリックして描画" : "Click two opposite corners"}
           active={activeTool === "rect"} onClick={() => setActiveTool("rect")} />
         <ToolBtn icon={<Circle size={15} />} label={isJa ? "円" : "Circle"} kbd="C"
+          description={isJa ? "外接矩形の2点をクリック" : "Click two points of the bounding box"}
           active={activeTool === "circle"} onClick={() => setActiveTool("circle")} />
         <ToolBtn icon={<Minus size={15} />} label={isJa ? "直線" : "Line"} kbd="L"
+          description={isJa ? "始点・終点をクリック (Shiftで15°刻み)" : "Click start, then end (Shift to snap 15°)"}
           active={activeTool === "line"} onClick={() => setActiveTool("line")} />
-        <ToolBtn icon={<ArrowRight size={15} />} label={isJa ? "矢印" : "Arrow"}
+        <ToolBtn icon={<ArrowRight size={15} />} label={isJa ? "矢印" : "Arrow"} kbd="A"
+          description={isJa ? "始点から終点への矢印" : "Directional arrow between two clicks"}
           active={activeTool === "arrow"} onClick={() => setActiveTool("arrow")} />
         <ToolBtn icon={<Type size={15} />} label={isJa ? "テキスト" : "Text"} kbd="T"
+          description={isJa ? "クリックしてテキストを配置" : "Click to drop a text label"}
           active={activeTool === "text"} onClick={() => setActiveTool("text")} />
-        <ToolBtn icon={<Pen size={15} />} label={isJa ? "フリー" : "Freehand"}
+        <ToolBtn icon={<Pen size={15} />} label={isJa ? "フリーハンド" : "Freehand"}
+          description={isJa ? "ドラッグで自由に描画" : "Drag to sketch a custom path"}
           active={activeTool === "freehand"} onClick={() => setActiveTool("freehand")} />
       </div>
 
       {/* ══════ Actions ══════ */}
       <div className="mx-2.5 mb-1.5 h-8 flex items-center gap-0.5 px-1 rounded-md bg-foreground/[0.03] border border-foreground/[0.05]">
-        <IconBtn onClick={undo} disabled={past.length === 0} title={isJa ? "元に戻す (Ctrl+Z)" : "Undo (Ctrl+Z)"}><Undo2 size={13} /></IconBtn>
-        <IconBtn onClick={redo} disabled={future.length === 0} title={isJa ? "やり直し (Ctrl+Shift+Z)" : "Redo (Ctrl+Shift+Z)"}><Redo2 size={13} /></IconBtn>
+        <IconBtn onClick={undo} disabled={past.length === 0}
+          title={isJa ? "元に戻す" : "Undo"} kbd="⌘Z"
+          description={isJa ? "直前の操作を取り消す" : "Revert the last change"}><Undo2 size={13} /></IconBtn>
+        <IconBtn onClick={redo} disabled={future.length === 0}
+          title={isJa ? "やり直し" : "Redo"} kbd="⇧⌘Z"
+          description={isJa ? "取り消した操作を再適用" : "Re-apply the undone change"}><Redo2 size={13} /></IconBtn>
         <div className="w-px h-4 bg-foreground/[0.1] mx-0.5" />
-        <IconBtn onClick={duplicateSelected} disabled={selectedIds.length === 0} title={isJa ? "複製 (Ctrl+D)" : "Duplicate (Ctrl+D)"}><Copy size={13} /></IconBtn>
-        <IconBtn onClick={deleteSelected} disabled={selectedIds.length === 0} title={isJa ? "削除 (Del)" : "Delete (Del)"} danger><Trash2 size={13} /></IconBtn>
+        <IconBtn onClick={duplicateSelected} disabled={selectedIds.length === 0}
+          title={isJa ? "複製" : "Duplicate"} kbd="⌘D"
+          description={isJa ? "選択中の図形をコピー" : "Copy the selected shapes"}><Copy size={13} /></IconBtn>
+        <IconBtn onClick={deleteSelected} disabled={selectedIds.length === 0} danger
+          title={isJa ? "削除" : "Delete"} kbd="Del"
+          description={isJa ? "選択中の図形を削除" : "Remove the selected shapes"}><Trash2 size={13} /></IconBtn>
         <div className="w-px h-4 bg-foreground/[0.1] mx-0.5" />
-        <IconBtn onClick={() => selectedIds[0] && bringForward(selectedIds[0])} disabled={selectedIds.length === 0} title={isJa ? "前面へ" : "Bring forward"}><MoveVertical size={13} /></IconBtn>
-        <IconBtn onClick={() => selectedIds[0] && sendBackward(selectedIds[0])} disabled={selectedIds.length === 0} title={isJa ? "背面へ" : "Send backward"}><MoveDown size={13} /></IconBtn>
+        <IconBtn onClick={() => selectedIds[0] && bringForward(selectedIds[0])} disabled={selectedIds.length === 0}
+          title={isJa ? "前面へ" : "Bring forward"}
+          description={isJa ? "1段上のレイヤーに移動" : "Move 1 step up in the z-stack"}><MoveVertical size={13} /></IconBtn>
+        <IconBtn onClick={() => selectedIds[0] && sendBackward(selectedIds[0])} disabled={selectedIds.length === 0}
+          title={isJa ? "背面へ" : "Send backward"}
+          description={isJa ? "1段下のレイヤーに移動" : "Move 1 step down in the z-stack"}><MoveDown size={13} /></IconBtn>
         <div className="flex-1" />
-        <IconBtn onClick={toggleShowGrid} title={isJa ? "グリッド表示" : "Toggle grid"} toggled={showGrid}><Grid3x3 size={13} /></IconBtn>
-        <IconBtn onClick={toggleSnapToGrid} title={isJa ? "グリッドスナップ" : "Snap to grid"} toggled={snapToGrid}><Magnet size={13} /></IconBtn>
+        <IconBtn onClick={toggleShowGrid} toggled={showGrid}
+          title={isJa ? "グリッド表示" : "Grid"}
+          description={isJa ? "背景の方眼を表示/非表示" : "Show or hide background grid"}><Grid3x3 size={13} /></IconBtn>
+        <IconBtn onClick={toggleSnapToGrid} toggled={snapToGrid}
+          title={isJa ? "スナップ" : "Snap"}
+          description={isJa ? "移動時にスナップを有効化" : "Enable smart snapping while moving"}><Magnet size={13} /></IconBtn>
       </div>
 
       {/* ══════ Category tabs ══════ */}
@@ -516,12 +547,14 @@ export function FigureToolbar() {
 // ══════════════════════════════════════════════════════════════════
 
 function IconBtn({
-  children, onClick, disabled, title, toggled, danger,
+  children, onClick, disabled, title, kbd, description, toggled, danger,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   title?: string;
+  kbd?: string;
+  description?: string;
   toggled?: boolean;
   danger?: boolean;
 }) {
@@ -534,8 +567,10 @@ function IconBtn({
     ? "text-foreground/50 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
     : "text-foreground/50 hover:text-foreground/85 hover:bg-foreground/[0.06]";
   return (
-    <button onClick={onClick} disabled={disabled} title={title} className={`${base} ${state}`}>
-      {children}
-    </button>
+    <HelpTip title={title} description={description} kbd={kbd} disabled={disabled}>
+      <button onClick={onClick} disabled={disabled} className={`${base} ${state}`}>
+        {children}
+      </button>
+    </HelpTip>
   );
 }

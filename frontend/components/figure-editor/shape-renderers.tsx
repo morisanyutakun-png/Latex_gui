@@ -736,6 +736,131 @@ function RenderAutomatonAccept(p: ShapeRenderProps) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+//  PHYSICS — real SVG renderings for lenses, waves, prisms, mirrors
+// ══════════════════════════════════════════════════════════════════
+
+function RenderLensConvex(p: ShapeRenderProps) {
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  const midX = cx + pw / 2;
+  const top = cy, bot = cy + ph;
+  // Two outward-bulging arcs → biconvex lens shape
+  const bulge = pw * 0.35;
+  const d = `M ${midX} ${top} Q ${midX + bulge} ${cy + ph / 2}, ${midX} ${bot} Q ${midX - bulge} ${cy + ph / 2}, ${midX} ${top} Z`;
+  return wrap(p, <>
+    <path d={d} stroke={stroke(p)} strokeWidth={w} fill={fill(p) === "transparent" ? "rgba(135,206,250,0.15)" : fill(p)} fillOpacity={fillOp(p)} />
+    {/* Optical axis dashed */}
+    <line x1={cx - pw * 0.2} y1={cy + ph / 2} x2={cx + pw * 1.2} y2={cy + ph / 2}
+      stroke={stroke(p)} strokeWidth={w * 0.4} strokeDasharray="4,3" opacity={0.4} />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
+  </>);
+}
+
+function RenderLensConcave(p: ShapeRenderProps) {
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  const midX = cx + pw / 2;
+  const top = cy, bot = cy + ph;
+  const bulge = pw * 0.35;
+  // Concave: curves go INWARD (toward midX)
+  const d = `M ${midX - bulge} ${top} Q ${midX} ${cy + ph / 2}, ${midX - bulge} ${bot} L ${midX + bulge} ${bot} Q ${midX} ${cy + ph / 2}, ${midX + bulge} ${top} Z`;
+  return wrap(p, <>
+    <path d={d} stroke={stroke(p)} strokeWidth={w} fill={fill(p) === "transparent" ? "rgba(135,206,250,0.15)" : fill(p)} fillOpacity={fillOp(p)} />
+    <line x1={cx - pw * 0.2} y1={cy + ph / 2} x2={cx + pw * 1.2} y2={cy + ph / 2}
+      stroke={stroke(p)} strokeWidth={w * 0.4} strokeDasharray="4,3" opacity={0.4} />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
+  </>);
+}
+
+function RenderPrism(p: ShapeRenderProps) {
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  // Equilateral-ish triangle pointing up
+  const pts = `${cx + pw / 2},${cy} ${cx},${cy + ph} ${cx + pw},${cy + ph}`;
+  return wrap(p, <>
+    <polygon points={pts} stroke={stroke(p)} strokeWidth={w}
+      fill={fill(p) === "transparent" ? "rgba(147,197,253,0.2)" : fill(p)}
+      fillOpacity={fillOp(p)} strokeLinejoin="round" />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
+  </>);
+}
+
+function RenderWave(p: ShapeRenderProps) {
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  const midY = cy + ph / 2;
+  const amp = ph * 0.4;
+  // Smooth sine wave over 2 periods
+  const periods = 2;
+  const samples = 40;
+  let d = `M ${cx} ${midY}`;
+  for (let i = 1; i <= samples; i++) {
+    const t = i / samples;
+    const x = cx + pw * t;
+    const y = midY - amp * Math.sin(t * Math.PI * 2 * periods);
+    d += ` L ${x} ${y}`;
+  }
+  return wrap(p, <>
+    <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" strokeLinecap="round" />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
+  </>);
+}
+
+function RenderVectorField(p: ShapeRenderProps) {
+  const { cx, cy, pw, ph, shape } = p;
+  const w = sw(p);
+  const cols = 4, rows = 3;
+  const arrowLen = Math.min(pw / cols, ph / rows) * 0.7;
+  const arrows: React.ReactNode[] = [];
+  const needArrow = needArrowEnd("vector-field", p.shape.style);
+  const markerId = `arrow-${shape.id}-end`;
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const x = cx + pw * (i + 0.5) / cols;
+      const y = cy + ph * (j + 0.5) / rows;
+      arrows.push(
+        <line key={`${i}-${j}`} x1={x - arrowLen / 2} y1={y} x2={x + arrowLen / 2} y2={y}
+          stroke={stroke(p)} strokeWidth={w * 0.7}
+          markerEnd={needArrow ? `url(#${markerId})` : undefined} />
+      );
+    }
+  }
+  return wrap(p, <>
+    {arrows}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
+  </>);
+}
+
+function RenderMirror(p: ShapeRenderProps, concave: boolean) {
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  const midY = cy + ph / 2;
+  const bulge = pw * 0.25;
+  // Concave mirror: curves toward its focal side (left); convex curves away
+  const controlX = concave ? cx + bulge : cx - bulge;
+  const d = `M ${cx} ${cy} Q ${controlX} ${midY}, ${cx} ${cy + ph}`;
+  // Hatching on the "back" side to indicate silvering
+  const hatchSide = concave ? -1 : 1;
+  const hatches: React.ReactNode[] = [];
+  const hatchCount = Math.max(3, Math.floor(ph / 8));
+  for (let i = 0; i < hatchCount; i++) {
+    const y = cy + ph * (i + 0.5) / hatchCount;
+    // Approximate x on curve at this y
+    const t = (y - cy) / ph;
+    const curveX = cx + bulge * Math.sin(Math.PI * t) * (concave ? 1 : -1);
+    hatches.push(
+      <line key={i} x1={curveX} y1={y} x2={curveX + hatchSide * 5} y2={y - 5}
+        stroke={stroke(p)} strokeWidth={w * 0.5} opacity={0.6} />
+    );
+  }
+  return wrap(p, <>
+    <path d={d} stroke={stroke(p)} strokeWidth={w * 1.3} fill="none" strokeLinecap="round" />
+    {hatches}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
+  </>);
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  CHEMISTRY
 // ══════════════════════════════════════════════════════════════════
 
@@ -782,7 +907,8 @@ export function ShapeRenderer(p: ShapeRenderProps) {
     case "line": case "polyline": case "arrow": case "force-arrow": case "vector":
     case "reaction-arrow": case "bond-single": case "bond-double": case "bond-triple":
       return <RenderLine {...p} />;
-    case "polygon": case "prism": return <RenderPolygon {...p} />;
+    case "polygon": return <RenderPolygon {...p} />;
+    case "prism": return <RenderPrism {...p} />;
     case "text": return <RenderText {...p} />;
     case "freehand": return <RenderFreehand {...p} />;
     case "arc": return <RenderCircle {...p} />;
@@ -811,10 +937,12 @@ export function ShapeRenderer(p: ShapeRenderProps) {
     case "moment": return RenderGenericDomain(p, "M");
 
     // Physics
-    case "wave": return RenderGenericDomain(p, "~Wave~");
-    case "lens-convex": return RenderGenericDomain(p, "Convex");
-    case "lens-concave": return RenderGenericDomain(p, "Concave");
-    case "vector-field": return RenderGenericDomain(p, "Field");
+    case "wave": return <RenderWave {...p} />;
+    case "lens-convex": return <RenderLensConvex {...p} />;
+    case "lens-concave": return <RenderLensConcave {...p} />;
+    case "vector-field": return <RenderVectorField {...p} />;
+    case "mirror-concave": return RenderMirror(p, true);
+    case "mirror-convex": return RenderMirror(p, false);
 
     // Math
     case "axes": return RenderGenericDomain(p, "Axes");

@@ -20,6 +20,7 @@ import { getPaletteItem } from "./domain-palettes";
 import { ZoomIn, ZoomOut, Maximize2, HelpCircle, Grid3x3, Magnet, Layers, Trash2, Copy, Palette, RotateCw, Lock, Unlock } from "lucide-react";
 import { IPE_COLORS } from "./types";
 import { useI18n } from "@/lib/i18n";
+import { HelpTip } from "./help-tip";
 
 const PX_PER_CM = 50;
 
@@ -37,7 +38,9 @@ function snapV(v: number, g: number, on: boolean): number {
 
 // ── Zoom steps ──────────────────────────────────────────────────
 
-const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+const ZOOM_STEPS = [0.1, 0.15, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8, 12];
+const MAX_ZOOM = 12;
+const MIN_ZOOM = 0.1;
 function nextZoom(cur: number, dir: 1 | -1): number {
   const i = ZOOM_STEPS.findIndex((z) => z >= cur - 0.01);
   const n = i + dir;
@@ -331,6 +334,10 @@ export function FigureCanvas() {
   const [showQuickColors, setShowQuickColors] = useState(false);
   /** Pulse trigger — increments on each new selection to re-fire the CSS animation */
   const [pulseToken, setPulseToken] = useState(0);
+  /** IPE auto-angle mode: when on, line-drawing always snaps to multiples of 15° */
+  const [autoAngle, setAutoAngle] = useState(false);
+  const autoAngleRef = useRef(false);
+  useEffect(() => { autoAngleRef.current = autoAngle; }, [autoAngle]);
 
   // Pulse on selection change (only for newly added shapes — not when clearing)
   useEffect(() => {
@@ -540,20 +547,59 @@ export function FigureCanvas() {
     if (!showGrid) return null;
     const lines: React.ReactNode[] = [];
     const step = gridSize * scale;
-    for (let x = 0; x <= canvasWidth / gridSize; x++) {
-      const px = x * step + offsetX;
-      const major = (x * gridSize) % 1 === 0;
-      lines.push(<line key={`gv${x}`} x1={px} y1={offsetY} x2={px} y2={canvasHeight * scale + offsetY}
-        stroke={major ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0.04)"} strokeWidth={major ? 0.7 : 0.3} />);
+
+    // ── Visible TikZ range (infinite grid: renders across the whole viewport) ──
+    // Clamp step so we don't draw 10,000 sub-lines when zoomed way out
+    const minPxStep = 6; // don't draw lines closer than 6px apart
+    const effectiveGridCm = Math.max(gridSize, minPxStep / scale);
+    const effectiveStep = effectiveGridCm * scale;
+
+    const viewW = containerSize.w;
+    const viewH = containerSize.h;
+    // TikZ coordinates visible on screen
+    const tikzXMin = -offsetX / scale;
+    const tikzXMax = (viewW - offsetX) / scale;
+    const tikzYMin = canvasHeight - (viewH - offsetY) / scale;
+    const tikzYMax = canvasHeight - (-offsetY) / scale;
+
+    const xStart = Math.floor(tikzXMin / effectiveGridCm) * effectiveGridCm;
+    const xEnd   = Math.ceil(tikzXMax / effectiveGridCm) * effectiveGridCm;
+    const yStart = Math.floor(tikzYMin / effectiveGridCm) * effectiveGridCm;
+    const yEnd   = Math.ceil(tikzYMax / effectiveGridCm) * effectiveGridCm;
+
+    const MAX_LINES = 400;  // safety cap
+    let count = 0;
+
+    for (let x = xStart; x <= xEnd && count < MAX_LINES; x += effectiveGridCm, count++) {
+      const px = x * scale + offsetX;
+      const rounded = Math.round(x * 100) / 100;
+      const major = Math.abs(rounded - Math.round(rounded)) < 0.01;
+      const cmMarker = Math.abs(rounded % 5) < 0.01;  // every 5cm — stronger emphasis
+      lines.push(<line key={`gv${rounded}`} x1={px} y1={0} x2={px} y2={viewH}
+        stroke={cmMarker ? "rgba(0,0,0,0.16)" : major ? "rgba(0,0,0,0.09)" : "rgba(0,0,0,0.035)"}
+        strokeWidth={cmMarker ? 0.8 : major ? 0.6 : 0.3} />);
     }
-    for (let y = 0; y <= canvasHeight / gridSize; y++) {
-      const py = y * step + offsetY;
-      const major = (y * gridSize) % 1 === 0;
-      lines.push(<line key={`gh${y}`} x1={offsetX} y1={py} x2={canvasWidth * scale + offsetX} y2={py}
-        stroke={major ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0.04)"} strokeWidth={major ? 0.7 : 0.3} />);
+    count = 0;
+    for (let y = yStart; y <= yEnd && count < MAX_LINES; y += effectiveGridCm, count++) {
+      // Convert TikZ y to screen y (flipped)
+      const py = (canvasHeight - y) * scale + offsetY;
+      const rounded = Math.round(y * 100) / 100;
+      const major = Math.abs(rounded - Math.round(rounded)) < 0.01;
+      const cmMarker = Math.abs(rounded % 5) < 0.01;
+      lines.push(<line key={`gh${rounded}`} x1={0} y1={py} x2={viewW} y2={py}
+        stroke={cmMarker ? "rgba(0,0,0,0.16)" : major ? "rgba(0,0,0,0.09)" : "rgba(0,0,0,0.035)"}
+        strokeWidth={cmMarker ? 0.8 : major ? 0.6 : 0.3} />);
     }
+
+    // Highlight origin (0,0) axes slightly stronger
+    const [ox, oy] = tikzToCanvas(0, 0, canvasHeight, zoom, offsetX, offsetY);
+    if (ox >= 0 && ox <= viewW) lines.push(
+      <line key="axis-y" x1={ox} y1={0} x2={ox} y2={viewH} stroke="rgba(59,130,246,0.2)" strokeWidth={1} />);
+    if (oy >= 0 && oy <= viewH) lines.push(
+      <line key="axis-x" x1={0} y1={oy} x2={viewW} y2={oy} stroke="rgba(59,130,246,0.2)" strokeWidth={1} />);
+
     return <g>{lines}</g>;
-  }, [showGrid, gridSize, scale, canvasWidth, canvasHeight, offsetX, offsetY]);
+  }, [showGrid, gridSize, scale, canvasHeight, zoom, offsetX, offsetY, containerSize]);
 
   // ── Rulers ────────────────────────────────────────────────────
 
@@ -679,7 +725,9 @@ export function FigureCanvas() {
       }
       // Second click → create shape from pendingStart to this click.
       // If Shift is held & tool is line-like, prefer the angle-snapped previewEnd.
-      const useEnd = (e.shiftKey && previewEnd && classifyTool(activeTool) === "line")
+      // Always prefer the snap-adjusted previewEnd if available — it already accounts for
+      // Shift (forced), auto-angle mode, and auto-pull to cardinal/15° multiples.
+      const useEnd = (previewEnd && classifyTool(activeTool) === "line" && !e.altKey)
         ? previewEnd : { x: sx, y: sy };
       const s = pendingStart, end = useEnd;
       const dx = end.x - s.x, dy = end.y - s.y;
@@ -739,28 +787,35 @@ export function FigureCanvas() {
       const isLineTool = classifyTool(activeTool) === "line";
       const dx = sx - pendingStart.x, dy = sy - pendingStart.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      const rawAngle = Math.atan2(dy, dx) * 180 / Math.PI;
 
       if (isLineTool && dist > 0.01) {
-        if (e.shiftKey) {
-          // Shift → snap to wide IPE preset angles
-          const ANGLES = [0, 22.5, 30, 45, 60, 90, 120, 135, 150, 180, -22.5, -30, -45, -60, -90, -120, -135, -150];
-          const snapped = ANGLES.reduce((best, a) =>
-            Math.abs(a - angle) < Math.abs(best - angle) ? a : best);
-          const rad = snapped * Math.PI / 180;
+        // IPE auto-angle: every 15°, within ±2° tolerance even without modifier
+        // Shift: tight-snap to every 15° regardless of distance from angle
+        // Alt: disable all angle snap (free rotation)
+        const SNAP_STEP = 15;
+        let targetAngle: number | null = null;
+        if (e.altKey) {
+          targetAngle = null;  // free angle
+        } else if (e.shiftKey || autoAngleRef.current) {
+          // Hard snap to nearest multiple of 15° (IPE: Shift forces this)
+          targetAngle = Math.round(rawAngle / SNAP_STEP) * SNAP_STEP;
+        } else {
+          // Auto-pull: only snap if close (within ±2.5°) to a 15° multiple → gentle assist
+          const nearest = Math.round(rawAngle / SNAP_STEP) * SNAP_STEP;
+          if (Math.abs(rawAngle - nearest) < 2.5) targetAngle = nearest;
+          // Stronger pull for cardinal/common angles (0/45/90) with wider tolerance
+          const strongCardinals = [0, 45, 90, 135, 180, -45, -90, -135];
+          for (const c of strongCardinals) {
+            const d1 = Math.min(Math.abs(rawAngle - c), Math.abs(rawAngle - c + 360), Math.abs(rawAngle - c - 360));
+            if (d1 < 4) { targetAngle = c; break; }
+          }
+        }
+
+        if (targetAngle !== null) {
+          const rad = targetAngle * Math.PI / 180;
           sx = pendingStart.x + dist * Math.cos(rad);
           sy = pendingStart.y + dist * Math.sin(rad);
-        } else {
-          // Auto-straighten: if angle is within 3° of cardinal directions, snap
-          const cardinals = [0, 90, 180, -90];
-          for (const c of cardinals) {
-            if (Math.abs(angle - c) < 3 || Math.abs(angle - c + 360) < 3 || Math.abs(angle - c - 360) < 3) {
-              const rad = c * Math.PI / 180;
-              sx = pendingStart.x + dist * Math.cos(rad);
-              sy = pendingStart.y + dist * Math.sin(rad);
-              break;
-            }
-          }
         }
       }
       setPreviewEnd({ x: sx, y: sy });
@@ -1057,14 +1112,27 @@ export function FigureCanvas() {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (mode === "line") {
+      // Show angle (0..360) in addition to length
+      const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+      const angleDisplay = ((angleDeg + 360) % 360).toFixed(0);
+      // Is the angle an exact multiple of 15°? → show in highlight color
+      const isAngleSnapped = Math.abs(angleDeg - Math.round(angleDeg / 15) * 15) < 0.01;
+      const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
       return (<g>
         <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#0d9488" strokeWidth={1.5} strokeDasharray="5,3" />
         {startMarker}
         {/* End preview (follows cursor) */}
         <circle cx={x2} cy={y2} r={5} fill="white" stroke="#0d9488" strokeWidth={2} />
         <circle cx={x2} cy={y2} r={2} fill="#0d9488" />
-        {dist > 0.05 && <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 10} textAnchor="middle" fontSize="10"
-          fill="#0d9488" fontFamily="monospace" fontWeight="600">{dist.toFixed(2)} cm</text>}
+        {dist > 0.05 && (<>
+          {/* Length badge */}
+          <rect x={midX - 36} y={midY - 22} width={72} height={14} rx={3}
+            fill="white" stroke="#0d9488" strokeWidth={0.6} opacity={0.9} />
+          <text x={midX} y={midY - 12} textAnchor="middle" fontSize="10"
+            fill="#0d9488" fontFamily="monospace" fontWeight="700">
+            {dist.toFixed(2)}cm · {angleDisplay}°{isAngleSnapped ? " ⦿" : ""}
+          </text>
+        </>)}
       </g>);
     }
 
@@ -1103,10 +1171,58 @@ export function FigureCanvas() {
   let toolHint = "";
   if (activeTool !== "select" && activeTool !== "pan") {
     const mode = classifyTool(activeTool);
-    if (mode === "line")      toolHint = pendingStart ? "Click END point" : "Click START point";
-    else if (mode === "area") toolHint = pendingStart ? "Click OPPOSITE corner" : "Click FIRST corner";
-    else if (mode === "freehand") toolHint = "Drag to draw";
-    else toolHint = "Click to place";
+    if (mode === "line")
+      toolHint = pendingStart
+        ? (isJa ? "終点をクリック (Shiftで15°刻み · Altで自由)" : "Click END point (Shift: 15° snap · Alt: free)")
+        : (isJa ? "始点をクリック" : "Click START point");
+    else if (mode === "area")
+      toolHint = pendingStart
+        ? (isJa ? "対角の点をクリック" : "Click OPPOSITE corner")
+        : (isJa ? "最初の角をクリック" : "Click FIRST corner");
+    else if (mode === "freehand") toolHint = isJa ? "ドラッグで自由に描画" : "Drag to draw freely";
+    else toolHint = isJa ? "クリックして配置" : "Click to place";
+  }
+
+  // ── Context bar (bottom, persistent) — mode-aware hints ───────
+  const contextBarItems: { label: string; value: string }[] = [];
+  if (activeTool === "select") {
+    if (selectedIds.length === 0) {
+      contextBarItems.push({
+        label: isJa ? "選択モード" : "Select",
+        value: isJa ? "図形をクリックで選択 · 空白をドラッグで複数選択 · ダブルクリックでフォーカス"
+                    : "Click shape to select · drag empty area for marquee · dbl-click to focus",
+      });
+    } else {
+      contextBarItems.push({
+        label: selectedIds.length === 1 ? (isJa ? "1個選択中" : "1 shape selected") : (isJa ? `${selectedIds.length}個選択中` : `${selectedIds.length} shapes selected`),
+        value: isJa ? "矢印キー 0.5mm · ⇧+矢印 5mm · ⌘D 複製 · Del 削除"
+                    : "Arrows: 0.5mm · ⇧+arrows: 5mm · ⌘D duplicate · Del remove",
+      });
+    }
+  } else if (classifyTool(activeTool) === "line") {
+    contextBarItems.push({
+      label: isJa ? "線描画モード" : "Line drawing",
+      value: isJa ? "2点クリック · Shiftで15°刻みスナップ · Altで自由角度 · Escでキャンセル"
+                  : "Click 2 points · Shift: 15° snap · Alt: free angle · Esc: cancel",
+    });
+  } else if (classifyTool(activeTool) === "area") {
+    contextBarItems.push({
+      label: isJa ? "領域描画モード" : "Area drawing",
+      value: isJa ? "対角の2点をクリックで矩形の大きさを指定"
+                  : "Click two opposite corners to define the bounding box",
+    });
+  } else if (activeTool === "freehand") {
+    contextBarItems.push({
+      label: isJa ? "フリーハンド" : "Freehand",
+      value: isJa ? "マウスボタンを押しながらドラッグして描画"
+                  : "Hold the mouse button and drag to sketch",
+    });
+  } else {
+    contextBarItems.push({
+      label: isJa ? "配置モード" : "Placement",
+      value: isJa ? "キャンバスをクリックして図形を配置"
+                  : "Click on the canvas to drop the shape",
+    });
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1361,6 +1477,23 @@ export function FigureCanvas() {
       })()}
 
       {/* ══════════════════════════════════════════════════════════════
+           CONTEXT BAR — mode-aware hints (IPE-inspired, always visible)
+        ══════════════════════════════════════════════════════════════ */}
+      {contextBarItems.length > 0 && (
+        <div className="absolute bottom-[38px] left-2 right-2 pointer-events-none flex justify-center">
+          <div className="bg-white/90 dark:bg-neutral-800/95 backdrop-blur-md border border-foreground/[0.08] rounded-full px-3 py-1 shadow-md flex items-center gap-2 pointer-events-auto">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 shrink-0">
+              {contextBarItems[0].label}
+            </span>
+            <span className="w-px h-3 bg-foreground/[0.1]" />
+            <span className="text-[10px] text-foreground/65 truncate">
+              {contextBarItems[0].value}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
            STATUS BAR (bottom) — coordinates + selection + snap + grid state
         ══════════════════════════════════════════════════════════════ */}
       <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 pointer-events-none">
@@ -1389,20 +1522,32 @@ export function FigureCanvas() {
           </div>
         )}
 
-        {/* Right: snap + grid state indicators (compact) */}
+        {/* Right: snap + grid state indicators (compact, clickable) */}
         <div className="flex items-center gap-1 pointer-events-auto">
-          <span title={isJa ? "スマートスナップ (Shift で一時無効)" : "Smart snap (hold Shift to disable)"}
-            className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm ${
-              snapToGrid ? "bg-emerald-500/90 text-white" : "bg-black/40 text-white/60"
+          <button onClick={() => setAutoAngle(!autoAngle)}
+            title={isJa
+              ? "自動角度スナップ (線描画時に15°単位で自動整列 · Alt押下で一時無効)"
+              : "Auto-angle: snap every 15° while drawing lines (hold Alt to override)"}
+            className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm transition-colors ${
+              autoAngle ? "bg-pink-500/90 text-white" : "bg-black/40 text-white/60 hover:bg-black/55"
+            }`}>
+            <span className="font-semibold">∠</span>
+            {autoAngle ? (isJa ? "15°" : "15° snap") : (isJa ? "自由角度" : "free angle")}
+          </button>
+          <button onClick={() => useFigureStore.getState().toggleSnapToGrid()}
+            title={isJa ? "スマートスナップ (Shift で一時無効)" : "Smart snap (hold Shift to disable)"}
+            className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm transition-colors ${
+              snapToGrid ? "bg-emerald-500/90 text-white" : "bg-black/40 text-white/60 hover:bg-black/55"
             }`}>
             <Magnet size={10} /> {snapToGrid ? (isJa ? "スナップ" : "snap on") : (isJa ? "自由" : "free")}
-          </span>
-          <span title={isJa ? "グリッド表示" : "Grid visibility"}
-            className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm ${
-              showGrid ? "bg-black/60 text-white" : "bg-black/40 text-white/60"
+          </button>
+          <button onClick={() => useFigureStore.getState().toggleShowGrid()}
+            title={isJa ? "グリッド表示 (クリックで切替)" : "Toggle grid visibility"}
+            className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm transition-colors ${
+              showGrid ? "bg-black/60 text-white" : "bg-black/40 text-white/60 hover:bg-black/55"
             }`}>
             <Grid3x3 size={10} /> {showGrid ? (isJa ? "グリッド" : "grid on") : (isJa ? "なし" : "off")}
-          </span>
+          </button>
         </div>
       </div>
 
@@ -1410,30 +1555,37 @@ export function FigureCanvas() {
            FLOATING ZOOM CONTROLS (right edge, vertically centered)
         ══════════════════════════════════════════════════════════════ */}
       <div className="absolute top-1/2 right-3 -translate-y-1/2 flex flex-col gap-1 bg-white/95 dark:bg-neutral-800/95 backdrop-blur-md rounded-lg shadow-lg border border-foreground/[0.06] p-1">
-        <button
-          onClick={zoomIn}
-          className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
-          title={isJa ? "拡大 (⌘+)" : "Zoom in (⌘+)"}
-        ><ZoomIn size={14} /></button>
-        <div className="text-[10px] font-mono text-center text-foreground/50 py-0.5 select-none">
-          {Math.round(zoom * 100)}%
-        </div>
-        <button
-          onClick={zoomOut}
-          className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
-          title={isJa ? "縮小 (⌘−)" : "Zoom out (⌘−)"}
-        ><ZoomOut size={14} /></button>
+        <HelpTip side="left" title={isJa ? "拡大" : "Zoom in"} kbd="⌘+"
+          description={isJa ? "1段階拡大 (滑らかアニメーション)" : "Step up with smooth animation"}>
+          <button onClick={zoomIn}
+            className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+          ><ZoomIn size={14} /></button>
+        </HelpTip>
+        <HelpTip side="left" title={isJa ? "現在のズーム率" : "Current zoom"}
+          description={isJa ? `最大1200%まで拡大可能` : `Zoom range 10% – 1200%`}>
+          <div className="text-[10px] font-mono text-center text-foreground/50 py-0.5 select-none cursor-help">
+            {Math.round(zoom * 100)}%
+          </div>
+        </HelpTip>
+        <HelpTip side="left" title={isJa ? "縮小" : "Zoom out"} kbd="⌘−"
+          description={isJa ? "1段階縮小" : "Step down with smooth animation"}>
+          <button onClick={zoomOut}
+            className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+          ><ZoomOut size={14} /></button>
+        </HelpTip>
         <div className="h-px bg-foreground/[0.08] mx-1" />
-        <button
-          onClick={fitToContent}
-          className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
-          title={isJa ? "全体表示 (図形に合わせて自動ズーム)" : "Fit all shapes to view"}
-        ><Maximize2 size={13} /></button>
-        <button
-          onClick={() => useFigureStore.getState().resetViewport()}
-          className="h-7 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors text-[9px] font-mono font-semibold"
-          title={isJa ? "ズームを100%に (⌘0)" : "Reset zoom to 100% (⌘0)"}
-        >100%</button>
+        <HelpTip side="left" title={isJa ? "全体表示" : "Fit to content"}
+          description={isJa ? "全ての図形が画面に収まるよう自動ズーム" : "Auto-zoom so every shape fits in view"}>
+          <button onClick={fitToContent}
+            className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+          ><Maximize2 size={13} /></button>
+        </HelpTip>
+        <HelpTip side="left" title={isJa ? "100%にリセット" : "Reset to 100%"} kbd="⌘0"
+          description={isJa ? "等倍表示に戻す" : "Return to 1:1 view at origin"}>
+          <button onClick={() => useFigureStore.getState().resetViewport()}
+            className="h-7 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors text-[9px] font-mono font-semibold"
+          >100%</button>
+        </HelpTip>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════

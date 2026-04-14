@@ -364,13 +364,13 @@ export function FigureProperties() {
     updateShape(selectedShape.id, { tikzOptions: newOpts });
   }, [selectedShape, pushHistory, updateShape]);
 
-  const W = "w-[240px]";
+  const W = "w-[252px]";
 
   // ══════ EMPTY STATE ══════
 
   if (selectedIds.length === 0) {
     return (
-      <div className={`${W} shrink-0 border-l border-foreground/[0.06] bg-background/85 backdrop-blur-sm overflow-y-auto`}>
+      <div className={`${W} shrink-0 my-2 mr-2 ml-0 rounded-xl border border-foreground/[0.08] bg-background/95 backdrop-blur-md shadow-lg shadow-foreground/[0.05] overflow-y-auto ring-1 ring-foreground/[0.03]`}>
         <div className="p-6 pt-10 flex flex-col items-center text-center gap-3">
           <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-100 to-violet-100 dark:from-blue-500/10 dark:to-violet-500/10 flex items-center justify-center shadow-inner">
             <Sparkles className="h-6 w-6 text-blue-500/60" />
@@ -398,7 +398,7 @@ export function FigureProperties() {
   if (selectedIds.length > 1) {
     const firstShape = shapes.find((s) => s.id === selectedIds[0]);
     return (
-      <div className={`${W} shrink-0 border-l border-foreground/[0.06] bg-background/85 backdrop-blur-sm overflow-y-auto`}>
+      <div className={`${W} shrink-0 my-2 mr-2 ml-0 rounded-xl border border-foreground/[0.08] bg-background/95 backdrop-blur-md shadow-lg shadow-foreground/[0.05] overflow-y-auto ring-1 ring-foreground/[0.03]`}>
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-foreground/[0.06] px-3 py-2.5">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">

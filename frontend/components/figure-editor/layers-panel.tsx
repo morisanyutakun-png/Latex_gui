@@ -38,7 +38,7 @@ export function LayersPanel({ open, onClose }: { open: boolean; onClose: () => v
     : sorted;
 
   return (
-    <div className="absolute right-[244px] top-12 bottom-2 w-[260px] bg-background/95 backdrop-blur-md rounded-lg shadow-2xl border border-foreground/[0.1] flex flex-col overflow-hidden z-40 animate-scale-in">
+    <div className="absolute right-[268px] top-2 bottom-2 w-[260px] bg-background/95 backdrop-blur-md rounded-xl shadow-2xl border border-foreground/[0.1] flex flex-col overflow-hidden z-40 animate-scale-in">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-foreground/[0.06]">
         <Layers size={13} className="text-foreground/55" />
