@@ -496,12 +496,15 @@ export function FigureCanvas() {
       }
 
       if (mode === "line") {
-        const minX = Math.min(s.x, end.x), minY = Math.min(s.y, end.y);
-        const w = Math.abs(dx), h = Math.abs(dy) || 0.3;
-        const id = addShapeFromPalette(activeTool as ShapeKind, minX, minY);
+        // Center the bbox on the line — avoids visual offset when min width/height is applied
+        const rawW = Math.abs(dx), rawH = Math.abs(dy);
+        const w = Math.max(rawW, 0.3), h = Math.max(rawH, 0.3);
+        const centerX = (s.x + end.x) / 2, centerY = (s.y + end.y) / 2;
+        const bboxX = centerX - w / 2, bboxY = centerY - h / 2;
+        const id = addShapeFromPalette(activeTool as ShapeKind, bboxX, bboxY);
         updateShape(id, {
-          width: Math.max(w, 0.3), height: Math.max(h, 0.3),
-          points: [{ x: s.x - minX, y: s.y - minY }, { x: end.x - minX, y: end.y - minY }],
+          width: w, height: h,
+          points: [{ x: s.x - bboxX, y: s.y - bboxY }, { x: end.x - bboxX, y: end.y - bboxY }],
         });
       } else {
         // area: two corners
@@ -808,14 +811,25 @@ export function FigureCanvas() {
             stroke="#ec4899" strokeWidth={1} strokeDasharray="4,3" opacity={0.7} pointerEvents="none" />);
         })}
 
-        {/* Grab target hover indicator */}
+        {/* Grab target hover indicator — expanded padding + corner ticks for clarity */}
         {grabTargetId && !dragging && (() => {
           const sh = shapes.find((s) => s.id === grabTargetId);
           if (!sh) return null;
           const { cx, cy, pw, ph } = shapeToCanvasCoords(sh);
-          return (<rect x={cx - 2} y={cy - 2} width={pw + 4} height={ph + 4} rx={3}
-            fill="rgba(59,130,246,0.06)" stroke="rgba(59,130,246,0.5)" strokeWidth={1}
-            strokeDasharray="3,3" pointerEvents="none" />);
+          const pad = 6; // breathing room around tight bboxes
+          const x = cx - pad, y = cy - pad, w = pw + pad * 2, h = ph + pad * 2;
+          const tick = 8;
+          return (<g pointerEvents="none">
+            {/* Soft background to make it visually obvious */}
+            <rect x={x} y={y} width={w} height={h} rx={4}
+              fill="rgba(59,130,246,0.04)" stroke="rgba(59,130,246,0.45)"
+              strokeWidth={1} strokeDasharray="4,3" />
+            {/* Corner tick marks — solid, clearly indicate bbox extent */}
+            {[[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]].map(([px, py, sx, sy], i) => (
+              <path key={i} d={`M${px + sx * tick},${py} L${px},${py} L${px},${py + sy * tick}`}
+                stroke="#3b82f6" strokeWidth={1.6} fill="none" strokeLinecap="round" />
+            ))}
+          </g>);
         })()}
 
         {/* Draw preview */}
@@ -825,11 +839,15 @@ export function FigureCanvas() {
         {activeTool === "select" && selectedIds.map((id) => {
           const sh = shapes.find((s) => s.id === id); if (!sh) return null;
           const { cx, cy, pw, ph } = shapeToCanvasCoords(sh);
+          const pad = 6;
+          const x = cx - pad, y = cy - pad, w = pw + pad * 2, h = ph + pad * 2;
           return (<g key={`h-${id}`}>
-            <rect x={cx - 3} y={cy - 3} width={pw + 6} height={ph + 6}
-              fill="none" stroke="#3b82f6" strokeWidth={1} strokeDasharray="4,3" rx={2} pointerEvents="none" />
-            <text x={cx + pw / 2} y={cy - 7} textAnchor="middle" fontSize="9" fill="#3b82f6"
-              fontFamily="monospace" pointerEvents="none" opacity={0.7}>
+            {/* Soft tint + dashed rect */}
+            <rect x={x} y={y} width={w} height={h} rx={4}
+              fill="rgba(59,130,246,0.04)" stroke="#3b82f6" strokeWidth={1}
+              strokeDasharray="4,3" pointerEvents="none" />
+            <text x={cx + pw / 2} y={y - 6} textAnchor="middle" fontSize="9" fill="#3b82f6"
+              fontFamily="monospace" pointerEvents="none" opacity={0.75} fontWeight="600">
               {sh.width.toFixed(1)} x {sh.height.toFixed(1)} cm
             </text>
             {/* Terminal dots for line-like shapes */}
@@ -840,10 +858,11 @@ export function FigureCanvas() {
                 cy={cy + (sh.height - sh.points[sh.points.length - 1].y) * scale}
                 r={4} fill="white" stroke="#3b82f6" strokeWidth={1.5} pointerEvents="none" />
             </>)}
-            {RESIZE_HANDLES.map((h) => (
-              <rect key={h.dir} x={cx + pw * h.dx - 4} y={cy + ph * h.dy - 4} width={8} height={8}
-                fill="white" stroke="#3b82f6" strokeWidth={1.5} rx={2} style={{ cursor: h.cursor }}
-                onMouseDown={(e) => handleResizeDown(e, id, h.dir)} />
+            {/* Resize handles on the PADDED bbox so they don't overlap the shape itself */}
+            {RESIZE_HANDLES.map((rh) => (
+              <rect key={rh.dir} x={x + w * rh.dx - 4} y={y + h * rh.dy - 4} width={8} height={8}
+                fill="white" stroke="#3b82f6" strokeWidth={1.5} rx={2} style={{ cursor: rh.cursor }}
+                onMouseDown={(e) => handleResizeDown(e, id, rh.dir)} />
             ))}
           </g>);
         })}
