@@ -472,7 +472,10 @@ export function FigureCanvas() {
     if (mode === "click") {
       const pal = getPaletteItem(activeTool);
       const w = pal?.defaultWidth ?? 1, h = pal?.defaultHeight ?? 1;
-      addShapeFromPalette(activeTool as ShapeKind, sx - w / 2, sy - h / 2);
+      const targetX = sx - w / 2, targetY = sy - h / 2;
+      const id = addShapeFromPalette(activeTool as ShapeKind, targetX, targetY);
+      // Override grid snap from addShapeFromPalette so the shape sits exactly under the cursor
+      updateShape(id, { x: targetX, y: targetY });
       return;
     }
 
@@ -496,13 +499,16 @@ export function FigureCanvas() {
       }
 
       if (mode === "line") {
-        // Center the bbox on the line — avoids visual offset when min width/height is applied
+        // Center the bbox on the line — avoids visual offset when min width/height is applied.
+        // NOTE: addShapeFromPalette snaps x,y to grid, which would shift the line away from
+        // the click points. We override x,y via updateShape to restore exact terminal positions.
         const rawW = Math.abs(dx), rawH = Math.abs(dy);
         const w = Math.max(rawW, 0.3), h = Math.max(rawH, 0.3);
         const centerX = (s.x + end.x) / 2, centerY = (s.y + end.y) / 2;
         const bboxX = centerX - w / 2, bboxY = centerY - h / 2;
         const id = addShapeFromPalette(activeTool as ShapeKind, bboxX, bboxY);
         updateShape(id, {
+          x: bboxX, y: bboxY,  // restore exact position (override grid-snap from addShapeFromPalette)
           width: w, height: h,
           points: [{ x: s.x - bboxX, y: s.y - bboxY }, { x: end.x - bboxX, y: end.y - bboxY }],
         });
@@ -511,7 +517,10 @@ export function FigureCanvas() {
         const minX = Math.min(s.x, end.x), minY = Math.min(s.y, end.y);
         const w = Math.abs(dx), h = Math.abs(dy);
         const id = addShapeFromPalette(activeTool as ShapeKind, minX, minY);
-        updateShape(id, { width: Math.max(w, 0.2), height: Math.max(h, 0.2) });
+        updateShape(id, {
+          x: minX, y: minY, // override grid snap → exact corner-to-corner bbox
+          width: Math.max(w, 0.2), height: Math.max(h, 0.2),
+        });
       }
 
       setPendingStart(null);
