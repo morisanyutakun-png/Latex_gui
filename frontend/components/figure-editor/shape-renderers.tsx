@@ -8,8 +8,33 @@
  */
 
 import React from "react";
-import type { FigureShape, Point } from "./types";
+import type { FigureShape, Point, ArrowHead, DashStyle } from "./types";
+import { DASH_PATTERNS, ARROW_SIZES, colorRgb } from "./types";
 import { renderInlineMathOrPlaceholder } from "@/lib/katex-render";
+
+// ── Backward-compat helpers (handle old `dashed`/`arrowEnd`/`arrowStart` fields) ──
+
+function getDashStyle(s: { dashStyle?: DashStyle; dashed?: boolean }): DashStyle {
+  if (s.dashStyle) return s.dashStyle;
+  if (s.dashed) return "dashed";
+  return "solid";
+}
+function getArrowEndHead(s: { arrowEndHead?: ArrowHead; arrowEnd?: boolean }, fallback: ArrowHead = "none"): ArrowHead {
+  if (s.arrowEndHead) return s.arrowEndHead;
+  if (s.arrowEnd) return "normal";
+  return fallback;
+}
+function getArrowStartHead(s: { arrowStartHead?: ArrowHead; arrowStart?: boolean }): ArrowHead {
+  if (s.arrowStartHead) return s.arrowStartHead;
+  if (s.arrowStart) return "normal";
+  return "none";
+}
+function getArrowSize(s: { arrowSize?: "tiny" | "small" | "normal" | "large" }): "tiny" | "small" | "normal" | "large" {
+  return s.arrowSize ?? "normal";
+}
+function getStrokeColor(s: { stroke: string }): string {
+  return colorRgb(s.stroke);
+}
 
 // ── Fixed visual constants (px) ─────────────────────────────────
 
@@ -26,37 +51,84 @@ function labelFontSize(ptSize: number, _zoom: number): number {
 
 // ── Helpers ─────────────────────────────────────────────────────
 
-function dashArray(dashed: boolean, swPx: number): string | undefined {
-  return dashed ? `${swPx * 4},${swPx * 3}` : undefined;
+function dashArray(style: DashStyle, swPx: number): string | undefined {
+  const p = DASH_PATTERNS.find((x) => x.style === style)?.pattern;
+  if (!p) return undefined;
+  // Scale the dash-array by stroke width so dashes look proportional
+  return p.split(",").map((n) => (parseFloat(n) * swPx).toString()).join(",");
 }
 
 function arrowMarkerId(shapeId: string, end: "start" | "end"): string {
   return `arrow-${shapeId}-${end}`;
 }
 
+/** Build SVG path data for an arrow head shape (drawn pointing right at origin). */
+function arrowPath(head: ArrowHead, size: number): { d: string; fill: string; stroke?: string } {
+  const s = size;
+  const filled = (color: string) => ({ fill: color });
+  const outline = (color: string) => ({ fill: "white", stroke: color });
+
+  switch (head) {
+    case "normal":
+      return { d: `M0,0 L${s},${s / 2} L0,${s} Z`, fill: "current" };
+    case "fnormal":
+      return { d: `M0,0 L${s},${s / 2} L0,${s} Z`, fill: "white", stroke: "current" };
+    case "pointed":
+      return { d: `M0,0 L${s},${s / 2} L${s * 0.2},${s / 2} L0,${s} Z`, fill: "current" };
+    case "fpointed":
+      return { d: `M0,0 L${s},${s / 2} L${s * 0.2},${s / 2} L0,${s} Z`, fill: "white", stroke: "current" };
+    case "linear":
+      return { d: `M0,0 L${s},${s / 2} L0,${s}`, fill: "none", stroke: "current" };
+    case "double":
+      return { d: `M0,0 L${s / 2},${s / 2} L0,${s} Z M${s / 2},0 L${s},${s / 2} L${s / 2},${s} Z`, fill: "current" };
+    case "fdouble":
+      return { d: `M0,0 L${s / 2},${s / 2} L0,${s} Z M${s / 2},0 L${s},${s / 2} L${s / 2},${s} Z`, fill: "white", stroke: "current" };
+    case "none":
+    default:
+      return { d: "", fill: "none" };
+  }
+}
+
 export function ArrowDefs({ shape, scale }: { shape: FigureShape; scale: number }) {
   const defs: React.ReactNode[] = [];
-  const color = shape.style.stroke;
-  const zoom = scale / 50; // approximate zoom from scale
-  const size = Math.max(5, Math.min(10, lineW(shape.style.strokeWidth, zoom) * 4));
+  const color = getStrokeColor(shape.style);
+  const arrowSizeName = getArrowSize(shape.style);
+  const sizeBase = ARROW_SIZES.find((a) => a.name === arrowSizeName)?.px ?? 8;
+  const sw = lineW(shape.style.strokeWidth, scale / 50);
+  const size = Math.max(4, sizeBase + sw);
 
-  const needEnd = shape.style.arrowEnd || shape.kind === "arrow" || shape.kind === "force-arrow" || shape.kind === "vector" || shape.kind === "reaction-arrow";
-  if (needEnd) {
-    defs.push(
-      <marker key={`${shape.id}-end`} id={arrowMarkerId(shape.id, "end")}
-        markerWidth={size} markerHeight={size} refX={size - 1} refY={size / 2} orient="auto">
-        <path d={`M0,0 L${size},${size / 2} L0,${size} Z`} fill={color} />
+  // Implicit arrow for arrow-kinds: defaults to "normal" if user didn't override
+  const implicitArrowKinds = ["arrow", "force-arrow", "vector", "reaction-arrow"];
+  const implicitFallback: ArrowHead = implicitArrowKinds.includes(shape.kind) ? "normal" : "none";
+
+  const endHead = getArrowEndHead(shape.style, implicitFallback);
+  const startHead = getArrowStartHead(shape.style);
+
+  const makeMarker = (head: ArrowHead, end: "start" | "end") => {
+    if (head === "none") return null;
+    const p = arrowPath(head, size);
+    if (!p.d) return null;
+    const fill = p.fill === "current" ? color : p.fill;
+    const stroke = p.stroke === "current" ? color : p.stroke;
+    const isEnd = end === "end";
+    return (
+      <marker key={`${shape.id}-${end}`} id={arrowMarkerId(shape.id, end)}
+        markerWidth={size} markerHeight={size}
+        refX={isEnd ? size - 1 : 1} refY={size / 2}
+        orient="auto"
+        markerUnits="userSpaceOnUse"
+      >
+        <g transform={isEnd ? "" : `translate(${size},0) scale(-1,1)`}>
+          <path d={p.d} fill={fill} stroke={stroke} strokeWidth={stroke ? sw * 0.8 : 0} />
+        </g>
       </marker>
     );
-  }
-  if (shape.style.arrowStart) {
-    defs.push(
-      <marker key={`${shape.id}-start`} id={arrowMarkerId(shape.id, "start")}
-        markerWidth={size} markerHeight={size} refX={1} refY={size / 2} orient="auto">
-        <path d={`M${size},0 L0,${size / 2} L${size},${size} Z`} fill={color} />
-      </marker>
-    );
-  }
+  };
+
+  const startMarker = makeMarker(startHead, "start");
+  const endMarker = makeMarker(endHead, "end");
+  if (endMarker) defs.push(endMarker);
+  if (startMarker) defs.push(startMarker);
   return defs.length > 0 ? <>{defs}</> : null;
 }
 
@@ -84,12 +156,14 @@ function fs(props: ShapeRenderProps): number {
   return labelFontSize(props.shape.style.fontSizePt, getZoom(props.scale));
 }
 
-function stroke(props: ShapeRenderProps) { return props.shape.style.stroke; }
+function stroke(props: ShapeRenderProps) { return getStrokeColor(props.shape.style); }
 function fill(props: ShapeRenderProps) {
-  return props.shape.style.fill === "none" ? "transparent" : props.shape.style.fill;
+  if (props.shape.style.fill === "none") return "transparent";
+  return colorRgb(props.shape.style.fill);
 }
 function fillOp(props: ShapeRenderProps) { return props.shape.style.fillOpacity; }
-function dash(props: ShapeRenderProps) { return dashArray(props.shape.style.dashed, sw(props)); }
+function strokeOp(props: ShapeRenderProps) { return props.shape.style.strokeOpacity ?? 1; }
+function dash(props: ShapeRenderProps) { return dashArray(getDashStyle(props.shape.style), sw(props)); }
 
 function wrap(props: ShapeRenderProps, children: React.ReactNode) {
   const cls = props.selected ? "shape-selected" : props.hovered ? "shape-hovered" : "";
@@ -102,8 +176,10 @@ function wrap(props: ShapeRenderProps, children: React.ReactNode) {
   );
 }
 
-function needArrowEnd(kind: string, style: { arrowEnd: boolean }) {
-  return style.arrowEnd || ["arrow", "force-arrow", "vector", "reaction-arrow"].includes(kind);
+function needArrowEnd(kind: string, style: { arrowEndHead?: ArrowHead; arrowEnd?: boolean }) {
+  if (["arrow", "force-arrow", "vector", "reaction-arrow"].includes(kind)) return true;
+  const head = getArrowEndHead(style);
+  return head !== "none";
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -299,7 +375,7 @@ function RenderLine(p: ShapeRenderProps) {
     <path d={d} stroke="transparent" strokeWidth={Math.max(8, w * 4)} fill="none" />
     <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" strokeDasharray={dash(p)}
       markerEnd={hasEnd ? `url(#${arrowMarkerId(p.shape.id, "end")})` : undefined}
-      markerStart={p.shape.style.arrowStart ? `url(#${arrowMarkerId(p.shape.id, "start")})` : undefined}
+      markerStart={getArrowStartHead(p.shape.style) !== "none" ? `url(#${arrowMarkerId(p.shape.id, "start")})` : undefined}
       strokeLinecap="round" />
     <ShapeLabel shape={p.shape} scale={p.scale}
       bboxInScreen={{ x: lineBboxX, y: lineBboxY, w: lineBboxW, h: lineBboxH }}

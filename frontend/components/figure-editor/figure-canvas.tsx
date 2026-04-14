@@ -17,7 +17,9 @@ import { useFigureStore } from "./figure-store";
 import { ShapeRenderer, ArrowDefs } from "./shape-renderers";
 import type { Point, FigureShape, ShapeKind, ToolMode } from "./types";
 import { getPaletteItem } from "./domain-palettes";
-import { ZoomIn, ZoomOut, Maximize2, HelpCircle, Grid3x3, Magnet, Layers } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, HelpCircle, Grid3x3, Magnet, Layers, Trash2, Copy, Palette, RotateCw, Lock, Unlock } from "lucide-react";
+import { IPE_COLORS } from "./types";
+import { useI18n } from "@/lib/i18n";
 
 const PX_PER_CM = 50;
 
@@ -256,6 +258,8 @@ const RESIZE_HANDLES: { dir: ResizeDir; dx: number; dy: number; cursor: string }
 export function FigureCanvas() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { locale } = useI18n();
+  const isJa = locale === "ja";
 
   const shapes        = useFigureStore((s) => s.shapes);
   const selectedIds   = useFigureStore((s) => s.selectedIds);
@@ -297,7 +301,7 @@ export function FigureCanvas() {
   // ── Drag state ────────────────────────────────────────────────
 
   interface DragState {
-    mode: "move" | "resize" | "pan" | "draw-line" | "draw-area" | "draw-freehand";
+    mode: "move" | "resize" | "pan" | "draw-line" | "draw-area" | "draw-freehand" | "marquee";
     startPx: Point;       // screen px at drag start
     startTikz: Point;     // TikZ coords at drag start
     endTikz?: Point;      // TikZ coords of current end (updated on move)
@@ -305,6 +309,8 @@ export function FigureCanvas() {
     resizeDir?: ResizeDir;
     origShape?: FigureShape;
     drawPoints?: Point[]; // freehand
+    /** For multi-select move: original positions for each selected shape */
+    multiOrigPositions?: Map<string, Point>;
   }
 
   const [dragging, setDragging] = useState<DragState | null>(null);
@@ -321,29 +327,148 @@ export function FigureCanvas() {
   const [activeSnap, setActiveSnap] = useState<ReturnType<typeof computeSmartSnap>>(null);
   /** Help popover visibility */
   const [showHelp, setShowHelp] = useState(false);
+  /** Floating action bar color picker visibility */
+  const [showQuickColors, setShowQuickColors] = useState(false);
+  /** Pulse trigger — increments on each new selection to re-fire the CSS animation */
+  const [pulseToken, setPulseToken] = useState(0);
 
-  // Zoom control helpers (used by floating buttons + keyboard)
-  const zoomIn = useCallback(() => {
+  // Pulse on selection change (only for newly added shapes — not when clearing)
+  useEffect(() => {
+    if (selectedIds.length > 0) setPulseToken((t) => t + 1);
+  }, [selectedIds]);
+
+  // Zoom control helpers (used by floating buttons + keyboard) — smooth animated
+  const zoomBy = useCallback((dir: 1 | -1) => {
     const { zoom: z, offsetX: ox, offsetY: oy } = useFigureStore.getState().viewport;
-    const nz = nextZoom(z, 1);
+    const nz = nextZoom(z, dir);
     if (nz === z) return;
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect) return;
     const cx = rect.width / 2, cy = rect.height / 2;
     const r = nz / z;
-    useFigureStore.getState().setViewport({ zoom: nz, offsetX: cx - (cx - ox) * r, offsetY: cy - (cy - oy) * r });
+    const targetOx = cx - (cx - ox) * r, targetOy = cy - (cy - oy) * r;
+    // Smooth zoom animation (180ms ease-out)
+    const t0 = performance.now();
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    const tick = () => {
+      const t = Math.min(1, (performance.now() - t0) / 180);
+      const k = ease(t);
+      useFigureStore.getState().setViewport({
+        zoom: z + (nz - z) * k,
+        offsetX: ox + (targetOx - ox) * k,
+        offsetY: oy + (targetOy - oy) * k,
+      });
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }, []);
 
-  const zoomOut = useCallback(() => {
-    const { zoom: z, offsetX: ox, offsetY: oy } = useFigureStore.getState().viewport;
-    const nz = nextZoom(z, -1);
-    if (nz === z) return;
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const cx = rect.width / 2, cy = rect.height / 2;
-    const r = nz / z;
-    useFigureStore.getState().setViewport({ zoom: nz, offsetX: cx - (cx - ox) * r, offsetY: cy - (cy - oy) * r });
+  const zoomIn  = useCallback(() => zoomBy(1),  [zoomBy]);
+  const zoomOut = useCallback(() => zoomBy(-1), [zoomBy]);
+
+  // ── Listen for cross-component events from CommandPalette ──
+  useEffect(() => {
+    const onFit = () => { fitToContentRef.current?.(); };
+    const onZIn = () => { zoomInRef.current?.(); };
+    const onZOut = () => { zoomOutRef.current?.(); };
+    window.addEventListener("figure-editor:fit-content", onFit);
+    window.addEventListener("figure-editor:zoom-in", onZIn);
+    window.addEventListener("figure-editor:zoom-out", onZOut);
+    return () => {
+      window.removeEventListener("figure-editor:fit-content", onFit);
+      window.removeEventListener("figure-editor:zoom-in", onZIn);
+      window.removeEventListener("figure-editor:zoom-out", onZOut);
+    };
   }, []);
+
+  // Refs to break the chicken-and-egg: define refs first, assign in useEffect below
+  const fitToContentRef = useRef<(() => void) | null>(null);
+  const zoomInRef = useRef<(() => void) | null>(null);
+  const zoomOutRef = useRef<(() => void) | null>(null);
+
+  // ── Auto-pan when dragging near canvas edge ──────────────────
+  // Tracks last cursor position so the rAF loop knows where to push from
+  const lastMousePxRef = useRef<Point | null>(null);
+  const autoPanRafRef = useRef<number | null>(null);
+
+  const stopAutoPan = useCallback(() => {
+    if (autoPanRafRef.current !== null) {
+      cancelAnimationFrame(autoPanRafRef.current);
+      autoPanRafRef.current = null;
+    }
+  }, []);
+
+  const startAutoPan = useCallback(() => {
+    if (autoPanRafRef.current !== null) return;
+    const tick = () => {
+      const cursor = lastMousePxRef.current;
+      const drag = dragging;
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!cursor || !drag || !rect || (drag.mode !== "move" && drag.mode !== "marquee")) {
+        autoPanRafRef.current = null;
+        return;
+      }
+      // Edge zone: 40px from each edge. Pan speed proportional to depth.
+      const EDGE = 40;
+      const MAX_SPEED = 14; // px per frame
+      let dx = 0, dy = 0;
+      if (cursor.x < EDGE) dx = (EDGE - cursor.x) / EDGE * MAX_SPEED;
+      else if (cursor.x > rect.width - EDGE) dx = -(cursor.x - (rect.width - EDGE)) / EDGE * MAX_SPEED;
+      if (cursor.y < EDGE) dy = (EDGE - cursor.y) / EDGE * MAX_SPEED;
+      else if (cursor.y > rect.height - EDGE) dy = -(cursor.y - (rect.height - EDGE)) / EDGE * MAX_SPEED;
+
+      if (dx !== 0 || dy !== 0) {
+        const vp = useFigureStore.getState().viewport;
+        useFigureStore.getState().setViewport({ offsetX: vp.offsetX + dx, offsetY: vp.offsetY + dy });
+      }
+      autoPanRafRef.current = requestAnimationFrame(tick);
+    };
+    autoPanRafRef.current = requestAnimationFrame(tick);
+  }, [dragging]);
+
+  useEffect(() => {
+    if (dragging?.mode === "move" || dragging?.mode === "marquee") {
+      startAutoPan();
+    } else {
+      stopAutoPan();
+    }
+    return () => stopAutoPan();
+  }, [dragging?.mode, startAutoPan, stopAutoPan]);
+
+  /** Smoothly animate the viewport from current state to a target state. */
+  const animateViewport = useCallback((target: { zoom: number; offsetX: number; offsetY: number }, durationMs = 250) => {
+    const start = useFigureStore.getState().viewport;
+    const t0 = performance.now();
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);  // ease-out-cubic
+    const step = () => {
+      const elapsed = performance.now() - t0;
+      const t = Math.min(1, elapsed / durationMs);
+      const k = ease(t);
+      useFigureStore.getState().setViewport({
+        zoom: start.zoom + (target.zoom - start.zoom) * k,
+        offsetX: start.offsetX + (target.offsetX - start.offsetX) * k,
+        offsetY: start.offsetY + (target.offsetY - start.offsetY) * k,
+      });
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, []);
+
+  /** Smoothly zoom & center on a single shape (used by double-click). */
+  const focusShape = useCallback((shapeId: string) => {
+    const sh = useFigureStore.getState().shapes.find((s) => s.id === shapeId);
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!sh || !rect) return;
+    const padCm = 1.5;
+    const w = sh.width + padCm * 2, h = sh.height + padCm * 2;
+    const targetScale = Math.min(rect.width / (w * PX_PER_CM), rect.height / (h * PX_PER_CM));
+    const nz = Math.max(0.5, Math.min(3, targetScale));
+    const cH = useFigureStore.getState().canvasHeight;
+    const cxCm = sh.x + sh.width / 2, cyCm = sh.y + sh.height / 2;
+    const ox = rect.width / 2 - cxCm * PX_PER_CM * nz;
+    const oy = rect.height / 2 - (cH - cyCm) * PX_PER_CM * nz;
+    animateViewport({ zoom: nz, offsetX: ox, offsetY: oy });
+  }, [animateViewport]);
 
   /** Fit all shapes to view — if no shapes, fit the canvas frame. */
   const fitToContent = useCallback(() => {
@@ -371,6 +496,13 @@ export function FigureCanvas() {
     const oy = (rect.height - targetPxH) / 2 - (cH - maxY) * PX_PER_CM * nz;
     useFigureStore.getState().setViewport({ zoom: nz, offsetX: ox, offsetY: oy });
   }, []);
+
+  // Wire refs for cross-component event handlers
+  useEffect(() => {
+    fitToContentRef.current = fitToContent;
+    zoomInRef.current = zoomIn;
+    zoomOutRef.current = zoomOut;
+  }, [fitToContent, zoomIn, zoomOut]);
 
   // Cancel pending start when tool changes
   useEffect(() => { setPendingStart(null); setPreviewEnd(null); }, [activeTool]);
@@ -511,7 +643,12 @@ export function FigureCanvas() {
       }
     }
 
-    if (activeTool === "select") { clearSelection(); return; }
+    if (activeTool === "select") {
+      // Start drag-to-multiselect (marquee) — clear selection first unless Shift held
+      if (!e.shiftKey) clearSelection();
+      setDragging({ mode: "marquee", startPx: px, startTikz: { x: tx, y: ty }, endTikz: { x: tx, y: ty } });
+      return;
+    }
 
     const mode = classifyTool(activeTool);
 
@@ -540,8 +677,11 @@ export function FigureCanvas() {
         setPreviewEnd({ x: sx, y: sy });
         return;
       }
-      // Second click → create shape from pendingStart to this click
-      const s = pendingStart, end = { x: sx, y: sy };
+      // Second click → create shape from pendingStart to this click.
+      // If Shift is held & tool is line-like, prefer the angle-snapped previewEnd.
+      const useEnd = (e.shiftKey && previewEnd && classifyTool(activeTool) === "line")
+        ? previewEnd : { x: sx, y: sy };
+      const s = pendingStart, end = useEnd;
       const dx = end.x - s.x, dy = end.y - s.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
@@ -583,6 +723,7 @@ export function FigureCanvas() {
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const px = getSvgCoords(e);
+    lastMousePxRef.current = px;  // for auto-pan rAF loop
     const [tx, ty] = canvasToTikz(px.x, px.y, canvasHeight, zoom, offsetX, offsetY);
     setMousePos({ x: Math.round(tx * 100) / 100, y: Math.round(ty * 100) / 100 });
 
@@ -594,7 +735,34 @@ export function FigureCanvas() {
 
     // 2-click preview (between clicks, no drag in progress)
     if (pendingStart) {
-      const sx = snapV(tx, gridSize, snapToGrid), sy = snapV(ty, gridSize, snapToGrid);
+      let sx = snapV(tx, gridSize, snapToGrid), sy = snapV(ty, gridSize, snapToGrid);
+      const isLineTool = classifyTool(activeTool) === "line";
+      const dx = sx - pendingStart.x, dy = sy - pendingStart.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+      if (isLineTool && dist > 0.01) {
+        if (e.shiftKey) {
+          // Shift → snap to wide IPE preset angles
+          const ANGLES = [0, 22.5, 30, 45, 60, 90, 120, 135, 150, 180, -22.5, -30, -45, -60, -90, -120, -135, -150];
+          const snapped = ANGLES.reduce((best, a) =>
+            Math.abs(a - angle) < Math.abs(best - angle) ? a : best);
+          const rad = snapped * Math.PI / 180;
+          sx = pendingStart.x + dist * Math.cos(rad);
+          sy = pendingStart.y + dist * Math.sin(rad);
+        } else {
+          // Auto-straighten: if angle is within 3° of cardinal directions, snap
+          const cardinals = [0, 90, 180, -90];
+          for (const c of cardinals) {
+            if (Math.abs(angle - c) < 3 || Math.abs(angle - c + 360) < 3 || Math.abs(angle - c - 360) < 3) {
+              const rad = c * Math.PI / 180;
+              sx = pendingStart.x + dist * Math.cos(rad);
+              sy = pendingStart.y + dist * Math.sin(rad);
+              break;
+            }
+          }
+        }
+      }
       setPreviewEnd({ x: sx, y: sy });
     }
 
@@ -606,9 +774,28 @@ export function FigureCanvas() {
       return;
     }
 
+    // Marquee select — update end & live-select intersecting shapes
+    if (dragging.mode === "marquee") {
+      setDragging((prev) => prev ? { ...prev, endTikz: { x: tx, y: ty } } : null);
+      const x1 = Math.min(dragging.startTikz.x, tx), x2 = Math.max(dragging.startTikz.x, tx);
+      const y1 = Math.min(dragging.startTikz.y, ty), y2 = Math.max(dragging.startTikz.y, ty);
+      const hits = shapes.filter((s) => {
+        const sx1 = s.x, sx2 = s.x + s.width;
+        const sy1 = s.y, sy2 = s.y + s.height;
+        return sx1 < x2 && sx2 > x1 && sy1 < y2 && sy2 > y1;
+      }).map((s) => s.id);
+      // Replace selection with marquee hits (keeping original if Shift held would be nicer but simpler: replace)
+      useFigureStore.setState({ selectedIds: hits });
+      return;
+    }
+
     const sx = snapV(tx, gridSize, snapToGrid), sy = snapV(ty, gridSize, snapToGrid);
 
     if (dragging.mode === "move" && dragging.shapeId && dragging.origShape) {
+      // Click-vs-drag threshold: ignore tiny movements (< 3 px screen) — feels "decisive"
+      const movedPx = Math.hypot(px.x - dragging.startPx.x, px.y - dragging.startPx.y);
+      if (movedPx < 3) return;
+
       const dtx = tx - dragging.startTikz.x, dty = ty - dragging.startTikz.y;
       // Start with fine-granularity (0.05 cm) — ergonomic pixel-level control
       let nx = fineQuantize(dragging.origShape.x + dtx);
@@ -754,6 +941,24 @@ export function FigureCanvas() {
       // Skip when typing in an input/textarea
       const t = document.activeElement?.tagName ?? "";
       if (["INPUT", "TEXTAREA"].includes(t) || (document.activeElement as HTMLElement)?.isContentEditable) return;
+
+      // Arrow keys → nudge selected shapes (Shift = larger step)
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        const sel = useFigureStore.getState().selectedIds;
+        if (sel.length === 0) return;
+        e.preventDefault();
+        const step = e.shiftKey ? 0.5 : 0.05;
+        const dx = e.key === "ArrowRight" ? step : e.key === "ArrowLeft" ? -step : 0;
+        const dy = e.key === "ArrowUp" ? step : e.key === "ArrowDown" ? -step : 0;
+        const allShapes = useFigureStore.getState().shapes;
+        useFigureStore.getState().pushHistory();
+        for (const id of sel) {
+          const sh = allShapes.find((s) => s.id === id);
+          if (!sh || sh.locked) continue;
+          useFigureStore.getState().updateShape(id, { x: sh.x + dx, y: sh.y + dy });
+        }
+        return;
+      }
 
       // Browser-shortcut interceptions — always preventDefault before acting
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -925,6 +1130,16 @@ export function FigureCanvas() {
       <svg ref={svgRef} width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
         onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp} onMouseLeave={() => { handleMouseUp(); setMousePos(null); }}
+        onDoubleClick={(e) => {
+          const px = getSvgCoords(e);
+          const [tx, ty] = canvasToTikz(px.x, px.y, canvasHeight, zoom, offsetX, offsetY);
+          // Find topmost shape under cursor
+          const sorted = [...shapes].sort((a, b) => b.zIndex - a.zIndex);
+          const hit = sorted.find((s) =>
+            tx >= s.x && tx <= s.x + s.width && ty >= s.y && ty <= s.y + s.height);
+          if (hit) focusShape(hit.id);
+          else fitToContent();  // Empty space dbl-click → fit all
+        }}
         className="select-none" style={{ display: "block" }}>
 
         <defs>{shapes.map((s) => <ArrowDefs key={`d-${s.id}`} shape={s} scale={scale} />)}</defs>
@@ -952,7 +1167,7 @@ export function FigureCanvas() {
           // Point snap: dot + short guide
           if (m.axis === "point") {
             return (<g key={`snap-${i}`} pointerEvents="none">
-              <circle cx={ox} cy={oy} r={8} fill="#ec4899" opacity={0.15} />
+              <circle className="snap-pulse" cx={ox} cy={oy} r={8} fill="#ec4899" opacity={0.15} />
               <circle cx={ox} cy={oy} r={5} fill="none" stroke="#ec4899" strokeWidth={1.5} />
               <circle cx={ox} cy={oy} r={2} fill="#ec4899" />
               <text x={ox + 10} y={oy - 8} fontSize="9" fill="#ec4899" fontFamily="monospace" fontWeight="700">
@@ -993,6 +1208,19 @@ export function FigureCanvas() {
         {/* Draw preview */}
         {renderDrawPreview()}
 
+        {/* Marquee selection rectangle */}
+        {dragging?.mode === "marquee" && dragging.endTikz && (() => {
+          const s = dragging.startTikz, e = dragging.endTikz;
+          const minX = Math.min(s.x, e.x), maxY = Math.max(s.y, e.y);
+          const [rx, ry] = tikzToCanvas(minX, maxY, canvasHeight, zoom, offsetX, offsetY);
+          const w = Math.abs(e.x - s.x) * scale, h = Math.abs(e.y - s.y) * scale;
+          return (
+            <rect x={rx} y={ry} width={w} height={h}
+              fill="rgba(59,130,246,0.08)" stroke="#3b82f6"
+              strokeWidth={1} strokeDasharray="4,3" pointerEvents="none" />
+          );
+        })()}
+
         {/* Selection handles — only interactive in select mode */}
         {activeTool === "select" && selectedIds.map((id) => {
           const sh = shapes.find((s) => s.id === id); if (!sh) return null;
@@ -1000,6 +1228,10 @@ export function FigureCanvas() {
           const pad = 6;
           const x = cx - pad, y = cy - pad, w = pw + pad * 2, h = ph + pad * 2;
           return (<g key={`h-${id}`}>
+            {/* Selection pulse — brief attention-getter on new selection */}
+            <rect key={`pulse-${id}-${pulseToken}`} className="selection-pulse"
+              x={x} y={y} width={w} height={h} rx={4}
+              fill="none" stroke="#3b82f6" pointerEvents="none" />
             {/* Soft tint + dashed rect */}
             <rect x={x} y={y} width={w} height={h} rx={4}
               fill="rgba(59,130,246,0.04)" stroke="#3b82f6" strokeWidth={1}
@@ -1029,6 +1261,106 @@ export function FigureCanvas() {
       </svg>
 
       {/* ══════════════════════════════════════════════════════════════
+           FLOATING QUICK ACTIONS — appears above selected shape
+        ══════════════════════════════════════════════════════════════ */}
+      {selectedIds.length > 0 && activeTool === "select" && !dragging && (() => {
+        const ids = selectedIds;
+        // Compute bounding box of all selected shapes in screen coords
+        let minX = Infinity, minY = Infinity, maxX = -Infinity;
+        for (const id of ids) {
+          const sh = shapes.find((s) => s.id === id);
+          if (!sh) continue;
+          const c = shapeToCanvasCoords(sh);
+          minX = Math.min(minX, c.cx);
+          minY = Math.min(minY, c.cy);
+          maxX = Math.max(maxX, c.cx + c.pw);
+        }
+        if (!isFinite(minX)) return null;
+        const barX = Math.max(8, Math.min(containerSize.w - 280, (minX + maxX) / 2 - 140));
+        const barY = Math.max(8, minY - 44); // 44px above the selection
+        const firstSh = shapes.find((s) => s.id === ids[0]);
+        const isLocked = firstSh?.locked ?? false;
+        return (
+          <div
+            className="absolute z-20 flex items-center gap-0.5 bg-white dark:bg-neutral-800 rounded-lg shadow-2xl border border-foreground/[0.08] p-1 animate-scale-in pointer-events-auto"
+            style={{ left: barX, top: barY }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {/* Color quick-pick */}
+            <button
+              onClick={() => setShowQuickColors(!showQuickColors)}
+              title={isJa ? "線の色を変更" : "Change stroke color"}
+              className="h-7 w-7 flex items-center justify-center rounded text-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground transition-colors"
+            >
+              <Palette size={13} />
+            </button>
+            {showQuickColors && (
+              <div className="absolute top-9 left-0 bg-white dark:bg-neutral-800 rounded-lg shadow-xl border border-foreground/[0.08] p-1.5 grid grid-cols-7 gap-1 z-30">
+                {IPE_COLORS.slice(0, 21).map((c) => (
+                  <button key={c.name} title={c.name}
+                    onClick={() => {
+                      useFigureStore.getState().pushHistory();
+                      useFigureStore.getState().applyStyleToSelected({ stroke: c.name });
+                      setShowQuickColors(false);
+                    }}
+                    className="h-5 w-5 rounded ring-1 ring-foreground/[0.1] hover:scale-110 hover:ring-2 hover:ring-blue-500 transition-all"
+                    style={{ backgroundColor: c.rgb }}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="w-px h-4 bg-foreground/[0.08] mx-0.5" />
+            {/* Duplicate */}
+            <button
+              onClick={() => useFigureStore.getState().duplicateSelected()}
+              title={isJa ? "選択を複製 (⌘D)" : "Duplicate selection (⌘D)"}
+              className="h-7 w-7 flex items-center justify-center rounded text-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground transition-colors"
+            ><Copy size={13} /></button>
+            {/* Rotate 90° */}
+            <button
+              onClick={() => {
+                useFigureStore.getState().pushHistory();
+                for (const id of ids) {
+                  const sh = useFigureStore.getState().shapes.find((s) => s.id === id);
+                  if (sh) useFigureStore.getState().updateShape(id, { rotation: ((sh.rotation ?? 0) + 90) % 360 });
+                }
+              }}
+              title={isJa ? "90°回転" : "Rotate 90° clockwise"}
+              className="h-7 w-7 flex items-center justify-center rounded text-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground transition-colors"
+            ><RotateCw size={13} /></button>
+            {/* Lock toggle */}
+            <button
+              onClick={() => {
+                useFigureStore.getState().pushHistory();
+                for (const id of ids) {
+                  useFigureStore.getState().updateShape(id, { locked: !isLocked });
+                }
+              }}
+              title={isLocked
+                ? (isJa ? "ロック解除 (移動可能に)" : "Unlock (allow moving)")
+                : (isJa ? "ロック (誤操作防止)" : "Lock (prevent accidental edits)")}
+              className={`h-7 w-7 flex items-center justify-center rounded transition-colors ${
+                isLocked ? "text-amber-600 bg-amber-50 dark:bg-amber-500/10" : "text-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground"
+              }`}
+            >{isLocked ? <Lock size={13} /> : <Unlock size={13} />}</button>
+            <div className="w-px h-4 bg-foreground/[0.08] mx-0.5" />
+            {/* Delete */}
+            <button
+              onClick={() => useFigureStore.getState().deleteSelected()}
+              title={isJa ? "削除 (Del)" : "Delete selection (Del)"}
+              className="h-7 w-7 flex items-center justify-center rounded text-foreground/60 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 transition-colors"
+            ><Trash2 size={13} /></button>
+            {/* Selection count badge */}
+            {ids.length > 1 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded bg-blue-500 text-white text-[9px] font-bold">
+                {ids.length}
+              </span>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ══════════════════════════════════════════════════════════════
            STATUS BAR (bottom) — coordinates + selection + snap + grid state
         ══════════════════════════════════════════════════════════════ */}
       <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 pointer-events-none">
@@ -1041,7 +1373,7 @@ export function FigureCanvas() {
               <span className="text-white/40 text-[9px]">cm</span>
             </>
           ) : (
-            <span className="text-white/50">— cursor outside —</span>
+            <span className="text-white/50">{isJa ? "— カーソルを動かすと座標表示 —" : "— move cursor to see coordinates —"}</span>
           )}
         </div>
 
@@ -1049,21 +1381,27 @@ export function FigureCanvas() {
         {selectedIds.length > 0 && (
           <div className="flex items-center gap-1.5 bg-blue-500/90 backdrop-blur-md text-white text-[10px] font-semibold px-2.5 py-1 rounded-md pointer-events-auto shadow-lg">
             <Layers size={11} />
-            <span>{selectedIds.length} {selectedIds.length === 1 ? "selected" : "selected"}</span>
+            <span>
+              {isJa
+                ? `${selectedIds.length} 個選択中`
+                : `${selectedIds.length} ${selectedIds.length === 1 ? "shape" : "shapes"} selected`}
+            </span>
           </div>
         )}
 
         {/* Right: snap + grid state indicators (compact) */}
         <div className="flex items-center gap-1 pointer-events-auto">
-          <span className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm ${
-            snapToGrid ? "bg-emerald-500/90 text-white" : "bg-black/40 text-white/60"
-          }`}>
-            <Magnet size={10} /> {snapToGrid ? "snap" : "free"}
+          <span title={isJa ? "スマートスナップ (Shift で一時無効)" : "Smart snap (hold Shift to disable)"}
+            className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm ${
+              snapToGrid ? "bg-emerald-500/90 text-white" : "bg-black/40 text-white/60"
+            }`}>
+            <Magnet size={10} /> {snapToGrid ? (isJa ? "スナップ" : "snap on") : (isJa ? "自由" : "free")}
           </span>
-          <span className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm ${
-            showGrid ? "bg-black/60 text-white" : "bg-black/40 text-white/60"
-          }`}>
-            <Grid3x3 size={10} /> {showGrid ? "grid" : "off"}
+          <span title={isJa ? "グリッド表示" : "Grid visibility"}
+            className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm ${
+              showGrid ? "bg-black/60 text-white" : "bg-black/40 text-white/60"
+            }`}>
+            <Grid3x3 size={10} /> {showGrid ? (isJa ? "グリッド" : "grid on") : (isJa ? "なし" : "off")}
           </span>
         </div>
       </div>
@@ -1075,7 +1413,7 @@ export function FigureCanvas() {
         <button
           onClick={zoomIn}
           className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
-          title={`Zoom in (⌘+)`}
+          title={isJa ? "拡大 (⌘+)" : "Zoom in (⌘+)"}
         ><ZoomIn size={14} /></button>
         <div className="text-[10px] font-mono text-center text-foreground/50 py-0.5 select-none">
           {Math.round(zoom * 100)}%
@@ -1083,18 +1421,18 @@ export function FigureCanvas() {
         <button
           onClick={zoomOut}
           className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
-          title={`Zoom out (⌘−)`}
+          title={isJa ? "縮小 (⌘−)" : "Zoom out (⌘−)"}
         ><ZoomOut size={14} /></button>
         <div className="h-px bg-foreground/[0.08] mx-1" />
         <button
           onClick={fitToContent}
           className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
-          title="Fit to content"
+          title={isJa ? "全体表示 (図形に合わせて自動ズーム)" : "Fit all shapes to view"}
         ><Maximize2 size={13} /></button>
         <button
           onClick={() => useFigureStore.getState().resetViewport()}
           className="h-7 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors text-[9px] font-mono font-semibold"
-          title="Reset view (⌘0)"
+          title={isJa ? "ズームを100%に (⌘0)" : "Reset zoom to 100% (⌘0)"}
         >100%</button>
       </div>
 
@@ -1107,29 +1445,57 @@ export function FigureCanvas() {
           className={`h-8 w-8 flex items-center justify-center rounded-full backdrop-blur-md transition-all shadow-sm ${
             showHelp ? "bg-blue-500 text-white shadow-blue-500/30" : "bg-white/90 dark:bg-neutral-800/90 text-foreground/60 hover:text-foreground border border-foreground/[0.08]"
           }`}
-          title="Keyboard shortcuts & help"
+          title={isJa ? "ショートカット・使い方ヘルプ" : "Keyboard shortcuts & usage guide"}
         ><HelpCircle size={14} /></button>
         {showHelp && (
-          <div className="absolute top-10 right-0 w-[280px] bg-white dark:bg-neutral-800 rounded-lg shadow-2xl border border-foreground/[0.1] p-3 text-[11px] animate-scale-in">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-2">Shortcuts</div>
-            <div className="space-y-1.5 text-foreground/70">
-              <HelpRow kbd="V / R / C / L / T / A" label="Select · Rect · Circle · Line · Text · Arrow" />
-              <HelpRow kbd="Click" label="Place shape (line/area: 2nd click = end)" />
-              <HelpRow kbd="Drag (in body)" label="Move shape (cursor → grab)" />
-              <HelpRow kbd="Space + drag" label="Pan canvas" />
-              <HelpRow kbd="⌘ + scroll" label="Zoom in / out" />
-              <HelpRow kbd="scroll / two-finger" label="Pan (horizontal + vertical)" />
-              <HelpRow kbd="⌘ + Z / ⇧⌘Z" label="Undo / Redo" />
-              <HelpRow kbd="⌘ + D" label="Duplicate selection" />
-              <HelpRow kbd="⌘ + A" label="Select all" />
-              <HelpRow kbd="Del / Backspace" label="Delete selection" />
-              <HelpRow kbd="⌘ + 0" label="Reset view (100%)" />
-              <HelpRow kbd="⌘ + + / -" label="Zoom in / out" />
-              <HelpRow kbd="Shift + drag" label="Move without smart snap" />
-              <HelpRow kbd="Esc" label="Cancel / return to select" />
-            </div>
-            <div className="mt-3 pt-2 border-t border-foreground/[0.06] text-[9.5px] text-foreground/40 leading-relaxed">
-              Right-click, browser-zoom, and swipe-navigation are disabled inside the canvas to prevent accidental exit.
+          <div className="absolute top-10 right-0 w-[340px] max-h-[80vh] overflow-y-auto bg-white dark:bg-neutral-800 rounded-lg shadow-2xl border border-foreground/[0.1] p-3 text-[11px] animate-scale-in">
+            {/* Section: Tools */}
+            <HelpSection title={isJa ? "ツール" : "Tools"}>
+              <HelpRow kbd="V" label={isJa ? "選択モード — クリックで掴む、ドラッグで複数選択" : "Select tool — click to grab, drag to multi-select"} />
+              <HelpRow kbd="R / C" label={isJa ? "四角・円ツール" : "Rectangle / Circle tool"} />
+              <HelpRow kbd="L / A" label={isJa ? "直線・矢印ツール" : "Line / Arrow tool"} />
+              <HelpRow kbd="T" label={isJa ? "テキストツール" : "Text tool"} />
+            </HelpSection>
+
+            {/* Section: Drawing */}
+            <HelpSection title={isJa ? "描画" : "Drawing"}>
+              <HelpRow kbd={isJa ? "クリック" : "Click"} label={isJa ? "始点を設定 → 2回目クリックで完成" : "Set start point — second click finishes shape"} />
+              <HelpRow kbd={isJa ? "Shift+クリック" : "Shift+click"} label={isJa ? "角度を 22.5° / 30° / 45° / 90° にスナップ" : "Snap angle to 22.5° / 30° / 45° / 90°"} />
+              <HelpRow kbd="Esc" label={isJa ? "描画キャンセル / 選択モードへ" : "Cancel drawing / return to select"} />
+            </HelpSection>
+
+            {/* Section: Move & Edit */}
+            <HelpSection title={isJa ? "移動・編集" : "Move & Edit"}>
+              <HelpRow kbd={isJa ? "ドラッグ (中央)" : "Drag (center)"} label={isJa ? "図形を掴んで移動 (端子はクリックスルー)" : "Grab shape body to move (terminals pass through)"} />
+              <HelpRow kbd={isJa ? "矢印キー" : "Arrow keys"} label={isJa ? "0.5mm 単位で微調整" : "Nudge selection by 0.5mm"} />
+              <HelpRow kbd={isJa ? "Shift+矢印" : "Shift+Arrow"} label={isJa ? "5mm 単位で大きく移動" : "Move by 5mm (larger step)"} />
+              <HelpRow kbd={isJa ? "Shift+ドラッグ" : "Shift+drag"} label={isJa ? "スマートスナップを一時無効化" : "Disable smart snap temporarily"} />
+              <HelpRow kbd="⌘D" label={isJa ? "選択を複製" : "Duplicate selection"} />
+              <HelpRow kbd="⌘A" label={isJa ? "全図形を選択" : "Select all shapes"} />
+              <HelpRow kbd="Del" label={isJa ? "選択を削除" : "Delete selected shapes"} />
+              <HelpRow kbd="⌘Z / ⇧⌘Z" label={isJa ? "元に戻す / やり直し" : "Undo / Redo"} />
+            </HelpSection>
+
+            {/* Section: View */}
+            <HelpSection title={isJa ? "表示" : "View"}>
+              <HelpRow kbd={isJa ? "Space+ドラッグ" : "Space+drag"} label={isJa ? "キャンバスを移動 (パン)" : "Pan around the canvas"} />
+              <HelpRow kbd={isJa ? "スクロール" : "Scroll"} label={isJa ? "縦・横にパン (トラックパッド対応)" : "Pan vertically/horizontally (trackpad-friendly)"} />
+              <HelpRow kbd={isJa ? "⌘+スクロール" : "⌘+scroll"} label={isJa ? "カーソル位置を中心にズーム" : "Zoom in/out toward cursor"} />
+              <HelpRow kbd="⌘+ / ⌘−" label={isJa ? "中央でズーム" : "Zoom in/out from center"} />
+              <HelpRow kbd="⌘0" label={isJa ? "ズームを100%に戻す" : "Reset zoom to 100%"} />
+            </HelpSection>
+
+            {/* Section: Power features */}
+            <HelpSection title={isJa ? "パワー機能" : "Power Features"}>
+              <HelpRow kbd="⌘K" label={isJa ? "コマンドパレット (全機能を検索)" : "Command palette — search any action"} />
+              <HelpRow kbd={isJa ? "レイヤーアイコン" : "Layers icon"} label={isJa ? "全図形を一覧 / 表示・ロック・順序操作" : "List all shapes / toggle visibility, lock, z-order"} />
+              <HelpRow kbd={isJa ? "図形を選択" : "Select a shape"} label={isJa ? "上にクイックアクションバーが出現" : "Floating action bar appears above selection"} />
+            </HelpSection>
+
+            <div className="mt-2 pt-2 border-t border-foreground/[0.06] text-[9.5px] text-foreground/40 leading-relaxed">
+              {isJa
+                ? "💡 キャンバス内では右クリック・ブラウザズーム・スワイプナビは無効化され、誤って画面が切り替わるのを防いでいます。"
+                : "💡 Right-click, browser-zoom, and swipe-navigation are disabled inside the canvas to prevent accidental window changes."}
             </div>
           </div>
         )}
@@ -1152,11 +1518,20 @@ export function FigureCanvas() {
 // ── Small helper component ──
 function HelpRow({ kbd, label }: { kbd: string; label: string }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <span className="text-foreground/80 flex-1 leading-snug">{label}</span>
-      <span className="shrink-0 font-mono text-[9.5px] bg-foreground/[0.06] px-1.5 py-0.5 rounded text-foreground/65 whitespace-nowrap">
+    <div className="flex items-start justify-between gap-3 py-0.5">
+      <span className="text-foreground/75 flex-1 leading-snug text-[10.5px]">{label}</span>
+      <span className="shrink-0 font-mono text-[9px] bg-foreground/[0.06] px-1.5 py-0.5 rounded text-foreground/65 whitespace-nowrap">
         {kbd}
       </span>
+    </div>
+  );
+}
+
+function HelpSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-3 last:mb-0">
+      <div className="text-[9px] font-bold uppercase tracking-wider text-blue-500/70 mb-1">{title}</div>
+      <div className="space-y-px">{children}</div>
     </div>
   );
 }

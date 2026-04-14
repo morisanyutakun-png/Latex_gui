@@ -18,11 +18,41 @@ function coord(x: number, y: number): string {
   return `(${fmt(x)},${fmt(y)})`;
 }
 
+// Map our DashStyle to TikZ
+const TIKZ_DASH: Record<string, string> = {
+  "solid": "",
+  "dashed": "dashed",
+  "dotted": "dotted",
+  "dash-dotted": "dashdotted",
+  "dash-dot-dotted": "dashdotdotted",
+};
+
+// Map our ArrowHead to TikZ arrow tip name (uses arrows.meta library)
+const TIKZ_ARROW: Record<string, string> = {
+  "none":     "",
+  "normal":   "Latex",
+  "fnormal":  "Latex[open]",
+  "pointed":  "Stealth",
+  "fpointed": "Stealth[open]",
+  "linear":   "Straight Barb",
+  "double":   "Latex Latex",
+  "fdouble":  "Latex[open] Latex[open]",
+};
+
+const TIKZ_ARROW_SIZE: Record<string, string> = {
+  "tiny":   "scale=0.5",
+  "small":  "scale=0.8",
+  "normal": "",
+  "large":  "scale=1.4",
+};
+
 function buildDrawOptions(style: ShapeStyle, extra: Record<string, string> = {}): string {
   const opts: string[] = [];
 
   if (style.stroke !== "black") opts.push(`draw=${style.stroke}`);
   else opts.push("draw");
+
+  if ((style.strokeOpacity ?? 1) < 1) opts.push(`draw opacity=${fmt(style.strokeOpacity ?? 1)}`);
 
   if (style.fill !== "none") {
     opts.push(`fill=${style.fill}`);
@@ -36,11 +66,21 @@ function buildDrawOptions(style: ShapeStyle, extra: Record<string, string> = {})
     else opts.push(`line width=${fmt(style.strokeWidth)}pt`);
   }
 
-  if (style.dashed) opts.push("dashed");
+  // Dash style — supports IPE's 5 patterns
+  const ds = style.dashStyle ?? (style.dashed ? "dashed" : "solid");
+  const dashName = TIKZ_DASH[ds];
+  if (dashName) opts.push(dashName);
 
-  if (style.arrowStart && style.arrowEnd) opts.push("<->");
-  else if (style.arrowEnd) opts.push("->");
-  else if (style.arrowStart) opts.push("<-");
+  // Arrow heads — IPE-style with proper tip names (requires arrows.meta library)
+  const startH = style.arrowStartHead ?? (style.arrowStart ? "normal" : "none");
+  const endH = style.arrowEndHead ?? (style.arrowEnd ? "normal" : "none");
+  const startTip = TIKZ_ARROW[startH] ?? "";
+  const endTip = TIKZ_ARROW[endH] ?? "";
+  const sizeOpt = TIKZ_ARROW_SIZE[style.arrowSize ?? "normal"] ?? "";
+  if (startTip || endTip) {
+    const sizePart = sizeOpt ? `[${sizeOpt}]` : "";
+    opts.push(`${startTip ? `{${startTip}${sizePart}}` : ""}-${endTip ? `{${endTip}${sizePart}}` : ""}`);
+  }
 
   for (const [k, v] of Object.entries(extra)) {
     opts.push(v ? `${k}=${v}` : k);
@@ -683,6 +723,8 @@ export function generateFullLatex(shapes: FigureShape[], connections: Connection
   const tikz = generateTikZ(shapes, connections);
 
   const preamble: string[] = [];
+  // Always include arrows.meta for IPE-style arrow heads
+  preamble.push("\\usetikzlibrary{arrows.meta}");
   if (pkgs.includes("circuitikz")) preamble.push("\\usepackage{circuitikz}");
   if (pkgs.includes("tikz-decorations")) {
     preamble.push("\\usetikzlibrary{decorations.pathmorphing}");

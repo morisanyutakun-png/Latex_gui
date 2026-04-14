@@ -17,7 +17,7 @@ import type { FigureShape, LabelPosition } from "./types";
 import { LABEL_POSITIONS } from "./types";
 import { renderInlineMathOrPlaceholder } from "@/lib/katex-render";
 import {
-  Superscript, Subscript, Sigma, ChevronDown, X, Info,
+  ChevronDown, X, Info,
 } from "lucide-react";
 
 function useIsJa() {
@@ -39,23 +39,37 @@ interface InsertAction {
   requiresMath?: boolean;
 }
 
+/**
+ * Quick-insert actions. Each has:
+ *  - `label`: a VISUAL representation (not LaTeX code) — shows what the result looks like
+ *  - `name` / `nameJa`: a plain-language name for the tooltip (no code shown)
+ *  - `before` / `after` / `placeholder`: the actual TeX inserted (hidden from user)
+ */
 const QUICK_INSERTS: InsertAction[] = [
-  { label: <>x<sub className="text-[0.75em]">n</sub></>, before: "_{", after: "}", placeholder: "n",
-    tooltip: "Subscript (_{...})", tooltipJa: "下付き (_{…})", requiresMath: true },
-  { label: <>x<sup className="text-[0.75em]">n</sup></>, before: "^{", after: "}", placeholder: "n",
-    tooltip: "Superscript (^{...})", tooltipJa: "上付き (^{…})", requiresMath: true },
-  { label: <span style={{ textDecoration: "overline" }}>x→</span>, before: "\\vec{", after: "}", placeholder: "v",
-    tooltip: "Vector (\\vec{})", tooltipJa: "ベクトル (\\vec{})", requiresMath: true },
-  { label: <>x̂</>, before: "\\hat{", after: "}", placeholder: "x",
-    tooltip: "Hat (\\hat{})", tooltipJa: "ハット (\\hat{})", requiresMath: true },
-  { label: <>ẋ</>, before: "\\dot{", after: "}", placeholder: "x",
-    tooltip: "Dot (\\dot{}) — time derivative", tooltipJa: "ドット (\\dot{}) — 時間微分", requiresMath: true },
-  { label: <>x̄</>, before: "\\bar{", after: "}", placeholder: "x",
-    tooltip: "Bar (\\bar{}) — mean", tooltipJa: "バー (\\bar{}) — 平均", requiresMath: true },
-  { label: <>½</>, before: "\\frac{", after: "}{}", placeholder: "a",
-    tooltip: "Fraction (\\frac{a}{b})", tooltipJa: "分数 (\\frac{a}{b})", requiresMath: true },
-  { label: <>√</>, before: "\\sqrt{", after: "}", placeholder: "x",
-    tooltip: "Square root (\\sqrt{})", tooltipJa: "平方根 (\\sqrt{})", requiresMath: true },
+  { label: <>x<sub className="text-[0.7em] -ml-px">n</sub></>,
+    before: "_{", after: "}", placeholder: "n",
+    tooltip: "Subscript", tooltipJa: "下付き文字", requiresMath: true },
+  { label: <>x<sup className="text-[0.7em] -ml-px">n</sup></>,
+    before: "^{", after: "}", placeholder: "n",
+    tooltip: "Superscript", tooltipJa: "上付き文字", requiresMath: true },
+  { label: <span className="relative inline-block leading-none"><span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[10px]">→</span><span>v</span></span>,
+    before: "\\vec{", after: "}", placeholder: "v",
+    tooltip: "Vector (arrow over letter)", tooltipJa: "ベクトル(矢印付き)", requiresMath: true },
+  { label: <span className="relative inline-block leading-none"><span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[10px]">^</span><span>x</span></span>,
+    before: "\\hat{", after: "}", placeholder: "x",
+    tooltip: "Hat (estimate / unit)", tooltipJa: "ハット(推定値・単位)", requiresMath: true },
+  { label: <span className="relative inline-block leading-none"><span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px]">·</span><span>x</span></span>,
+    before: "\\dot{", after: "}", placeholder: "x",
+    tooltip: "Dot (time derivative)", tooltipJa: "ドット(時間微分)", requiresMath: true },
+  { label: <span className="relative inline-block leading-none"><span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[10px]">−</span><span>x</span></span>,
+    before: "\\bar{", after: "}", placeholder: "x",
+    tooltip: "Bar (mean / average)", tooltipJa: "バー(平均値)", requiresMath: true },
+  { label: <span className="inline-flex flex-col items-center leading-[0.85] text-[9px] font-serif"><span>a</span><span className="border-t border-current w-3" /><span>b</span></span>,
+    before: "\\frac{", after: "}{}", placeholder: "a",
+    tooltip: "Fraction", tooltipJa: "分数", requiresMath: true },
+  { label: <span className="font-serif">√x</span>,
+    before: "\\sqrt{", after: "}", placeholder: "x",
+    tooltip: "Square root", tooltipJa: "平方根", requiresMath: true },
 ];
 
 // Organized symbol palette
@@ -98,33 +112,50 @@ const UNITS = [
 
 // ── Small pieces ────────────────────────────────────────────────
 
-function Chip({ children, onClick, title, active }: { children: React.ReactNode; onClick: () => void; title: string; active?: boolean }) {
+/** Quick-insert button — bigger, more visual. Used in the math toolbar. */
+function InsertBtn({ children, onClick, title }: { children: React.ReactNode; onClick: () => void; title: string }) {
   return (
     <button
-      onMouseDown={(e) => e.preventDefault()}  // keep input focused
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       title={title}
-      className={`h-7 min-w-[28px] px-1.5 rounded-md text-[11px] font-serif transition-colors flex items-center justify-center ${
-        active
-          ? "bg-blue-500 text-white shadow-sm"
-          : "bg-foreground/[0.04] hover:bg-foreground/[0.1] text-foreground/75 hover:text-foreground"
-      }`}
+      className="group h-9 rounded-md font-serif text-[13px] flex items-center justify-center transition-all bg-white/70 dark:bg-white/[0.04] border border-foreground/[0.06] hover:border-blue-500/40 hover:bg-blue-50/60 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 text-foreground/80"
     >
       {children}
     </button>
   );
 }
 
+/** Symbol palette button (compact, single character). */
 function SymbolBtn({ sym, tex, onInsert }: { sym: string; tex: string; onInsert: (t: string) => void }) {
   return (
     <button
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => onInsert(tex)}
-      title={tex}
+      title={sym}
       className="h-6 w-6 rounded text-[13px] font-serif text-foreground/75 hover:bg-blue-500/15 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center justify-center"
     >
       {sym}
     </button>
+  );
+}
+
+/** Hint row showing a visual rendered preview + label + brief instruction. NO LaTeX code. */
+function VisualHint({ preview, label, description }: {
+  preview: React.ReactNode;
+  label: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="w-9 h-7 flex items-center justify-center rounded bg-white dark:bg-white/[0.06] border border-foreground/[0.06] font-serif text-[13px] text-foreground/85 shrink-0">
+        {preview}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] font-semibold text-foreground/75 leading-tight">{label}</div>
+        <div className="text-[9px] text-foreground/45 leading-tight">{description}</div>
+      </div>
+    </div>
   );
 }
 
@@ -279,78 +310,123 @@ export function LabelEditor({
           onKeyDown={(e) => {
             if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); }
           }}
-          placeholder={shape.labelMathMode ? (isJa ? "LaTeX (例: V_1, \\vec{v}, \\alpha)" : "LaTeX (e.g. V_1, \\vec{v}, \\alpha)") : (isJa ? "テキスト..." : "Text...")}
+          placeholder={shape.labelMathMode
+            ? (isJa ? "数式を入力 (下のボタンを使用)" : "Enter expression (use buttons below)")
+            : (isJa ? "テキストを入力..." : "Enter text...")}
           className={`w-full h-8 px-2.5 text-[12px] rounded-md border transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${
             shape.labelMathMode
-              ? "font-mono border-blue-500/30 bg-blue-50/30 dark:bg-blue-500/5 focus:border-blue-500/60"
+              ? "font-serif italic border-blue-500/30 bg-blue-50/30 dark:bg-blue-500/5 focus:border-blue-500/60"
               : "border-foreground/[0.08] bg-white/70 dark:bg-white/5 focus:border-blue-500/40"
           }`}
           spellCheck={!shape.labelMathMode}
         />
-        {shape.labelMathMode && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold font-mono text-blue-500 select-none pointer-events-none">
-            $ TEX
-          </span>
-        )}
       </div>
 
-      {/* ── Mode toggles + hint ── */}
-      <div className="flex items-center gap-1 flex-wrap">
-        <Chip onClick={toggleMath} active={shape.labelMathMode} title={isJa ? "数式モード (LaTeX)" : "Math mode (LaTeX)"}>
-          <span style={{ fontStyle: "italic" }}>𝑥</span>
-          <span className="ml-1 text-[9px] font-sans font-semibold uppercase tracking-wide">
-            {shape.labelMathMode ? "Math" : "Text"}
-          </span>
-        </Chip>
-
-        {shape.labelMathMode && (
-          <>
-            <div className="w-px h-5 bg-foreground/[0.08] mx-0.5" />
-            {QUICK_INSERTS.slice(0, 6).map((ins, i) => (
-              <Chip key={i} onClick={() => smartInsert(ins)} title={isJa ? ins.tooltipJa : ins.tooltip}>
-                {ins.label}
-              </Chip>
-            ))}
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setShowPalette(!showPalette)}
-              title={isJa ? "記号パレット" : "Symbol palette"}
-              className={`h-7 px-2 rounded-md text-[10px] font-semibold transition-colors flex items-center gap-0.5 ${
-                showPalette
-                  ? "bg-blue-500 text-white"
-                  : "bg-foreground/[0.04] hover:bg-foreground/[0.1] text-foreground/75"
-              }`}
-            >
-              α β γ
-              <ChevronDown size={10} className={`transition-transform ${showPalette ? "rotate-180" : ""}`} />
-            </button>
-          </>
-        )}
-
-        <div className="flex-1" />
+      {/* ══ Mode selection: TWO BIG BUTTONS ══ */}
+      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-lg bg-foreground/[0.04] border border-foreground/[0.06]">
         <button
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setShowHint(!showHint)}
-          title={isJa ? "構文ヒント" : "Syntax hints"}
-          className={`h-6 w-6 flex items-center justify-center rounded-md transition-colors ${
-            showHint ? "text-blue-500 bg-blue-50 dark:bg-blue-500/10" : "text-foreground/30 hover:text-foreground/60"
+          onClick={() => { if (shape.labelMathMode) toggleMath(); }}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-md transition-all ${
+            !shape.labelMathMode
+              ? "bg-white dark:bg-white/[0.08] text-foreground shadow-sm ring-1 ring-foreground/[0.08]"
+              : "text-foreground/45 hover:text-foreground/70 hover:bg-foreground/[0.03]"
           }`}
         >
-          <Info size={11} />
+          <span className="text-[15px] font-sans font-semibold leading-none">Aa</span>
+          <span className="text-[9px] font-medium tracking-wide">{isJa ? "テキスト" : "Text"}</span>
+        </button>
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => { if (!shape.labelMathMode) toggleMath(); }}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-md transition-all ${
+            shape.labelMathMode
+              ? "bg-blue-500 text-white shadow-md shadow-blue-500/30"
+              : "text-foreground/45 hover:text-foreground/70 hover:bg-foreground/[0.03]"
+          }`}
+        >
+          <span className="text-[15px] font-serif italic leading-none">𝑥</span>
+          <span className="text-[9px] font-medium tracking-wide">{isJa ? "数式" : "Math"}</span>
         </button>
       </div>
 
-      {/* ── Inline syntax hints (collapsible) ── */}
-      {showHint && (
-        <div className="text-[10px] leading-relaxed text-foreground/55 bg-foreground/[0.03] rounded-md px-2.5 py-2 border border-foreground/[0.05] space-y-0.5">
-          <HintRow syntax="x_1"    meaning={isJa ? "下付き文字" : "Subscript"} />
-          <HintRow syntax="x^2"    meaning={isJa ? "上付き文字" : "Superscript"} />
-          <HintRow syntax="x_{12}" meaning={isJa ? "複数文字の下付き" : "Multi-char subscript — use braces"} />
-          <HintRow syntax="\alpha" meaning={isJa ? "ギリシャ文字 (α)" : "Greek letter (α)"} />
-          <HintRow syntax="\vec{v}" meaning={isJa ? "ベクトル" : "Vector with arrow"} />
-          <HintRow syntax="\frac{a}{b}" meaning={isJa ? "分数" : "Fraction"} />
-          <div className="pt-1 mt-1 border-t border-foreground/[0.06] text-[9px] text-foreground/35">
-            {isJa ? "ボタンを押すと入力欄に自動で挿入されます" : "Click any button above — text is inserted at cursor position"}
+      {/* ══ Math quick-insert (visual buttons, no code shown) ══ */}
+      {shape.labelMathMode && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-medium uppercase tracking-wider text-foreground/40">
+              {isJa ? "クイック挿入" : "Quick insert"}
+            </span>
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setShowHint(!showHint)}
+              title={isJa ? "使い方ヒント" : "How to use"}
+              className={`h-5 w-5 flex items-center justify-center rounded transition-colors ${
+                showHint ? "text-blue-500 bg-blue-50 dark:bg-blue-500/10" : "text-foreground/30 hover:text-foreground/60"
+              }`}
+            >
+              <Info size={10} />
+            </button>
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {QUICK_INSERTS.map((ins, i) => (
+              <InsertBtn key={i} onClick={() => smartInsert(ins)} title={isJa ? ins.tooltipJa : ins.tooltip}>
+                {ins.label}
+              </InsertBtn>
+            ))}
+          </div>
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setShowPalette(!showPalette)}
+            title={isJa ? "ギリシャ文字・記号パレット" : "Greek letters & symbols"}
+            className={`w-full h-7 rounded-md text-[10px] font-semibold transition-colors flex items-center justify-center gap-1 ${
+              showPalette
+                ? "bg-blue-500 text-white"
+                : "bg-foreground/[0.04] hover:bg-foreground/[0.08] text-foreground/65 hover:text-foreground/85 border border-foreground/[0.06]"
+            }`}
+          >
+            <span className="font-serif text-[12px]">α β γ ⋯</span>
+            <span>{isJa ? "記号" : "Symbols"}</span>
+            <ChevronDown size={10} className={`transition-transform ${showPalette ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+      )}
+
+      {/* ══ Visual usage hints (no LaTeX code shown — only rendered results) ══ */}
+      {showHint && shape.labelMathMode && (
+        <div className="bg-gradient-to-br from-blue-50/40 to-transparent dark:from-blue-500/5 rounded-md px-3 py-2.5 border border-blue-500/15 space-y-2">
+          <div className="text-[9px] font-bold uppercase tracking-wider text-blue-500/70 mb-1">
+            {isJa ? "使い方" : "How it works"}
+          </div>
+          <VisualHint
+            preview={<>x<sub className="text-[0.65em]">1</sub></>}
+            label={isJa ? "下付き文字" : "Subscript"}
+            description={isJa ? "ボタン x_n を押す" : "Press the x_n button"}
+          />
+          <VisualHint
+            preview={<>x<sup className="text-[0.65em]">2</sup></>}
+            label={isJa ? "上付き文字" : "Superscript"}
+            description={isJa ? "ボタン x^n を押す" : "Press the x^n button"}
+          />
+          <VisualHint
+            preview={<span className="relative inline-block leading-none"><span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[10px]">→</span><span className="font-serif italic">v</span></span>}
+            label={isJa ? "ベクトル" : "Vector"}
+            description={isJa ? "矢印付きボタンを押す" : "Press the arrow button"}
+          />
+          <VisualHint
+            preview={<span className="font-serif">α β γ</span>}
+            label={isJa ? "ギリシャ文字" : "Greek letters"}
+            description={isJa ? "「記号」ボタンから選択" : "Pick from symbol palette"}
+          />
+          <VisualHint
+            preview={<span className="inline-flex flex-col items-center leading-[0.85] text-[10px] font-serif"><span>a</span><span className="border-t border-current w-3" /><span>b</span></span>}
+            label={isJa ? "分数" : "Fraction"}
+            description={isJa ? "分数ボタンを押す" : "Press the fraction button"}
+          />
+          <div className="pt-1.5 mt-1.5 border-t border-blue-500/15 text-[9px] text-foreground/45 leading-relaxed">
+            {isJa
+              ? "💡 ボタンを押すと自動で挿入されます。慣れてきたら直接 _ や ^ で入力もできます。"
+              : "💡 Buttons insert at your cursor. Once familiar, you can also type _ or ^ directly."}
           </div>
         </div>
       )}
@@ -416,17 +492,6 @@ export function LabelEditor({
 
 // ── Small helpers ───────────────────────────────────────────────
 
-function HintRow({ syntax, meaning }: { syntax: string; meaning: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <code className="font-mono text-[10px] bg-foreground/[0.06] px-1.5 py-0.5 rounded text-foreground/80 whitespace-nowrap">
-        {syntax}
-      </code>
-      <span className="text-foreground/50">→</span>
-      <span className="text-foreground/70 flex-1">{meaning}</span>
-    </div>
-  );
-}
 
 function SymbolGroup({ title, symbols, onInsert }: { title: string; symbols: { sym: string; tex: string }[]; onInsert: (t: string) => void }) {
   return (

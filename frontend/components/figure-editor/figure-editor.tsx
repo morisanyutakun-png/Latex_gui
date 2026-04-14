@@ -19,11 +19,13 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import {
   X, Code2, ChevronDown, ChevronUp, ClipboardCopy, Check,
-  ImagePlus, Keyboard, FileDown, Loader2,
+  ImagePlus, Keyboard, FileDown, Loader2, Layers, Command,
 } from "lucide-react";
 import { toast } from "sonner";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { LayersPanel } from "./layers-panel";
+import { CommandPalette } from "./command-palette";
 
 function useIsJa() {
   if (typeof window === "undefined") return false;
@@ -64,8 +66,23 @@ export function FigureEditor() {
   const [selectedSize, setSelectedSize] = useState(2); // "Original" index
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [showLayers, setShowLayers] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
 
   const { t } = useI18n();
+
+  // ── Cmd+K opens command palette ─────────────────────────────────
+
+  React.useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setShowPalette((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
 
   // ── TikZ code ─────────────────────────────────────────────────
 
@@ -234,6 +251,27 @@ export function FigureEditor() {
 
         {/* Right — actions */}
         <div className="flex items-center gap-1.5">
+          {/* Command palette (Cmd+K) */}
+          <button
+            onClick={() => setShowPalette(true)}
+            className="flex items-center gap-1.5 h-7 pl-2 pr-1.5 rounded-lg text-foreground/40 hover:text-foreground/65 hover:bg-foreground/[0.04] transition-colors"
+            title={isJa ? "コマンドパレット (⌘K)" : "Command palette (⌘K)"}
+          >
+            <Command size={12} />
+            <kbd className="text-[8.5px] font-mono bg-foreground/[0.06] px-1 py-px rounded">⌘K</kbd>
+          </button>
+
+          {/* Layers toggle */}
+          <button
+            onClick={() => setShowLayers(!showLayers)}
+            className={`p-1.5 rounded-lg transition-colors ${
+              showLayers ? "text-teal-600 bg-teal-50 dark:bg-teal-500/10" : "text-foreground/30 hover:text-foreground/50 hover:bg-foreground/[0.04]"
+            }`}
+            title={isJa ? "レイヤー" : "Layers"}
+          >
+            <Layers size={14} />
+          </button>
+
           {/* Shortcuts help */}
           <button
             onClick={() => setShowShortcuts(!showShortcuts)}
@@ -305,19 +343,25 @@ export function FigureEditor() {
       {/* ══════════ SHORTCUTS PANEL ══════════ */}
       {showShortcuts && (
         <div className="shrink-0 border-b border-foreground/[0.06] bg-teal-50/50 dark:bg-teal-500/5 px-4 py-2">
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10px] text-foreground/50">
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[10px] text-foreground/55">
+            <span><kbd className="kbd">⌘K</kbd> {isJa ? "コマンドパレット" : "Command palette"}</span>
             <span><kbd className="kbd">V</kbd> {isJa ? "選択" : "Select"}</span>
             <span><kbd className="kbd">R</kbd> {isJa ? "四角" : "Rect"}</span>
             <span><kbd className="kbd">C</kbd> {isJa ? "円" : "Circle"}</span>
-            <span><kbd className="kbd">L</kbd> {isJa ? "線" : "Line"}</span>
+            <span><kbd className="kbd">L</kbd> {isJa ? "直線" : "Line"}</span>
+            <span><kbd className="kbd">A</kbd> {isJa ? "矢印" : "Arrow"}</span>
             <span><kbd className="kbd">T</kbd> {isJa ? "文字" : "Text"}</span>
-            <span><kbd className="kbd">Space</kbd>+drag = {isJa ? "パン" : "Pan"}</span>
-            <span><kbd className="kbd">Ctrl</kbd>+scroll = {isJa ? "ズーム" : "Zoom"}</span>
-            <span>scroll = {isJa ? "パン" : "Pan"}</span>
+            <span><kbd className="kbd">Space</kbd>+{isJa ? "ドラッグ" : "drag"} = {isJa ? "パン" : "Pan"}</span>
+            <span><kbd className="kbd">⌘</kbd>+{isJa ? "スクロール" : "scroll"} = {isJa ? "ズーム" : "Zoom"}</span>
+            <span>{isJa ? "スクロール" : "scroll"} = {isJa ? "パン" : "Pan"}</span>
+            <span><kbd className="kbd">↑↓←→</kbd> {isJa ? "微調整 (0.5mm)" : "Nudge 0.5mm"}</span>
+            <span><kbd className="kbd">⇧</kbd>+{isJa ? "矢印" : "arrow"} = {isJa ? "5mm 移動" : "Move 5mm"}</span>
+            <span><kbd className="kbd">⇧</kbd>+{isJa ? "クリック" : "click"} = {isJa ? "角度スナップ" : "Snap angle"}</span>
             <span><kbd className="kbd">Del</kbd> {isJa ? "削除" : "Delete"}</span>
-            <span><kbd className="kbd">Ctrl+Z</kbd> {isJa ? "戻す" : "Undo"}</span>
-            <span><kbd className="kbd">Ctrl+D</kbd> {isJa ? "複製" : "Duplicate"}</span>
-            <span><kbd className="kbd">Esc</kbd> {isJa ? "ツール解除" : "Deselect"}</span>
+            <span><kbd className="kbd">⌘Z</kbd> {isJa ? "元に戻す" : "Undo"}</span>
+            <span><kbd className="kbd">⌘D</kbd> {isJa ? "複製" : "Duplicate"}</span>
+            <span><kbd className="kbd">⌘A</kbd> {isJa ? "全選択" : "Select all"}</span>
+            <span><kbd className="kbd">Esc</kbd> {isJa ? "解除" : "Cancel"}</span>
           </div>
         </div>
       )}
@@ -327,7 +371,24 @@ export function FigureEditor() {
         <FigureToolbar />
         <FigureCanvas />
         <FigureProperties />
+
+        {/* Layers panel — overlays the canvas area */}
+        <LayersPanel open={showLayers} onClose={() => setShowLayers(false)} />
       </div>
+
+      {/* Command palette (Cmd+K) — full-screen modal overlay */}
+      <CommandPalette
+        open={showPalette}
+        onClose={() => setShowPalette(false)}
+        onOpenLayers={() => { setShowLayers(true); setShowPalette(false); }}
+        onFitToContent={() => {
+          // Compute fit-to-content via store + dispatch a custom event for canvas to handle
+          window.dispatchEvent(new Event("figure-editor:fit-content"));
+        }}
+        onZoomIn={() => window.dispatchEvent(new Event("figure-editor:zoom-in"))}
+        onZoomOut={() => window.dispatchEvent(new Event("figure-editor:zoom-out"))}
+        onResetZoom={() => useFigureStore.getState().resetViewport()}
+      />
 
       {/* ══════════ TIKZ CODE PANEL ══════════ */}
       {showCode && (

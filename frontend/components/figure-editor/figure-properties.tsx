@@ -15,8 +15,11 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useFigureStore } from "./figure-store";
-import type { FigureShape, ShapeStyle } from "./types";
-import { ChevronRight, Sparkles, Tag, Move, Palette, PaintBucket, Minus, Type } from "lucide-react";
+import type { FigureShape, ShapeStyle, DashStyle, ArrowHead } from "./types";
+import {
+  IPE_COLORS, PEN_PRESETS, DASH_PATTERNS, OPACITY_PRESETS, ARROW_SIZES, colorRgb,
+} from "./types";
+import { ChevronRight, Sparkles, Tag, Move, Palette, PaintBucket, Minus, Type, Droplets } from "lucide-react";
 import { LabelEditor } from "./label-editor";
 
 function useIsJa() {
@@ -24,42 +27,18 @@ function useIsJa() {
   try { return localStorage.getItem("lx-locale") === "ja"; } catch { return false; }
 }
 
-// ── Color palette (extended) ────────────────────────────────────
+// ── IPE color palette (28 named colors, TikZ-compatible) ────────
 
-const COLORS = [
-  { name: "black",   css: "#000000" },
-  { name: "gray",    css: "#6b7280" },
-  { name: "red",     css: "#dc2626" },
-  { name: "orange",  css: "#ea580c" },
-  { name: "yellow",  css: "#eab308" },
-  { name: "green",   css: "#16a34a" },
-  { name: "teal",    css: "#0d9488" },
-  { name: "cyan",    css: "#06b6d4" },
-  { name: "blue",    css: "#2563eb" },
-  { name: "violet",  css: "#7c3aed" },
-  { name: "pink",    css: "#ec4899" },
-  { name: "white",   css: "#ffffff" },
-];
+const COLORS = IPE_COLORS.map((c) => ({ name: c.name, css: c.rgb }));
 
+// Fill presets include "none" sentinel + IPE colors (use lighter tones first)
 const FILL_PRESETS = [
-  { label: "None",  value: "none",    css: "transparent" },
-  { label: "White", value: "white",   css: "#ffffff" },
-  { label: "Blue",  value: "#dbeafe", css: "#dbeafe" },
-  { label: "Green", value: "#dcfce7", css: "#dcfce7" },
-  { label: "Yellow",value: "#fef3c7", css: "#fef3c7" },
-  { label: "Red",   value: "#fecaca", css: "#fecaca" },
-  { label: "Purple",value: "#e9d5ff", css: "#e9d5ff" },
-  { label: "Gray",  value: "#e5e7eb", css: "#e5e7eb" },
+  { name: "none",  css: "transparent" },
+  ...IPE_COLORS.map((c) => ({ name: c.name, css: c.rgb })),
 ];
 
-const STROKE_WIDTHS = [
-  { label: "Hair", value: 0.4 },
-  { label: "Thin", value: 0.6 },
-  { label: "Normal", value: 0.8 },
-  { label: "Thick", value: 1.2 },
-  { label: "Bold",  value: 2 },
-  { label: "Heavy", value: 3 },
-];
+// Pen widths from IPE presets
+const STROKE_WIDTHS = PEN_PRESETS;
 
 // ══════════════════════════════════════════════════════════════════
 //  Collapsible section
@@ -115,27 +94,137 @@ function ColorPicker({
   allowNone?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-6 gap-1">
-      {colors.map((c) => {
-        const val = (c.name ?? c.value) as string;
-        const active = value === val;
-        const isNone = val === "none";
+    <div>
+      <div className="grid grid-cols-7 gap-1">
+        {colors.map((c) => {
+          const val = (c.name ?? c.value) as string;
+          const active = value === val;
+          const isNone = val === "none";
+          return (
+            <button
+              key={val} title={c.name ?? c.label ?? val}
+              onClick={() => onChange(val)}
+              className={`relative h-6 w-6 rounded transition-all duration-120 ${
+                active ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-background scale-110 z-10" : "ring-1 ring-foreground/[0.12] hover:ring-foreground/40 hover:scale-110"
+              }`}
+              style={{
+                backgroundColor: isNone ? "#fff" : c.css,
+                backgroundImage: isNone ? "linear-gradient(135deg, transparent 44%, #ef4444 44% 56%, transparent 56%)" : undefined,
+              }}
+            >
+              {c.css === "#ffffff" && !active && (
+                <span className="absolute inset-0 rounded ring-1 ring-inset ring-foreground/15" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <div className="text-[9px] text-foreground/40 mt-1 font-mono">{value === "none" ? "(none)" : value}</div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Dash style picker (5 IPE patterns with line previews)
+// ══════════════════════════════════════════════════════════════════
+
+function DashStylePicker({ value, onChange, color }: { value: DashStyle; onChange: (s: DashStyle) => void; color: string }) {
+  return (
+    <div className="grid grid-cols-5 gap-1">
+      {DASH_PATTERNS.map((p) => {
+        const active = value === p.style;
         return (
           <button
-            key={val} title={c.name ?? c.label ?? val}
-            onClick={() => onChange(val)}
-            className={`relative h-7 rounded-md transition-all duration-120 ${
-              active ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-background scale-105" : "ring-1 ring-foreground/[0.1] hover:ring-foreground/30 hover:scale-105"
+            key={p.style}
+            onClick={() => onChange(p.style)}
+            title={p.label}
+            className={`h-7 rounded-md flex items-center justify-center transition-all ${
+              active
+                ? "bg-blue-500/10 ring-1 ring-blue-500/60"
+                : "bg-foreground/[0.03] hover:bg-foreground/[0.07] ring-1 ring-foreground/[0.05]"
             }`}
-            style={{
-              backgroundColor: isNone ? "#fff" : c.css,
-              backgroundImage: isNone ? "linear-gradient(135deg, transparent 45%, #ef4444 45% 55%, transparent 55%)" : undefined,
-            }}
           >
-            {c.css === "#ffffff" && !active && (
-              <span className="absolute inset-0 rounded-md ring-1 ring-inset ring-foreground/10" />
-            )}
+            <svg width="32" height="6" viewBox="0 0 32 6">
+              <line x1="2" y1="3" x2="30" y2="3"
+                stroke={active ? "#2563eb" : color} strokeWidth="1.5"
+                strokeDasharray={p.pattern || undefined} />
+            </svg>
           </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Arrow head picker (per-end, with shape preview)
+// ══════════════════════════════════════════════════════════════════
+
+const ARROW_HEAD_OPTIONS: { head: ArrowHead; label: string }[] = [
+  { head: "none",     label: "—" },
+  { head: "normal",   label: "▶" },
+  { head: "fnormal",  label: "▷" },
+  { head: "pointed",  label: "➤" },
+  { head: "fpointed", label: "▻" },
+  { head: "linear",   label: ">" },
+  { head: "double",   label: "▶▶" },
+  { head: "fdouble",  label: "▷▷" },
+];
+
+function ArrowHeadPicker({ value, onChange, side }: { value: ArrowHead; onChange: (h: ArrowHead) => void; side: "start" | "end" }) {
+  return (
+    <div className="grid grid-cols-4 gap-1">
+      {ARROW_HEAD_OPTIONS.map((o) => {
+        const active = value === o.head;
+        return (
+          <button key={o.head} onClick={() => onChange(o.head)} title={`${side}: ${o.head}`}
+            className={`h-7 rounded-md flex items-center justify-center text-[11px] transition-all ${
+              active ? "bg-blue-500 text-white shadow-sm" : "bg-foreground/[0.03] hover:bg-foreground/[0.08] text-foreground/70 ring-1 ring-foreground/[0.05]"
+            }`}
+            style={{ transform: side === "start" ? "scaleX(-1)" : undefined }}
+          >{o.label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Opacity quick chips
+// ══════════════════════════════════════════════════════════════════
+
+function OpacityChips({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="grid grid-cols-5 gap-1">
+      {OPACITY_PRESETS.map((p) => {
+        const active = Math.abs(value - p.value) < 0.01;
+        return (
+          <button key={p.value} onClick={() => onChange(p.value)}
+            className={`h-7 rounded-md text-[10px] font-mono font-semibold transition-all ${
+              active ? "bg-blue-500 text-white shadow-sm" : "bg-foreground/[0.03] hover:bg-foreground/[0.08] text-foreground/65 ring-1 ring-foreground/[0.05]"
+            }`}
+          >{p.label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Arrow size selector
+// ══════════════════════════════════════════════════════════════════
+
+function ArrowSizePicker({ value, onChange }: { value: "tiny" | "small" | "normal" | "large"; onChange: (v: "tiny" | "small" | "normal" | "large") => void }) {
+  return (
+    <div className="grid grid-cols-4 gap-1">
+      {ARROW_SIZES.map((s) => {
+        const active = value === s.name;
+        return (
+          <button key={s.name} onClick={() => onChange(s.name)} title={s.name}
+            className={`h-7 rounded-md text-[10px] font-mono font-semibold transition-all ${
+              active ? "bg-blue-500 text-white shadow-sm" : "bg-foreground/[0.03] hover:bg-foreground/[0.08] text-foreground/65 ring-1 ring-foreground/[0.05]"
+            }`}
+          >{s.label}</button>
         );
       })}
     </div>
@@ -155,7 +244,7 @@ function StrokeWidthPicker({ value, onChange, color }: { value: number; onChange
           return (
             <button
               key={sw.value}
-              title={`${sw.label} (${sw.value}pt)`}
+              title={`${sw.name} (${sw.value}pt)`}
               onClick={() => onChange(sw.value)}
               className={`h-7 rounded-md flex items-center justify-center transition-all ${
                 active
@@ -184,10 +273,10 @@ function StrokeWidthPicker({ value, onChange, color }: { value: number; onChange
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  Arrow style picker (4-way visual toggle)
+//  Legacy 4-way arrow toggle (kept for compatibility, unused now)
 // ══════════════════════════════════════════════════════════════════
-
-function ArrowStylePicker({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _ArrowStylePicker({
   start, end, onChange, color,
 }: {
   start: boolean; end: boolean;
@@ -409,41 +498,73 @@ export function FigureProperties() {
         <ColorPicker colors={FILL_PRESETS} value={selectedShape.style.fill}
           onChange={(v) => handleStyleChange({ fill: v })} allowNone />
         {selectedShape.style.fill !== "none" && (
-          <InputRow label={isJa ? "Opa" : "Opa"}>
-            <div className="flex items-center gap-2">
-              <input type="range" min="0" max="1" step="0.05" value={selectedShape.style.fillOpacity}
-                onChange={(e) => handleStyleChange({ fillOpacity: parseFloat(e.target.value) })}
-                className="flex-1 h-1 accent-blue-500" />
-              <span className="text-[10px] font-mono text-foreground/50 w-8 text-right">
-                {Math.round(selectedShape.style.fillOpacity * 100)}%
-              </span>
+          <div className="pt-1">
+            <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
+              {isJa ? "塗りの不透明度" : "Fill opacity"}
             </div>
-          </InputRow>
+            <OpacityChips value={selectedShape.style.fillOpacity}
+              onChange={(v) => handleStyleChange({ fillOpacity: v })} />
+          </div>
         )}
       </Section>
 
-      {/* ══════ Line ══════ */}
-      <Section title={isJa ? "線のスタイル" : "Line"} icon={<Minus size={11} />}>
-        <StrokeWidthPicker value={selectedShape.style.strokeWidth}
-          onChange={(v) => handleStyleChange({ strokeWidth: v })} color={strokeCss} />
+      {/* ══════ Line / Pen (IPE-style) ══════ */}
+      <Section title={isJa ? "線(ペン)" : "Line / Pen"} icon={<Minus size={11} />}>
+        <div>
+          <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
+            {isJa ? "太さ" : "Width"}
+          </div>
+          <StrokeWidthPicker value={selectedShape.style.strokeWidth}
+            onChange={(v) => handleStyleChange({ strokeWidth: v })} color={strokeCss} />
+        </div>
 
         <div className="pt-1">
           <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
-            {isJa ? "矢印" : "Arrows"}
+            {isJa ? "破線パターン" : "Dash pattern"}
           </div>
-          <ArrowStylePicker
-            start={selectedShape.style.arrowStart} end={selectedShape.style.arrowEnd}
+          <DashStylePicker
+            value={(selectedShape.style.dashStyle ?? (selectedShape.style.dashed ? "dashed" : "solid")) as DashStyle}
             color={strokeCss}
-            onChange={(s, e) => handleStyleChange({ arrowStart: s, arrowEnd: e })}
+            onChange={(s) => handleStyleChange({ dashStyle: s })}
           />
         </div>
 
-        <label className="flex items-center gap-1.5 text-[10px] text-foreground/60 cursor-pointer hover:text-foreground/85 transition-colors pt-1">
-          <input type="checkbox" checked={selectedShape.style.dashed}
-            onChange={(e) => handleStyleChange({ dashed: e.target.checked })}
-            className="rounded border-foreground/20 accent-blue-500 w-3 h-3" />
-          <span>{isJa ? "破線" : "Dashed"}</span>
-        </label>
+        <div className="pt-1">
+          <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
+            {isJa ? "線の不透明度" : "Stroke opacity"}
+          </div>
+          <OpacityChips value={selectedShape.style.strokeOpacity ?? 1}
+            onChange={(v) => handleStyleChange({ strokeOpacity: v })} />
+        </div>
+      </Section>
+
+      {/* ══════ Arrows (IPE-style: per-end shape + size) ══════ */}
+      <Section title={isJa ? "矢印" : "Arrows"} icon={<span className="text-[11px]">→</span>}>
+        <div>
+          <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
+            {isJa ? "始点" : "Start"}
+          </div>
+          <ArrowHeadPicker side="start"
+            value={selectedShape.style.arrowStartHead ?? (selectedShape.style.arrowStart ? "normal" : "none")}
+            onChange={(h) => handleStyleChange({ arrowStartHead: h })}
+          />
+        </div>
+        <div className="pt-1">
+          <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
+            {isJa ? "終点" : "End"}
+          </div>
+          <ArrowHeadPicker side="end"
+            value={selectedShape.style.arrowEndHead ?? (selectedShape.style.arrowEnd ? "normal" : "none")}
+            onChange={(h) => handleStyleChange({ arrowEndHead: h })}
+          />
+        </div>
+        <div className="pt-1">
+          <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
+            {isJa ? "サイズ" : "Size"}
+          </div>
+          <ArrowSizePicker value={selectedShape.style.arrowSize ?? "normal"}
+            onChange={(v) => handleStyleChange({ arrowSize: v })} />
+        </div>
       </Section>
 
       {/* ══════ Font ══════ */}
