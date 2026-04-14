@@ -408,7 +408,13 @@ export function FigureToolbar() {
   }, [query, activeCategory]);
 
   return (
-    <div className="w-[256px] shrink-0 my-2 ml-2 mr-0 flex flex-col rounded-xl border border-foreground/[0.08] bg-background/95 backdrop-blur-md shadow-lg shadow-foreground/[0.05] overflow-hidden ring-1 ring-foreground/[0.03]">
+    <div className="w-[256px] shrink-0 my-2 ml-2 mr-0 flex flex-col rounded-xl border border-black/[0.08] bg-white dark:bg-neutral-900 overflow-hidden"
+      style={{
+        boxShadow:
+          "0 1px 0 rgba(255,255,255,0.8) inset, " +
+          "0 10px 30px -12px rgba(0,0,0,0.25), " +
+          "0 2px 8px -2px rgba(0,0,0,0.1)",
+      }}>
 
       {/* ══════ Search ══════ */}
       <div className="px-2.5 pt-2.5 pb-1.5">

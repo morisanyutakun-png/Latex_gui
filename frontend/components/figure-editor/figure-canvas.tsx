@@ -38,6 +38,20 @@ function snapV(v: number, g: number, on: boolean): number {
 
 // ── Zoom steps ──────────────────────────────────────────────────
 
+/** Format a cm value for the grid label: "5cm", "0.5", "-10", "50cm", "1mm" */
+function formatGridLabel(cm: number): string {
+  const v = Math.round(cm * 1000) / 1000;
+  if (v === 0) return "0";
+  const abs = Math.abs(v);
+  if (abs >= 1) {
+    // Integers: show as "5cm"/"10cm". Non-integer: "2.5cm"
+    return (Number.isInteger(v) ? v.toString() : v.toString()) + "cm";
+  }
+  // Sub-cm: show as mm to avoid "0.1cm" clutter
+  const mm = Math.round(v * 10 * 100) / 100;
+  return (Number.isInteger(mm) ? mm.toString() : mm.toString()) + "mm";
+}
+
 const ZOOM_STEPS = [0.1, 0.15, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8, 12];
 const MAX_ZOOM = 12;
 const MIN_ZOOM = 0.1;
@@ -546,59 +560,92 @@ export function FigureCanvas() {
   const gridLines = useCallback(() => {
     if (!showGrid) return null;
     const lines: React.ReactNode[] = [];
-    const step = gridSize * scale;
 
-    // ── Visible TikZ range (infinite grid: renders across the whole viewport) ──
-    // Clamp step so we don't draw 10,000 sub-lines when zoomed way out
-    const minPxStep = 6; // don't draw lines closer than 6px apart
-    const effectiveGridCm = Math.max(gridSize, minPxStep / scale);
-    const effectiveStep = effectiveGridCm * scale;
+    // ── Adaptive grid spacing based on zoom level ──
+    // Target: fine lines 6–20px apart, major every integer cm (or scaled unit).
+    const minPxStep = 6;
+    let fineCm = gridSize;
+    while (fineCm * scale < minPxStep && fineCm < 1000) fineCm *= 2;
+    // Major lines: adapt based on zoom — at 100x zoom, majors are 1mm; at 0.1x zoom, every 10cm
+    let majorCm = 1; // default: integer cm
+    if (scale < 20) majorCm = 5;          // zoomed out — every 5cm
+    if (scale < 5)  majorCm = 10;         // very zoomed out — every 10cm
+    if (scale < 1.5) majorCm = 50;        // extremely zoomed out
+    if (scale > 200) majorCm = 0.5;       // zoomed in — every 5mm
+    if (scale > 500) majorCm = 0.1;       // very zoomed in — every 1mm
+    // Big marker (for distance reference): roughly every major*5
+    const bigCm = majorCm * 5;
 
     const viewW = containerSize.w;
     const viewH = containerSize.h;
-    // TikZ coordinates visible on screen
     const tikzXMin = -offsetX / scale;
     const tikzXMax = (viewW - offsetX) / scale;
     const tikzYMin = canvasHeight - (viewH - offsetY) / scale;
     const tikzYMax = canvasHeight - (-offsetY) / scale;
 
-    const xStart = Math.floor(tikzXMin / effectiveGridCm) * effectiveGridCm;
-    const xEnd   = Math.ceil(tikzXMax / effectiveGridCm) * effectiveGridCm;
-    const yStart = Math.floor(tikzYMin / effectiveGridCm) * effectiveGridCm;
-    const yEnd   = Math.ceil(tikzYMax / effectiveGridCm) * effectiveGridCm;
+    const xStart = Math.floor(tikzXMin / fineCm) * fineCm;
+    const xEnd   = Math.ceil(tikzXMax / fineCm) * fineCm;
+    const yStart = Math.floor(tikzYMin / fineCm) * fineCm;
+    const yEnd   = Math.ceil(tikzYMax / fineCm) * fineCm;
 
-    const MAX_LINES = 400;  // safety cap
+    const MAX_LINES = 400;
+
+    // Helper to check if x is near a multiple (handles floating point)
+    const isMultiple = (v: number, step: number) =>
+      Math.abs(v - Math.round(v / step) * step) < step * 0.01;
+
+    const labelNodes: React.ReactNode[] = [];
+
     let count = 0;
-
-    for (let x = xStart; x <= xEnd && count < MAX_LINES; x += effectiveGridCm, count++) {
+    for (let x = xStart; x <= xEnd && count < MAX_LINES; x += fineCm, count++) {
       const px = x * scale + offsetX;
-      const rounded = Math.round(x * 100) / 100;
-      const major = Math.abs(rounded - Math.round(rounded)) < 0.01;
-      const cmMarker = Math.abs(rounded % 5) < 0.01;  // every 5cm — stronger emphasis
-      lines.push(<line key={`gv${rounded}`} x1={px} y1={0} x2={px} y2={viewH}
-        stroke={cmMarker ? "rgba(0,0,0,0.16)" : major ? "rgba(0,0,0,0.09)" : "rgba(0,0,0,0.035)"}
-        strokeWidth={cmMarker ? 0.8 : major ? 0.6 : 0.3} />);
+      const isBig = isMultiple(x, bigCm);
+      const isMajor = isBig || isMultiple(x, majorCm);
+      lines.push(<line key={`gv${x.toFixed(3)}`} x1={px} y1={0} x2={px} y2={viewH}
+        stroke={isBig ? "rgba(0,0,0,0.22)" : isMajor ? "rgba(0,0,0,0.11)" : "rgba(0,0,0,0.035)"}
+        strokeWidth={isBig ? 0.9 : isMajor ? 0.55 : 0.3} />);
+      // cm label on big lines (only a horizontal reference row just below top ruler)
+      if (isBig && px > 26 && px < viewW - 20) {
+        const label = formatGridLabel(x);
+        labelNodes.push(
+          <g key={`lx${x.toFixed(3)}`} pointerEvents="none">
+            <rect x={px - 14} y={26} width={28} height={13} rx={3}
+              fill="rgba(255,255,255,0.9)" stroke="rgba(0,0,0,0.08)" strokeWidth={0.5} />
+            <text x={px} y={35} textAnchor="middle" fontSize="9" fontFamily="monospace"
+              fill="rgba(0,0,0,0.55)" fontWeight="600">{label}</text>
+          </g>
+        );
+      }
     }
     count = 0;
-    for (let y = yStart; y <= yEnd && count < MAX_LINES; y += effectiveGridCm, count++) {
-      // Convert TikZ y to screen y (flipped)
+    for (let y = yStart; y <= yEnd && count < MAX_LINES; y += fineCm, count++) {
       const py = (canvasHeight - y) * scale + offsetY;
-      const rounded = Math.round(y * 100) / 100;
-      const major = Math.abs(rounded - Math.round(rounded)) < 0.01;
-      const cmMarker = Math.abs(rounded % 5) < 0.01;
-      lines.push(<line key={`gh${rounded}`} x1={0} y1={py} x2={viewW} y2={py}
-        stroke={cmMarker ? "rgba(0,0,0,0.16)" : major ? "rgba(0,0,0,0.09)" : "rgba(0,0,0,0.035)"}
-        strokeWidth={cmMarker ? 0.8 : major ? 0.6 : 0.3} />);
+      const isBig = isMultiple(y, bigCm);
+      const isMajor = isBig || isMultiple(y, majorCm);
+      lines.push(<line key={`gh${y.toFixed(3)}`} x1={0} y1={py} x2={viewW} y2={py}
+        stroke={isBig ? "rgba(0,0,0,0.22)" : isMajor ? "rgba(0,0,0,0.11)" : "rgba(0,0,0,0.035)"}
+        strokeWidth={isBig ? 0.9 : isMajor ? 0.55 : 0.3} />);
+      if (isBig && py > 40 && py < viewH - 8) {
+        const label = formatGridLabel(y);
+        labelNodes.push(
+          <g key={`ly${y.toFixed(3)}`} pointerEvents="none">
+            <rect x={26} y={py - 6.5} width={30} height={13} rx={3}
+              fill="rgba(255,255,255,0.9)" stroke="rgba(0,0,0,0.08)" strokeWidth={0.5} />
+            <text x={41} y={py + 2.5} textAnchor="middle" fontSize="9" fontFamily="monospace"
+              fill="rgba(0,0,0,0.55)" fontWeight="600">{label}</text>
+          </g>
+        );
+      }
     }
 
-    // Highlight origin (0,0) axes slightly stronger
+    // Origin axes
     const [ox, oy] = tikzToCanvas(0, 0, canvasHeight, zoom, offsetX, offsetY);
     if (ox >= 0 && ox <= viewW) lines.push(
-      <line key="axis-y" x1={ox} y1={0} x2={ox} y2={viewH} stroke="rgba(59,130,246,0.2)" strokeWidth={1} />);
+      <line key="axis-y" x1={ox} y1={0} x2={ox} y2={viewH} stroke="rgba(59,130,246,0.28)" strokeWidth={1.2} />);
     if (oy >= 0 && oy <= viewH) lines.push(
-      <line key="axis-x" x1={0} y1={oy} x2={viewW} y2={oy} stroke="rgba(59,130,246,0.2)" strokeWidth={1} />);
+      <line key="axis-x" x1={0} y1={oy} x2={viewW} y2={oy} stroke="rgba(59,130,246,0.28)" strokeWidth={1.2} />);
 
-    return <g>{lines}</g>;
+    return <g>{lines}<g>{labelNodes}</g></g>;
   }, [showGrid, gridSize, scale, canvasHeight, zoom, offsetX, offsetY, containerSize]);
 
   // ── Rulers ────────────────────────────────────────────────────
@@ -767,7 +814,7 @@ export function FigureCanvas() {
       setPendingStart(null);
       setPreviewEnd(null);
     }
-  }, [activeTool, spaceHeld, shapes, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, getSvgCoords, clearSelection, addShapeFromPalette, updateShape, select, pushHistory, pendingStart]);
+  }, [activeTool, spaceHeld, shapes, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, getSvgCoords, clearSelection, addShapeFromPalette, updateShape, select, pushHistory, pendingStart, previewEnd]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const px = getSvgCoords(e);
@@ -1236,11 +1283,17 @@ export function FigureCanvas() {
   return (
     <div
       ref={containerRef}
-      className={`relative flex-1 overflow-hidden bg-white dark:bg-neutral-900 ${cursor}`}
+      className={`relative flex-1 overflow-hidden my-2 rounded-xl border border-black/[0.08] ${cursor}`}
       style={{
-        touchAction: "none",               // Disables pinch-zoom, tap-hold, swipe gestures
-        overscrollBehavior: "contain",     // Stops scroll chaining to parent (prevents nav gestures)
+        // Canvas: very slightly warm off-white so it reads as "drawing paper" vs the workspace
+        background: "#fcfcfa",
+        touchAction: "none",
+        overscrollBehavior: "contain",
         userSelect: "none",
+        boxShadow:
+          "0 1px 0 rgba(255,255,255,0.8) inset, " +
+          "0 8px 24px -10px rgba(0,0,0,0.18), " +
+          "0 1px 4px rgba(0,0,0,0.06)",
       }}
     >
       <svg ref={svgRef} width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}

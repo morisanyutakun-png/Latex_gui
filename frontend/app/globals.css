@@ -2394,12 +2394,12 @@ html {
   filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.25));
 }
 
-/* HelpTip — fade+lift-in for tooltip bubble */
+/* HelpTip — fade-in only (no translate; positioning is on the outer wrapper) */
 @keyframes tooltip-in {
-  0% { opacity: 0; transform: scale(0.92) translateY(-2px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
-.animate-tooltip-in { animation: tooltip-in 0.12s ease-out both; }
+.animate-tooltip-in { animation: tooltip-in 0.15s ease-out both; transform-origin: center top; }
 
 /* Snap pulse — brief expansion + fade when smart-snap engages */
 @keyframes snap-pulse {

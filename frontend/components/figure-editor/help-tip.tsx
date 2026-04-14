@@ -29,7 +29,7 @@ export interface HelpTipProps {
   kbd?: string | string[];
   /** Preferred side */
   side?: Side;
-  /** Show delay in ms (default 350) */
+  /** Show delay in ms (default 900 — only appears when user is genuinely pausing) */
   delay?: number;
   /** Disable the tip entirely */
   disabled?: boolean;
@@ -37,7 +37,7 @@ export interface HelpTipProps {
 }
 
 export function HelpTip({
-  title, description, kbd, side = "bottom", delay = 350, disabled, children,
+  title, description, kbd, side = "bottom", delay = 900, disabled, children,
 }: HelpTipProps) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ x: number; y: number; s: Side } | null>(null);
@@ -120,8 +120,10 @@ export function HelpTip({
 
   const kbdArray = Array.isArray(kbd) ? kbd : kbd ? [kbd] : [];
 
-  // Calculate transform based on side (centered on anchor)
-  const transform = pos.s === "bottom" ? "translate(-50%, 0)"
+  // Outer wrapper positions the bubble's anchor point;
+  // inner wrapper handles the entrance animation (they MUST be separate so
+  // the animation's `transform` doesn't fight with the positioning `transform`).
+  const anchorTransform = pos.s === "bottom" ? "translate(-50%, 0)"
     : pos.s === "top"    ? "translate(-50%, -100%)"
     : pos.s === "right"  ? "translate(0, -50%)"
     : "translate(-100%, -50%)";
@@ -129,20 +131,18 @@ export function HelpTip({
   return (
     <>
       {child}
-      {/* Tooltip bubble — fixed positioning so it works over any container */}
       <div
         role="tooltip"
         style={{
           position: "fixed",
           left: pos.x,
           top: pos.y,
-          transform,
+          transform: anchorTransform,
           zIndex: 9999,
           pointerEvents: "none",
         }}
-        className="animate-tooltip-in"
       >
-        <div className="max-w-[260px] bg-neutral-900 dark:bg-neutral-800 text-white rounded-md shadow-2xl px-2.5 py-1.5 border border-white/[0.08]">
+        <div className="relative animate-tooltip-in max-w-[260px] bg-neutral-900 dark:bg-neutral-800 text-white rounded-md shadow-2xl px-2.5 py-1.5 border border-white/[0.08]">
           {title && (
             <div className="flex items-center gap-1.5 text-[11px] font-semibold leading-tight">
               <span className="flex-1">{title}</span>
@@ -165,7 +165,6 @@ export function HelpTip({
               ))}
             </div>
           )}
-          {/* Little arrow indicator */}
           <div className={`absolute w-0 h-0 ${arrowStyle(pos.s)}`} />
         </div>
       </div>

@@ -211,7 +211,17 @@ export function FigureEditor() {
   }, [shapes.length, closeFigureEditor, resetAll, isJa]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-[#f5f4f0] dark:bg-[#111110] animate-page-fade-in">
+    <div
+      className="fixed inset-0 z-[100] flex flex-col animate-page-fade-in"
+      style={{
+        // Workspace background: soft neutral tone that clearly separates from both
+        // white canvas and the light-grey toolbar/property panels.
+        background:
+          "radial-gradient(circle at 30% 20%, rgba(99,102,241,0.04), transparent 40%), " +
+          "radial-gradient(circle at 80% 90%, rgba(236,72,153,0.03), transparent 50%), " +
+          "linear-gradient(180deg, #e5e7ec 0%, #dfe0e6 100%)",
+      }}
+    >
 
       {/* ══════════ HEADER ══════════ */}
       <header className="shrink-0 h-12 flex items-center px-3 gap-3 border-b border-foreground/[0.06] bg-background/90 backdrop-blur-md">
