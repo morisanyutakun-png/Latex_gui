@@ -26,6 +26,18 @@ export interface ShapeStyle {
   arrowEnd: boolean;     // -> tip
 }
 
+/** 9-way label anchor (compass points + center). */
+export type LabelPosition =
+  | "center"
+  | "above" | "below" | "left" | "right"
+  | "above-left" | "above-right" | "below-left" | "below-right";
+
+export const LABEL_POSITIONS: LabelPosition[] = [
+  "above-left", "above", "above-right",
+  "left",       "center", "right",
+  "below-left", "below",  "below-right",
+];
+
 export const DEFAULT_STYLE: ShapeStyle = {
   stroke: "black",
   strokeWidth: 0.8,
@@ -94,6 +106,12 @@ export interface FigureShape {
   points: Point[];
   /** Text label (rendered inside or beside the shape) */
   label: string;
+  /** Label anchor position relative to shape */
+  labelPos: LabelPosition;
+  /** Additional offset applied AFTER labelPos (cm) */
+  labelOffset: Point;
+  /** Wrap label in $...$ for LaTeX math rendering */
+  labelMathMode: boolean;
   /** Visual style */
   style: ShapeStyle;
   /** For domain-specific shapes: extra TikZ key-value pairs */
@@ -102,6 +120,25 @@ export interface FigureShape {
   locked: boolean;
   /** Z-index for layering */
   zIndex: number;
+}
+
+/** Default label position per shape kind (ergonomic heuristics). */
+export function defaultLabelPos(kind: ShapeKind): LabelPosition {
+  // Circuit / mechanics / line-like: label goes above the midpoint
+  const abovePos: string[] = [
+    "line", "arrow", "force-arrow", "vector", "polyline",
+    "bond-single", "bond-double", "bond-triple", "reaction-arrow",
+    "resistor", "capacitor", "inductor", "voltage-source", "current-source",
+    "switch", "diode", "led", "transistor-npn", "transistor-pnp", "opamp",
+    "spring", "damper",
+  ];
+  if (abovePos.includes(kind)) return "above";
+  // Text is already its own label (content centered)
+  if (kind === "text") return "center";
+  // Ground symbol: label to the right
+  if (kind === "ground") return "right";
+  // Most area shapes: center
+  return "center";
 }
 
 // ── Tool state ──────────────────────────────────────────────────

@@ -15,7 +15,7 @@ import type {
   ShapeKind,
   DomainCategory,
 } from "./types";
-import { DEFAULT_STYLE } from "./types";
+import { DEFAULT_STYLE, defaultLabelPos } from "./types";
 import { getPaletteItem } from "./domain-palettes";
 
 let _nextId = 1;
@@ -116,7 +116,13 @@ function snap(val: number, grid: number, enabled: boolean): number {
 
 function makeSnapshot(s: Pick<FigureEditorState, "shapes" | "connections">): Snapshot {
   return {
-    shapes: s.shapes.map((sh) => ({ ...sh, style: { ...sh.style }, tikzOptions: { ...sh.tikzOptions }, points: sh.points.map((p) => ({ ...p })) })),
+    shapes: s.shapes.map((sh) => ({
+      ...sh,
+      style: { ...sh.style },
+      tikzOptions: { ...sh.tikzOptions },
+      points: sh.points.map((p) => ({ ...p })),
+      labelOffset: { ...sh.labelOffset },
+    })),
     connections: s.connections.map((c) => ({ ...c, style: { ...c.style }, waypoints: c.waypoints.map((p) => ({ ...p })) })),
   };
 }
@@ -172,6 +178,9 @@ export const useFigureStore = create<FigureEditorState>((set, get) => ({
       rotation: 0,
       points: palette?.defaultPoints?.map((p) => ({ ...p })) ?? [],
       label: "",
+      labelPos: defaultLabelPos(kind),
+      labelOffset: { x: 0, y: 0 },
+      labelMathMode: false,
       style: baseStyle,
       tikzOptions: { ...(palette?.defaultTikzOptions ?? {}) },
       locked: false,
@@ -238,6 +247,7 @@ export const useFigureStore = create<FigureEditorState>((set, get) => ({
         style: { ...sh.style },
         tikzOptions: { ...sh.tikzOptions },
         points: sh.points.map((p) => ({ ...p })),
+        labelOffset: { ...sh.labelOffset },
         zIndex: s.shapes.length + clones.length,
       });
     }

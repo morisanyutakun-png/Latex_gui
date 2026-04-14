@@ -7,7 +7,8 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useFigureStore } from "./figure-store";
-import type { FigureShape, ShapeStyle } from "./types";
+import type { FigureShape, ShapeStyle, LabelPosition } from "./types";
+import { LABEL_POSITIONS } from "./types";
 
 // ── Locale helper ───────────────────────────────────────────────
 
@@ -176,6 +177,7 @@ export function FigureProperties() {
 
         {/* Label */}
         <Section title={isJa ? "ラベル" : "Label"}>
+          {/* Text input */}
           <input
             value={labelValue}
             onChange={(e) => setLabelValue(e.target.value)}
@@ -184,6 +186,71 @@ export function FigureProperties() {
             placeholder={isJa ? "テキストを入力..." : "Enter text..."}
             className="w-full h-7 px-2 text-[11px] rounded-md border border-foreground/[0.08] bg-white/70 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-blue-500/40 transition-all"
           />
+
+          {/* Math mode toggle */}
+          <label className="flex items-center gap-1.5 text-[10px] text-foreground/60 cursor-pointer pt-1">
+            <input type="checkbox" checked={selectedShape.labelMathMode}
+              onChange={(e) => { pushHistory(); updateShape(selectedShape.id, { labelMathMode: e.target.checked }); }}
+              className="rounded border-foreground/20 accent-blue-500 w-3 h-3" />
+            <span>{isJa ? "数式モード ($x$)" : "Math mode ($x$)"}</span>
+          </label>
+
+          {/* 9-way position picker */}
+          <div className="pt-1.5">
+            <div className="text-[10px] text-foreground/50 font-medium mb-1">
+              {isJa ? "配置位置" : "Position"}
+            </div>
+            <div className="inline-grid grid-cols-3 gap-0.5 p-1 rounded-md bg-foreground/[0.04] border border-foreground/[0.06]">
+              {LABEL_POSITIONS.map((pos) => {
+                const active = selectedShape.labelPos === pos;
+                return (
+                  <button
+                    key={pos}
+                    onClick={() => { pushHistory(); updateShape(selectedShape.id, { labelPos: pos }); }}
+                    title={pos}
+                    className={`w-7 h-7 rounded flex items-center justify-center transition-all ${
+                      active ? "bg-blue-500 shadow-sm" : "bg-white dark:bg-white/5 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                    }`}
+                  >
+                    {/* Mini-preview: a small rect with a dot showing the label position */}
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                      <rect x="5" y="5" width="8" height="8" rx="1"
+                        fill="none" stroke={active ? "white" : "currentColor"}
+                        strokeWidth="1" opacity={active ? 1 : 0.4} />
+                      <circle
+                        cx={pos.includes("left") ? 3 : pos.includes("right") ? 15 : 9}
+                        cy={pos.includes("above") ? 3 : pos.includes("below") ? 15 : 9}
+                        r="1.5"
+                        fill={active ? "white" : "#3b82f6"}
+                      />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Fine offset */}
+          <div className="grid grid-cols-2 gap-1.5 pt-1.5">
+            <InputRow label="dX">
+              <input type="number" step="0.05" value={selectedShape.labelOffset.x}
+                onChange={(e) => { pushHistory(); updateShape(selectedShape.id, { labelOffset: { ...selectedShape.labelOffset, x: parseFloat(e.target.value) || 0 } }); }}
+                className="w-full h-6 px-1.5 text-[10px] font-mono rounded border border-foreground/[0.08] bg-white/70 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-blue-500/40" />
+            </InputRow>
+            <InputRow label="dY">
+              <input type="number" step="0.05" value={selectedShape.labelOffset.y}
+                onChange={(e) => { pushHistory(); updateShape(selectedShape.id, { labelOffset: { ...selectedShape.labelOffset, y: parseFloat(e.target.value) || 0 } }); }}
+                className="w-full h-6 px-1.5 text-[10px] font-mono rounded border border-foreground/[0.08] bg-white/70 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-blue-500/40" />
+            </InputRow>
+          </div>
+          {(selectedShape.labelOffset.x !== 0 || selectedShape.labelOffset.y !== 0) && (
+            <button
+              onClick={() => { pushHistory(); updateShape(selectedShape.id, { labelOffset: { x: 0, y: 0 } }); }}
+              className="text-[9px] text-blue-500 hover:text-blue-600 underline-offset-2 hover:underline pt-0.5"
+            >
+              {isJa ? "オフセットをリセット" : "Reset offset"}
+            </button>
+          )}
         </Section>
 
         {/* Position & Size */}

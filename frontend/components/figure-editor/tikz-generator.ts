@@ -5,7 +5,7 @@
  * directly into a LaTeX document.
  */
 
-import type { FigureShape, Connection, ShapeStyle, Point, ShapeKind } from "./types";
+import type { FigureShape, Connection, ShapeStyle, Point, ShapeKind, LabelPosition } from "./types";
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -49,6 +49,47 @@ function buildDrawOptions(style: ShapeStyle, extra: Record<string, string> = {})
   return opts.join(", ");
 }
 
+/** Map LabelPosition to TikZ node placement option. */
+function tikzLabelPos(pos: LabelPosition): string {
+  switch (pos) {
+    case "above":       return "above";
+    case "below":       return "below";
+    case "left":        return "left";
+    case "right":       return "right";
+    case "above-left":  return "above left";
+    case "above-right": return "above right";
+    case "below-left":  return "below left";
+    case "below-right": return "below right";
+    case "center":
+    default:            return "";
+  }
+}
+
+/** Build the label text, applying math mode wrapping if configured. */
+function labelText(s: FigureShape): string {
+  if (!s.label) return "";
+  if (s.labelMathMode) {
+    // If user already wrapped with $, keep as-is. Otherwise wrap.
+    const t = s.label.trim();
+    if (t.startsWith("$") && t.endsWith("$")) return t;
+    return `$${t}$`;
+  }
+  return s.label;
+}
+
+/** Build a `node[...]{text}` fragment for the current shape, or "" if no label. */
+function labelNodeFor(s: FigureShape, fallbackPos: LabelPosition = "center"): string {
+  if (!s.label) return "";
+  const pos = tikzLabelPos(s.labelPos ?? fallbackPos);
+  const off = s.labelOffset;
+  const shiftOpt = (off && (off.x !== 0 || off.y !== 0))
+    ? `, xshift=${fmt(off.x)}cm, yshift=${fmt(off.y)}cm`
+    : "";
+  const opts = pos ? `${pos}${shiftOpt}` : shiftOpt.replace(/^,\s*/, "");
+  return ` node[${opts}] {${labelText(s)}}`;
+}
+
+/** Backward-compat shim for any remaining callers. */
 function labelNode(label: string, pos = "center"): string {
   if (!label) return "";
   return ` node[${pos}] {${label}}`;
@@ -60,7 +101,7 @@ function genRect(s: FigureShape): string {
   const opts = buildDrawOptions(s.style);
   const x2 = s.x + s.width;
   const y2 = s.y + s.height;
-  const lbl = s.label ? labelNode(s.label) : "";
+  const lbl = labelNodeFor(s);
   if (s.rotation) {
     return `  \\draw[${opts}, rotate around={${fmt(s.rotation)}:${coord(s.x + s.width / 2, s.y + s.height / 2)}}] ${coord(s.x, s.y)} rectangle ${coord(x2, y2)}${lbl};`;
   }
@@ -72,7 +113,7 @@ function genCircle(s: FigureShape): string {
   const cx = s.x + r;
   const cy = s.y + r;
   const opts = buildDrawOptions(s.style);
-  const lbl = s.label ? labelNode(s.label) : "";
+  const lbl = labelNodeFor(s);
   return `  \\draw[${opts}] ${coord(cx, cy)} circle (${fmt(r)})${lbl};`;
 }
 
@@ -82,7 +123,7 @@ function genEllipse(s: FigureShape): string {
   const rx = s.width / 2;
   const ry = s.height / 2;
   const opts = buildDrawOptions(s.style);
-  const lbl = s.label ? labelNode(s.label) : "";
+  const lbl = labelNodeFor(s);
   return `  \\draw[${opts}] ${coord(cx, cy)} ellipse (${fmt(rx)} and ${fmt(ry)})${lbl};`;
 }
 
@@ -90,7 +131,7 @@ function genLine(s: FigureShape): string {
   const pts = s.points.length >= 2 ? s.points : [{ x: 0, y: 0 }, { x: s.width, y: 0 }];
   const opts = buildDrawOptions(s.style);
   const path = pts.map((p) => coord(s.x + p.x, s.y + p.y)).join(" -- ");
-  const lbl = s.label ? ` node[midway, above] {${s.label}}` : "";
+  const lbl = s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {${labelText(s)}}` : "";
   return `  \\draw[${opts}] ${path}${lbl};`;
 }
 
@@ -99,7 +140,7 @@ function genArrow(s: FigureShape): string {
   const style: ShapeStyle = { ...s.style, arrowEnd: true };
   const opts = buildDrawOptions(style);
   const path = pts.map((p) => coord(s.x + p.x, s.y + p.y)).join(" -- ");
-  const lbl = s.label ? ` node[midway, above] {${s.label}}` : "";
+  const lbl = s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {${labelText(s)}}` : "";
   return `  \\draw[${opts}] ${path}${lbl};`;
 }
 
@@ -107,7 +148,7 @@ function genPolygon(s: FigureShape): string {
   if (s.points.length < 3) return genRect(s);
   const opts = buildDrawOptions(s.style);
   const path = s.points.map((p) => coord(s.x + p.x, s.y + p.y)).join(" -- ");
-  const lbl = s.label ? labelNode(s.label) : "";
+  const lbl = labelNodeFor(s);
   return `  \\draw[${opts}] ${path} -- cycle${lbl};`;
 }
 
@@ -172,7 +213,7 @@ function genCircuitComponent(s: FigureShape): string {
 
 function genSpring(s: FigureShape): string {
   const opts = buildDrawOptions(s.style, { "decoration": "{coil, segment length=3mm, amplitude=2mm}", "decorate": "" });
-  return `  \\draw[${opts}] ${coord(s.x, s.y)} -- ${coord(s.x + s.width, s.y)}${s.label ? ` node[midway, above] {${s.label}}` : ""};`;
+  return `  \\draw[${opts}] ${coord(s.x, s.y)} -- ${coord(s.x + s.width, s.y)}${s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {${labelText(s)}}` : ""};`;
 }
 
 function genDamper(s: FigureShape): string {
@@ -226,7 +267,7 @@ function genSupportRoller(s: FigureShape): string {
 function genForceArrow(s: FigureShape): string {
   const pts = s.points.length >= 2 ? s.points : [{ x: 0, y: 0 }, { x: s.width, y: 0 }];
   const opts = buildDrawOptions({ ...s.style, arrowEnd: true }, { "very thick": "" });
-  const lbl = s.label ? ` node[midway, above] {$${s.label}$}` : "";
+  const lbl = s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {$${s.label}$}` : "";
   return `  \\draw[${opts}] ${coord(s.x + pts[0].x, s.y + pts[0].y)} -- ${coord(s.x + pts[1].x, s.y + pts[1].y)}${lbl};`;
 }
 
@@ -234,7 +275,7 @@ function genMoment(s: FigureShape): string {
   const cx = s.x + s.width / 2;
   const cy = s.y + s.height / 2;
   const r = Math.min(s.width, s.height) / 2 * 0.8;
-  const lbl = s.label ? ` node[above right] {$${s.label}$}` : "";
+  const lbl = s.label ? ` node[${tikzLabelPos(s.labelPos ?? "above-right") || "above right"}] {$${s.label}$}` : "";
   return `  \\draw[->, thick] ${coord(cx + r, cy)} arc (0:300:${fmt(r)})${lbl};`;
 }
 
@@ -294,7 +335,7 @@ function genFunctionPlot(s: FigureShape): string {
 function genVector(s: FigureShape): string {
   const pts = s.points.length >= 2 ? s.points : [{ x: 0, y: 0 }, { x: s.width, y: s.height }];
   const opts = buildDrawOptions({ ...s.style, arrowEnd: true }, { "very thick": "" });
-  const lbl = s.label ? ` node[midway, above] {$\\vec{${s.label}}$}` : "";
+  const lbl = s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {$\\vec{${s.label}}$}` : "";
   return `  \\draw[${opts}] ${coord(s.x + pts[0].x, s.y + pts[0].y)} -- ${coord(s.x + pts[1].x, s.y + pts[1].y)}${lbl};`;
 }
 
@@ -391,7 +432,7 @@ function genBond(s: FigureShape, count: number): string {
 
 function genReactionArrow(s: FigureShape): string {
   const pts = s.points.length >= 2 ? s.points : [{ x: 0, y: 0 }, { x: s.width, y: 0 }];
-  const lbl = s.label ? ` node[midway, above] {${s.label}}` : "";
+  const lbl = s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {${labelText(s)}}` : "";
   return `  \\draw[->, thick] ${coord(s.x + pts[0].x, s.y + pts[0].y)} -- ${coord(s.x + pts[1].x, s.y + pts[1].y)}${lbl};`;
 }
 
@@ -418,7 +459,7 @@ function genCell(s: FigureShape): string {
   const cx = s.x + s.width / 2;
   const cy = s.y + s.height / 2;
   const opts = buildDrawOptions(s.style);
-  const lbl = s.label ? labelNode(s.label) : "";
+  const lbl = labelNodeFor(s);
   return `  \\draw[${opts}] ${coord(cx, cy)} ellipse (${fmt(s.width / 2)} and ${fmt(s.height / 2)})${lbl};`;
 }
 

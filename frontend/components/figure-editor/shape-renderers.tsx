@@ -106,6 +106,118 @@ function needArrowEnd(kind: string, style: { arrowEnd: boolean }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+//  LABEL RENDERING — shared across all shape types
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * Compute the anchor point (in SCREEN px) for a label, given:
+ *  - bbox (or natural anchor) in screen coords
+ *  - label position preset
+ *  - additional user offset (cm, will be converted to px via scale)
+ *  - optional "natural anchor" for line-like shapes (midpoint of terminals)
+ */
+interface LabelAnchorInput {
+  bboxX: number; bboxY: number; bboxW: number; bboxH: number;
+  scale: number;
+  labelPos: import("./types").LabelPosition;
+  labelOffsetCm: { x: number; y: number };
+  /** If provided, labels override bbox center with this natural anchor (line midpoint) */
+  naturalCenter?: { x: number; y: number };
+}
+
+type DomBaseline = "auto" | "central" | "hanging";
+function computeLabelAnchor(input: LabelAnchorInput): { x: number; y: number; textAnchor: "start" | "middle" | "end"; dominantBaseline: DomBaseline } {
+  const { bboxX, bboxY, bboxW, bboxH, scale, labelPos, labelOffsetCm, naturalCenter } = input;
+  const cx = naturalCenter?.x ?? bboxX + bboxW / 2;
+  const cy = naturalCenter?.y ?? bboxY + bboxH / 2;
+  const gap = 6; // px gap between shape edge and label
+  let x = cx, y = cy;
+  let textAnchor: "start" | "middle" | "end" = "middle";
+  let dominantBaseline: DomBaseline = "central";
+
+  switch (labelPos) {
+    case "above":
+      x = cx; y = bboxY - gap; textAnchor = "middle"; dominantBaseline = "auto"; break;
+    case "below":
+      x = cx; y = bboxY + bboxH + gap; textAnchor = "middle"; dominantBaseline = "hanging"; break;
+    case "left":
+      x = bboxX - gap; y = cy; textAnchor = "end"; dominantBaseline = "central"; break;
+    case "right":
+      x = bboxX + bboxW + gap; y = cy; textAnchor = "start"; dominantBaseline = "central"; break;
+    case "above-left":
+      x = bboxX - gap; y = bboxY - gap; textAnchor = "end"; dominantBaseline = "auto"; break;
+    case "above-right":
+      x = bboxX + bboxW + gap; y = bboxY - gap; textAnchor = "start"; dominantBaseline = "auto"; break;
+    case "below-left":
+      x = bboxX - gap; y = bboxY + bboxH + gap; textAnchor = "end"; dominantBaseline = "hanging"; break;
+    case "below-right":
+      x = bboxX + bboxW + gap; y = bboxY + bboxH + gap; textAnchor = "start"; dominantBaseline = "hanging"; break;
+    case "center":
+    default:
+      x = cx; y = cy; textAnchor = "middle"; dominantBaseline = "central"; break;
+  }
+
+  // Apply user offset (in cm, TikZ y-up → screen y-down)
+  x += labelOffsetCm.x * scale;
+  y -= labelOffsetCm.y * scale;
+  return { x, y, textAnchor, dominantBaseline };
+}
+
+/**
+ * Render a shape's label. Uses shape.label, shape.labelPos, shape.labelOffset.
+ * For line-like shapes, pass the terminal midpoint as `naturalCenter`.
+ * `bboxInScreen` is the screen bounding box of the shape's visual body
+ * (for line-like: defined by terminal span; for area: the bbox rectangle).
+ */
+function ShapeLabel(props: {
+  shape: FigureShape;
+  scale: number;
+  bboxInScreen: { x: number; y: number; w: number; h: number };
+  naturalCenter?: { x: number; y: number };
+  sizeMul?: number;
+}) {
+  const { shape, scale, bboxInScreen, naturalCenter, sizeMul = 1 } = props;
+  if (!shape.label) return null;
+
+  const anchor = computeLabelAnchor({
+    bboxX: bboxInScreen.x, bboxY: bboxInScreen.y,
+    bboxW: bboxInScreen.w, bboxH: bboxInScreen.h,
+    scale,
+    labelPos: shape.labelPos ?? "center",
+    labelOffsetCm: shape.labelOffset ?? { x: 0, y: 0 },
+    naturalCenter,
+  });
+
+  const fontSize = labelFontSize(shape.style.fontSizePt, scale / 50) * sizeMul;
+  const text = shape.labelMathMode ? renderMathPlaceholder(shape.label) : shape.label;
+  const style: React.CSSProperties = shape.labelMathMode ? { fontStyle: "italic", fontFamily: "serif" } : {};
+
+  return (
+    <text x={anchor.x} y={anchor.y} textAnchor={anchor.textAnchor} dominantBaseline={anchor.dominantBaseline}
+      fontSize={fontSize} fill={shape.style.stroke} pointerEvents="none" style={style}>
+      {text}
+    </text>
+  );
+}
+
+/** Lightweight math rendering for SVG: strip $, render symbols close to TikZ output look. */
+function renderMathPlaceholder(src: string): string {
+  // Strip surrounding $ if present
+  let t = src.replace(/^\$+|\$+$/g, "");
+  // Common LaTeX → Unicode substitutions for on-canvas preview
+  const subs: Record<string, string> = {
+    "\\alpha": "α", "\\beta": "β", "\\gamma": "γ", "\\delta": "δ", "\\epsilon": "ε",
+    "\\theta": "θ", "\\lambda": "λ", "\\mu": "μ", "\\pi": "π", "\\rho": "ρ",
+    "\\sigma": "σ", "\\tau": "τ", "\\phi": "φ", "\\omega": "ω",
+    "\\Omega": "Ω", "\\Delta": "Δ", "\\Sigma": "Σ",
+    "\\cdot": "·", "\\times": "×", "\\pm": "±", "\\infty": "∞",
+    "\\leq": "≤", "\\geq": "≥", "\\neq": "≠",
+  };
+  for (const [k, v] of Object.entries(subs)) t = t.split(k).join(v);
+  return t;
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  BASIC SHAPES
 // ══════════════════════════════════════════════════════════════════
 
@@ -115,8 +227,7 @@ function RenderRect(p: ShapeRenderProps) {
     <rect x={p.cx} y={p.cy} width={p.pw} height={p.ph} rx={1.5}
       stroke={stroke(p)} strokeWidth={w} fill={fill(p)} fillOpacity={fillOp(p)} strokeDasharray={dash(p)}
       transform={p.shape.rotation ? `rotate(${-p.shape.rotation}, ${p.cx + p.pw / 2}, ${p.cy + p.ph / 2})` : undefined} />
-    {p.shape.label && <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
   </>);
 }
 
@@ -125,8 +236,7 @@ function RenderCircle(p: ShapeRenderProps) {
   const cx = p.cx + p.pw / 2, cy = p.cy + p.ph / 2;
   return wrap(p, <>
     <circle cx={cx} cy={cy} r={r} stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} strokeDasharray={dash(p)} />
-    {p.shape.label && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
   </>);
 }
 
@@ -135,8 +245,7 @@ function RenderEllipse(p: ShapeRenderProps) {
   return wrap(p, <>
     <ellipse cx={cx} cy={cy} rx={p.pw / 2} ry={p.ph / 2}
       stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} strokeDasharray={dash(p)} />
-    {p.shape.label && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
   </>);
 }
 
@@ -145,17 +254,23 @@ function RenderLine(p: ShapeRenderProps) {
   const d = pts.map((pt, i) => `${i === 0 ? "M" : "L"}${p.cx + pt.x},${p.cy + pt.y}`).join(" ");
   const w = sw(p);
   const hasEnd = needArrowEnd(p.shape.kind, p.shape.style);
+  // Line label uses the midpoint of terminals as the natural anchor
+  const midX = (p.cx + pts[0].x + p.cx + pts[pts.length - 1].x) / 2;
+  const midY = (p.cy + pts[0].y + p.cy + pts[pts.length - 1].y) / 2;
+  // For line-based labels use a thin bbox around the line itself
+  const lineBboxX = Math.min(p.cx + pts[0].x, p.cx + pts[pts.length - 1].x);
+  const lineBboxY = Math.min(p.cy + pts[0].y, p.cy + pts[pts.length - 1].y);
+  const lineBboxW = Math.abs(pts[pts.length - 1].x - pts[0].x);
+  const lineBboxH = Math.abs(pts[pts.length - 1].y - pts[0].y);
   return wrap(p, <>
     <path d={d} stroke="transparent" strokeWidth={Math.max(8, w * 4)} fill="none" />
     <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" strokeDasharray={dash(p)}
       markerEnd={hasEnd ? `url(#${arrowMarkerId(p.shape.id, "end")})` : undefined}
       markerStart={p.shape.style.arrowStart ? `url(#${arrowMarkerId(p.shape.id, "start")})` : undefined}
       strokeLinecap="round" />
-    {p.shape.label && pts.length >= 2 && (
-      <text x={(p.cx + pts[0].x + p.cx + pts[pts.length - 1].x) / 2}
-        y={(p.cy + pts[0].y + p.cy + pts[pts.length - 1].y) / 2 - 6}
-        textAnchor="middle" fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>
-    )}
+    <ShapeLabel shape={p.shape} scale={p.scale}
+      bboxInScreen={{ x: lineBboxX, y: lineBboxY, w: lineBboxW, h: lineBboxH }}
+      naturalCenter={{ x: midX, y: midY }} />
   </>);
 }
 
@@ -164,8 +279,7 @@ function RenderPolygon(p: ShapeRenderProps) {
   const points = pts.map((pt) => `${p.cx + pt.x},${p.cy + pt.y}`).join(" ");
   return wrap(p, <>
     <polygon points={points} stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} strokeDasharray={dash(p)} />
-    {p.shape.label && <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
   </>);
 }
 
@@ -174,7 +288,7 @@ function RenderText(p: ShapeRenderProps) {
     <rect x={p.cx} y={p.cy} width={Math.max(p.pw, 30)} height={Math.max(p.ph, 16)} fill="transparent" stroke="none" />
     <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2} textAnchor="middle" dominantBaseline="central"
       fontSize={fs(p) * 1.2} fill={stroke(p)} fontFamily="serif" style={{ userSelect: "none" }}>
-      {p.shape.label || "Text"}
+      {p.shape.labelMathMode ? renderMathPlaceholder(p.shape.label || "Text") : (p.shape.label || "Text")}
     </text>
   </>);
 }
@@ -210,20 +324,26 @@ function getTerminals(p: ShapeRenderProps): { x1: number; y1: number; x2: number
 /**
  * Render a two-terminal component: draws the component body horizontally
  * centered at origin, then transforms it to the correct position/angle.
- * `bodyFn(len, w)` returns SVG elements drawn horizontally from (-len/2, 0) to (len/2, 0).
+ * Label uses the shared ShapeLabel system — positioned in SCREEN space based on labelPos.
  */
 function TwoTerminal(p: ShapeRenderProps, bodyFn: (len: number, w: number) => React.ReactNode) {
   const t = getTerminals(p);
   const w = sw(p);
-  return wrap(p, <g transform={`translate(${t.midX},${t.midY}) rotate(${t.angle})`}>
-    {bodyFn(t.len, w)}
-    {/* Terminal dots */}
-    <circle cx={-t.len / 2} cy={0} r={2} fill={stroke(p)} />
-    <circle cx={t.len / 2} cy={0} r={2} fill={stroke(p)} />
-    {/* Label above */}
-    {p.shape.label && <text x={0} y={-8} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none" transform={t.angle > 90 || t.angle < -90 ? "scale(1,-1)" : ""}>{p.shape.label}</text>}
-  </g>);
+  // Compute axis-aligned bbox around the line segment (in SCREEN coords)
+  const bboxX = Math.min(t.x1, t.x2), bboxY = Math.min(t.y1, t.y2);
+  const bboxW = Math.abs(t.x2 - t.x1), bboxH = Math.abs(t.y2 - t.y1);
+  // Expand bbox to include component body thickness (12px each side)
+  const pad = 12;
+  return wrap(p, <>
+    <g transform={`translate(${t.midX},${t.midY}) rotate(${t.angle})`}>
+      {bodyFn(t.len, w)}
+      <circle cx={-t.len / 2} cy={0} r={2} fill={stroke(p)} />
+      <circle cx={t.len / 2} cy={0} r={2} fill={stroke(p)} />
+    </g>
+    <ShapeLabel shape={p.shape} scale={p.scale} sizeMul={0.95}
+      bboxInScreen={{ x: bboxX - pad, y: bboxY - pad, w: bboxW + pad * 2, h: bboxH + pad * 2 }}
+      naturalCenter={{ x: t.midX, y: t.midY }} />
+  </>);
 }
 
 function RenderResistor(p: ShapeRenderProps) {
@@ -383,8 +503,7 @@ function RenderTransistor(p: ShapeRenderProps, npn: boolean) {
     <text x={cx + 4} y={midY - 4} fontSize={8} fill={stroke(p)} pointerEvents="none" opacity={0.5}>B</text>
     <text x={midX + bodyR * 0.7 + 3} y={cy + 10} fontSize={8} fill={stroke(p)} pointerEvents="none" opacity={0.5}>C</text>
     <text x={midX + bodyR * 0.7 + 3} y={cy + ph - 3} fontSize={8} fill={stroke(p)} pointerEvents="none" opacity={0.5}>E</text>
-    {p.shape.label && <text x={cx + pw / 2} y={cy - 3} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
   </>);
 }
 
@@ -408,8 +527,7 @@ function RenderOpAmp(p: ShapeRenderProps) {
     <circle cx={cx} cy={inpY1} r={1.5} fill={stroke(p)} />
     <circle cx={cx} cy={inpY2} r={1.5} fill={stroke(p)} />
     <circle cx={cx + pw} cy={cy + ph / 2} r={1.5} fill={stroke(p)} />
-    {p.shape.label && <text x={cx + pw / 2} y={cy - 3} textAnchor="middle" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
   </>);
 }
 
@@ -444,7 +562,9 @@ function RenderMass(p: ShapeRenderProps) {
         stroke={stroke(p)} strokeWidth={0.5} opacity={0.3} />
     ))}
     <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none" fontStyle="italic">{p.shape.label || "m"}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none" fontStyle="italic">
+      {p.shape.labelMathMode ? renderMathPlaceholder(p.shape.label || "m") : (p.shape.label || "m")}
+    </text>
   </>);
 }
 
@@ -461,13 +581,18 @@ function RenderPulley(p: ShapeRenderProps) {
 //  CS / FLOWCHART
 // ══════════════════════════════════════════════════════════════════
 
+function maybeMath(s: FigureShape, fallback: string): string {
+  const t = s.label || fallback;
+  return s.labelMathMode ? renderMathPlaceholder(t) : t;
+}
+
 function RenderFlowchartDecision(p: ShapeRenderProps) {
   const midX = p.cx + p.pw / 2, midY = p.cy + p.ph / 2;
   const pts = `${midX},${p.cy} ${p.cx + p.pw},${midY} ${midX},${p.cy + p.ph} ${p.cx},${midY}`;
   return wrap(p, <>
     <polygon points={pts} stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} />
     <text x={midX} y={midY} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label || "?"}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape, "?")}</text>
   </>);
 }
 
@@ -476,7 +601,7 @@ function RenderFlowchartTerminal(p: ShapeRenderProps) {
     <rect x={p.cx} y={p.cy} width={p.pw} height={p.ph} rx={p.ph / 2}
       stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} />
     <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label || "Start"}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape, "Start")}</text>
   </>);
 }
 
@@ -486,7 +611,7 @@ function RenderAutomatonState(p: ShapeRenderProps) {
   return wrap(p, <>
     <circle cx={cx} cy={cy} r={r} stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} />
     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label || "q"}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape, "q")}</text>
   </>);
 }
 
@@ -497,7 +622,7 @@ function RenderAutomatonAccept(p: ShapeRenderProps) {
     <circle cx={cx} cy={cy} r={r} stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} />
     <circle cx={cx} cy={cy} r={r * 0.78} stroke={stroke(p)} strokeWidth={sw(p)} fill="none" />
     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{p.shape.label || "q"}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape, "q")}</text>
   </>);
 }
 
@@ -522,18 +647,16 @@ function RenderBenzene(p: ShapeRenderProps) {
 //  Generic domain placeholder (for shapes without custom SVG)
 // ══════════════════════════════════════════════════════════════════
 
-function RenderGenericDomain(p: ShapeRenderProps, label: string) {
+function RenderGenericDomain(p: ShapeRenderProps, kindLabel: string) {
   const w = sw(p);
   return wrap(p, <>
     <rect x={p.cx} y={p.cy} width={p.pw} height={p.ph} rx={3}
       stroke={stroke(p)} strokeWidth={w} fill="#f0f9ff" fillOpacity={0.3} strokeDasharray={`${w * 3},${w * 2}`} />
-    <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2 - (p.shape.label ? 5 : 0)}
+    <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2}
       textAnchor="middle" dominantBaseline="central" fontSize={9} fill="#6b7280" pointerEvents="none" fontWeight="500">
-      {label}
+      {kindLabel}
     </text>
-    {p.shape.label && <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2 + 7}
-      textAnchor="middle" dominantBaseline="central" fontSize={fs(p) * 0.85}
-      fill={stroke(p)} pointerEvents="none">{p.shape.label}</text>}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
   </>);
 }
 
