@@ -161,6 +161,14 @@ export function FigureCanvas() {
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
 
+  /** First-click point for 2-click drawing mode. Null = waiting for first click. */
+  const [pendingStart, setPendingStart] = useState<Point | null>(null);
+  /** Current cursor position in TikZ coords (for preview) */
+  const [previewEnd, setPreviewEnd] = useState<Point | null>(null);
+
+  // Clear pending start when tool changes
+  useEffect(() => { setPendingStart(null); setPreviewEnd(null); }, [activeTool]);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -273,32 +281,74 @@ export function FigureCanvas() {
     const [tx, ty] = canvasToTikz(px.x, px.y, canvasHeight, zoom, offsetX, offsetY);
     const sx = snapV(tx, gridSize, snapToGrid), sy = snapV(ty, gridSize, snapToGrid);
 
-    if (activeTool === "select") { clearSelection(); return; }
+    if (activeTool === "select") {
+      clearSelection();
+      setPendingStart(null);
+      return;
+    }
 
     const mode = classifyTool(activeTool);
 
-    if (mode === "line") {
-      setDragging({ mode: "draw-line", startPx: px, startTikz: { x: sx, y: sy }, endTikz: { x: sx, y: sy } });
-      return;
-    }
-    if (mode === "area") {
-      setDragging({ mode: "draw-area", startPx: px, startTikz: { x: sx, y: sy }, endTikz: { x: sx, y: sy } });
-      return;
-    }
+    // Freehand still uses drag
     if (mode === "freehand") {
       setDragging({ mode: "draw-freehand", startPx: px, startTikz: { x: sx, y: sy }, drawPoints: [{ x: 0, y: 0 }] });
       return;
     }
-    // click-to-place
-    const pal = getPaletteItem(activeTool);
-    const hw = (pal?.defaultWidth ?? 1) / 2, hh = (pal?.defaultHeight ?? 1) / 2;
-    addShapeFromPalette(activeTool as ShapeKind, sx - hw, sy - hh);
-  }, [activeTool, spaceHeld, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, getSvgCoords, clearSelection, addShapeFromPalette]);
+
+    // Click-to-place (text, ground, transistor, opamp) — single click
+    if (mode === "click") {
+      const pal = getPaletteItem(activeTool);
+      const hw = (pal?.defaultWidth ?? 1) / 2, hh = (pal?.defaultHeight ?? 1) / 2;
+      addShapeFromPalette(activeTool as ShapeKind, sx - hw, sy - hh);
+      return;
+    }
+
+    // Two-click mode for line & area shapes
+    if (mode === "line" || mode === "area") {
+      if (!pendingStart) {
+        // First click → record start point
+        setPendingStart({ x: sx, y: sy });
+        setPreviewEnd({ x: sx, y: sy });
+        return;
+      }
+      // Second click → create shape between pendingStart and this point
+      const s = pendingStart, end = { x: sx, y: sy };
+
+      if (mode === "line") {
+        const dx = end.x - s.x, dy = end.y - s.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 0.1) { setPendingStart(null); setPreviewEnd(null); return; }
+        const minX = Math.min(s.x, end.x), minY = Math.min(s.y, end.y);
+        const w = Math.abs(dx), h = Math.abs(dy) || 0.3;
+        const id = addShapeFromPalette(activeTool as ShapeKind, minX, minY);
+        updateShape(id, {
+          width: Math.max(w, 0.3), height: Math.max(h, 0.3),
+          points: [{ x: s.x - minX, y: s.y - minY }, { x: end.x - minX, y: end.y - minY }],
+        });
+      } else {
+        // area: corner → opposite corner
+        const w = Math.abs(end.x - s.x), h = Math.abs(end.y - s.y);
+        if (w < 0.1 && h < 0.1) { setPendingStart(null); setPreviewEnd(null); return; }
+        const minX = Math.min(s.x, end.x), minY = Math.min(s.y, end.y);
+        const id = addShapeFromPalette(activeTool as ShapeKind, minX, minY);
+        updateShape(id, { width: Math.max(w, 0.2), height: Math.max(h, 0.2) });
+      }
+
+      setPendingStart(null);
+      setPreviewEnd(null);
+    }
+  }, [activeTool, spaceHeld, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, getSvgCoords, clearSelection, addShapeFromPalette, updateShape, pendingStart]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const px = getSvgCoords(e);
     const [tx, ty] = canvasToTikz(px.x, px.y, canvasHeight, zoom, offsetX, offsetY);
     setMousePos({ x: Math.round(tx * 100) / 100, y: Math.round(ty * 100) / 100 });
+
+    // 2-click preview (after first click, before second click)
+    if (pendingStart) {
+      const sx = snapV(tx, gridSize, snapToGrid), sy = snapV(ty, gridSize, snapToGrid);
+      setPreviewEnd({ x: sx, y: sy });
+    }
 
     if (!dragging) return;
 
@@ -342,39 +392,10 @@ export function FigureCanvas() {
       setDragging((prev) => prev ? { ...prev } : null); // trigger re-render
       return;
     }
-  }, [dragging, getSvgCoords, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, updateShape, setViewport]);
+  }, [dragging, pendingStart, getSvgCoords, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, updateShape, setViewport]);
 
   const handleMouseUp = useCallback(() => {
     if (!dragging) return;
-
-    if (dragging.mode === "draw-line" && dragging.endTikz) {
-      const s = dragging.startTikz, e = dragging.endTikz;
-      const dx = e.x - s.x, dy = e.y - s.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 0.15) {
-        // Place shape at the bounding box origin, store terminals as points
-        const minX = Math.min(s.x, e.x), minY = Math.min(s.y, e.y);
-        const w = Math.abs(dx), h = Math.abs(dy) || 0.3; // min height for horizontal lines
-        const id = addShapeFromPalette(activeTool as ShapeKind, minX, minY);
-        const relStart = { x: s.x - minX, y: s.y - minY };
-        const relEnd   = { x: e.x - minX, y: e.y - minY };
-        updateShape(id, {
-          width: Math.max(w, 0.3),
-          height: Math.max(h, 0.3),
-          points: [relStart, relEnd],
-        });
-      }
-    }
-
-    if (dragging.mode === "draw-area" && dragging.endTikz) {
-      const s = dragging.startTikz, e = dragging.endTikz;
-      const w = Math.abs(e.x - s.x), h = Math.abs(e.y - s.y);
-      if (w > 0.15 || h > 0.15) {
-        const minX = Math.min(s.x, e.x), minY = Math.min(s.y, e.y);
-        const id = addShapeFromPalette(activeTool as ShapeKind, minX, minY);
-        updateShape(id, { width: Math.max(w, 0.2), height: Math.max(h, 0.2) });
-      }
-    }
 
     if (dragging.mode === "draw-freehand" && dragging.drawPoints && dragging.drawPoints.length >= 3) {
       const id = addShapeFromPalette("freehand", dragging.startTikz.x, dragging.startTikz.y);
@@ -382,7 +403,7 @@ export function FigureCanvas() {
     }
 
     setDragging(null);
-  }, [dragging, activeTool, addShapeFromPalette, updateShape]);
+  }, [dragging, addShapeFromPalette, updateShape]);
 
   // ── Shape interaction ─────────────────────────────────────────
 
@@ -430,7 +451,10 @@ export function FigureCanvas() {
     const h = (e: KeyboardEvent) => {
       if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName ?? "")) return;
       if (e.key === "Delete" || e.key === "Backspace") useFigureStore.getState().deleteSelected();
-      if (e.key === "Escape") { clearSelection(); setActiveTool("select"); setDragging(null); }
+      if (e.key === "Escape") {
+        if (pendingStart) { setPendingStart(null); setPreviewEnd(null); }
+        else { clearSelection(); setActiveTool("select"); setDragging(null); }
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); e.shiftKey ? useFigureStore.getState().redo() : useFigureStore.getState().undo(); }
       if ((e.metaKey || e.ctrlKey) && e.key === "a") { e.preventDefault(); useFigureStore.getState().selectAll(); }
       if ((e.metaKey || e.ctrlKey) && e.key === "d") { e.preventDefault(); useFigureStore.getState().duplicateSelected(); }
@@ -442,59 +466,77 @@ export function FigureCanvas() {
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [clearSelection, setActiveTool]);
+  }, [clearSelection, setActiveTool, pendingStart]);
 
   // ══════════════════════════════════════════════════════════════
   //  DRAW PREVIEW
   // ══════════════════════════════════════════════════════════════
 
   const renderDrawPreview = useCallback(() => {
-    if (!dragging || !dragging.endTikz) return null;
-
-    if (dragging.mode === "draw-line") {
-      const [x1, y1] = tikzToCanvas(dragging.startTikz.x, dragging.startTikz.y, canvasHeight, zoom, offsetX, offsetY);
-      const [x2, y2] = tikzToCanvas(dragging.endTikz.x, dragging.endTikz.y, canvasHeight, zoom, offsetX, offsetY);
-      const dx = dragging.endTikz.x - dragging.startTikz.x;
-      const dy = dragging.endTikz.y - dragging.startTikz.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      return (<g>
-        {/* Line */}
-        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#0d9488" strokeWidth={1.5} strokeDasharray="5,3" />
-        {/* Start dot */}
-        <circle cx={x1} cy={y1} r={4} fill="#0d9488" opacity={0.8} />
-        {/* End dot */}
-        <circle cx={x2} cy={y2} r={4} fill="white" stroke="#0d9488" strokeWidth={1.5} />
-        {/* Length label */}
-        <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 8} textAnchor="middle" fontSize="10"
-          fill="#0d9488" fontFamily="monospace" fontWeight="600">{dist.toFixed(1)} cm</text>
-      </g>);
-    }
-
-    if (dragging.mode === "draw-area") {
-      const s = dragging.startTikz, e = dragging.endTikz;
-      const [x1, y1] = tikzToCanvas(Math.min(s.x, e.x), Math.max(s.y, e.y), canvasHeight, zoom, offsetX, offsetY);
-      const w = Math.abs(e.x - s.x) * scale, h = Math.abs(e.y - s.y) * scale;
-      return (<g>
-        <rect x={x1} y={y1} width={w} height={h} stroke="#0d9488" strokeWidth={1.5} fill="rgba(13,148,136,0.06)"
-          strokeDasharray="5,3" rx={2} />
-        <text x={x1 + w / 2} y={y1 - 6} textAnchor="middle" fontSize="10"
-          fill="#0d9488" fontFamily="monospace" fontWeight="600">
-          {Math.abs(e.x - s.x).toFixed(1)} x {Math.abs(e.y - s.y).toFixed(1)} cm
-        </text>
-        {/* Corner dots */}
-        <circle cx={x1} cy={y1} r={3} fill="#0d9488" opacity={0.7} />
-        <circle cx={x1 + w} cy={y1 + h} r={3} fill="white" stroke="#0d9488" strokeWidth={1.5} />
-      </g>);
-    }
-
-    if (dragging.mode === "draw-freehand" && dragging.drawPoints && dragging.drawPoints.length >= 2) {
+    // Freehand drag preview
+    if (dragging && dragging.mode === "draw-freehand" && dragging.drawPoints && dragging.drawPoints.length >= 2) {
       const [bx, by] = tikzToCanvas(dragging.startTikz.x, dragging.startTikz.y, canvasHeight, zoom, offsetX, offsetY);
       const d = dragging.drawPoints.map((p, i) => `${i === 0 ? "M" : "L"}${bx + p.x * scale},${by + (-p.y) * scale}`).join(" ");
       return <path d={d} stroke="#0d9488" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
     }
 
+    // 2-click mode preview
+    if (pendingStart) {
+      const mode = classifyTool(activeTool);
+      const [x1, y1] = tikzToCanvas(pendingStart.x, pendingStart.y, canvasHeight, zoom, offsetX, offsetY);
+
+      // Start point marker (always shown when pending)
+      const startMarker = (<g>
+        <circle cx={x1} cy={y1} r={6} fill="#0d9488" opacity={0.15} />
+        <circle cx={x1} cy={y1} r={4} fill="#0d9488" />
+        <circle cx={x1} cy={y1} r={1.5} fill="white" />
+        <text x={x1 + 8} y={y1 - 8} fontSize="10" fill="#0d9488" fontFamily="monospace" fontWeight="700">
+          ({pendingStart.x.toFixed(1)}, {pendingStart.y.toFixed(1)})
+        </text>
+      </g>);
+
+      if (!previewEnd) return startMarker;
+
+      const [x2, y2] = tikzToCanvas(previewEnd.x, previewEnd.y, canvasHeight, zoom, offsetX, offsetY);
+      const dx = previewEnd.x - pendingStart.x, dy = previewEnd.y - pendingStart.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (mode === "line") {
+        return (<g>
+          {/* Line preview */}
+          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#0d9488" strokeWidth={1.5} strokeDasharray="5,3" />
+          {startMarker}
+          {/* End point preview */}
+          <circle cx={x2} cy={y2} r={5} fill="white" stroke="#0d9488" strokeWidth={2} />
+          <circle cx={x2} cy={y2} r={2} fill="#0d9488" />
+          {/* Distance label */}
+          {dist > 0.05 && <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 10} textAnchor="middle" fontSize="10"
+            fill="#0d9488" fontFamily="monospace" fontWeight="600">{dist.toFixed(2)} cm</text>}
+        </g>);
+      }
+
+      if (mode === "area") {
+        const minX = Math.min(pendingStart.x, previewEnd.x), maxY = Math.max(pendingStart.y, previewEnd.y);
+        const [rx, ry] = tikzToCanvas(minX, maxY, canvasHeight, zoom, offsetX, offsetY);
+        const w = Math.abs(dx) * scale, h = Math.abs(dy) * scale;
+        return (<g>
+          <rect x={rx} y={ry} width={w} height={h} stroke="#0d9488" strokeWidth={1.5}
+            fill="rgba(13,148,136,0.06)" strokeDasharray="5,3" rx={2} />
+          {startMarker}
+          <circle cx={x2} cy={y2} r={5} fill="white" stroke="#0d9488" strokeWidth={2} />
+          <circle cx={x2} cy={y2} r={2} fill="#0d9488" />
+          {(Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) && (
+            <text x={rx + w / 2} y={ry - 6} textAnchor="middle" fontSize="10"
+              fill="#0d9488" fontFamily="monospace" fontWeight="600">
+              {Math.abs(dx).toFixed(2)} x {Math.abs(dy).toFixed(2)} cm
+            </text>
+          )}
+        </g>);
+      }
+    }
+
     return null;
-  }, [dragging, canvasHeight, zoom, offsetX, offsetY, scale]);
+  }, [dragging, pendingStart, previewEnd, activeTool, canvasHeight, zoom, offsetX, offsetY, scale]);
 
   // ── Cursor ────────────────────────────────────────────────────
 
@@ -507,8 +549,8 @@ export function FigureCanvas() {
   let toolHint = "";
   if (activeTool !== "select" && activeTool !== "pan") {
     const mode = classifyTool(activeTool);
-    if (mode === "line") toolHint = "Drag: start → end";
-    else if (mode === "area") toolHint = "Drag: corner → corner";
+    if (mode === "line") toolHint = pendingStart ? "Click to set END point" : "Click to set START point";
+    else if (mode === "area") toolHint = pendingStart ? "Click to set OPPOSITE corner" : "Click to set FIRST corner";
     else if (mode === "freehand") toolHint = "Drag to draw";
     else toolHint = "Click to place";
   }

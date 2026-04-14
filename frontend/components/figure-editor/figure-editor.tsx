@@ -19,9 +19,11 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import {
   X, Code2, ChevronDown, ChevronUp, ClipboardCopy, Check,
-  ImagePlus, Keyboard,
+  ImagePlus, Keyboard, FileDown, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 function useIsJa() {
   if (typeof window === "undefined") return false;
@@ -61,6 +63,9 @@ export function FigureEditor() {
   const [copied, setCopied] = useState(false);
   const [selectedSize, setSelectedSize] = useState(2); // "Original" index
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const { t } = useI18n();
 
   // ── TikZ code ─────────────────────────────────────────────────
 
@@ -113,6 +118,73 @@ export function FigureEditor() {
       toast.success(isJa ? "TikZコードをコピーしました" : "TikZ code copied");
     });
   }, [scaledCode, isJa]);
+
+  // ── PDF download (figure alone, standalone document) ─────────
+
+  const handleDownloadPDF = useCallback(async () => {
+    if (shapes.length === 0 || downloadingPdf) return;
+    setDownloadingPdf(true);
+
+    // Build a standalone document with just the figure, auto-cropped via preview environment
+    const standaloneLatex = [
+      "\\documentclass[preview, border=6pt, convert={true,outext=.pdf}]{standalone}",
+      "\\usepackage{tikz}",
+      "\\usepackage{circuitikz}",
+      "\\usepackage{pgfplots}",
+      "\\pgfplotsset{compat=newest}",
+      "\\usetikzlibrary{decorations.pathmorphing}",
+      "\\usetikzlibrary{decorations.pathreplacing}",
+      "\\usetikzlibrary{arrows.meta}",
+      "\\usetikzlibrary{shapes.geometric}",
+      "\\usetikzlibrary{shapes.symbols}",
+      "\\usetikzlibrary{automata, positioning}",
+      "\\usetikzlibrary{calc}",
+      "\\usepackage{amsmath, amssymb}",
+      "\\begin{document}",
+      scaledCode,
+      "\\end{document}",
+    ].join("\n");
+
+    try {
+      const blob = await compileRawLatex(standaloneLatex, "figure");
+      const filename = `figure_${Date.now()}.pdf`;
+
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await (window as typeof window & { showSaveFilePicker: (opts: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{ description: "PDF Document", accept: { "application/pdf": [".pdf"] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          toast.success(isJa ? "PDFを保存しました" : "PDF saved");
+          return;
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          // Fall through to download link fallback
+        }
+      }
+
+      // Fallback: blob URL download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(isJa ? "PDFをダウンロードしました" : "PDF downloaded");
+    } catch (err) {
+      if (err instanceof CompileError) {
+        const view = formatCompileError(err, t);
+        toast.error(view.title, { duration: 10000, description: view.lines.join(" · ") });
+      } else {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        toast.error(`${isJa ? "PDF生成失敗" : "PDF failed"}: ${msg}`);
+      }
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }, [shapes, scaledCode, downloadingPdf, isJa, t]);
 
   const handleClose = useCallback(() => {
     if (shapes.length > 0 && !confirm(isJa ? "編集中の図を破棄しますか？" : "Discard current figure?")) return;
@@ -194,6 +266,17 @@ export function FigureEditor() {
           >
             {copied ? <Check size={12} className="text-green-500" /> : <ClipboardCopy size={12} />}
             <span>{copied ? (isJa ? "済" : "Done") : (isJa ? "コピー" : "Copy")}</span>
+          </button>
+
+          {/* Download PDF (figure alone) */}
+          <button
+            onClick={handleDownloadPDF}
+            disabled={shapes.length === 0 || downloadingPdf}
+            className="flex items-center gap-1 h-7 px-2.5 rounded-lg text-[10px] font-semibold text-foreground/40 hover:bg-foreground/[0.04] hover:text-foreground/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            title={isJa ? "この図のみをPDFでダウンロード" : "Download this figure as a standalone PDF"}
+          >
+            {downloadingPdf ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
+            <span>{downloadingPdf ? (isJa ? "生成中" : "...") : (isJa ? "PDF" : "PDF")}</span>
           </button>
 
           <div className="w-px h-5 bg-foreground/[0.08] mx-0.5" />
