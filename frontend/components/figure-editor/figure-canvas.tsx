@@ -187,7 +187,8 @@ export function FigureCanvas() {
   function shapeToCanvasCoords(s: FigureShape) {
     const [cx, cy] = tikzToCanvas(s.x, s.y + s.height, canvasHeight, zoom, offsetX, offsetY);
     return { cx, cy, pw: s.width * scale, ph: s.height * scale,
-      pxPoints: s.points.map((p) => ({ x: p.x * scale, y: -p.y * scale })) };
+      // Convert TikZ-relative (bottom-left origin, y-up) to screen-relative (top-left origin, y-down)
+      pxPoints: s.points.map((p) => ({ x: p.x * scale, y: (s.height - p.y) * scale })) };
   }
 
   // ── Grid ──────────────────────────────────────────────────────
@@ -604,10 +605,10 @@ export function FigureCanvas() {
             </text>
             {/* Terminal dots for line-like shapes */}
             {sh.points.length >= 2 && (<>
-              <circle cx={cx + sh.points[0].x * scale} cy={cy + (-sh.points[0].y) * scale}
+              <circle cx={cx + sh.points[0].x * scale} cy={cy + (sh.height - sh.points[0].y) * scale}
                 r={4} fill="#3b82f6" opacity={0.6} />
               <circle cx={cx + sh.points[sh.points.length - 1].x * scale}
-                cy={cy + (-sh.points[sh.points.length - 1].y) * scale}
+                cy={cy + (sh.height - sh.points[sh.points.length - 1].y) * scale}
                 r={4} fill="white" stroke="#3b82f6" strokeWidth={1.5} />
             </>)}
             {RESIZE_HANDLES.map((h) => (
