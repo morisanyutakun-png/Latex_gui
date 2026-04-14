@@ -17,6 +17,7 @@ import { useFigureStore } from "./figure-store";
 import { ShapeRenderer, ArrowDefs } from "./shape-renderers";
 import type { Point, FigureShape, ShapeKind, ToolMode } from "./types";
 import { getPaletteItem } from "./domain-palettes";
+import { ZoomIn, ZoomOut, Maximize2, HelpCircle, Grid3x3, Magnet, Layers } from "lucide-react";
 
 const PX_PER_CM = 50;
 
@@ -318,6 +319,58 @@ export function FigureCanvas() {
   const [grabTargetId, setGrabTargetId] = useState<string | null>(null);
   /** Active snap visualization (while moving) */
   const [activeSnap, setActiveSnap] = useState<ReturnType<typeof computeSmartSnap>>(null);
+  /** Help popover visibility */
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Zoom control helpers (used by floating buttons + keyboard)
+  const zoomIn = useCallback(() => {
+    const { zoom: z, offsetX: ox, offsetY: oy } = useFigureStore.getState().viewport;
+    const nz = nextZoom(z, 1);
+    if (nz === z) return;
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const r = nz / z;
+    useFigureStore.getState().setViewport({ zoom: nz, offsetX: cx - (cx - ox) * r, offsetY: cy - (cy - oy) * r });
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    const { zoom: z, offsetX: ox, offsetY: oy } = useFigureStore.getState().viewport;
+    const nz = nextZoom(z, -1);
+    if (nz === z) return;
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const r = nz / z;
+    useFigureStore.getState().setViewport({ zoom: nz, offsetX: cx - (cx - ox) * r, offsetY: cy - (cy - oy) * r });
+  }, []);
+
+  /** Fit all shapes to view — if no shapes, fit the canvas frame. */
+  const fitToContent = useCallback(() => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const { shapes: allShapes, canvasWidth: cW, canvasHeight: cH } = useFigureStore.getState();
+    let minX = 0, minY = 0, maxX = cW, maxY = cH;
+    if (allShapes.length > 0) {
+      minX = Infinity; minY = Infinity; maxX = -Infinity; maxY = -Infinity;
+      for (const s of allShapes) {
+        minX = Math.min(minX, s.x);
+        minY = Math.min(minY, s.y);
+        maxX = Math.max(maxX, s.x + s.width);
+        maxY = Math.max(maxY, s.y + s.height);
+      }
+      const pad = 1; minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+    }
+    const w = maxX - minX, h = maxY - minY;
+    if (w <= 0 || h <= 0) return;
+    const targetScale = Math.min(rect.width / (w * PX_PER_CM), rect.height / (h * PX_PER_CM));
+    const nz = Math.max(0.25, Math.min(3, targetScale));
+    const targetPxW = w * PX_PER_CM * nz;
+    const targetPxH = h * PX_PER_CM * nz;
+    const ox = (rect.width - targetPxW) / 2 - minX * PX_PER_CM * nz;
+    const oy = (rect.height - targetPxH) / 2 - (cH - maxY) * PX_PER_CM * nz;
+    useFigureStore.getState().setViewport({ zoom: nz, offsetX: ox, offsetY: oy });
+  }, []);
 
   // Cancel pending start when tool changes
   useEffect(() => { setPendingStart(null); setPreviewEnd(null); }, [activeTool]);
@@ -638,40 +691,128 @@ export function FigureCanvas() {
       origShape: { ...sh, style: { ...sh.style }, points: sh.points.map((p) => ({ ...p })), tikzOptions: { ...sh.tikzOptions } } });
   }, [activeTool, shapes, pushHistory, getSvgCoords, canvasHeight, zoom, offsetX, offsetY]);
 
-  // ── Wheel ─────────────────────────────────────────────────────
+  // ── Wheel (non-passive, attached natively to prevent browser zoom/scroll) ─────
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.ctrlKey || e.metaKey) {
-      const nz = nextZoom(zoom, e.deltaY > 0 ? -1 : 1);
-      if (nz !== zoom) {
-        const px = getSvgCoords(e);
-        const r = nz / zoom;
-        setViewport({ zoom: nz, offsetX: px.x - (px.x - offsetX) * r, offsetY: px.y - (px.y - offsetY) * r });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      // Always preventDefault: stops browser zoom (Ctrl+scroll) and horizontal nav (trackpad swipe)
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.ctrlKey || e.metaKey) {
+        // Discrete zoom
+        const dir = e.deltaY > 0 ? -1 : 1;
+        const { zoom: curZ, offsetX: curOx, offsetY: curOy } = useFigureStore.getState().viewport;
+        const nz = nextZoom(curZ, dir as 1 | -1);
+        if (nz === curZ) return;
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const px = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        const r = nz / curZ;
+        useFigureStore.getState().setViewport({
+          zoom: nz,
+          offsetX: px.x - (px.x - curOx) * r,
+          offsetY: px.y - (px.y - curOy) * r,
+        });
+      } else {
+        // Pan with trackpad / mouse wheel (deltaX + deltaY)
+        const { offsetX: curOx, offsetY: curOy } = useFigureStore.getState().viewport;
+        useFigureStore.getState().setViewport({
+          offsetX: curOx - e.deltaX,
+          offsetY: curOy - e.deltaY,
+        });
       }
-    } else {
-      setViewport({ offsetX: offsetX - e.deltaX, offsetY: offsetY - e.deltaY });
-    }
-  }, [zoom, offsetX, offsetY, getSvgCoords, setViewport]);
+    };
+
+    // non-passive so preventDefault() actually works
+    el.addEventListener("wheel", onWheel, { passive: false });
+
+    // Block right-click menu (user often right-clicks accidentally)
+    const onContextMenu = (e: MouseEvent) => { e.preventDefault(); };
+    el.addEventListener("contextmenu", onContextMenu);
+
+    // Block browser back/forward trackpad swipe (horizontal overscroll)
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 1) e.preventDefault();
+    };
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("contextmenu", onContextMenu);
+      el.removeEventListener("touchmove", onTouchMove);
+    };
+  }, []);
 
   // ── Keyboard ──────────────────────────────────────────────────
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName ?? "")) return;
-      if (e.key === "Delete" || e.key === "Backspace") useFigureStore.getState().deleteSelected();
+      // Skip when typing in an input/textarea
+      const t = document.activeElement?.tagName ?? "";
+      if (["INPUT", "TEXTAREA"].includes(t) || (document.activeElement as HTMLElement)?.isContentEditable) return;
+
+      // Browser-shortcut interceptions — always preventDefault before acting
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        useFigureStore.getState().deleteSelected();
+        return;
+      }
       if (e.key === "Escape") {
+        e.preventDefault();
         if (pendingStart) { setPendingStart(null); setPreviewEnd(null); }
         else { clearSelection(); setActiveTool("select"); setDragging(null); }
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); e.shiftKey ? useFigureStore.getState().redo() : useFigureStore.getState().undo(); }
-      if ((e.metaKey || e.ctrlKey) && e.key === "a") { e.preventDefault(); useFigureStore.getState().selectAll(); }
-      if ((e.metaKey || e.ctrlKey) && e.key === "d") { e.preventDefault(); useFigureStore.getState().duplicateSelected(); }
-      if (e.key === "v" || e.key === "V") setActiveTool("select");
-      if (e.key === "r" || e.key === "R") setActiveTool("rect");
-      if (e.key === "c" || e.key === "C") setActiveTool("circle");
-      if (e.key === "l" || e.key === "L") setActiveTool("line");
-      if (e.key === "t" || e.key === "T") setActiveTool("text");
+      if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        e.shiftKey ? useFigureStore.getState().redo() : useFigureStore.getState().undo();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "y" || e.key === "Y")) {
+        e.preventDefault();
+        useFigureStore.getState().redo();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A")) {
+        e.preventDefault();
+        useFigureStore.getState().selectAll();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "d" || e.key === "D")) {
+        e.preventDefault();  // Stops browser bookmark dialog
+        useFigureStore.getState().duplicateSelected();
+        return;
+      }
+      // Browser zoom — intercept so user stays in app
+      if ((e.metaKey || e.ctrlKey) && (e.key === "+" || e.key === "=" || e.key === "-" || e.key === "0")) {
+        e.preventDefault();
+        const { zoom, offsetX, offsetY } = useFigureStore.getState().viewport;
+        if (e.key === "0") useFigureStore.getState().resetViewport();
+        else {
+          const dir = (e.key === "-") ? -1 : 1;
+          const nz = nextZoom(zoom, dir as 1 | -1);
+          const rect = svgRef.current?.getBoundingClientRect();
+          if (rect) {
+            const cx = rect.width / 2, cy = rect.height / 2;
+            const r = nz / zoom;
+            useFigureStore.getState().setViewport({ zoom: nz, offsetX: cx - (cx - offsetX) * r, offsetY: cy - (cy - offsetY) * r });
+          }
+        }
+        return;
+      }
+      // Tool hotkeys (no modifier)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "v") setActiveTool("select");
+      else if (k === "r") setActiveTool("rect");
+      else if (k === "c") setActiveTool("circle");
+      else if (k === "l") setActiveTool("line");
+      else if (k === "t") setActiveTool("text");
+      else if (k === "a") setActiveTool("arrow");
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
@@ -772,11 +913,19 @@ export function FigureCanvas() {
   const sorted = [...shapes].sort((a, b) => a.zIndex - b.zIndex);
 
   return (
-    <div ref={containerRef} className={`relative flex-1 overflow-hidden bg-white dark:bg-neutral-900 ${cursor}`}>
+    <div
+      ref={containerRef}
+      className={`relative flex-1 overflow-hidden bg-white dark:bg-neutral-900 ${cursor}`}
+      style={{
+        touchAction: "none",               // Disables pinch-zoom, tap-hold, swipe gestures
+        overscrollBehavior: "contain",     // Stops scroll chaining to parent (prevents nav gestures)
+        userSelect: "none",
+      }}
+    >
       <svg ref={svgRef} width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
         onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp} onMouseLeave={() => { handleMouseUp(); setMousePos(null); }}
-        onWheel={handleWheel} className="select-none">
+        className="select-none" style={{ display: "block" }}>
 
         <defs>{shapes.map((s) => <ArrowDefs key={`d-${s.id}`} shape={s} scale={scale} />)}</defs>
 
@@ -879,25 +1028,135 @@ export function FigureCanvas() {
         {renderRulers()}
       </svg>
 
-      {/* Coordinate readout */}
-      {mousePos && (
-        <div className="absolute bottom-3 left-3 flex items-center gap-3 bg-black/50 backdrop-blur-sm text-white text-[10px] font-mono px-2.5 py-1 rounded-md">
-          <span>x: {mousePos.x.toFixed(1)}</span>
-          <span>y: {mousePos.y.toFixed(1)}</span>
-          <span className="text-white/50">cm</span>
+      {/* ══════════════════════════════════════════════════════════════
+           STATUS BAR (bottom) — coordinates + selection + snap + grid state
+        ══════════════════════════════════════════════════════════════ */}
+      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 pointer-events-none">
+        {/* Left: coordinate readout */}
+        <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md text-white text-[10px] font-mono px-2.5 py-1 rounded-md pointer-events-auto shadow-lg">
+          {mousePos ? (
+            <>
+              <span className="text-white/60">x</span><span className="font-semibold">{mousePos.x.toFixed(1)}</span>
+              <span className="text-white/60">y</span><span className="font-semibold">{mousePos.y.toFixed(1)}</span>
+              <span className="text-white/40 text-[9px]">cm</span>
+            </>
+          ) : (
+            <span className="text-white/50">— cursor outside —</span>
+          )}
         </div>
-      )}
 
-      <div className="absolute bottom-3 right-3 bg-black/50 backdrop-blur-sm text-white text-[10px] font-mono px-2.5 py-1 rounded-md">
-        {Math.round(zoom * 100)}%
+        {/* Center: active selection info */}
+        {selectedIds.length > 0 && (
+          <div className="flex items-center gap-1.5 bg-blue-500/90 backdrop-blur-md text-white text-[10px] font-semibold px-2.5 py-1 rounded-md pointer-events-auto shadow-lg">
+            <Layers size={11} />
+            <span>{selectedIds.length} {selectedIds.length === 1 ? "selected" : "selected"}</span>
+          </div>
+        )}
+
+        {/* Right: snap + grid state indicators (compact) */}
+        <div className="flex items-center gap-1 pointer-events-auto">
+          <span className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm ${
+            snapToGrid ? "bg-emerald-500/90 text-white" : "bg-black/40 text-white/60"
+          }`}>
+            <Magnet size={10} /> {snapToGrid ? "snap" : "free"}
+          </span>
+          <span className={`flex items-center gap-1 backdrop-blur-md text-[9.5px] font-mono px-2 py-1 rounded-md shadow-sm ${
+            showGrid ? "bg-black/60 text-white" : "bg-black/40 text-white/60"
+          }`}>
+            <Grid3x3 size={10} /> {showGrid ? "grid" : "off"}
+          </span>
+        </div>
       </div>
 
-      {/* Tool hint */}
+      {/* ══════════════════════════════════════════════════════════════
+           FLOATING ZOOM CONTROLS (right edge, vertically centered)
+        ══════════════════════════════════════════════════════════════ */}
+      <div className="absolute top-1/2 right-3 -translate-y-1/2 flex flex-col gap-1 bg-white/95 dark:bg-neutral-800/95 backdrop-blur-md rounded-lg shadow-lg border border-foreground/[0.06] p-1">
+        <button
+          onClick={zoomIn}
+          className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+          title={`Zoom in (⌘+)`}
+        ><ZoomIn size={14} /></button>
+        <div className="text-[10px] font-mono text-center text-foreground/50 py-0.5 select-none">
+          {Math.round(zoom * 100)}%
+        </div>
+        <button
+          onClick={zoomOut}
+          className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+          title={`Zoom out (⌘−)`}
+        ><ZoomOut size={14} /></button>
+        <div className="h-px bg-foreground/[0.08] mx-1" />
+        <button
+          onClick={fitToContent}
+          className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
+          title="Fit to content"
+        ><Maximize2 size={13} /></button>
+        <button
+          onClick={() => useFigureStore.getState().resetViewport()}
+          className="h-7 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors text-[9px] font-mono font-semibold"
+          title="Reset view (⌘0)"
+        >100%</button>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+           HELP BUTTON + POPOVER (top-right)
+        ══════════════════════════════════════════════════════════════ */}
+      <div className="absolute top-3 right-3">
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className={`h-8 w-8 flex items-center justify-center rounded-full backdrop-blur-md transition-all shadow-sm ${
+            showHelp ? "bg-blue-500 text-white shadow-blue-500/30" : "bg-white/90 dark:bg-neutral-800/90 text-foreground/60 hover:text-foreground border border-foreground/[0.08]"
+          }`}
+          title="Keyboard shortcuts & help"
+        ><HelpCircle size={14} /></button>
+        {showHelp && (
+          <div className="absolute top-10 right-0 w-[280px] bg-white dark:bg-neutral-800 rounded-lg shadow-2xl border border-foreground/[0.1] p-3 text-[11px] animate-scale-in">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-2">Shortcuts</div>
+            <div className="space-y-1.5 text-foreground/70">
+              <HelpRow kbd="V / R / C / L / T / A" label="Select · Rect · Circle · Line · Text · Arrow" />
+              <HelpRow kbd="Click" label="Place shape (line/area: 2nd click = end)" />
+              <HelpRow kbd="Drag (in body)" label="Move shape (cursor → grab)" />
+              <HelpRow kbd="Space + drag" label="Pan canvas" />
+              <HelpRow kbd="⌘ + scroll" label="Zoom in / out" />
+              <HelpRow kbd="scroll / two-finger" label="Pan (horizontal + vertical)" />
+              <HelpRow kbd="⌘ + Z / ⇧⌘Z" label="Undo / Redo" />
+              <HelpRow kbd="⌘ + D" label="Duplicate selection" />
+              <HelpRow kbd="⌘ + A" label="Select all" />
+              <HelpRow kbd="Del / Backspace" label="Delete selection" />
+              <HelpRow kbd="⌘ + 0" label="Reset view (100%)" />
+              <HelpRow kbd="⌘ + + / -" label="Zoom in / out" />
+              <HelpRow kbd="Shift + drag" label="Move without smart snap" />
+              <HelpRow kbd="Esc" label="Cancel / return to select" />
+            </div>
+            <div className="mt-3 pt-2 border-t border-foreground/[0.06] text-[9.5px] text-foreground/40 leading-relaxed">
+              Right-click, browser-zoom, and swipe-navigation are disabled inside the canvas to prevent accidental exit.
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+           TOOL HINT (top-center) — shows when a drawing tool is active
+        ══════════════════════════════════════════════════════════════ */}
       {toolHint && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-teal-600 text-white text-[10px] font-semibold px-3 py-1 rounded-full shadow-lg shadow-teal-600/30 animate-scale-in">
-          {toolHint} — Esc to cancel
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-teal-600 text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-full shadow-lg shadow-teal-600/30 animate-scale-in pointer-events-none">
+          <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+          <span>{toolHint}</span>
+          <kbd className="ml-1 px-1.5 py-0.5 rounded bg-white/20 text-[9px] font-mono">Esc</kbd>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Small helper component ──
+function HelpRow({ kbd, label }: { kbd: string; label: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-foreground/80 flex-1 leading-snug">{label}</span>
+      <span className="shrink-0 font-mono text-[9.5px] bg-foreground/[0.06] px-1.5 py-0.5 rounded text-foreground/65 whitespace-nowrap">
+        {kbd}
+      </span>
     </div>
   );
 }
