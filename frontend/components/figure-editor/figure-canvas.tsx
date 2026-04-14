@@ -75,6 +75,121 @@ function findGrabTarget(shapes: FigureShape[], pt: Point): string | null {
   return null;
 }
 
+// ── Smart snap system ──────────────────────────────────────────
+
+type SnapPointType = "terminal" | "corner" | "center" | "mid-edge";
+interface SnapPoint { x: number; y: number; type: SnapPointType; shapeId: string }
+
+/** Collect all snap-able reference points from shapes (terminals, corners, centers, edge midpoints). */
+function collectSnapPoints(shapes: FigureShape[], excludeId?: string): SnapPoint[] {
+  const pts: SnapPoint[] = [];
+  for (const s of shapes) {
+    if (s.id === excludeId) continue;
+    const cx = s.x + s.width / 2, cy = s.y + s.height / 2;
+    // Center
+    pts.push({ x: cx, y: cy, type: "center", shapeId: s.id });
+    // Bounding box corners
+    pts.push({ x: s.x, y: s.y, type: "corner", shapeId: s.id });
+    pts.push({ x: s.x + s.width, y: s.y, type: "corner", shapeId: s.id });
+    pts.push({ x: s.x, y: s.y + s.height, type: "corner", shapeId: s.id });
+    pts.push({ x: s.x + s.width, y: s.y + s.height, type: "corner", shapeId: s.id });
+    // Mid-edge points
+    pts.push({ x: cx, y: s.y, type: "mid-edge", shapeId: s.id });
+    pts.push({ x: cx, y: s.y + s.height, type: "mid-edge", shapeId: s.id });
+    pts.push({ x: s.x, y: cy, type: "mid-edge", shapeId: s.id });
+    pts.push({ x: s.x + s.width, y: cy, type: "mid-edge", shapeId: s.id });
+    // Terminals (from points array)
+    for (const p of s.points) {
+      pts.push({ x: s.x + p.x, y: s.y + p.y, type: "terminal", shapeId: s.id });
+    }
+  }
+  return pts;
+}
+
+/** Get this shape's own snap reference points (for snapping my-point to other-point). */
+function getShapeOwnSnapPoints(s: FigureShape): Array<{ x: number; y: number; type: SnapPointType }> {
+  const cx = s.x + s.width / 2, cy = s.y + s.height / 2;
+  const out: Array<{ x: number; y: number; type: SnapPointType }> = [
+    { x: cx, y: cy, type: "center" },
+    { x: s.x, y: s.y, type: "corner" },
+    { x: s.x + s.width, y: s.y, type: "corner" },
+    { x: s.x, y: s.y + s.height, type: "corner" },
+    { x: s.x + s.width, y: s.y + s.height, type: "corner" },
+  ];
+  for (const p of s.points) {
+    out.push({ x: s.x + p.x, y: s.y + p.y, type: "terminal" });
+  }
+  return out;
+}
+
+/**
+ * Find the best snap offset that would align some point of `movingShape` to
+ * some reference point of other shapes. Snap priority:
+ *   1. Point-to-point (terminal→terminal wins over corner→corner etc.)
+ *   2. Axis alignment (same x OR same y with another shape's reference point)
+ * Returns dx,dy to apply to the moving shape's position, plus the matched points (for visual).
+ */
+function computeSmartSnap(
+  movingShape: FigureShape,
+  others: SnapPoint[],
+  threshold: number,
+): { dx: number; dy: number; matches: Array<{ my: { x: number; y: number; type: SnapPointType }; other: SnapPoint; axis: "point" | "x" | "y" }> } | null {
+  const myPts = getShapeOwnSnapPoints(movingShape);
+  if (myPts.length === 0 || others.length === 0) return null;
+
+  // 1. Point-to-point snap: pick globally closest pair within threshold.
+  // Terminal-to-terminal is strongly preferred (scale distance down).
+  let bestP: { dx: number; dy: number; dist: number; my: typeof myPts[0]; other: SnapPoint } | null = null;
+  for (const my of myPts) {
+    for (const o of others) {
+      const dx = o.x - my.x, dy = o.y - my.y;
+      const raw = Math.sqrt(dx * dx + dy * dy);
+      // Priority weighting: terminal-to-terminal gets a bonus (smaller effective dist)
+      const weight = (my.type === "terminal" && o.type === "terminal") ? 0.5
+                   : (my.type === "corner"   && o.type === "corner")   ? 0.8
+                   : (my.type === "center"   && o.type === "center")   ? 0.9
+                   : 1.0;
+      const dist = raw * weight;
+      if (raw < threshold && (!bestP || dist < bestP.dist)) {
+        bestP = { dx, dy, dist, my, other: o };
+      }
+    }
+  }
+  if (bestP) {
+    return { dx: bestP.dx, dy: bestP.dy,
+      matches: [{ my: bestP.my, other: bestP.other, axis: "point" }] };
+  }
+
+  // 2. Axis snap (horizontal/vertical alignment of centers, corners, or edges)
+  let bestX: { dx: number; my: typeof myPts[0]; other: SnapPoint } | null = null;
+  let bestY: { dy: number; my: typeof myPts[0]; other: SnapPoint } | null = null;
+  for (const my of myPts) {
+    for (const o of others) {
+      const dx = o.x - my.x;
+      if (Math.abs(dx) < threshold && (!bestX || Math.abs(dx) < Math.abs(bestX.dx))) {
+        bestX = { dx, my, other: o };
+      }
+      const dy = o.y - my.y;
+      if (Math.abs(dy) < threshold && (!bestY || Math.abs(dy) < Math.abs(bestY.dy))) {
+        bestY = { dy, my, other: o };
+      }
+    }
+  }
+  if (bestX || bestY) {
+    const matches: Array<{ my: { x: number; y: number; type: SnapPointType }; other: SnapPoint; axis: "point" | "x" | "y" }> = [];
+    if (bestX) matches.push({ my: bestX.my, other: bestX.other, axis: "x" });
+    if (bestY) matches.push({ my: bestY.my, other: bestY.other, axis: "y" });
+    return { dx: bestX?.dx ?? 0, dy: bestY?.dy ?? 0, matches };
+  }
+
+  return null;
+}
+
+/** Fine quantization: 0.05 cm = 0.5 mm precision */
+function fineQuantize(v: number): number {
+  return Math.round(v * 20) / 20;
+}
+
 // ── Tool classification ─────────────────────────────────────────
 
 /** Line-like: drag A→B, component stretches between the two terminals */
@@ -201,6 +316,8 @@ export function FigureCanvas() {
   const [previewEnd, setPreviewEnd] = useState<Point | null>(null);
   /** ID of shape whose grab-zone the cursor is currently over (null = cursor not on any shape body) */
   const [grabTargetId, setGrabTargetId] = useState<string | null>(null);
+  /** Active snap visualization (while moving) */
+  const [activeSnap, setActiveSnap] = useState<ReturnType<typeof computeSmartSnap>>(null);
 
   // Cancel pending start when tool changes
   useEffect(() => { setPendingStart(null); setPreviewEnd(null); }, [activeTool]);
@@ -428,10 +545,34 @@ export function FigureCanvas() {
 
     if (dragging.mode === "move" && dragging.shapeId && dragging.origShape) {
       const dtx = tx - dragging.startTikz.x, dty = ty - dragging.startTikz.y;
-      updateShape(dragging.shapeId, {
-        x: snapV(dragging.origShape.x + dtx, gridSize, snapToGrid),
-        y: snapV(dragging.origShape.y + dty, gridSize, snapToGrid),
-      });
+      // Start with fine-granularity (0.05 cm) — ergonomic pixel-level control
+      let nx = fineQuantize(dragging.origShape.x + dtx);
+      let ny = fineQuantize(dragging.origShape.y + dty);
+
+      // Smart snap to other shapes' terminals/corners/centers/edges
+      // Shift key disables smart snap for free movement
+      if (!e.shiftKey) {
+        const moving = { ...dragging.origShape, x: nx, y: ny };
+        const otherPts = collectSnapPoints(shapes, dragging.shapeId);
+        // Threshold: ~0.3 cm (screen ~15 px at 1x zoom) — feels natural without being aggressive
+        const snap = computeSmartSnap(moving, otherPts, 0.3);
+        if (snap) {
+          nx = fineQuantize(nx + snap.dx);
+          ny = fineQuantize(ny + snap.dy);
+          setActiveSnap(snap);
+        } else {
+          // Fallback: coarse grid snap IF enabled AND no smart snap available
+          if (snapToGrid) {
+            nx = snapV(nx, gridSize, true);
+            ny = snapV(ny, gridSize, true);
+          }
+          setActiveSnap(null);
+        }
+      } else {
+        setActiveSnap(null);
+      }
+
+      updateShape(dragging.shapeId, { x: nx, y: ny });
       return;
     }
 
@@ -464,6 +605,7 @@ export function FigureCanvas() {
     }
 
     setDragging(null);
+    setActiveSnap(null);
   }, [dragging, addShapeFromPalette, updateShape]);
 
   // ── Shape interaction ─────────────────────────────────────────
@@ -640,6 +782,30 @@ export function FigureCanvas() {
             selected={selSet.has(sh.id)} hovered={hoveredId === sh.id}
             onMouseDown={(e) => handleShapeMouseDown(e, sh.id)}
             onMouseEnter={() => setHovered(sh.id)} onMouseLeave={() => setHovered(null)} />;
+        })}
+
+        {/* Active snap indicator — visual feedback while smart-snapping during move */}
+        {activeSnap && dragging?.mode === "move" && activeSnap.matches.map((m, i) => {
+          const [ox, oy] = tikzToCanvas(m.other.x, m.other.y, canvasHeight, zoom, offsetX, offsetY);
+          const [mx, my] = tikzToCanvas(m.my.x + activeSnap.dx, m.my.y + activeSnap.dy, canvasHeight, zoom, offsetX, offsetY);
+          // Point snap: dot + short guide
+          if (m.axis === "point") {
+            return (<g key={`snap-${i}`} pointerEvents="none">
+              <circle cx={ox} cy={oy} r={8} fill="#ec4899" opacity={0.15} />
+              <circle cx={ox} cy={oy} r={5} fill="none" stroke="#ec4899" strokeWidth={1.5} />
+              <circle cx={ox} cy={oy} r={2} fill="#ec4899" />
+              <text x={ox + 10} y={oy - 8} fontSize="9" fill="#ec4899" fontFamily="monospace" fontWeight="700">
+                {m.other.type}
+              </text>
+            </g>);
+          }
+          // Axis snap: dashed guide line
+          if (m.axis === "x") {
+            return (<line key={`snap-${i}`} x1={ox} y1={offsetY} x2={ox} y2={canvasHeight * scale + offsetY}
+              stroke="#ec4899" strokeWidth={1} strokeDasharray="4,3" opacity={0.7} pointerEvents="none" />);
+          }
+          return (<line key={`snap-${i}`} x1={offsetX} y1={oy} x2={canvasWidth * scale + offsetX} y2={oy}
+            stroke="#ec4899" strokeWidth={1} strokeDasharray="4,3" opacity={0.7} pointerEvents="none" />);
         })}
 
         {/* Grab target hover indicator */}
