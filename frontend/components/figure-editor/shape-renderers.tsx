@@ -9,6 +9,7 @@
 
 import React from "react";
 import type { FigureShape, Point } from "./types";
+import { renderInlineMathOrPlaceholder } from "@/lib/katex-render";
 
 // ── Fixed visual constants (px) ─────────────────────────────────
 
@@ -189,13 +190,45 @@ function ShapeLabel(props: {
   });
 
   const fontSize = labelFontSize(shape.style.fontSizePt, scale / 50) * sizeMul;
-  const text = shape.labelMathMode ? renderMathPlaceholder(shape.label) : shape.label;
-  const style: React.CSSProperties = shape.labelMathMode ? { fontStyle: "italic", fontFamily: "serif" } : {};
 
+  // Math mode: render via KaTeX inside a foreignObject for accurate LaTeX look
+  if (shape.labelMathMode) {
+    let html: string;
+    try { html = renderInlineMathOrPlaceholder(shape.label); }
+    catch { html = renderMathPlaceholder(shape.label); }
+
+    // foreignObject needs a sized box; estimate generously based on text length
+    const estW = Math.max(fontSize * 2, shape.label.length * fontSize * 0.7);
+    const estH = fontSize * 2;
+    let foX = anchor.x, foY = anchor.y - estH / 2;
+    if (anchor.textAnchor === "middle") foX -= estW / 2;
+    else if (anchor.textAnchor === "end") foX -= estW;
+    if (anchor.dominantBaseline === "auto") foY = anchor.y - estH;
+    else if (anchor.dominantBaseline === "hanging") foY = anchor.y;
+
+    return (
+      <foreignObject x={foX} y={foY} width={estW} height={estH} style={{ pointerEvents: "none", overflow: "visible" }}>
+        <div
+          style={{
+            width: "100%", height: "100%",
+            display: "flex",
+            justifyContent: anchor.textAnchor === "middle" ? "center" : anchor.textAnchor === "end" ? "flex-end" : "flex-start",
+            alignItems: anchor.dominantBaseline === "auto" ? "flex-end" : anchor.dominantBaseline === "hanging" ? "flex-start" : "center",
+            fontSize: `${fontSize}px`,
+            color: shape.style.stroke,
+            lineHeight: 1,
+          }}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </foreignObject>
+    );
+  }
+
+  // Plain text
   return (
     <text x={anchor.x} y={anchor.y} textAnchor={anchor.textAnchor} dominantBaseline={anchor.dominantBaseline}
-      fontSize={fontSize} fill={shape.style.stroke} pointerEvents="none" style={style}>
-      {text}
+      fontSize={fontSize} fill={shape.style.stroke} pointerEvents="none">
+      {shape.label}
     </text>
   );
 }

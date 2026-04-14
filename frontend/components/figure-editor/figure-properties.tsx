@@ -16,8 +16,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useFigureStore } from "./figure-store";
 import type { FigureShape, ShapeStyle } from "./types";
-import { LABEL_POSITIONS } from "./types";
 import { ChevronRight, Sparkles, Tag, Move, Palette, PaintBucket, Minus, Type } from "lucide-react";
+import { LabelEditor } from "./label-editor";
 
 function useIsJa() {
   if (typeof window === "undefined") return false;
@@ -257,20 +257,6 @@ export function FigureProperties() {
     ? shapes.find((s) => s.id === selectedIds[0]) ?? null
     : null;
 
-  const [labelValue, setLabelValue] = useState("");
-
-  useEffect(() => {
-    setLabelValue(selectedShape?.label ?? "");
-  }, [selectedShape?.id, selectedShape?.label]);
-
-  const commitLabel = useCallback(() => {
-    if (!selectedShape) return;
-    if (labelValue !== selectedShape.label) {
-      pushHistory();
-      updateShape(selectedShape.id, { label: labelValue });
-    }
-  }, [selectedShape, labelValue, pushHistory, updateShape]);
-
   const handleStyleChange = useCallback((updates: Partial<ShapeStyle>) => {
     pushHistory();
     applyStyleToSelected(updates);
@@ -379,73 +365,11 @@ export function FigureProperties() {
 
       {/* ══════ Label ══════ */}
       <Section title={isJa ? "ラベル" : "Label"} icon={<Tag size={11} />} accent="text-blue-500">
-        <input
-          value={labelValue}
-          onChange={(e) => setLabelValue(e.target.value)}
-          onBlur={commitLabel}
-          onKeyDown={(e) => { if (e.key === "Enter") { commitLabel(); (e.target as HTMLInputElement).blur(); } }}
-          placeholder={isJa ? "テキストを入力..." : "Enter text..."}
-          className="w-full h-8 px-2.5 text-[12px] rounded-md border border-foreground/[0.08] bg-white/70 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/40 transition-all"
+        <LabelEditor
+          shape={selectedShape}
+          onUpdate={(u) => updateShape(selectedShape.id, u)}
+          pushHistory={pushHistory}
         />
-
-        <label className="flex items-center gap-1.5 text-[10px] text-foreground/60 cursor-pointer hover:text-foreground/85 transition-colors">
-          <input type="checkbox" checked={selectedShape.labelMathMode}
-            onChange={(e) => { pushHistory(); updateShape(selectedShape.id, { labelMathMode: e.target.checked }); }}
-            className="rounded border-foreground/20 accent-blue-500 w-3 h-3" />
-          <span className="font-mono italic">{isJa ? "数式モード $x$" : "Math mode $x$"}</span>
-        </label>
-
-        {/* 9-way position grid */}
-        <div className="pt-1">
-          <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
-            {isJa ? "配置" : "Position"}
-          </div>
-          <div className="inline-grid grid-cols-3 gap-0.5 p-1 rounded-md bg-foreground/[0.04] border border-foreground/[0.06]">
-            {LABEL_POSITIONS.map((pos) => {
-              const active = selectedShape.labelPos === pos;
-              return (
-                <button key={pos} title={pos}
-                  onClick={() => { pushHistory(); updateShape(selectedShape.id, { labelPos: pos }); }}
-                  className={`w-7 h-7 rounded flex items-center justify-center transition-all ${
-                    active ? "bg-blue-500 shadow-sm shadow-blue-500/40" : "bg-white dark:bg-white/5 hover:bg-blue-50 dark:hover:bg-blue-500/10"
-                  }`}
-                >
-                  <svg width="18" height="18" viewBox="0 0 18 18">
-                    <rect x="5" y="5" width="8" height="8" rx="1"
-                      fill="none" stroke={active ? "white" : "currentColor"}
-                      strokeWidth="1" opacity={active ? 1 : 0.4} />
-                    <circle
-                      cx={pos.includes("left") ? 3 : pos.includes("right") ? 15 : 9}
-                      cy={pos.includes("above") ? 3 : pos.includes("below") ? 15 : 9}
-                      r="1.6"
-                      fill={active ? "white" : "#3b82f6"}
-                    />
-                  </svg>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Offset */}
-        <div className="grid grid-cols-2 gap-1.5 pt-1">
-          <InputRow label="dX">
-            <NumberInput step={0.05} value={selectedShape.labelOffset.x}
-              onChange={(v) => { pushHistory(); updateShape(selectedShape.id, { labelOffset: { ...selectedShape.labelOffset, x: v } }); }} />
-          </InputRow>
-          <InputRow label="dY">
-            <NumberInput step={0.05} value={selectedShape.labelOffset.y}
-              onChange={(v) => { pushHistory(); updateShape(selectedShape.id, { labelOffset: { ...selectedShape.labelOffset, y: v } }); }} />
-          </InputRow>
-        </div>
-        {(selectedShape.labelOffset.x !== 0 || selectedShape.labelOffset.y !== 0) && (
-          <button
-            onClick={() => { pushHistory(); updateShape(selectedShape.id, { labelOffset: { x: 0, y: 0 } }); }}
-            className="text-[9px] text-blue-500 hover:text-blue-600 underline-offset-2 hover:underline transition-colors"
-          >
-            {isJa ? "オフセットをリセット" : "Reset offset"}
-          </button>
-        )}
       </Section>
 
       {/* ══════ Geometry ══════ */}
