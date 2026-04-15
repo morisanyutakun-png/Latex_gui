@@ -656,49 +656,37 @@ function RenderSpring(p: ShapeRenderProps) {
     const bodyE = len / 2 - leadL;
     const bodyLen = Math.max(1, bodyE - bodyS);
 
-    // ── Realistic helical spring ───────────────────────────────────
-    // Draw each coil as a tilted ellipse, overlapping adjacent coils by ~50% so
-    // the wire reads as a continuous helix rather than isolated loops. We render
-    // TWO arcs per coil: a bold upper arc (front of the turn) and a thin lower
-    // arc (back of the turn visible between front arcs). The slight rightward
-    // skew on each ellipse conveys the helix's axial progression.
-    const targetPitch = 10;
-    const coils = Math.max(5, Math.round(bodyLen / targetPitch));
+    // ── Preview for `coil, aspect=0.5, segment length=4pt, amplitude=5pt` ──
+    // The compiled TikZ coil decoration produces a tight chain of in-plane loops.
+    // We reproduce that visual with a single continuous path: for each coil we
+    // draw one full sine period plus a small "loop back" cubic that crosses over
+    // the baseline, giving the characteristic helical-from-the-side appearance.
+    const targetPitch = 8;
+    const coils = Math.max(4, Math.round(bodyLen / targetPitch));
     const pitch = bodyLen / coils;
-    const amp = Math.min(Math.max(pitch * 0.85, 7), 12);
-    const rx = pitch * 0.78;                               // ellipse horizontal radius (wider than half-pitch → overlap)
-    const ry = amp;
-    const skew = pitch * 0.18;                              // axial slant
+    const amp = Math.min(Math.max(pitch * 1.15, 7), 12);
+    const loopBack = pitch * 0.28;                          // how far each loop crosses back over the previous one
 
-    const parts: React.ReactElement[] = [];
-    // Leads
-    parts.push(<line key="lead-l" x1={-len / 2} y1={0} x2={bodyS} y2={0}
-      stroke={strokeColor} strokeWidth={w} strokeLinecap="round" />);
-    parts.push(<line key="lead-r" x1={bodyE} y1={0} x2={len / 2} y2={0}
-      stroke={strokeColor} strokeWidth={w} strokeLinecap="round" />);
-
+    let d = `M ${bodyS},0`;
     for (let i = 0; i < coils; i++) {
-      const cx = bodyS + (i + 0.5) * pitch;
-      // Back arc (thin, behind) — small lower half peeking out between front arcs
-      parts.push(
-        <path key={`b${i}`}
-          d={`M ${cx - rx + skew},0 A ${rx},${ry * 0.55} 0 0 0 ${cx + rx + skew},0`}
-          stroke={strokeColor} strokeWidth={w * 0.75} fill="none"
-          strokeLinecap="round" opacity={0.75} />
-      );
-    }
-    for (let i = 0; i < coils; i++) {
-      const cx = bodyS + (i + 0.5) * pitch;
-      // Front arc (bold, in front) — dominant upper half that reads as the coil
-      parts.push(
-        <path key={`f${i}`}
-          d={`M ${cx - rx - skew},0 A ${rx},${ry} 0 0 1 ${cx + rx - skew},0`}
-          stroke={strokeColor} strokeWidth={w} fill="none"
-          strokeLinecap="round" />
-      );
+      const x0 = bodyS + i * pitch;
+      const x1 = x0 + pitch;
+      const xTop = x0 + pitch * 0.35;
+      const xBot = x0 + pitch * 0.75;
+      // up to peak, down through baseline, into the trough, back up to next baseline
+      d += ` C ${x0},${-amp} ${xTop},${-amp} ${xTop + loopBack * 0.5},${-amp * 0.15}`;
+      d += ` C ${xTop + loopBack},${amp * 0.6} ${xBot - loopBack * 0.4},${amp} ${xBot},${amp}`;
+      d += ` C ${xBot + loopBack * 0.4},${amp} ${x1},${amp * 0.4} ${x1},0`;
     }
 
-    return <>{parts}</>;
+    return (<>
+      <line x1={-len / 2} y1={0} x2={bodyS} y2={0}
+        stroke={strokeColor} strokeWidth={w} strokeLinecap="round" />
+      <line x1={bodyE} y1={0} x2={len / 2} y2={0}
+        stroke={strokeColor} strokeWidth={w} strokeLinecap="round" />
+      <path d={d} stroke={strokeColor} strokeWidth={w} fill="none"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </>);
   });
 }
 
