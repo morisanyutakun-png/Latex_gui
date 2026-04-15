@@ -655,28 +655,44 @@ function RenderSpring(p: ShapeRenderProps) {
     const bodyS = -len / 2 + leadL;
     const bodyE = len / 2 - leadL;
     const bodyLen = Math.max(1, bodyE - bodyS);
-    // Adapt coil count to body length; ~7-8px per coil for good density
-    const coils = Math.max(4, Math.round(bodyLen / 7));
-    const coilWidth = bodyLen / coils;
-    // Coil height: grows with coilWidth but capped so short springs stay sensible
-    const amp = Math.min(Math.max(coilWidth * 1.1, 5), 10);
-    // Overlap factor: each ellipse slightly wider than pitch → overlapping rings (helical look)
-    const rx = coilWidth * 0.58;
-    const ry = amp;
-    return (<>
-      {/* Lead-in line */}
-      <line x1={-len / 2} y1={0} x2={bodyS} y2={0} stroke={strokeColor} strokeWidth={w} />
-      {/* Helical coils — overlapping ellipses create 3D coil illusion */}
-      {Array.from({ length: coils }).map((_, i) => {
-        const cx = bodyS + (i + 0.5) * coilWidth;
-        return (
-          <ellipse key={i} cx={cx} cy={0} rx={rx} ry={ry}
-            stroke={strokeColor} strokeWidth={w} fill="none" strokeLinecap="round" />
-        );
-      })}
-      {/* Lead-out line */}
-      <line x1={bodyE} y1={0} x2={len / 2} y2={0} stroke={strokeColor} strokeWidth={w} />
-    </>);
+    // Denser coils = more spring-like. ~6px per coil at default zoom.
+    const coils = Math.max(6, Math.round(bodyLen / 6));
+    const pitch = bodyLen / coils;
+    // Front arch width (the "visible front half" of each coil loop)
+    const frontW = pitch * 0.85;
+    // Amplitude — tall coils look more like real springs, but capped
+    const amp = Math.min(Math.max(frontW * 0.9, 6), 12);
+    // Small "back peek" between coils — simulates seeing behind the coil (3D effect)
+    const backAmp = amp * 0.28;
+
+    // Single continuous SVG path tracing the helix:
+    //   lead-in line → [front arch (above) + back peek (below)] × coils → lead-out line
+    // The front arch is the visible top-front of each coil turn; the back peek is the
+    // visible slice between coils showing the far side — creating the "realistic spring" depth.
+    let d = `M ${-len / 2},0 L ${bodyS},0`;
+    for (let i = 0; i < coils; i++) {
+      const coilStart = bodyS + i * pitch;
+      const frontStart = coilStart + (pitch - frontW) / 2;
+      const frontEnd = frontStart + frontW;
+
+      // Line to front-start (tiny baseline segment connecting coil to previous back peek)
+      d += ` L ${frontStart},0`;
+      // Front arch: upper half-ellipse from frontStart to frontEnd (over the top)
+      d += ` A ${frontW / 2},${amp} 0 0 1 ${frontEnd},0`;
+
+      // Back peek between this coil and the next (lower half-ellipse, smaller)
+      if (i < coils - 1) {
+        const nextFrontStart = (coilStart + pitch) + (pitch - frontW) / 2;
+        const backW = nextFrontStart - frontEnd;
+        if (backW > 0.5) {
+          d += ` A ${backW / 2},${backAmp} 0 0 0 ${nextFrontStart},0`;
+        }
+      }
+    }
+    d += ` L ${bodyE},0 L ${len / 2},0`;
+
+    return <path d={d} stroke={strokeColor} strokeWidth={w} fill="none"
+      strokeLinecap="round" strokeLinejoin="round" />;
   });
 }
 

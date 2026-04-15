@@ -246,8 +246,27 @@ export function FigureEditor() {
     if (shapes.length === 0 || downloadingPdf) return;
     setDownloadingPdf(true);
 
+    // ── Separate scaledCode into preamble + body ─────────────────
+    // generateFullLatex() prefixes the tikz body with `% Required packages:` + \usepackage lines.
+    // Those MUST live in the preamble, never inside \begin{document}, otherwise LaTeX errors with
+    // "Missing \begin{document}".
+    const extraPreamble: string[] = [];
+    const bodyLines: string[] = [];
+    for (const line of scaledCode.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("\\usepackage") || trimmed.startsWith("\\usetikzlibrary") ||
+          trimmed.startsWith("\\pgfplotsset")) {
+        extraPreamble.push(trimmed);
+      } else if (trimmed.startsWith("% Required packages:") || trimmed === "") {
+        continue;
+      } else {
+        bodyLines.push(line);
+      }
+    }
+    const bodyCode = bodyLines.join("\n").trim();
+
     // Build a standalone document with just the figure, auto-cropped via preview environment
-    const standaloneLatex = [
+    const basePreamble = [
       "\\documentclass[preview, border=6pt, convert={true,outext=.pdf}]{standalone}",
       "\\usepackage{tikz}",
       "\\usepackage{circuitikz}",
@@ -258,11 +277,19 @@ export function FigureEditor() {
       "\\usetikzlibrary{arrows.meta}",
       "\\usetikzlibrary{shapes.geometric}",
       "\\usetikzlibrary{shapes.symbols}",
+      "\\usetikzlibrary{shapes.arrows}",
       "\\usetikzlibrary{automata, positioning}",
       "\\usetikzlibrary{calc}",
+      "\\usetikzlibrary{patterns}",
       "\\usepackage{amsmath, amssymb}",
+    ];
+    // Merge any extra preamble lines (deduplicated)
+    const mergedPreamble = Array.from(new Set([...basePreamble, ...extraPreamble]));
+
+    const standaloneLatex = [
+      ...mergedPreamble,
       "\\begin{document}",
-      scaledCode,
+      bodyCode,
       "\\end{document}",
     ].join("\n");
 
