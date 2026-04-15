@@ -651,48 +651,34 @@ function RenderOpAmp(p: ShapeRenderProps) {
 function RenderSpring(p: ShapeRenderProps) {
   return TwoTerminal(p, (len, w) => {
     const strokeColor = stroke(p);
-    const leadL = Math.min(len * 0.06, 8);
+    const leadL = Math.min(len * 0.04, 6);
     const bodyS = -len / 2 + leadL;
     const bodyE = len / 2 - leadL;
     const bodyLen = Math.max(1, bodyE - bodyS);
-    // Denser coils = more spring-like. ~6px per coil at default zoom.
-    const coils = Math.max(6, Math.round(bodyLen / 6));
+
+    // Classic compression spring: MANY narrow tall ellipses packed tightly — like viewing
+    // the wound metal wire edge-on. Each ellipse is one turn of the coil.
+    // Target ~4-5 px per coil so a standard spring has 20-40 coils visible.
+    const targetCoilPitch = 4;
+    const coils = Math.max(12, Math.round(bodyLen / targetCoilPitch));
     const pitch = bodyLen / coils;
-    // Front arch width (the "visible front half" of each coil loop)
-    const frontW = pitch * 0.85;
-    // Amplitude — tall coils look more like real springs, but capped
-    const amp = Math.min(Math.max(frontW * 0.9, 6), 12);
-    // Small "back peek" between coils — simulates seeing behind the coil (3D effect)
-    const backAmp = amp * 0.28;
+    // Ellipse shape: slightly wider than pitch (overlap) and ~3× taller than wide
+    // (mimics the actual wire profile seen from the side).
+    const rx = Math.max(pitch * 0.9, 2);
+    const ry = Math.min(Math.max(pitch * 3.2, 7), 14);
+    const coilStroke = Math.max(0.6, w * 0.65);
 
-    // Single continuous SVG path tracing the helix:
-    //   lead-in line → [front arch (above) + back peek (below)] × coils → lead-out line
-    // The front arch is the visible top-front of each coil turn; the back peek is the
-    // visible slice between coils showing the far side — creating the "realistic spring" depth.
-    let d = `M ${-len / 2},0 L ${bodyS},0`;
-    for (let i = 0; i < coils; i++) {
-      const coilStart = bodyS + i * pitch;
-      const frontStart = coilStart + (pitch - frontW) / 2;
-      const frontEnd = frontStart + frontW;
-
-      // Line to front-start (tiny baseline segment connecting coil to previous back peek)
-      d += ` L ${frontStart},0`;
-      // Front arch: upper half-ellipse from frontStart to frontEnd (over the top)
-      d += ` A ${frontW / 2},${amp} 0 0 1 ${frontEnd},0`;
-
-      // Back peek between this coil and the next (lower half-ellipse, smaller)
-      if (i < coils - 1) {
-        const nextFrontStart = (coilStart + pitch) + (pitch - frontW) / 2;
-        const backW = nextFrontStart - frontEnd;
-        if (backW > 0.5) {
-          d += ` A ${backW / 2},${backAmp} 0 0 0 ${nextFrontStart},0`;
-        }
-      }
-    }
-    d += ` L ${bodyE},0 L ${len / 2},0`;
-
-    return <path d={d} stroke={strokeColor} strokeWidth={w} fill="none"
-      strokeLinecap="round" strokeLinejoin="round" />;
+    return (<>
+      <line x1={-len / 2} y1={0} x2={bodyS} y2={0} stroke={strokeColor} strokeWidth={w} />
+      {Array.from({ length: coils }).map((_, i) => {
+        const cx = bodyS + (i + 0.5) * pitch;
+        return (
+          <ellipse key={i} cx={cx} cy={0} rx={rx} ry={ry}
+            stroke={strokeColor} strokeWidth={coilStroke} fill="none" />
+        );
+      })}
+      <line x1={bodyE} y1={0} x2={len / 2} y2={0} stroke={strokeColor} strokeWidth={w} />
+    </>);
   });
 }
 
@@ -722,6 +708,77 @@ function RenderPulley(p: ShapeRenderProps) {
   return wrap(p, <>
     <circle cx={cx} cy={cy} r={r} stroke={stroke(p)} strokeWidth={sw(p)} fill="transparent" />
     <circle cx={cx} cy={cy} r={2} fill={stroke(p)} />
+  </>);
+}
+
+/**
+ * Shared 45° hatching generator (for wall/ground/fixed surfaces).
+ * Hatches appear on the given side of a main edge.
+ */
+function hatchLines(
+  edgeX1: number, edgeY1: number, edgeX2: number, edgeY2: number,
+  side: "above" | "below" | "left" | "right",
+  color: string, strokeW: number,
+): React.ReactNode[] {
+  const dx = edgeX2 - edgeX1, dy = edgeY2 - edgeY1;
+  const edgeLen = Math.sqrt(dx * dx + dy * dy);
+  if (edgeLen <= 0) return [];
+  const hatchSpacing = 8;   // px between hatch lines
+  const hatchDepth = 6;     // px length of each hatch
+  const count = Math.max(3, Math.floor(edgeLen / hatchSpacing));
+  const lines: React.ReactNode[] = [];
+  // Unit vector along edge
+  const ux = dx / edgeLen, uy = dy / edgeLen;
+  // Normal vector (pointing to hatch side)
+  let nx = 0, ny = 0;
+  if (side === "above") { nx = 0; ny = -1; }
+  else if (side === "below") { nx = 0; ny = 1; }
+  else if (side === "left")  { nx = -1; ny = 0; }
+  else                       { nx = 1; ny = 0; }
+  // Hatch at 45° relative to edge — add tangent component along edge
+  for (let i = 0; i < count; i++) {
+    const t = (i + 0.5) / count;
+    const bx = edgeX1 + dx * t;
+    const by = edgeY1 + dy * t;
+    // Hatch endpoint: move along normal + along edge direction (45° appearance)
+    const ex = bx + (nx * hatchDepth + ux * hatchDepth) * 0.707;
+    const ey = by + (ny * hatchDepth + uy * hatchDepth) * 0.707;
+    lines.push(
+      <line key={i} x1={bx} y1={by} x2={ex} y2={ey}
+        stroke={color} strokeWidth={strokeW} opacity={0.9} />
+    );
+  }
+  return lines;
+}
+
+function RenderWall(p: ShapeRenderProps) {
+  // Vertical fixed wall: solid edge on the right side (where things attach),
+  // hatching on the left (back side).
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  const color = stroke(p);
+  const edgeX = cx + pw; // the attachment edge (right)
+  return wrap(p, <>
+    {/* Solid attachment edge */}
+    <line x1={edgeX} y1={cy} x2={edgeX} y2={cy + ph} stroke={color} strokeWidth={w * 1.2} />
+    {/* Hatching on the back (left side of the edge) */}
+    {hatchLines(edgeX, cy + ph, edgeX, cy, "left", color, w * 0.7)}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
+  </>);
+}
+
+function RenderGroundHatch(p: ShapeRenderProps) {
+  // Horizontal ground line with hatching below
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  const color = stroke(p);
+  const edgeY = cy; // top edge (where objects sit)
+  return wrap(p, <>
+    {/* Solid ground line */}
+    <line x1={cx} y1={edgeY} x2={cx + pw} y2={edgeY} stroke={color} strokeWidth={w * 1.2} />
+    {/* Hatching below */}
+    {hatchLines(cx, edgeY, cx + pw, edgeY, "below", color, w * 0.7)}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
   </>);
 }
 
@@ -978,6 +1035,8 @@ export function ShapeRenderer(p: ShapeRenderProps) {
     case "support-pin": return RenderGenericDomain(p, "Pin");
     case "support-roller": return RenderGenericDomain(p, "Roller");
     case "moment": return RenderGenericDomain(p, "M");
+    case "wall": return <RenderWall {...p} />;
+    case "ground-hatch": return <RenderGroundHatch {...p} />;
 
     // Physics
     case "wave": return <RenderWave {...p} />;

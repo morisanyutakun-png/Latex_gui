@@ -284,6 +284,27 @@ function genPulley(s: FigureShape): string {
   ].join("\n");
 }
 
+/** Fixed wall (vertical edge on right side, hatching extending leftward). */
+function genWall(s: FigureShape): string {
+  const opts = buildDrawOptions(s.style);
+  const rightX = s.x + s.width;
+  // Solid right edge + pattern-fill the hatching area
+  return [
+    `  \\draw[${opts}, pattern=north east lines, pattern color=${s.style.stroke}!70] ${coord(s.x, s.y)} rectangle ${coord(rightX, s.y + s.height)};`,
+    `  \\draw[${opts}, line width=0.8pt] ${coord(rightX, s.y)} -- ${coord(rightX, s.y + s.height)};`,
+  ].join("\n");
+}
+
+/** Hatched ground line (horizontal, hatching below). */
+function genGroundHatch(s: FigureShape): string {
+  const opts = buildDrawOptions(s.style);
+  const topY = s.y + s.height;
+  return [
+    `  \\draw[${opts}, pattern=north east lines, pattern color=${s.style.stroke}!70] ${coord(s.x, s.y)} rectangle ${coord(s.x + s.width, topY)};`,
+    `  \\draw[${opts}, line width=0.8pt] ${coord(s.x, topY)} -- ${coord(s.x + s.width, topY)};`,
+  ].join("\n");
+}
+
 function genSupportPin(s: FigureShape): string {
   const cx = s.x + s.width / 2;
   return [
@@ -605,6 +626,8 @@ function generateShapeTikZ(s: FigureShape): string {
     case "pulley": return genPulley(s);
     case "support-pin": return genSupportPin(s);
     case "support-roller": return genSupportRoller(s);
+    case "wall": return genWall(s);
+    case "ground-hatch": return genGroundHatch(s);
     case "force-arrow": return genForceArrow(s);
     case "moment": return genMoment(s);
 
@@ -691,6 +714,10 @@ function detectPackages(shapes: FigureShape[]): string[] {
     if (["flowchart-decision", "flowchart-io", "flowchart-terminal"].includes(s.kind)) {
       pkgs.add("tikz-shapes");
     }
+    // Wall / ground hatching uses the patterns library
+    if (["wall", "ground-hatch"].includes(s.kind)) {
+      pkgs.add("tikz-patterns");
+    }
   }
 
   return Array.from(pkgs);
@@ -733,6 +760,7 @@ export function generateFullLatex(shapes: FigureShape[], connections: Connection
   if (pkgs.includes("pgfplots")) preamble.push("\\usepackage{pgfplots}");
   if (pkgs.includes("tikz-automata")) preamble.push("\\usetikzlibrary{automata, positioning}");
   if (pkgs.includes("tikz-shapes")) preamble.push("\\usetikzlibrary{shapes.geometric}");
+  if (pkgs.includes("tikz-patterns")) preamble.push("\\usetikzlibrary{patterns}");
 
   return preamble.length > 0
     ? `% Required packages:\n${preamble.join("\n")}\n\n${tikz}`

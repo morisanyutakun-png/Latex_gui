@@ -230,7 +230,7 @@ const AREA_TOOLS = new Set<string>([
   "flowchart-process", "flowchart-decision", "flowchart-io", "flowchart-terminal",
   "automaton-state", "automaton-accept",
   // Mechanics
-  "mass", "pulley", "support-pin", "support-roller", "moment",
+  "mass", "pulley", "support-pin", "support-roller", "moment", "wall", "ground-hatch",
   // Chemistry
   "benzene", "orbital-s", "orbital-p",
   // Biology

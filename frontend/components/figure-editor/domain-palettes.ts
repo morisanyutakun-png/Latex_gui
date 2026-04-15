@@ -202,6 +202,18 @@ export const PALETTE_ITEMS: DomainPaletteItem[] = [
     description: "Roller support", descriptionJa: "ローラー支持",
   },
   {
+    kind: "wall", label: "Wall (fixed)", labelJa: "壁 (固定端)",
+    icon: "wall", category: "mechanics",
+    defaultWidth: 0.4, defaultHeight: 2.5,
+    description: "Fixed wall with hatching — attach springs/beams here", descriptionJa: "固定壁 (ハッチング付き) — バネや梁の端を固定",
+  },
+  {
+    kind: "ground-hatch", label: "Ground", labelJa: "床・地面",
+    icon: "ground", category: "mechanics",
+    defaultWidth: 4, defaultHeight: 0.4,
+    description: "Hatched ground line — place under objects", descriptionJa: "ハッチング付き床面 — 物体の下に配置",
+  },
+  {
     kind: "force-arrow", label: "Force", labelJa: "力",
     icon: "force", category: "mechanics",
     defaultWidth: 2, defaultHeight: 0,

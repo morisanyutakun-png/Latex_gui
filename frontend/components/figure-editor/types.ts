@@ -198,6 +198,7 @@ export type DomainShapeKind =
   // Mechanics
   | "spring" | "damper" | "mass" | "pulley"
   | "support-pin" | "support-roller" | "force-arrow" | "moment"
+  | "wall" | "ground-hatch"
   // Physics
   | "vector-field" | "wave" | "lens-convex" | "lens-concave"
   | "mirror-concave" | "mirror-convex" | "prism"
