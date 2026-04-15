@@ -41,23 +41,31 @@ export function EditToolbar() {
     setDocument(createFromTemplate(id, locale));
   };
 
+  const sanitizePdfName = (raw: string): string => {
+    const base = (raw || "document").trim().replace(/\.pdf$/i, "");
+    const cleaned = base.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_").slice(0, 120) || "document";
+    return `${cleaned}.pdf`;
+  };
+
   const handleGeneratePDF = async () => {
     if (!document) return;
     setGenerating(true);
     try {
       const blob = await generatePDF(document);
-      const defaultName = `${document.metadata.title || "document"}.pdf`;
+      const defaultName = sanitizePdfName(document.metadata.title || "document");
 
       if ("showSaveFilePicker" in window) {
         try {
           const handle = await (window as any).showSaveFilePicker({
             suggestedName: defaultName,
+            id: "latex-gui-pdf-export",
+            startIn: "documents",
             types: [{ description: "PDF Document", accept: { "application/pdf": [".pdf"] } }],
           });
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
-          toast.success(t("toast.pdf.done"));
+          toast.success(t("toast.pdf.done"), { description: handle.name });
           return;
         } catch (e) {
           if (e instanceof DOMException && e.name === "AbortError") return;
@@ -83,17 +91,18 @@ export function EditToolbar() {
 
   const handleSavePDF = () => {
     if (!pdfBlob) return;
+    const finalName = sanitizePdfName(pdfFilename);
     const url = URL.createObjectURL(pdfBlob);
     const a = window.document.createElement("a");
     a.href = url;
-    a.download = pdfFilename || "document.pdf";
+    a.download = finalName;
     window.document.body.appendChild(a);
     a.click();
     window.document.body.removeChild(a);
     URL.revokeObjectURL(url);
     setPdfBlob(null);
     setShowSaveDialog(false);
-    toast.success(t("toast.pdf.done"));
+    toast.success(t("toast.pdf.done"), { description: finalName });
   };
 
   return (
@@ -174,6 +183,9 @@ export function EditToolbar() {
                 className="w-full h-9 px-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background"
                 autoFocus
               />
+              <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+                {t("header.pdf.dialog.note")}
+              </p>
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button

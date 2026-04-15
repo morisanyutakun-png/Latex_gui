@@ -651,55 +651,54 @@ function RenderOpAmp(p: ShapeRenderProps) {
 function RenderSpring(p: ShapeRenderProps) {
   return TwoTerminal(p, (len, w) => {
     const strokeColor = stroke(p);
-    const leadL = Math.min(len * 0.04, 6);
+    const leadL = Math.min(Math.max(len * 0.06, 4), 10);
     const bodyS = -len / 2 + leadL;
     const bodyE = len / 2 - leadL;
     const bodyLen = Math.max(1, bodyE - bodyS);
 
-    // ── Helical coil using cubic bezier — mirrors TikZ `coil` decoration output ──
-    // Each turn: the wire goes UP over the top (front of coil) then BELOW the axis
-    // and loops back (visible back of coil). The below-axis segment starts BEFORE
-    // the next coil begins, creating visible crossovers — this is the key "3D helix" effect.
-    //
-    // Parameters inspired by TikZ's `coil, aspect=0.3, segment length=~5px`:
-    const targetPitch = 6;                                    // ~6px per full turn
-    const coils = Math.max(8, Math.round(bodyLen / targetPitch));
+    // ── Realistic helical spring ───────────────────────────────────
+    // Draw each coil as a tilted ellipse, overlapping adjacent coils by ~50% so
+    // the wire reads as a continuous helix rather than isolated loops. We render
+    // TWO arcs per coil: a bold upper arc (front of the turn) and a thin lower
+    // arc (back of the turn visible between front arcs). The slight rightward
+    // skew on each ellipse conveys the helix's axial progression.
+    const targetPitch = 10;
+    const coils = Math.max(5, Math.round(bodyLen / targetPitch));
     const pitch = bodyLen / coils;
-    // Amplitude — tall enough to look like a proper coil
-    const amp = Math.min(Math.max(pitch * 1.4, 8), 13);
-    // Aspect ratio for the "look-down-the-axis" foreshortening — each turn is not a
-    // simple sine wave but a true loop with visible crossover
-    const crossover = pitch * 0.3;                            // how much adjacent loops overlap horizontally
+    const amp = Math.min(Math.max(pitch * 0.85, 7), 12);
+    const rx = pitch * 0.78;                               // ellipse horizontal radius (wider than half-pitch → overlap)
+    const ry = amp;
+    const skew = pitch * 0.18;                              // axial slant
 
-    let d = `M ${-len / 2},0 L ${bodyS},0`;
+    const parts: React.ReactElement[] = [];
+    // Leads
+    parts.push(<line key="lead-l" x1={-len / 2} y1={0} x2={bodyS} y2={0}
+      stroke={strokeColor} strokeWidth={w} strokeLinecap="round" />);
+    parts.push(<line key="lead-r" x1={bodyE} y1={0} x2={len / 2} y2={0}
+      stroke={strokeColor} strokeWidth={w} strokeLinecap="round" />);
 
     for (let i = 0; i < coils; i++) {
-      const x0 = bodyS + i * pitch;
-      const x1 = x0 + pitch;
-
-      // UPPER lobe: cubic bezier from (x0, 0) peaking at center with pronounced loop feel.
-      // Control points positioned INSIDE the segment so the bezier bulges up vertically.
-      // Offset control points to the left/right to make the arc lean slightly — gives
-      // the helix its "rolling" 3D look.
-      d += ` C ${x0 - crossover * 0.1},${-amp * 1.2} ${x1 - crossover * 0.5},${-amp * 1.3} ${x1 - crossover * 0.3},0`;
-
-      // LOWER lobe: small dip below axis that represents the "back" of the coil visible
-      // between adjacent turns. Creates the classic helical crossover pattern.
-      if (i < coils - 1) {
-        // Dip down then back up to the next coil's upper-lobe start position
-        const nextUpperStart = x1 - crossover * 0.3;
-        const nextUpperEnd   = x1 + pitch - crossover * 0.3;
-        const bridgeX = (nextUpperStart + x1 + crossover * 0.2) / 2;
-        // cubic bezier going down-under-up
-        d += ` C ${nextUpperStart + crossover * 0.2},${amp * 0.45} ${bridgeX},${amp * 0.45} ${x1 + crossover * 0.2},0`;
-        // Short baseline segment bridging to the next coil's upper-lobe start
-        d += ` L ${nextUpperEnd - (nextUpperEnd - x1 - crossover * 0.2) * 0},0`;
-      }
+      const cx = bodyS + (i + 0.5) * pitch;
+      // Back arc (thin, behind) — small lower half peeking out between front arcs
+      parts.push(
+        <path key={`b${i}`}
+          d={`M ${cx - rx + skew},0 A ${rx},${ry * 0.55} 0 0 0 ${cx + rx + skew},0`}
+          stroke={strokeColor} strokeWidth={w * 0.75} fill="none"
+          strokeLinecap="round" opacity={0.75} />
+      );
     }
-    d += ` L ${bodyE},0 L ${len / 2},0`;
+    for (let i = 0; i < coils; i++) {
+      const cx = bodyS + (i + 0.5) * pitch;
+      // Front arc (bold, in front) — dominant upper half that reads as the coil
+      parts.push(
+        <path key={`f${i}`}
+          d={`M ${cx - rx - skew},0 A ${rx},${ry} 0 0 1 ${cx + rx - skew},0`}
+          stroke={strokeColor} strokeWidth={w} fill="none"
+          strokeLinecap="round" />
+      );
+    }
 
-    return <path d={d} stroke={strokeColor} strokeWidth={w} fill="none"
-      strokeLinecap="round" strokeLinejoin="round" />;
+    return <>{parts}</>;
   });
 }
 

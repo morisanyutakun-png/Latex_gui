@@ -6,6 +6,7 @@
  */
 
 import type { FigureShape, Connection, ShapeStyle, Point, ShapeKind, LabelPosition } from "./types";
+import { IPE_COLORS } from "./types";
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -252,13 +253,13 @@ function genCircuitComponent(s: FigureShape): string {
 }
 
 function genSpring(s: FigureShape): string {
-  // Use TikZ `coil` decoration (from decorations.pathmorphing library) for a realistic
-  // helical spring. aspect=0.4 + pre/post length=0 gives a tight, wire-like coil.
+  // Use TikZ `coil` decoration (decorations.pathmorphing). aspect=0.5 + short
+  // segment/amplitude produces a tight, recognisably-helical wire coil; small
+  // pre/post leads give clean attachment room at each end.
   const opts = buildDrawOptions(s.style, {
-    "decoration": "{coil, aspect=0.4, segment length=3mm, amplitude=3mm, pre length=0pt, post length=0pt}",
+    "decoration": "{coil, aspect=0.5, segment length=4pt, amplitude=5pt, pre length=3pt, post length=3pt}",
     "decorate": "",
   });
-  // Endpoint coords — use points if set (line tool), else bbox midline
   const pts = s.points.length >= 2 ? s.points : [{ x: 0, y: s.height / 2 }, { x: s.width, y: s.height / 2 }];
   const p0 = { x: s.x + pts[0].x, y: s.y + pts[0].y };
   const p1 = { x: s.x + pts[pts.length - 1].x, y: s.y + pts[pts.length - 1].y };
@@ -767,6 +768,45 @@ export function generateTikZ(shapes: FigureShape[], connections: Connection[]): 
   return lines.join("\n");
 }
 
+/**
+ * Build `\definecolor{...}{HTML}{hex}` lines for every color actually used by the
+ * figure. Many IPE palette names (`seagreen`, `turquoise`, `navy`, `darkmagenta`,
+ * `lightblue`, `darkorange`, `darkred`, `lightgreen`, `gold`, `pink`, `violet`,
+ * …) are NOT defined in base xcolor, so passing them verbatim to TikZ — as
+ * `draw=seagreen` — causes "undefined color" compile errors and a broken
+ * preview. We emit explicit HTML-value definitions so LaTeX accepts them
+ * regardless of which xcolor option the document is using.
+ */
+function collectUsedColors(shapes: FigureShape[]): Set<string> {
+  const used = new Set<string>();
+  for (const s of shapes) {
+    if (s.style.stroke && s.style.stroke !== "none") used.add(s.style.stroke);
+    if (s.style.fill && s.style.fill !== "none") used.add(s.style.fill);
+  }
+  return used;
+}
+
+function generateColorDefs(shapes: FigureShape[]): string[] {
+  const used = collectUsedColors(shapes);
+  if (used.size === 0) return [];
+  const lines: string[] = [];
+  for (const c of IPE_COLORS) {
+    if (!used.has(c.name)) continue;
+    // Skip plain `black`/`white` — every LaTeX xcolor variant provides them.
+    if (c.name === "black" || c.name === "white") continue;
+    // Skip the few names that happen to be in base xcolor to avoid "already defined" warnings.
+    // base xcolor: red, green, blue, cyan, magenta, yellow, gray, brown, orange,
+    // pink, purple, violet, lime, olive, teal.
+    if (["red", "green", "blue", "cyan", "magenta", "yellow", "gray",
+         "brown", "orange", "pink", "purple", "violet"].includes(c.name)) {
+      continue;
+    }
+    const hex = c.rgb.replace("#", "").toUpperCase();
+    lines.push(`\\definecolor{${c.name}}{HTML}{${hex}}`);
+  }
+  return lines;
+}
+
 export function generateFullLatex(shapes: FigureShape[], connections: Connection[]): string {
   const pkgs = detectPackages(shapes);
   const tikz = generateTikZ(shapes, connections);
@@ -783,6 +823,10 @@ export function generateFullLatex(shapes: FigureShape[], connections: Connection
   if (pkgs.includes("tikz-automata")) preamble.push("\\usetikzlibrary{automata, positioning}");
   if (pkgs.includes("tikz-shapes")) preamble.push("\\usetikzlibrary{shapes.geometric}");
   if (pkgs.includes("tikz-patterns")) preamble.push("\\usetikzlibrary{patterns}");
+
+  // Inject \definecolor lines for IPE palette colours that are not in base xcolor.
+  const colorDefs = generateColorDefs(shapes);
+  preamble.push(...colorDefs);
 
   return preamble.length > 0
     ? `% Required packages:\n${preamble.join("\n")}\n\n${tikz}`

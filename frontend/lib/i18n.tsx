@@ -217,6 +217,7 @@ const ja = {
   "header.pdf.dialog.filename": "ファイル名",
   "header.pdf.dialog.cancel": "キャンセル",
   "header.pdf.dialog.save": "保存",
+  "header.pdf.dialog.note": "このブラウザは保存先フォルダの選択に対応していないため、既定のダウンロードフォルダに保存されます。Chrome / Edge をお使いください。",
   "header.pdf.error.unknown": "不明なエラー",
   "header.theme.toggle": "テーマ切替",
 
@@ -723,6 +724,7 @@ const en = {
   "header.pdf.dialog.filename": "Filename",
   "header.pdf.dialog.cancel": "Cancel",
   "header.pdf.dialog.save": "Save",
+  "header.pdf.dialog.note": "This browser does not support choosing a destination folder; the file will go to the default Downloads folder. Use Chrome or Edge for a folder picker.",
   "header.pdf.error.unknown": "Unknown error",
   "header.theme.toggle": "Toggle theme",
 

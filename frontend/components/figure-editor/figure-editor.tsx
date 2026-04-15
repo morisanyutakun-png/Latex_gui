@@ -124,15 +124,21 @@ export function FigureEditor() {
     // These CANNOT appear inside \begin{figure}/\begin{center}; they must go in the document preamble.
     const preambleLines: string[] = [];
     const bodyLines: string[] = [];
+    let inHeader = true; // we only treat preamble-looking lines as preamble until the first body line
     for (const line of scaledCode.split("\n")) {
       const trimmed = line.trim();
-      if (trimmed.startsWith("\\usepackage") || trimmed.startsWith("\\usetikzlibrary") ||
-          trimmed.startsWith("\\pgfplotsset")) {
+      if (inHeader && (
+          trimmed.startsWith("\\usepackage") ||
+          trimmed.startsWith("\\usetikzlibrary") ||
+          trimmed.startsWith("\\pgfplotsset") ||
+          trimmed.startsWith("\\definecolor") ||
+          trimmed.startsWith("\\tikzset"))) {
         preambleLines.push(trimmed);
-      } else if (trimmed.startsWith("% Required packages:") || trimmed === "") {
+      } else if (inHeader && (trimmed.startsWith("% Required packages:") || trimmed === "")) {
         // skip header comment and blank lines within the extracted preamble section
         continue;
       } else {
+        inHeader = false;
         bodyLines.push(line);
       }
     }
@@ -247,14 +253,20 @@ export function FigureEditor() {
     // "Missing \begin{document}".
     const extraPreamble: string[] = [];
     const bodyLines: string[] = [];
+    let inHeader = true;
     for (const line of scaledCode.split("\n")) {
       const trimmed = line.trim();
-      if (trimmed.startsWith("\\usepackage") || trimmed.startsWith("\\usetikzlibrary") ||
-          trimmed.startsWith("\\pgfplotsset")) {
+      if (inHeader && (
+          trimmed.startsWith("\\usepackage") ||
+          trimmed.startsWith("\\usetikzlibrary") ||
+          trimmed.startsWith("\\pgfplotsset") ||
+          trimmed.startsWith("\\definecolor") ||
+          trimmed.startsWith("\\tikzset"))) {
         extraPreamble.push(trimmed);
-      } else if (trimmed.startsWith("% Required packages:") || trimmed === "") {
+      } else if (inHeader && (trimmed.startsWith("% Required packages:") || trimmed === "")) {
         continue;
       } else {
+        inHeader = false;
         bodyLines.push(line);
       }
     }
