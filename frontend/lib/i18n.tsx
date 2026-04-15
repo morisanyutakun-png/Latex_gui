@@ -217,7 +217,9 @@ const ja = {
   "header.pdf.dialog.filename": "ファイル名",
   "header.pdf.dialog.cancel": "キャンセル",
   "header.pdf.dialog.save": "保存",
-  "header.pdf.dialog.note": "このブラウザは保存先フォルダの選択に対応していないため、既定のダウンロードフォルダに保存されます。Chrome / Edge をお使いください。",
+  "header.pdf.dialog.note.generic": "ファイル名は上で編集できます。「保存」を押すとブラウザのダウンロードフォルダに書き出されます。",
+  "header.pdf.dialog.note.safari": "保存先フォルダも毎回選びたい場合は、Safariの「設定 → 一般 → ファイルのダウンロード場所」を「ダウンロードのたびに確認する」に切り替えてください。そうすれば保存ボタンを押すとネイティブの保存ダイアログが開きます。",
+  "header.pdf.dialog.note.firefox": "保存先フォルダも毎回選びたい場合は、Firefoxの「設定 → 一般 → ファイル」を「ファイルごとに保存先を指定する」に切り替えてください。そうすれば保存ボタンを押すとネイティブの保存ダイアログが開きます。",
   "header.pdf.error.unknown": "不明なエラー",
   "header.theme.toggle": "テーマ切替",
 
@@ -724,7 +726,9 @@ const en = {
   "header.pdf.dialog.filename": "Filename",
   "header.pdf.dialog.cancel": "Cancel",
   "header.pdf.dialog.save": "Save",
-  "header.pdf.dialog.note": "This browser does not support choosing a destination folder; the file will go to the default Downloads folder. Use Chrome or Edge for a folder picker.",
+  "header.pdf.dialog.note.generic": "Edit the filename above. Pressing Save writes the file to your browser's download folder.",
+  "header.pdf.dialog.note.safari": "To choose the destination folder every time, open Safari → Settings → General → File download location and switch it to \"Ask for each download\". Then pressing Save will open the native save dialog.",
+  "header.pdf.dialog.note.firefox": "To choose the destination folder every time, open Firefox → Settings → General → Files and Applications and switch to \"Always ask you where to save files\". Then pressing Save will open the native save dialog.",
   "header.pdf.error.unknown": "Unknown error",
   "header.theme.toggle": "Toggle theme",
 

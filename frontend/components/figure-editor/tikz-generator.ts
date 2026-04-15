@@ -253,18 +253,35 @@ function genCircuitComponent(s: FigureShape): string {
 }
 
 function genSpring(s: FigureShape): string {
-  // Use TikZ `coil` decoration (decorations.pathmorphing). aspect=0.5 + short
-  // segment/amplitude produces a tight, recognisably-helical wire coil; small
-  // pre/post leads give clean attachment room at each end.
-  const opts = buildDrawOptions(s.style, {
-    "decoration": "{coil, aspect=0.5, segment length=4pt, amplitude=5pt, pre length=3pt, post length=3pt}",
-    "decorate": "",
-  });
+  // Emit the canonical `\draw[decorate, decoration={coil, ...}] a -- b;` form
+  // used in hand-written TikZ. `decorate` must come before the `decoration={...}`
+  // key block to read cleanly; `draw` as an option is redundant on a `\draw`
+  // command and is omitted unless the user picked a non-default stroke color.
+  const parts: string[] = [
+    "decorate",
+    "decoration={coil, aspect=0.5, segment length=4pt, amplitude=5pt, pre length=3pt, post length=3pt}",
+  ];
+  if (s.style.stroke && s.style.stroke !== "black" && s.style.stroke !== "none") {
+    parts.push(`draw=${s.style.stroke}`);
+  }
+  if ((s.style.strokeOpacity ?? 1) < 1) {
+    parts.push(`draw opacity=${fmt(s.style.strokeOpacity ?? 1)}`);
+  }
+  if (s.style.strokeWidth !== 0.8) {
+    if (s.style.strokeWidth <= 0.4) parts.push("thin");
+    else if (s.style.strokeWidth >= 1.5 && s.style.strokeWidth < 2.5) parts.push("thick");
+    else if (s.style.strokeWidth >= 2.5) parts.push("very thick");
+    else parts.push(`line width=${fmt(s.style.strokeWidth)}pt`);
+  }
+  const ds = s.style.dashStyle ?? (s.style.dashed ? "dashed" : "solid");
+  const dashName = TIKZ_DASH[ds];
+  if (dashName) parts.push(dashName);
+
   const pts = s.points.length >= 2 ? s.points : [{ x: 0, y: s.height / 2 }, { x: s.width, y: s.height / 2 }];
   const p0 = { x: s.x + pts[0].x, y: s.y + pts[0].y };
   const p1 = { x: s.x + pts[pts.length - 1].x, y: s.y + pts[pts.length - 1].y };
   const lbl = s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {${labelText(s)}}` : "";
-  return `  \\draw[${opts}] ${coord(p0.x, p0.y)} -- ${coord(p1.x, p1.y)}${lbl};`;
+  return `  \\draw[${parts.join(", ")}] ${coord(p0.x, p0.y)} -- ${coord(p1.x, p1.y)}${lbl};`;
 }
 
 function genDamper(s: FigureShape): string {

@@ -41,6 +41,16 @@ export function EditToolbar() {
     setDocument(createFromTemplate(id, locale));
   };
 
+  const detectBrowserNoteKey = (): string => {
+    if (typeof navigator === "undefined") return "header.pdf.dialog.note.generic";
+    const ua = navigator.userAgent;
+    const isSafari = /Safari\//.test(ua) && !/Chrome\/|Chromium\/|Edg\//.test(ua);
+    const isFirefox = /Firefox\//.test(ua);
+    if (isSafari) return "header.pdf.dialog.note.safari";
+    if (isFirefox) return "header.pdf.dialog.note.firefox";
+    return "header.pdf.dialog.note.generic";
+  };
+
   const sanitizePdfName = (raw: string): string => {
     const base = (raw || "document").trim().replace(/\.pdf$/i, "");
     const cleaned = base.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_").slice(0, 120) || "document";
@@ -184,7 +194,7 @@ export function EditToolbar() {
                 autoFocus
               />
               <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                {t("header.pdf.dialog.note")}
+                {t(detectBrowserNoteKey() as Parameters<typeof t>[0])}
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-1">
