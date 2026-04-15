@@ -38,6 +38,7 @@ export default function EditorPage() {
   const toggleSourcePanel = useUIStore((s) => s.toggleSourcePanel);
   const triggerOMR = useUIStore((s) => s.triggerOMR);
   const openGrading = useUIStore((s) => s.openGrading);
+  const closeGrading = useUIStore((s) => s.closeGrading);
   const gradingMode = useUIStore((s) => s.gradingMode);
   const figureEditorMode = useUIStore((s) => s.figureEditorMode);
   const openFigureEditor = useUIStore((s) => s.openFigureEditor);
@@ -312,7 +313,11 @@ export default function EditorPage() {
               active={gradingMode}
               icon={<ClipboardCheck className={gradingMode ? "h-[15px] w-[15px] text-white" : "h-[17px] w-[17px]"} />}
               label={t("side.label.grading")}
-              onClick={() => openGrading(doc.latex, doc.metadata.title || "")}
+              onClick={() => {
+                // Toggle: if already grading → cancel; otherwise open
+                if (gradingMode) closeGrading();
+                else openGrading(doc.latex, doc.metadata.title || "");
+              }}
               title={t("side.tooltip.grading")}
               pulse={gradingMode}
             />

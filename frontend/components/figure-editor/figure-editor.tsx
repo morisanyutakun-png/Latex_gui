@@ -58,6 +58,7 @@ export function FigureEditor() {
   const connections = useFigureStore((s) => s.connections);
   const resetAll = useFigureStore((s) => s.reset);
   const closeFigureEditor = useUIStore((s) => s.closeFigureEditor);
+  const setShowPdfPanel = useUIStore((s) => s.setShowPdfPanel);
 
   const setLatex = useDocumentStore((s) => s.setLatex);
   const doc = useDocumentStore((s) => s.document);
@@ -123,6 +124,25 @@ export function FigureEditor() {
     const beginMark = `% ${marker}-begin`;
     const endMark   = `% ${marker}-end`;
 
+    // ── Separate preamble commands from body ──────────────────────
+    // scaledCode from generateFullLatex() may contain `% Required packages:` + \usepackage / \usetikzlibrary lines
+    // These CANNOT appear inside \begin{figure}/\begin{center}; they must go in the document preamble.
+    const preambleLines: string[] = [];
+    const bodyLines: string[] = [];
+    for (const line of scaledCode.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("\\usepackage") || trimmed.startsWith("\\usetikzlibrary") ||
+          trimmed.startsWith("\\pgfplotsset")) {
+        preambleLines.push(trimmed);
+      } else if (trimmed.startsWith("% Required packages:") || trimmed === "") {
+        // skip header comment and blank lines within the extracted preamble section
+        continue;
+      } else {
+        bodyLines.push(line);
+      }
+    }
+    const bodyOnly = bodyLines.join("\n").trim();
+
     // Build the figure block: if a caption is set, use figure environment with caption BELOW;
     // otherwise use \begin{center}. Either way, body is wrapped with markers for re-editing.
     const captionTrim = caption.trim();
@@ -131,15 +151,29 @@ export function FigureEditor() {
       ? [
           "\\begin{figure}[h]",
           "\\centering",
-          scaledCode,
+          bodyOnly,
           `\\caption{${captionTrim}}`,
           `\\label{${labelRef}}`,
           "\\end{figure}",
         ].join("\n")
-      : `\\begin{center}\n${scaledCode}\n\\end{center}`;
+      : `\\begin{center}\n${bodyOnly}\n\\end{center}`;
 
     const block = `\n${beginMark}\n${body}\n${endMark}\n`;
     let currentLatex = doc.latex;
+
+    // ── Ensure required packages are present in the document preamble ──
+    // Find \documentclass... and \begin{document}
+    const docBeginIdx = currentLatex.indexOf("\\begin{document}");
+    if (docBeginIdx >= 0 && preambleLines.length > 0) {
+      const preambleSection = currentLatex.slice(0, docBeginIdx);
+      const missing = preambleLines.filter((p) => !preambleSection.includes(p));
+      if (missing.length > 0) {
+        const blockMark = "% Added by figure editor — required TikZ packages";
+        const hasBlockMark = preambleSection.includes(blockMark);
+        const injection = (hasBlockMark ? "" : `${blockMark}\n`) + missing.join("\n") + "\n";
+        currentLatex = currentLatex.slice(0, docBeginIdx) + injection + currentLatex.slice(docBeginIdx);
+      }
+    }
 
     // 1. If a previous marker exists in the doc, REPLACE that block (re-insert behavior)
     const existingBegin = currentLatex.indexOf(beginMark);
@@ -150,6 +184,8 @@ export function FigureEditor() {
       currentLatex = before + block + after;
       setLatex(currentLatex);
       lastMarkerRef.current = marker;
+      setShowPdfPanel(true);
+      closeFigureEditor();
       toast.success(isJa ? "図を更新しました (サイズ反映)" : "Figure updated (new size applied)");
       return;
     }
@@ -186,11 +222,15 @@ export function FigureEditor() {
 
     setLatex(newLatex);
     lastMarkerRef.current = marker;
+    // Auto-open PDF preview so user immediately sees the rendered result
+    setShowPdfPanel(true);
+    // Close the figure editor to reveal the preview — shapes remain in memory
+    closeFigureEditor();
     toast.success(isJa
-      ? "図を挿入しました — エディタを再度開いてサイズ調整も可能"
-      : "Figure inserted — reopen editor to resize later");
+      ? "図を挿入 — プレビュー画面を開きました (再編集は図アイコンから)"
+      : "Figure inserted — preview opened (re-edit via the figure icon)");
     // Keep shapes in memory (don't resetAll) so user can reopen & adjust size / caption
-  }, [doc, shapes, scaledCode, caption, insertPos, setLatex, isJa]);
+  }, [doc, shapes, scaledCode, caption, insertPos, setLatex, setShowPdfPanel, closeFigureEditor, isJa]);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(scaledCode).then(() => {
@@ -540,7 +580,7 @@ export function FigureEditor() {
         }}
         onZoomIn={() => window.dispatchEvent(new Event("figure-editor:zoom-in"))}
         onZoomOut={() => window.dispatchEvent(new Event("figure-editor:zoom-out"))}
-        onResetZoom={() => useFigureStore.getState().resetViewport()}
+        onResetZoom={() => window.dispatchEvent(new Event("figure-editor:reset-center"))}
       />
 
       {/* ══════════ TIKZ CODE PANEL ══════════ */}

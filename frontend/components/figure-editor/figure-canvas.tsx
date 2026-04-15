@@ -392,13 +392,16 @@ export function FigureCanvas() {
     const onFit = () => { fitToContentRef.current?.(); };
     const onZIn = () => { zoomInRef.current?.(); };
     const onZOut = () => { zoomOutRef.current?.(); };
+    const onReset = () => { centerCanvasRef.current?.(1); };
     window.addEventListener("figure-editor:fit-content", onFit);
     window.addEventListener("figure-editor:zoom-in", onZIn);
     window.addEventListener("figure-editor:zoom-out", onZOut);
+    window.addEventListener("figure-editor:reset-center", onReset);
     return () => {
       window.removeEventListener("figure-editor:fit-content", onFit);
       window.removeEventListener("figure-editor:zoom-in", onZIn);
       window.removeEventListener("figure-editor:zoom-out", onZOut);
+      window.removeEventListener("figure-editor:reset-center", onReset);
     };
   }, []);
 
@@ -406,6 +409,7 @@ export function FigureCanvas() {
   const fitToContentRef = useRef<(() => void) | null>(null);
   const zoomInRef = useRef<(() => void) | null>(null);
   const zoomOutRef = useRef<(() => void) | null>(null);
+  const centerCanvasRef = useRef<((z?: number) => void) | null>(null);
 
   // ── Auto-pan when dragging near canvas edge ──────────────────
   // Tracks last cursor position so the rAF loop knows where to push from
@@ -475,6 +479,21 @@ export function FigureCanvas() {
     requestAnimationFrame(step);
   }, []);
 
+  /**
+   * Smoothly center the paper (canvas rectangle) in the viewport at the given zoom level.
+   * Used by the 100% / reset button — always returns to a predictable "home" view.
+   */
+  const centerCanvas = useCallback((targetZoom = 1) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const { canvasWidth: cW, canvasHeight: cH } = useFigureStore.getState();
+    const paperPxW = cW * PX_PER_CM * targetZoom;
+    const paperPxH = cH * PX_PER_CM * targetZoom;
+    const ox = (rect.width - paperPxW) / 2;
+    const oy = (rect.height - paperPxH) / 2;
+    animateViewport({ zoom: targetZoom, offsetX: ox, offsetY: oy });
+  }, [animateViewport]);
+
   /** Smoothly zoom & center on a single shape (used by double-click). */
   const focusShape = useCallback((shapeId: string) => {
     const sh = useFigureStore.getState().shapes.find((s) => s.id === shapeId);
@@ -523,7 +542,8 @@ export function FigureCanvas() {
     fitToContentRef.current = fitToContent;
     zoomInRef.current = zoomIn;
     zoomOutRef.current = zoomOut;
-  }, [fitToContent, zoomIn, zoomOut]);
+    centerCanvasRef.current = centerCanvas;
+  }, [fitToContent, zoomIn, zoomOut, centerCanvas]);
 
   // Cancel pending start when tool changes
   useEffect(() => { setPendingStart(null); setPreviewEnd(null); }, [activeTool]);
@@ -1098,7 +1118,7 @@ export function FigureCanvas() {
       if ((e.metaKey || e.ctrlKey) && (e.key === "+" || e.key === "=" || e.key === "-" || e.key === "0")) {
         e.preventDefault();
         const { zoom, offsetX, offsetY } = useFigureStore.getState().viewport;
-        if (e.key === "0") useFigureStore.getState().resetViewport();
+        if (e.key === "0") centerCanvas(1);
         else {
           const dir = (e.key === "-") ? -1 : 1;
           const nz = nextZoom(zoom, dir as 1 | -1);
@@ -1633,9 +1653,9 @@ export function FigureCanvas() {
             className="h-8 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
           ><Maximize2 size={13} /></button>
         </HelpTip>
-        <HelpTip side="left" title={isJa ? "100%にリセット" : "Reset to 100%"} kbd="⌘0"
-          description={isJa ? "等倍表示に戻す" : "Return to 1:1 view at origin"}>
-          <button onClick={() => useFigureStore.getState().resetViewport()}
+        <HelpTip side="left" title={isJa ? "中央に戻す (100%)" : "Re-center (100%)"} kbd="⌘0"
+          description={isJa ? "キャンバスの中心を画面中央に配置・等倍表示に戻す" : "Center the canvas paper on screen at 1:1 zoom"}>
+          <button onClick={() => centerCanvas(1)}
             className="h-7 w-8 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors text-[9px] font-mono font-semibold"
           >100%</button>
         </HelpTip>
