@@ -162,17 +162,72 @@ export function FigureEditor() {
     const block = `\n${beginMark}\n${body}\n${endMark}\n`;
     let currentLatex = doc.latex;
 
+    // ── Self-heal: if a prior insertion dropped `\usetikzlibrary` into the
+    // preamble without loading `\usepackage{tikz}`, those lines will error
+    // out as undefined control sequences. Promote a `\usepackage{tikz}` to
+    // right after `\documentclass` when needed, BEFORE we compute the
+    // "missing" diff below so we don't double-inject.
+    {
+      const preambleEnd = currentLatex.indexOf("\\begin{document}");
+      const preambleBefore = preambleEnd >= 0 ? currentLatex.slice(0, preambleEnd) : currentLatex;
+      const hasUseTikzLib = /\\usetikzlibrary\{/.test(preambleBefore);
+      // Match \usepackage{tikz} as its own package (not \usepackage{tikz-cd} etc.)
+      const tikzLoadRe = /\\usepackage(?:\[[^\]]*\])?\{[^}]*\btikz\b[^}]*\}/;
+      if (hasUseTikzLib && !tikzLoadRe.test(preambleBefore)) {
+        const docClassRe = /\\documentclass(?:\[[^\]]*\])?\{[^}]+\}/;
+        const dcMatch = currentLatex.match(docClassRe);
+        if (dcMatch && dcMatch.index !== undefined) {
+          const insertAt = dcMatch.index + dcMatch[0].length;
+          currentLatex = currentLatex.slice(0, insertAt) + "\n\\usepackage{tikz}" + currentLatex.slice(insertAt);
+        }
+      }
+    }
+
     // ── Ensure required packages are present in the document preamble ──
-    // Find \documentclass... and \begin{document}
+    // Order matters: `\usepackage{tikz}` must be LOADED before any
+    // `\usetikzlibrary{...}` — otherwise \usetikzlibrary is undefined and
+    // lualatex surfaces the cascading failure as "Missing \begin{document}".
+    // Strategy: split the incoming preamble into two buckets and inject them
+    // in different positions so the ordering invariant always holds, even
+    // when the document already contains a previously-inserted tikz block.
     const docBeginIdx = currentLatex.indexOf("\\begin{document}");
     if (docBeginIdx >= 0 && preambleLines.length > 0) {
       const preambleSection = currentLatex.slice(0, docBeginIdx);
       const missing = preambleLines.filter((p) => !preambleSection.includes(p));
       if (missing.length > 0) {
+        // Bucket A: `\usepackage{...}` lines → must come right after
+        //   \documentclass, before any \usetikzlibrary.
+        // Bucket B: `\usetikzlibrary{...}` / `\pgfplotsset` / `\definecolor` /
+        //   `\tikzset` → go right before \begin{document}.
+        const isPackage = (l: string) => l.startsWith("\\usepackage");
+        const packages = missing.filter(isPackage);
+        const otherPreamble = missing.filter((l) => !isPackage(l));
         const blockMark = "% Added by figure editor — required TikZ packages";
         const hasBlockMark = preambleSection.includes(blockMark);
-        const injection = (hasBlockMark ? "" : `${blockMark}\n`) + missing.join("\n") + "\n";
-        currentLatex = currentLatex.slice(0, docBeginIdx) + injection + currentLatex.slice(docBeginIdx);
+
+        // Inject \usepackage lines right after \documentclass{...}.
+        if (packages.length > 0) {
+          const docClassRe = /\\documentclass(?:\[[^\]]*\])?\{[^}]+\}/;
+          const m = currentLatex.match(docClassRe);
+          if (m && m.index !== undefined) {
+            const insertAt = m.index + m[0].length;
+            const pkgBlock = "\n" + packages.join("\n");
+            currentLatex = currentLatex.slice(0, insertAt) + pkgBlock + currentLatex.slice(insertAt);
+          } else {
+            // No \documentclass found — fall back to pre-\begin{document} spot.
+            otherPreamble.unshift(...packages);
+          }
+        }
+
+        // Inject \usetikzlibrary / pgfplotsset / etc. right before \begin{document}
+        // (re-resolve docBeginIdx because we may have shifted the string above).
+        if (otherPreamble.length > 0) {
+          const newDocBeginIdx = currentLatex.indexOf("\\begin{document}");
+          if (newDocBeginIdx >= 0) {
+            const injection = (hasBlockMark ? "" : `${blockMark}\n`) + otherPreamble.join("\n") + "\n";
+            currentLatex = currentLatex.slice(0, newDocBeginIdx) + injection + currentLatex.slice(newDocBeginIdx);
+          }
+        }
       }
     }
 
