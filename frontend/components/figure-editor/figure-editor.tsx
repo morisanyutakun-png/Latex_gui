@@ -224,7 +224,17 @@ export function FigureEditor() {
     >
 
       {/* ══════════ HEADER ══════════ */}
-      <header className="shrink-0 h-12 flex items-center px-3 gap-3 border-b border-foreground/[0.06] bg-background/90 backdrop-blur-md">
+      <header
+        className="shrink-0 h-12 flex items-center px-3 gap-3 relative"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(59,130,246,0.06) 0%, rgba(255,255,255,0.95) 30%, rgba(255,255,255,0.95) 70%, rgba(245,158,11,0.06) 100%)",
+          borderBottom: "1px solid rgba(0,0,0,0.06)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        {/* Rainbow accent strip at the very top — signals "creative tool" */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 via-pink-500 via-amber-500 to-emerald-500 opacity-70" />
 
         {/* Title */}
         <div className="flex items-center gap-2">

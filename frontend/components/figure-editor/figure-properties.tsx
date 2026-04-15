@@ -45,26 +45,36 @@ const STROKE_WIDTHS = PEN_PRESETS;
 // ══════════════════════════════════════════════════════════════════
 
 function Section({
-  title, icon, children, defaultOpen = true, accent,
+  title, icon, children, defaultOpen = true, color = "amber",
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
-  accent?: string;
+  /** Section accent color — subtle tint for the header */
+  color?: "amber" | "blue" | "violet" | "emerald" | "rose" | "pink" | "gray";
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const colorClasses: Record<string, { text: string; bg: string; iconBg: string }> = {
+    amber:   { text: "text-amber-700 dark:text-amber-400",   bg: "hover:bg-amber-50/60 dark:hover:bg-amber-500/5",    iconBg: "bg-amber-100 dark:bg-amber-500/15 text-amber-600" },
+    blue:    { text: "text-blue-700 dark:text-blue-400",     bg: "hover:bg-blue-50/60 dark:hover:bg-blue-500/5",      iconBg: "bg-blue-100 dark:bg-blue-500/15 text-blue-600" },
+    violet:  { text: "text-violet-700 dark:text-violet-400", bg: "hover:bg-violet-50/60 dark:hover:bg-violet-500/5",  iconBg: "bg-violet-100 dark:bg-violet-500/15 text-violet-600" },
+    emerald: { text: "text-emerald-700 dark:text-emerald-400", bg: "hover:bg-emerald-50/60 dark:hover:bg-emerald-500/5", iconBg: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600" },
+    rose:    { text: "text-rose-700 dark:text-rose-400",     bg: "hover:bg-rose-50/60 dark:hover:bg-rose-500/5",      iconBg: "bg-rose-100 dark:bg-rose-500/15 text-rose-600" },
+    pink:    { text: "text-pink-700 dark:text-pink-400",     bg: "hover:bg-pink-50/60 dark:hover:bg-pink-500/5",      iconBg: "bg-pink-100 dark:bg-pink-500/15 text-pink-600" },
+    gray:    { text: "text-foreground/65",                   bg: "hover:bg-foreground/[0.03]",                        iconBg: "bg-foreground/[0.06] text-foreground/60" },
+  };
+  const c = colorClasses[color];
   return (
     <div className="border-b border-foreground/[0.05]">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-foreground/55 hover:text-foreground/80 hover:bg-foreground/[0.03] transition-colors"
+        className={`w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${c.text} ${c.bg}`}
       >
-        <ChevronRight
-          size={10}
-          className={`transition-transform ${open ? "rotate-90" : ""}`}
-        />
-        <span className={accent ?? "text-foreground/55"}>{icon}</span>
+        <ChevronRight size={10} className={`transition-transform ${open ? "rotate-90" : ""} opacity-60`} />
+        <span className={`h-5 w-5 rounded-md flex items-center justify-center ${c.iconBg}`}>
+          {icon}
+        </span>
         <span className="flex-1 text-left">{title}</span>
       </button>
       {open && <div className="px-3 pb-3 space-y-2">{children}</div>}
@@ -370,29 +380,37 @@ export function FigureProperties() {
 
   if (selectedIds.length === 0) {
     return (
-      <div className={`${W} shrink-0 my-2 mr-2 ml-0 rounded-xl border border-black/[0.08] bg-white dark:bg-neutral-900 overflow-y-auto`}
+      <div className={`${W} shrink-0 my-2 mr-2 ml-0 rounded-xl flex flex-col relative`}
         style={{
+          background:
+            "linear-gradient(180deg, rgba(245,158,11,0.06) 0%, rgba(255,255,255,0.98) 14%, rgba(255,255,255,1) 100%)",
+          border: "1px solid rgba(217, 119, 6, 0.18)",
           boxShadow:
-            "0 1px 0 rgba(255,255,255,0.8) inset, " +
-            "0 10px 30px -12px rgba(0,0,0,0.25), " +
-            "0 2px 8px -2px rgba(0,0,0,0.1)",
+            "0 1px 0 rgba(255,255,255,0.9) inset, " +
+            "0 10px 30px -12px rgba(217, 119, 6, 0.22), " +
+            "0 2px 8px -2px rgba(0,0,0,0.08)",
+          overflow: "hidden",
         }}>
-        <div className="p-6 pt-10 flex flex-col items-center text-center gap-3">
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-100 to-violet-100 dark:from-blue-500/10 dark:to-violet-500/10 flex items-center justify-center shadow-inner">
-            <Sparkles className="h-6 w-6 text-blue-500/60" />
-          </div>
-          <div>
-            <h4 className="text-[12px] font-bold text-foreground/70">
-              {isJa ? "プロパティ" : "Properties"}
-            </h4>
-            <p className="text-[10.5px] text-foreground/35 leading-relaxed mt-1 max-w-[200px]">
-              {isJa ? "図形を選択すると、ここでラベル・色・サイズなどを編集できます"
-                    : "Select a shape to edit its label, colors, size, and more."}
-            </p>
-          </div>
-          <div className="mt-2 text-[9px] text-foreground/30 space-y-0.5">
-            <div><kbd className="kbd">V</kbd> {isJa ? "選択モード" : "Select mode"}</div>
-            <div>{isJa ? "ドラッグで範囲選択" : "Drag to select"}</div>
+        {/* Top accent stripe indicating "properties" */}
+        <div className="shrink-0 h-[3px] bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 rounded-t-xl" />
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6 pt-10 flex flex-col items-center text-center gap-3">
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-500/10 dark:to-orange-500/10 flex items-center justify-center shadow-inner">
+              <Sparkles className="h-6 w-6 text-amber-500/70" />
+            </div>
+            <div>
+              <h4 className="text-[12px] font-bold text-foreground/70">
+                {isJa ? "プロパティ" : "Properties"}
+              </h4>
+              <p className="text-[10.5px] text-foreground/35 leading-relaxed mt-1 max-w-[200px]">
+                {isJa ? "図形を選択すると、ここでラベル・色・サイズなどを編集できます"
+                      : "Select a shape to edit its label, colors, size, and more."}
+              </p>
+            </div>
+            <div className="mt-2 text-[9px] text-foreground/30 space-y-0.5">
+              <div><kbd className="kbd">V</kbd> {isJa ? "選択モード" : "Select mode"}</div>
+              <div>{isJa ? "ドラッグで範囲選択" : "Drag to select"}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -404,13 +422,20 @@ export function FigureProperties() {
   if (selectedIds.length > 1) {
     const firstShape = shapes.find((s) => s.id === selectedIds[0]);
     return (
-      <div className={`${W} shrink-0 my-2 mr-2 ml-0 rounded-xl border border-black/[0.08] bg-white dark:bg-neutral-900 overflow-y-auto`}
+      <div className={`${W} shrink-0 my-2 mr-2 ml-0 rounded-xl flex flex-col relative`}
         style={{
+          background:
+            "linear-gradient(180deg, rgba(245,158,11,0.06) 0%, rgba(255,255,255,0.98) 14%, rgba(255,255,255,1) 100%)",
+          border: "1px solid rgba(217, 119, 6, 0.18)",
           boxShadow:
-            "0 1px 0 rgba(255,255,255,0.8) inset, " +
-            "0 10px 30px -12px rgba(0,0,0,0.25), " +
-            "0 2px 8px -2px rgba(0,0,0,0.1)",
+            "0 1px 0 rgba(255,255,255,0.9) inset, " +
+            "0 10px 30px -12px rgba(217, 119, 6, 0.22), " +
+            "0 2px 8px -2px rgba(0,0,0,0.08)",
+          overflow: "hidden",
         }}>
+        {/* Top accent stripe indicating "properties" */}
+        <div className="shrink-0 h-[3px] bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 rounded-t-xl" />
+        <div className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-foreground/[0.06] px-3 py-2.5">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
@@ -430,6 +455,7 @@ export function FigureProperties() {
         <Section title={isJa ? "線の太さ" : "Stroke Width"} icon={<Minus size={11} />}>
           <StrokeWidthPicker value={firstShape?.style.strokeWidth ?? 0.8} onChange={(v) => handleStyleChange({ strokeWidth: v })} color={firstShape?.style.stroke ?? "black"} />
         </Section>
+        </div>
       </div>
     );
   }
@@ -441,7 +467,19 @@ export function FigureProperties() {
   const strokeCss = COLORS.find((c) => c.name === selectedShape.style.stroke)?.css ?? selectedShape.style.stroke;
 
   return (
-    <div className={`${W} shrink-0 border-l border-foreground/[0.06] bg-background/85 backdrop-blur-sm overflow-y-auto`}>
+    <div className={`${W} shrink-0 my-2 mr-2 ml-0 rounded-xl flex flex-col relative`}
+      style={{
+        background: "linear-gradient(180deg, rgba(245,158,11,0.06) 0%, rgba(255,255,255,0.98) 14%, rgba(255,255,255,1) 100%)",
+        border: "1px solid rgba(217, 119, 6, 0.18)",
+        boxShadow:
+          "0 1px 0 rgba(255,255,255,0.9) inset, " +
+          "0 10px 30px -12px rgba(217, 119, 6, 0.22), " +
+          "0 2px 8px -2px rgba(0,0,0,0.08)",
+        overflow: "hidden",
+      }}>
+      {/* Top accent stripe indicating "properties" */}
+      <div className="shrink-0 h-[3px] bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 rounded-t-xl" />
+      <div className="flex-1 overflow-y-auto">
 
       {/* ══════ Sticky Header ══════ */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-foreground/[0.06] px-3 py-2.5">
@@ -465,7 +503,7 @@ export function FigureProperties() {
       </div>
 
       {/* ══════ Label ══════ */}
-      <Section title={isJa ? "ラベル" : "Label"} icon={<Tag size={11} />} accent="text-blue-500">
+      <Section title={isJa ? "ラベル" : "Label"} icon={<Tag size={11} />} color="blue">
         <LabelEditor
           shape={selectedShape}
           onUpdate={(u) => updateShape(selectedShape.id, u)}
@@ -474,7 +512,7 @@ export function FigureProperties() {
       </Section>
 
       {/* ══════ Geometry ══════ */}
-      <Section title={isJa ? "位置・サイズ" : "Geometry"} icon={<Move size={11} />}>
+      <Section title={isJa ? "位置・サイズ" : "Geometry"} icon={<Move size={11} />} color="emerald">
         <div className="grid grid-cols-2 gap-1.5">
           <InputRow label="X">
             <NumberInput value={selectedShape.x} onChange={(v) => handleDimensionChange("x", v)} />
@@ -500,13 +538,13 @@ export function FigureProperties() {
       </Section>
 
       {/* ══════ Stroke ══════ */}
-      <Section title={isJa ? "線の色" : "Stroke"} icon={<Palette size={11} />}>
+      <Section title={isJa ? "線の色" : "Stroke"} icon={<Palette size={11} />} color="violet">
         <ColorPicker colors={COLORS} value={selectedShape.style.stroke}
           onChange={(v) => handleStyleChange({ stroke: v })} />
       </Section>
 
       {/* ══════ Fill ══════ */}
-      <Section title={isJa ? "塗りつぶし" : "Fill"} icon={<PaintBucket size={11} />}>
+      <Section title={isJa ? "塗りつぶし" : "Fill"} icon={<PaintBucket size={11} />} color="pink">
         <ColorPicker colors={FILL_PRESETS} value={selectedShape.style.fill}
           onChange={(v) => handleStyleChange({ fill: v })} allowNone />
         {selectedShape.style.fill !== "none" && (
@@ -521,7 +559,7 @@ export function FigureProperties() {
       </Section>
 
       {/* ══════ Line / Pen (IPE-style) ══════ */}
-      <Section title={isJa ? "線(ペン)" : "Line / Pen"} icon={<Minus size={11} />}>
+      <Section title={isJa ? "線(ペン)" : "Line / Pen"} icon={<Minus size={11} />} color="amber">
         <div>
           <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
             {isJa ? "太さ" : "Width"}
@@ -551,7 +589,7 @@ export function FigureProperties() {
       </Section>
 
       {/* ══════ Arrows (IPE-style: per-end shape + size) ══════ */}
-      <Section title={isJa ? "矢印" : "Arrows"} icon={<span className="text-[11px]">→</span>}>
+      <Section title={isJa ? "矢印" : "Arrows"} icon={<span className="text-[11px]">→</span>} color="rose">
         <div>
           <div className="text-[9px] text-foreground/40 font-medium uppercase tracking-wider mb-1">
             {isJa ? "始点" : "Start"}
@@ -580,7 +618,7 @@ export function FigureProperties() {
       </Section>
 
       {/* ══════ Font ══════ */}
-      <Section title={isJa ? "フォント" : "Font"} icon={<Type size={11} />} defaultOpen={false}>
+      <Section title={isJa ? "フォント" : "Font"} icon={<Type size={11} />} color="gray" defaultOpen={false}>
         <InputRow label={isJa ? "Size" : "Size"}>
           <select value={selectedShape.style.fontSizePt}
             onChange={(e) => handleStyleChange({ fontSizePt: parseFloat(e.target.value) })}
@@ -594,7 +632,7 @@ export function FigureProperties() {
 
       {/* ══════ TikZ options (shown only if present) ══════ */}
       {Object.keys(selectedShape.tikzOptions).length > 0 && (
-        <Section title={isJa ? "TikZオプション" : "TikZ"} icon={<span className="text-[10px] font-bold font-mono">{'{}'}</span>} defaultOpen={false}>
+        <Section title={isJa ? "TikZオプション" : "TikZ"} icon={<span className="text-[9px] font-bold font-mono">{'{}'}</span>} color="gray" defaultOpen={false}>
           {Object.entries(selectedShape.tikzOptions).map(([key, value]) => (
             <InputRow key={key} label={key.length > 6 ? key.slice(0, 6) : key}>
               <input value={value}
@@ -607,6 +645,7 @@ export function FigureProperties() {
 
       {/* Bottom spacer */}
       <div className="h-4" />
+      </div>
     </div>
   );
 }

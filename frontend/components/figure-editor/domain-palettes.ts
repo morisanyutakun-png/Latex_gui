@@ -59,7 +59,7 @@ export const PALETTE_ITEMS: DomainPaletteItem[] = [
     icon: "arrow", category: "basic",
     defaultWidth: 3, defaultHeight: 0,
     defaultPoints: [{ x: 0, y: 0 }, { x: 3, y: 0 }],
-    defaultStyle: { arrowEnd: true },
+    defaultStyle: { arrowEnd: true, arrowEndHead: "normal" },
     description: "Arrow", descriptionJa: "矢印",
   },
   {
@@ -206,7 +206,7 @@ export const PALETTE_ITEMS: DomainPaletteItem[] = [
     icon: "force", category: "mechanics",
     defaultWidth: 2, defaultHeight: 0,
     defaultPoints: [{ x: 0, y: 0 }, { x: 2, y: 0 }],
-    defaultStyle: { arrowEnd: true, strokeWidth: 1.5, stroke: "#dc2626" },
+    defaultStyle: { arrowEnd: true, arrowEndHead: "normal", strokeWidth: 1.5, stroke: "red" },
     description: "Force vector", descriptionJa: "力ベクトル",
   },
   {
@@ -254,7 +254,7 @@ export const PALETTE_ITEMS: DomainPaletteItem[] = [
     kind: "axes", label: "Axes", labelJa: "座標軸",
     icon: "axes", category: "math",
     defaultWidth: 4, defaultHeight: 3,
-    defaultStyle: { arrowEnd: true },
+    defaultStyle: { arrowEnd: true, arrowEndHead: "normal" },
     description: "Coordinate axes with labels", descriptionJa: "座標軸（ラベル付き）",
   },
   {
@@ -281,7 +281,7 @@ export const PALETTE_ITEMS: DomainPaletteItem[] = [
     icon: "vector", category: "math",
     defaultWidth: 2, defaultHeight: 1,
     defaultPoints: [{ x: 0, y: 0 }, { x: 2, y: 1 }],
-    defaultStyle: { arrowEnd: true, strokeWidth: 1.2 },
+    defaultStyle: { arrowEnd: true, arrowEndHead: "normal", strokeWidth: 1.2 },
     description: "Mathematical vector", descriptionJa: "数学ベクトル",
   },
   {
@@ -366,7 +366,7 @@ export const PALETTE_ITEMS: DomainPaletteItem[] = [
     icon: "rxn", category: "chemistry",
     defaultWidth: 2.5, defaultHeight: 0,
     defaultPoints: [{ x: 0, y: 0 }, { x: 2.5, y: 0 }],
-    defaultStyle: { arrowEnd: true, strokeWidth: 1.2 },
+    defaultStyle: { arrowEnd: true, arrowEndHead: "normal", strokeWidth: 1.2 },
     description: "Chemical reaction arrow", descriptionJa: "化学反応矢印",
   },
   {

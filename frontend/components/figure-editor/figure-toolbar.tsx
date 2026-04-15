@@ -408,13 +408,19 @@ export function FigureToolbar() {
   }, [query, activeCategory]);
 
   return (
-    <div className="w-[256px] shrink-0 my-2 ml-2 mr-0 flex flex-col rounded-xl border border-black/[0.08] bg-white dark:bg-neutral-900 overflow-hidden"
+    <div className="w-[256px] shrink-0 my-2 ml-2 mr-0 flex flex-col rounded-xl overflow-hidden relative"
       style={{
+        // Left toolbar: cool blue/teal accent — "tools" tint
+        background:
+          "linear-gradient(180deg, rgba(59,130,246,0.06) 0%, rgba(255,255,255,0.98) 14%, rgba(255,255,255,1) 100%)",
+        border: "1px solid rgba(59, 130, 246, 0.18)",
         boxShadow:
-          "0 1px 0 rgba(255,255,255,0.8) inset, " +
-          "0 10px 30px -12px rgba(0,0,0,0.25), " +
-          "0 2px 8px -2px rgba(0,0,0,0.1)",
+          "0 1px 0 rgba(255,255,255,0.9) inset, " +
+          "0 10px 30px -12px rgba(37, 99, 235, 0.25), " +
+          "0 2px 8px -2px rgba(0,0,0,0.08)",
       }}>
+      {/* Top accent stripe indicating "tools" */}
+      <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500" />
 
       {/* ══════ Search ══════ */}
       <div className="px-2.5 pt-2.5 pb-1.5">

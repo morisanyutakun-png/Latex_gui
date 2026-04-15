@@ -20,12 +20,16 @@ function getDashStyle(s: { dashStyle?: DashStyle; dashed?: boolean }): DashStyle
   return "solid";
 }
 function getArrowEndHead(s: { arrowEndHead?: ArrowHead; arrowEnd?: boolean }, fallback: ArrowHead = "none"): ArrowHead {
-  if (s.arrowEndHead) return s.arrowEndHead;
+  // Explicit non-default head wins
+  if (s.arrowEndHead && s.arrowEndHead !== "none") return s.arrowEndHead;
+  // Legacy boolean (true = normal arrow)
   if (s.arrowEnd) return "normal";
+  // Explicit "none" from user (only when fallback is also none — otherwise let implicit arrow kinds win)
+  if (s.arrowEndHead === "none" && fallback === "none") return "none";
   return fallback;
 }
 function getArrowStartHead(s: { arrowStartHead?: ArrowHead; arrowStart?: boolean }): ArrowHead {
-  if (s.arrowStartHead) return s.arrowStartHead;
+  if (s.arrowStartHead && s.arrowStartHead !== "none") return s.arrowStartHead;
   if (s.arrowStart) return "normal";
   return "none";
 }
