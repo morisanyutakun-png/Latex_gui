@@ -152,17 +152,15 @@ function TypingLine({ lines }: { lines: string[] }) {
   const [lineIdx, setLineIdx] = useState(0);
   const [charIdx, setCharIdx] = useState(0);
   const [deleting, setDeleting] = useState(false);
-  // lines の参照を追跡し、言語切り替え時にアニメーションをリセット
-  const prevLinesRef = useRef(lines);
-
-  useEffect(() => {
-    if (prevLinesRef.current !== lines) {
-      prevLinesRef.current = lines;
-      setLineIdx(0);
-      setCharIdx(0);
-      setDeleting(false);
-    }
-  }, [lines]);
+  // Adjust state during render when `lines` changes (language switch) —
+  // official React pattern that avoids a useEffect-triggered extra render.
+  const [prevLines, setPrevLines] = useState(lines);
+  if (prevLines !== lines) {
+    setPrevLines(lines);
+    setLineIdx(0);
+    setCharIdx(0);
+    setDeleting(false);
+  }
 
   // lineIdx が範囲外にならないよう安全にクランプ
   const safeLineIdx = lineIdx < lines.length ? lineIdx : 0;
@@ -302,7 +300,9 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
     (isJa ? "もう一度再生..." : "Replaying...");
 
   // ── Activity log card (mirrors real ThinkingIndicator) ──
-  const ActivityLog = ({ data }: { data: { steps: { icon: React.ElementType; label: string; tone: "thinking" | "tool" | "done" }[]; elapsedSec: number } }) => (
+  // Lowercase render helper — not a component — so it doesn't retrigger mount
+  // on every parent render (and avoids the static-components lint rule).
+  const renderActivityLog = (data: { steps: { icon: React.ElementType; label: string; tone: "thinking" | "tool" | "done" }[]; elapsedSec: number }) => (
     <div className="flex gap-1.5 items-start">
       <div className="h-4 w-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-sm"
            style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)" }}>
@@ -350,7 +350,8 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
   );
 
   // ── Chat message bubble ──
-  const Bubble = ({ role, text, applied, show }: { role: string; text: string; applied?: boolean; show: boolean }) => (
+  // Lowercase render helper (see renderActivityLog note).
+  const renderBubble = ({ role, text, applied, show }: { role: string; text: string; applied?: boolean; show: boolean }) => (
     <div className={`flex transition-all duration-500 ${show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 h-0 overflow-hidden"} ${role === "user" ? "justify-end" : "justify-start"}`}>
       <div className={`rounded-xl px-2.5 py-1.5 max-w-[90%] ${role === "user" ? "rounded-tr-sm" : "rounded-tl-sm border shadow-sm"}`}
            style={role === "user" ? { background: "linear-gradient(135deg, #b45309, #d97706)" } : { background: "white", borderColor: "rgba(245,158,11,0.18)" }}>
@@ -514,12 +515,12 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
             </div>
             {/* Messages */}
             <div className="flex-1 p-2.5 space-y-2 overflow-hidden">
-              <Bubble role="user" text={p1} show={showUser1} />
-              {think1Data && <ActivityLog data={think1Data} />}
-              <Bubble role="ai" text={a1} applied={showApplied1} show={showAi1} />
-              <Bubble role="user" text={p2} show={showUser2} />
-              {think2Data && <ActivityLog data={think2Data} />}
-              <Bubble role="ai" text={a2} applied={showApplied2} show={showAi2} />
+              {renderBubble({ role: "user", text: p1, show: showUser1 })}
+              {think1Data && renderActivityLog(think1Data)}
+              {renderBubble({ role: "ai", text: a1, applied: showApplied1, show: showAi1 })}
+              {renderBubble({ role: "user", text: p2, show: showUser2 })}
+              {think2Data && renderActivityLog(think2Data)}
+              {renderBubble({ role: "ai", text: a2, applied: showApplied2, show: showAi2 })}
             </div>
             {/* Input */}
             <div className="p-2 border-t" style={{ borderColor: "rgba(245,158,11,0.15)" }}>
@@ -848,6 +849,7 @@ function SampleShowcase({ isJa, onTryNow }: { isJa: boolean; onTryNow: () => voi
   ];
 
   return (
+    // eslint-disable-next-line react-hooks/refs
     <section id="sample-output" ref={fadeIn.ref} className={`relative py-24 overflow-hidden transition-all duration-1000 ${fadeIn.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_50%,hsl(var(--primary)/0.03),transparent_70%)]" />
       <div className="relative max-w-2xl mx-auto px-6">
@@ -913,6 +915,7 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
   const fadeIn = useFadeIn(0);
 
   return (
+    // eslint-disable-next-line react-hooks/refs
     <section ref={fadeIn.ref} className={`relative py-28 border-t border-foreground/[0.04] overflow-hidden transition-all duration-1000 ${fadeIn.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_50%,hsl(var(--primary)/0.025),transparent_70%)]" />
       <div className="relative max-w-5xl mx-auto px-6">
@@ -1289,7 +1292,6 @@ export function TemplateGallery() {
         <div className="max-w-5xl mx-auto px-6 flex flex-wrap items-center justify-center gap-3">
           <TrustBadge icon={<Zap className="h-3.5 w-3.5" />} label={isJa ? "LuaLaTeX 組版エンジン" : "LuaLaTeX typesetting"} />
           <TrustBadge icon={<Shield className="h-3.5 w-3.5" />} label={isJa ? "無料プランあり・登録不要" : "Free plan · No signup"} />
-          <TrustBadge icon={<Sparkles className="h-3.5 w-3.5" />} label={isJa ? "Claude AI 搭載" : "Powered by Claude AI"} />
           <TrustBadge icon={<Printer className="h-3.5 w-3.5" />} label={isJa ? "A4/B5 印刷対応" : "Print-ready PDF"} />
           <TrustBadge icon={<Star className="h-3.5 w-3.5" />} label={isJa ? "数式・図・化学式対応" : "Math, diagrams, chemistry"} />
         </div>
@@ -1941,7 +1943,7 @@ export function TemplateGallery() {
             <span className="text-[14px] font-bold tracking-tight opacity-50">Eddivom</span>
           </div>
           <p className="text-[11px] text-muted-foreground/25 tracking-wide">
-            AI教材作成IDE · Powered by LuaLaTeX · Built with Claude
+            AI教材作成IDE · Powered by LuaLaTeX
           </p>
         </div>
       </footer>

@@ -38,14 +38,14 @@ export const PLANS: Record<PlanId, PlanDef> = {
     sonnetPerMonth: 0,
     features: [
       "AIリクエスト 3回/日 (月30回)",
-      "AIモデル: Claude Haiku (軽量)",
+      "AIモデル: 軽量版",
       "基本テンプレート",
       "PDF出力",
       "LaTeXソースエクスポート",
     ],
     featuresEn: [
       "3 AI requests/day (30/month)",
-      "AI model: Claude Haiku (lightweight)",
+      "AI model: Lightweight",
       "Basic templates",
       "PDF export",
       "LaTeX source export",
@@ -62,7 +62,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     sonnetPerMonth: 0,
     features: [
       "AIリクエスト 10回/日 (月200回)",
-      "AIモデル: Claude Haiku (軽量)",
+      "AIモデル: 軽量版",
       "基本テンプレート",
       "思考ログ表示",
       "PDF出力",
@@ -70,7 +70,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     ],
     featuresEn: [
       "10 AI requests/day (200/month)",
-      "AI model: Claude Haiku (lightweight)",
+      "AI model: Lightweight",
       "Basic templates",
       "Thinking log display",
       "PDF export",
@@ -89,7 +89,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     sonnetPerMonth: 50,
     features: [
       "AIリクエスト 25回/日 (月500回)",
-      "高精度AI (Sonnet) 月50回まで",
+      "高精度AI 月50回まで",
       "全テンプレート利用可",
       "PDF出力 (優先キュー)",
       "バッチ処理 (上限50行)",
@@ -98,7 +98,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     ],
     featuresEn: [
       "25 AI requests/day (500/month)",
-      "High-quality AI (Sonnet) up to 50/month",
+      "High-quality AI up to 50/month",
       "All templates",
       "PDF export (priority queue)",
       "Batch processing (up to 50 rows)",
@@ -119,7 +119,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     sonnetPerMonth: 200,
     features: [
       "AIリクエスト 80回/日 (月1,500回)",
-      "高精度AI (Sonnet) 月200回まで",
+      "高精度AI 月200回まで",
       "全テンプレート利用可",
       "PDF出力 (最優先)",
       "バッチ処理 (上限200行)",
@@ -130,7 +130,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     ],
     featuresEn: [
       "80 AI requests/day (1,500/month)",
-      "High-quality AI (Sonnet) up to 200/month",
+      "High-quality AI up to 200/month",
       "All templates",
       "PDF export (highest priority)",
       "Batch processing (up to 200 rows)",
