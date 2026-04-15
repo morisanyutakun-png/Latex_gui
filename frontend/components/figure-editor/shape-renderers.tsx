@@ -656,29 +656,50 @@ function RenderSpring(p: ShapeRenderProps) {
     const bodyE = len / 2 - leadL;
     const bodyLen = Math.max(1, bodyE - bodyS);
 
-    // Classic compression spring: MANY narrow tall ellipses packed tightly — like viewing
-    // the wound metal wire edge-on. Each ellipse is one turn of the coil.
-    // Target ~4-5 px per coil so a standard spring has 20-40 coils visible.
-    const targetCoilPitch = 4;
-    const coils = Math.max(12, Math.round(bodyLen / targetCoilPitch));
+    // ── Helical coil using cubic bezier — mirrors TikZ `coil` decoration output ──
+    // Each turn: the wire goes UP over the top (front of coil) then BELOW the axis
+    // and loops back (visible back of coil). The below-axis segment starts BEFORE
+    // the next coil begins, creating visible crossovers — this is the key "3D helix" effect.
+    //
+    // Parameters inspired by TikZ's `coil, aspect=0.3, segment length=~5px`:
+    const targetPitch = 6;                                    // ~6px per full turn
+    const coils = Math.max(8, Math.round(bodyLen / targetPitch));
     const pitch = bodyLen / coils;
-    // Ellipse shape: slightly wider than pitch (overlap) and ~3× taller than wide
-    // (mimics the actual wire profile seen from the side).
-    const rx = Math.max(pitch * 0.9, 2);
-    const ry = Math.min(Math.max(pitch * 3.2, 7), 14);
-    const coilStroke = Math.max(0.6, w * 0.65);
+    // Amplitude — tall enough to look like a proper coil
+    const amp = Math.min(Math.max(pitch * 1.4, 8), 13);
+    // Aspect ratio for the "look-down-the-axis" foreshortening — each turn is not a
+    // simple sine wave but a true loop with visible crossover
+    const crossover = pitch * 0.3;                            // how much adjacent loops overlap horizontally
 
-    return (<>
-      <line x1={-len / 2} y1={0} x2={bodyS} y2={0} stroke={strokeColor} strokeWidth={w} />
-      {Array.from({ length: coils }).map((_, i) => {
-        const cx = bodyS + (i + 0.5) * pitch;
-        return (
-          <ellipse key={i} cx={cx} cy={0} rx={rx} ry={ry}
-            stroke={strokeColor} strokeWidth={coilStroke} fill="none" />
-        );
-      })}
-      <line x1={bodyE} y1={0} x2={len / 2} y2={0} stroke={strokeColor} strokeWidth={w} />
-    </>);
+    let d = `M ${-len / 2},0 L ${bodyS},0`;
+
+    for (let i = 0; i < coils; i++) {
+      const x0 = bodyS + i * pitch;
+      const x1 = x0 + pitch;
+
+      // UPPER lobe: cubic bezier from (x0, 0) peaking at center with pronounced loop feel.
+      // Control points positioned INSIDE the segment so the bezier bulges up vertically.
+      // Offset control points to the left/right to make the arc lean slightly — gives
+      // the helix its "rolling" 3D look.
+      d += ` C ${x0 - crossover * 0.1},${-amp * 1.2} ${x1 - crossover * 0.5},${-amp * 1.3} ${x1 - crossover * 0.3},0`;
+
+      // LOWER lobe: small dip below axis that represents the "back" of the coil visible
+      // between adjacent turns. Creates the classic helical crossover pattern.
+      if (i < coils - 1) {
+        // Dip down then back up to the next coil's upper-lobe start position
+        const nextUpperStart = x1 - crossover * 0.3;
+        const nextUpperEnd   = x1 + pitch - crossover * 0.3;
+        const bridgeX = (nextUpperStart + x1 + crossover * 0.2) / 2;
+        // cubic bezier going down-under-up
+        d += ` C ${nextUpperStart + crossover * 0.2},${amp * 0.45} ${bridgeX},${amp * 0.45} ${x1 + crossover * 0.2},0`;
+        // Short baseline segment bridging to the next coil's upper-lobe start
+        d += ` L ${nextUpperEnd - (nextUpperEnd - x1 - crossover * 0.2) * 0},0`;
+      }
+    }
+    d += ` L ${bodyE},0 L ${len / 2},0`;
+
+    return <path d={d} stroke={strokeColor} strokeWidth={w} fill="none"
+      strokeLinecap="round" strokeLinejoin="round" />;
   });
 }
 
@@ -708,6 +729,119 @@ function RenderPulley(p: ShapeRenderProps) {
   return wrap(p, <>
     <circle cx={cx} cy={cy} r={r} stroke={stroke(p)} strokeWidth={sw(p)} fill="transparent" />
     <circle cx={cx} cy={cy} r={2} fill={stroke(p)} />
+  </>);
+}
+
+/** Viscous damper (dashpot): cylinder + piston rod. Two-terminal shape. */
+function RenderDamper(p: ShapeRenderProps) {
+  return TwoTerminal(p, (len, w) => {
+    const strokeColor = stroke(p);
+    // Cylinder: covers middle 50% of length, height 60% of amp
+    const cylW = len * 0.5;
+    const cylX = -cylW / 2;      // left edge of cylinder
+    const cylH = Math.min(len * 0.28, 12);  // cylinder height/2
+    // Piston rod enters from the LEFT, piston plate inside cylinder
+    const pistonX = -cylW / 2 + cylW * 0.35;  // piston plate position
+    return (<>
+      {/* Left lead to piston rod */}
+      <line x1={-len / 2} y1={0} x2={pistonX} y2={0} stroke={strokeColor} strokeWidth={w} />
+      {/* Piston plate (inside cylinder) */}
+      <line x1={pistonX} y1={-cylH * 0.7} x2={pistonX} y2={cylH * 0.7}
+        stroke={strokeColor} strokeWidth={w * 1.5} strokeLinecap="round" />
+      {/* Cylinder: three walls (top, right, bottom) — left side is open for the rod */}
+      <path d={`M ${cylX} ${-cylH}
+                L ${cylX + cylW} ${-cylH}
+                L ${cylX + cylW} ${cylH}
+                L ${cylX} ${cylH}`}
+        stroke={strokeColor} strokeWidth={w} fill="none" strokeLinejoin="round" />
+      {/* Right lead out from cylinder */}
+      <line x1={cylX + cylW} y1={0} x2={len / 2} y2={0} stroke={strokeColor} strokeWidth={w} />
+    </>);
+  });
+}
+
+/** Moment (curved rotation arrow). Uses bbox center as rotation center. */
+function RenderMoment(p: ShapeRenderProps) {
+  const { cx, cy, pw, ph, shape } = p;
+  const w = sw(p);
+  const strokeColor = stroke(p);
+  const midX = cx + pw / 2, midY = cy + ph / 2;
+  const r = Math.min(pw, ph) / 2 * 0.8;
+  // Draw ~270° arc (3/4 circle), starting at top, going counter-clockwise
+  // Arc from (midX, midY - r) → curve to (midX + r, midY)
+  const startX = midX, startY = midY - r;
+  const endX = midX + r * Math.cos(Math.PI * 0.1), endY = midY + r * Math.sin(Math.PI * 0.1);
+  // Arrow head at end: triangle pointing tangent to the arc
+  const tangentAngle = Math.PI * 0.1 + Math.PI / 2;  // perpendicular to radius at end
+  const ahSize = Math.max(5, w * 4);
+  const ahPath = `M ${endX - Math.cos(tangentAngle) * ahSize - Math.sin(tangentAngle) * ahSize * 0.4} ${endY - Math.sin(tangentAngle) * ahSize + Math.cos(tangentAngle) * ahSize * 0.4}
+                  L ${endX} ${endY}
+                  L ${endX - Math.cos(tangentAngle) * ahSize + Math.sin(tangentAngle) * ahSize * 0.4} ${endY - Math.sin(tangentAngle) * ahSize - Math.cos(tangentAngle) * ahSize * 0.4}`;
+  return wrap(p, <>
+    {/* 270° arc, rotating counter-clockwise */}
+    <path d={`M ${startX} ${startY} A ${r} ${r} 0 1 1 ${endX} ${endY}`}
+      stroke={strokeColor} strokeWidth={w} fill="none" strokeLinecap="round" />
+    <path d={ahPath} stroke={strokeColor} strokeWidth={w} fill={strokeColor} strokeLinejoin="round" />
+    {/* Center dot */}
+    <circle cx={midX} cy={midY} r={1.5} fill={strokeColor} />
+    {shape.label && (
+      <text x={midX + r + 6} y={midY + 3} fontSize={fs(p) * 0.95}
+        fill={strokeColor} pointerEvents="none" fontStyle="italic">
+        {shape.labelMathMode ? renderMathPlaceholder(shape.label) : shape.label}
+      </text>
+    )}
+  </>);
+}
+
+/** Roller support: triangle (with top on the object edge) + 2 rollers + ground line. */
+function RenderSupportRoller(p: ShapeRenderProps) {
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  const strokeColor = stroke(p);
+  // Triangle points: top (at the object), left-bottom, right-bottom
+  const topY = cy;
+  const baseY = cy + ph * 0.6;
+  const triMidX = cx + pw / 2;
+  const triBaseLeft = cx + pw * 0.2, triBaseRight = cx + pw * 0.8;
+  // Rollers (circles) below triangle
+  const rollerR = Math.min(pw, ph) * 0.08;
+  const rollerY = baseY + rollerR + 1;
+  // Ground line (with hatching) below rollers
+  const groundY = rollerY + rollerR + 2;
+  return wrap(p, <>
+    {/* Triangle — filled white */}
+    <polygon points={`${triMidX},${topY} ${triBaseLeft},${baseY} ${triBaseRight},${baseY}`}
+      stroke={strokeColor} strokeWidth={w} fill="white" strokeLinejoin="round" />
+    {/* Two rollers underneath */}
+    <circle cx={triBaseLeft + (triBaseRight - triBaseLeft) * 0.3} cy={rollerY} r={rollerR}
+      stroke={strokeColor} strokeWidth={w * 0.8} fill="white" />
+    <circle cx={triBaseLeft + (triBaseRight - triBaseLeft) * 0.7} cy={rollerY} r={rollerR}
+      stroke={strokeColor} strokeWidth={w * 0.8} fill="white" />
+    {/* Ground line + hatching below */}
+    <line x1={cx} y1={groundY} x2={cx + pw} y2={groundY} stroke={strokeColor} strokeWidth={w} />
+    {hatchLines(cx, groundY, cx + pw, groundY, "below", strokeColor, w * 0.6)}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
+  </>);
+}
+
+/** Pin support: triangle (with top on object) + ground line with hatching. */
+function RenderSupportPin(p: ShapeRenderProps) {
+  const { cx, cy, pw, ph } = p;
+  const w = sw(p);
+  const strokeColor = stroke(p);
+  const topY = cy;
+  const baseY = cy + ph * 0.75;
+  const triMidX = cx + pw / 2;
+  const triBaseLeft = cx + pw * 0.2, triBaseRight = cx + pw * 0.8;
+  return wrap(p, <>
+    {/* Triangle with pin dot at top */}
+    <polygon points={`${triMidX},${topY} ${triBaseLeft},${baseY} ${triBaseRight},${baseY}`}
+      stroke={strokeColor} strokeWidth={w} fill="white" strokeLinejoin="round" />
+    <circle cx={triMidX} cy={topY} r={Math.max(1.5, w * 0.8)} fill={strokeColor} />
+    {/* Ground line + hatching */}
+    <line x1={cx} y1={baseY} x2={cx + pw} y2={baseY} stroke={strokeColor} strokeWidth={w} />
+    {hatchLines(cx, baseY, cx + pw, baseY, "below", strokeColor, w * 0.6)}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: cx, y: cy, w: pw, h: ph }} />
   </>);
 }
 
@@ -1031,10 +1165,10 @@ export function ShapeRenderer(p: ShapeRenderProps) {
     case "spring": return <RenderSpring {...p} />;
     case "mass": return <RenderMass {...p} />;
     case "pulley": return <RenderPulley {...p} />;
-    case "damper": return RenderGenericDomain(p, "Damper");
-    case "support-pin": return RenderGenericDomain(p, "Pin");
-    case "support-roller": return RenderGenericDomain(p, "Roller");
-    case "moment": return RenderGenericDomain(p, "M");
+    case "support-pin": return <RenderSupportPin {...p} />;
+    case "support-roller": return <RenderSupportRoller {...p} />;
+    case "moment": return <RenderMoment {...p} />;
+    case "damper": return <RenderDamper {...p} />;
     case "wall": return <RenderWall {...p} />;
     case "ground-hatch": return <RenderGroundHatch {...p} />;
 

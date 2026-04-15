@@ -252,19 +252,41 @@ function genCircuitComponent(s: FigureShape): string {
 }
 
 function genSpring(s: FigureShape): string {
-  const opts = buildDrawOptions(s.style, { "decoration": "{coil, segment length=3mm, amplitude=2mm}", "decorate": "" });
-  return `  \\draw[${opts}] ${coord(s.x, s.y)} -- ${coord(s.x + s.width, s.y)}${s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {${labelText(s)}}` : ""};`;
+  // Use TikZ `coil` decoration (from decorations.pathmorphing library) for a realistic
+  // helical spring. aspect=0.4 + pre/post length=0 gives a tight, wire-like coil.
+  const opts = buildDrawOptions(s.style, {
+    "decoration": "{coil, aspect=0.4, segment length=3mm, amplitude=3mm, pre length=0pt, post length=0pt}",
+    "decorate": "",
+  });
+  // Endpoint coords — use points if set (line tool), else bbox midline
+  const pts = s.points.length >= 2 ? s.points : [{ x: 0, y: s.height / 2 }, { x: s.width, y: s.height / 2 }];
+  const p0 = { x: s.x + pts[0].x, y: s.y + pts[0].y };
+  const p1 = { x: s.x + pts[pts.length - 1].x, y: s.y + pts[pts.length - 1].y };
+  const lbl = s.label ? ` node[midway, ${tikzLabelPos(s.labelPos ?? "above") || "above"}] {${labelText(s)}}` : "";
+  return `  \\draw[${opts}] ${coord(p0.x, p0.y)} -- ${coord(p1.x, p1.y)}${lbl};`;
 }
 
 function genDamper(s: FigureShape): string {
-  const cx = s.x + s.width / 2;
-  const cy = s.y;
-  const hw = 0.15;
-  const hh = 0.2;
+  // Dashpot: cylinder (open on left) + piston rod + piston plate + right lead
+  const opts = buildDrawOptions(s.style);
+  const pts = s.points.length >= 2 ? s.points : [{ x: 0, y: s.height / 2 }, { x: s.width, y: s.height / 2 }];
+  const p0 = { x: s.x + pts[0].x, y: s.y + pts[0].y };
+  const p1 = { x: s.x + pts[pts.length - 1].x, y: s.y + pts[pts.length - 1].y };
+  const len = Math.sqrt((p1.x - p0.x) ** 2 + (p1.y - p0.y) ** 2) || 1;
+  // Operate in a local frame along p0→p1, then rotate at the end
+  const angle = Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180 / Math.PI;
+  const cylW = Math.min(len * 0.45, 0.8);        // cylinder width (cm)
+  const cylH = Math.min(len * 0.22, 0.35);       // cylinder half-height
+  const cylL = (len - cylW) / 2;                 // cylinder left x (from p0)
+  const cylR = cylL + cylW;                      // cylinder right x
+  const pistonX = cylL + cylW * 0.35;            // piston plate x
   return [
-    `  \\draw ${coord(s.x, cy)} -- ${coord(cx - hw, cy)};`,
-    `  \\draw ${coord(cx - hw, cy - hh)} rectangle ${coord(cx + hw, cy + hh)};`,
-    `  \\draw ${coord(cx + hw, cy)} -- ${coord(s.x + s.width, cy)};`,
+    `  \\begin{scope}[shift={${coord(p0.x, p0.y)}}, rotate=${fmt(angle)}]`,
+    `  \\draw[${opts}] (0,0) -- (${fmt(pistonX)},0);`,
+    `  \\draw[${opts}, line width=1pt] (${fmt(pistonX)},${fmt(-cylH * 0.7)}) -- (${fmt(pistonX)},${fmt(cylH * 0.7)});`,
+    `  \\draw[${opts}] (${fmt(cylL)},${fmt(-cylH)}) -- (${fmt(cylR)},${fmt(-cylH)}) -- (${fmt(cylR)},${fmt(cylH)}) -- (${fmt(cylL)},${fmt(cylH)});`,
+    `  \\draw[${opts}] (${fmt(cylR)},0) -- (${fmt(len)},0);`,
+    `  \\end{scope}`,
   ].join("\n");
 }
 

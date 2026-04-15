@@ -19,7 +19,7 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import {
   X, Code2, ChevronDown, ChevronUp, ClipboardCopy, Check,
-  ImagePlus, Keyboard, FileDown, Loader2, Layers, Command,
+  ImagePlus, Keyboard, FileDown, Loader2, Layers, Command, Globe,
 } from "lucide-react";
 import { toast } from "sonner";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
@@ -27,11 +27,6 @@ import { useI18n } from "@/lib/i18n";
 import { LayersPanel } from "./layers-panel";
 import { CommandPalette } from "./command-palette";
 import { HelpTip } from "./help-tip";
-
-function useIsJa() {
-  if (typeof window === "undefined") return false;
-  try { return localStorage.getItem("lx-locale") === "ja"; } catch { return false; }
-}
 
 // ── Insert size presets ─────────────────────────────────────────
 
@@ -52,7 +47,8 @@ const SIZE_PRESETS: SizePreset[] = [
 ];
 
 export function FigureEditor() {
-  const isJa = useIsJa();
+  const { locale, setLocale, t } = useI18n();
+  const isJa = locale === "ja";
 
   const shapes = useFigureStore((s) => s.shapes);
   const connections = useFigureStore((s) => s.connections);
@@ -77,7 +73,6 @@ export function FigureEditor() {
   // Marker of the last inserted figure (so re-insert replaces it)
   const lastMarkerRef = React.useRef<string | null>(null);
 
-  const { t } = useI18n();
 
   // ── Cmd+K opens command palette ─────────────────────────────────
 
@@ -236,7 +231,7 @@ export function FigureEditor() {
     navigator.clipboard.writeText(scaledCode).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      toast.success(isJa ? "TikZコードをコピーしました" : "TikZ code copied");
+      toast.success(isJa ? "TikZコードをクリップボードにコピーしました" : "TikZ source copied to clipboard");
     });
   }, [scaledCode, isJa]);
 
@@ -306,7 +301,7 @@ export function FigureEditor() {
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
-          toast.success(isJa ? "PDFを保存しました" : "PDF saved");
+          toast.success(isJa ? "PDFを保存しました" : "PDF saved to disk");
           return;
         } catch (err) {
           if (err instanceof DOMException && err.name === "AbortError") return;
@@ -320,7 +315,7 @@ export function FigureEditor() {
       a.href = url; a.download = filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success(isJa ? "PDFをダウンロードしました" : "PDF downloaded");
+      toast.success(isJa ? "PDFをダウンロードしました" : "PDF download complete");
     } catch (err) {
       if (err instanceof CompileError) {
         const view = formatCompileError(err, t);
@@ -408,6 +403,20 @@ export function FigureEditor() {
 
         {/* Right — actions */}
         <div className="flex items-center gap-1.5">
+          {/* Language toggle (JA / EN) */}
+          <HelpTip
+            title={isJa ? "言語を切り替え" : "Switch language"}
+            description={isJa ? "日本語 ↔ English を即座に切替 (設定は保存される)" : "Toggle between Japanese and English (saved to preferences)"}
+          >
+            <button
+              onClick={() => setLocale(isJa ? "en" : "ja")}
+              className="flex items-center gap-1 h-7 px-2 rounded-lg text-[10px] font-bold font-mono text-foreground/50 hover:text-foreground/85 hover:bg-foreground/[0.04] border border-foreground/[0.08] transition-colors"
+            >
+              <Globe size={11} />
+              <span className="tracking-wider">{isJa ? "JA" : "EN"}</span>
+            </button>
+          </HelpTip>
+
           {/* Command palette (Cmd+K) */}
           <HelpTip title={isJa ? "コマンドパレット" : "Command palette"} kbd="⌘K"
             description={isJa ? "あらゆるツール・アクション・図形を検索して実行" : "Search and run any tool, action, or shape"}>
@@ -471,7 +480,7 @@ export function FigureEditor() {
             className="flex items-center gap-1 h-7 px-2.5 rounded-lg text-[10px] font-semibold text-foreground/40 hover:bg-foreground/[0.04] hover:text-foreground/60 transition-all disabled:opacity-30"
           >
             {copied ? <Check size={12} className="text-green-500" /> : <ClipboardCopy size={12} />}
-            <span>{copied ? (isJa ? "済" : "Done") : (isJa ? "コピー" : "Copy")}</span>
+            <span>{copied ? (isJa ? "済" : "Copied!") : (isJa ? "コピー" : "Copy TikZ")}</span>
           </button>
           </HelpTip>
 
@@ -484,7 +493,7 @@ export function FigureEditor() {
             className="flex items-center gap-1 h-7 px-2.5 rounded-lg text-[10px] font-semibold text-foreground/40 hover:bg-foreground/[0.04] hover:text-foreground/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {downloadingPdf ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
-            <span>{downloadingPdf ? (isJa ? "生成中" : "...") : (isJa ? "PDF" : "PDF")}</span>
+            <span>{downloadingPdf ? (isJa ? "生成中…" : "Generating…") : "PDF"}</span>
           </button>
           </HelpTip>
 
@@ -515,7 +524,7 @@ export function FigureEditor() {
             className="flex items-center gap-1.5 h-8 px-4 rounded-full text-[11px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md hover:opacity-90 transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ImagePlus size={13} />
-            <span>{lastMarkerRef.current ? (isJa ? "更新" : "Update") : (isJa ? "挿入" : "Insert")}</span>
+            <span>{lastMarkerRef.current ? (isJa ? "更新" : "Update figure") : (isJa ? "挿入" : "Insert figure")}</span>
           </button>
           </HelpTip>
 

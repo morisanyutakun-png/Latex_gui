@@ -22,10 +22,8 @@ import {
 import { ChevronRight, SlidersHorizontal, Tag, Move, Palette, PaintBucket, Minus, Type } from "lucide-react";
 import { LabelEditor } from "./label-editor";
 
-function useIsJa() {
-  if (typeof window === "undefined") return false;
-  try { return localStorage.getItem("lx-locale") === "ja"; } catch { return false; }
-}
+import { useI18n } from "@/lib/i18n";
+function useIsJa() { return useI18n().locale === "ja"; }
 
 // ── IPE color palette (28 named colors, TikZ-compatible) ────────
 

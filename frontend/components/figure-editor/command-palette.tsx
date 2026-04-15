@@ -14,10 +14,8 @@ import {
   Trash2, Copy, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Grid3x3, Magnet, Layers,
 } from "lucide-react";
 
-function useIsJa() {
-  if (typeof window === "undefined") return false;
-  try { return localStorage.getItem("lx-locale") === "ja"; } catch { return false; }
-}
+import { useI18n } from "@/lib/i18n";
+function useIsJa() { return useI18n().locale === "ja"; }
 
 interface Command {
   id: string;

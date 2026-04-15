@@ -29,10 +29,8 @@ import {
 } from "lucide-react";
 import { HelpTip } from "./help-tip";
 
-function useIsJa() {
-  if (typeof window === "undefined") return false;
-  try { return localStorage.getItem("lx-locale") === "ja"; } catch { return false; }
-}
+import { useI18n } from "@/lib/i18n";
+function useIsJa() { return useI18n().locale === "ja"; }
 
 // ══════════════════════════════════════════════════════════════════
 //  SHAPE MINI-PREVIEW — accurate SVG icons matching the actual shape

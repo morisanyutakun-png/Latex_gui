@@ -11,10 +11,8 @@ import type { FigureShape } from "./types";
 import { Eye, EyeOff, Lock, Unlock, ChevronUp, ChevronDown, Layers, X } from "lucide-react";
 import { getPaletteItem } from "./domain-palettes";
 
-function useIsJa() {
-  if (typeof window === "undefined") return false;
-  try { return localStorage.getItem("lx-locale") === "ja"; } catch { return false; }
-}
+import { useI18n } from "@/lib/i18n";
+function useIsJa() { return useI18n().locale === "ja"; }
 
 export function LayersPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const isJa = useIsJa();
