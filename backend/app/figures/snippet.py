@@ -41,6 +41,35 @@ _USEPACKAGE_RE = re.compile(r"\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}")
 _HAS_PGFPLOTS = re.compile(r"\\begin\{axis\}|\\begin\{groupplot\}|\\addplot")
 _HAS_CIRCUITIKZ = re.compile(r"\\begin\{circuitikz\}")
 
+# Content-based tikz library auto-detection. The Visual Editor posts raw
+# `\begin{tikzpicture}...\end{tikzpicture}` bodies without the surrounding
+# `\usetikzlibrary{...}` from the host preamble, so we must infer which
+# libraries the body actually uses (otherwise decoration keys like `coil`
+# explode deep inside pgfmath.code.tex).
+_CONTENT_LIBRARY_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\bdecoration\s*=\s*\{[^}]*\b(?:coil|snake|zigzag|bumps|waves|triangles|ticks|saw|border|expanding\s+waves|crosses|random\s+steps)\b"), "decorations.pathmorphing"),
+    (re.compile(r"\bdecorate\b"), "decorations.pathmorphing"),
+    (re.compile(r"\bdecoration\s*=\s*\{[^}]*\b(?:brace|straight\s+line|expanding\s+waves|border)\b"), "decorations.pathreplacing"),
+    (re.compile(r"\bdecoration\s*=\s*\{[^}]*\bmarkings\b"), "decorations.markings"),
+    (re.compile(r"\barrows\.meta\b|-\s*\{\s*(?:Latex|Stealth|Straight\s+Barb|Kite|To|Bar|Circle|Diamond|Square)"), "arrows.meta"),
+    (re.compile(r"\bpattern\s*=|pattern\s+color"), "patterns"),
+    (re.compile(r"\\node\[.*\b(?:rectangle|ellipse|diamond|trapezium|regular\s+polygon|star|cloud|cylinder|chamfered\s+rectangle|rounded\s+rectangle)\b"), "shapes.geometric"),
+    (re.compile(r"\bpositioning\b|\babove\s+(?:of|right|left)\b|\bbelow\s+(?:of|right|left)\b"), "positioning"),
+    (re.compile(r"\\coordinate|calc\b|let\s+\\p\d+|(\$[^\$]*!\d[^\$]*\$)"), "calc"),
+    (re.compile(r"\\fit\b|\bfit\s*="), "fit"),
+    (re.compile(r"\bautomaton\b|\binitial\b|\baccepting\b"), "automata"),
+    (re.compile(r"\\matrix\b"), "matrix"),
+]
+
+
+def _content_detect_libraries(body: str) -> set[str]:
+    """Auto-detect tikz libraries required by the body content."""
+    libs: set[str] = set()
+    for pat, lib in _CONTENT_LIBRARY_PATTERNS:
+        if lib in ALLOWED_TIKZ_LIBRARIES and pat.search(body):
+            libs.add(lib)
+    return libs
+
 
 class SnippetError(RuntimeError):
     pass
@@ -125,6 +154,9 @@ def _detect_libraries(src: str) -> list[str]:
             lib = lib.strip()
             if lib in ALLOWED_TIKZ_LIBRARIES:
                 libs.add(lib)
+    # Also infer libraries from content patterns, so raw bodies without an
+    # accompanying `\usetikzlibrary{...}` declaration still compile.
+    libs |= _content_detect_libraries(src)
     return sorted(libs)
 
 
