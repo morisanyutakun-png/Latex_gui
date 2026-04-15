@@ -498,27 +498,27 @@ export function FigureToolbar() {
           description={isJa ? "移動時にスナップを有効化" : "Enable smart snapping while moving"}><Magnet size={13} /></IconBtn>
       </div>
 
-      {/* ══════ Category tabs ══════ */}
+      {/* ══════ Category tabs — 2-row grid (no horizontal scroll) ══════ */}
       {!query && (
-        <div className="px-1.5 py-1 border-t border-foreground/[0.06] overflow-x-auto scrollbar-none">
-          <div className="flex gap-0.5">
+        <div className="px-1.5 py-1.5 border-t border-foreground/[0.06]">
+          <div className="grid grid-cols-4 gap-0.5">
             {CATEGORIES.map((cat) => {
               const active = activeCategory === cat.id;
               return (
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`relative flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-semibold whitespace-nowrap transition-all duration-150 ${
+                  title={isJa ? cat.labelJa : cat.label}
+                  className={`relative flex flex-col items-center gap-0 py-1.5 rounded-md text-[9px] font-semibold transition-all duration-150 ${
                     active
-                      ? "bg-foreground/[0.08] text-foreground shadow-sm"
-                      : "text-foreground/45 hover:text-foreground/75 hover:bg-foreground/[0.04]"
+                      ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/30"
+                      : "text-foreground/50 hover:text-foreground/80 hover:bg-foreground/[0.04]"
                   }`}
                 >
-                  <span className="text-[12px]">{cat.icon}</span>
-                  <span>{isJa ? cat.labelJa : cat.label}</span>
-                  {active && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-5 rounded-full bg-blue-500" />
-                  )}
+                  <span className="text-[13px] leading-none mb-0.5">{cat.icon}</span>
+                  <span className="truncate max-w-full px-1 leading-tight">
+                    {isJa ? cat.labelJa : cat.label}
+                  </span>
                 </button>
               );
             })}

@@ -69,6 +69,12 @@ export function FigureEditor() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  // New: caption text (empty → no \caption{} wrapper)
+  const [caption, setCaption] = useState("");
+  // New: insertion position — "end" (before \end{document}), "top" (after \begin{document}), "cursor"
+  const [insertPos, setInsertPos] = useState<"end" | "top" | "cursor">("end");
+  // Marker of the last inserted figure (so re-insert replaces it)
+  const lastMarkerRef = React.useRef<string | null>(null);
 
   const { t } = useI18n();
 
@@ -112,22 +118,79 @@ export function FigureEditor() {
   const handleInsert = useCallback(() => {
     if (!doc || shapes.length === 0) return;
 
-    const code = `\n\\begin{center}\n${scaledCode}\n\\end{center}\n`;
-    const currentLatex = doc.latex;
+    // Generate a unique marker so the block can be located & replaced later
+    const marker = lastMarkerRef.current ?? `eddivom-fig-${Date.now().toString(36)}`;
+    const beginMark = `% ${marker}-begin`;
+    const endMark   = `% ${marker}-end`;
 
-    const endDocIdx = currentLatex.lastIndexOf("\\end{document}");
+    // Build the figure block: if a caption is set, use figure environment with caption BELOW;
+    // otherwise use \begin{center}. Either way, body is wrapped with markers for re-editing.
+    const captionTrim = caption.trim();
+    const labelRef = captionTrim ? `fig:${marker}` : "";
+    const body = captionTrim
+      ? [
+          "\\begin{figure}[h]",
+          "\\centering",
+          scaledCode,
+          `\\caption{${captionTrim}}`,
+          `\\label{${labelRef}}`,
+          "\\end{figure}",
+        ].join("\n")
+      : `\\begin{center}\n${scaledCode}\n\\end{center}`;
+
+    const block = `\n${beginMark}\n${body}\n${endMark}\n`;
+    let currentLatex = doc.latex;
+
+    // 1. If a previous marker exists in the doc, REPLACE that block (re-insert behavior)
+    const existingBegin = currentLatex.indexOf(beginMark);
+    const existingEnd = existingBegin >= 0 ? currentLatex.indexOf(endMark, existingBegin) : -1;
+    if (existingBegin >= 0 && existingEnd >= 0) {
+      const before = currentLatex.slice(0, existingBegin).replace(/\n$/, "");
+      const after = currentLatex.slice(existingEnd + endMark.length).replace(/^\n/, "");
+      currentLatex = before + block + after;
+      setLatex(currentLatex);
+      lastMarkerRef.current = marker;
+      toast.success(isJa ? "図を更新しました (サイズ反映)" : "Figure updated (new size applied)");
+      return;
+    }
+
+    // 2. Otherwise insert at the chosen position
     let newLatex: string;
-    if (endDocIdx >= 0) {
-      newLatex = currentLatex.slice(0, endDocIdx) + code + "\n" + currentLatex.slice(endDocIdx);
+    if (insertPos === "top") {
+      const beginDocIdx = currentLatex.indexOf("\\begin{document}");
+      if (beginDocIdx >= 0) {
+        const afterBegin = currentLatex.indexOf("\n", beginDocIdx);
+        const insertAt = afterBegin >= 0 ? afterBegin + 1 : beginDocIdx + "\\begin{document}".length;
+        newLatex = currentLatex.slice(0, insertAt) + block + currentLatex.slice(insertAt);
+      } else {
+        newLatex = block + currentLatex;
+      }
+    } else if (insertPos === "cursor") {
+      // Best-effort: insert at the end of the first blank line after middle of doc,
+      // or before \end{document} if no better position. Real cursor tracking needs editor integration.
+      const endDocIdx = currentLatex.lastIndexOf("\\end{document}");
+      if (endDocIdx >= 0) {
+        newLatex = currentLatex.slice(0, endDocIdx) + block + "\n" + currentLatex.slice(endDocIdx);
+      } else {
+        newLatex = currentLatex + block;
+      }
     } else {
-      newLatex = currentLatex + code;
+      // "end" — before \end{document}
+      const endDocIdx = currentLatex.lastIndexOf("\\end{document}");
+      if (endDocIdx >= 0) {
+        newLatex = currentLatex.slice(0, endDocIdx) + block + "\n" + currentLatex.slice(endDocIdx);
+      } else {
+        newLatex = currentLatex + block;
+      }
     }
 
     setLatex(newLatex);
-    toast.success(isJa ? "図を挿入しました" : "Figure inserted into document");
-    closeFigureEditor();
-    resetAll();
-  }, [doc, shapes, scaledCode, setLatex, closeFigureEditor, resetAll, isJa]);
+    lastMarkerRef.current = marker;
+    toast.success(isJa
+      ? "図を挿入しました — エディタを再度開いてサイズ調整も可能"
+      : "Figure inserted — reopen editor to resize later");
+    // Keep shapes in memory (don't resetAll) so user can reopen & adjust size / caption
+  }, [doc, shapes, scaledCode, caption, insertPos, setLatex, isJa]);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(scaledCode).then(() => {
@@ -205,9 +268,15 @@ export function FigureEditor() {
   }, [shapes, scaledCode, downloadingPdf, isJa, t]);
 
   const handleClose = useCallback(() => {
-    if (shapes.length > 0 && !confirm(isJa ? "編集中の図を破棄しますか？" : "Discard current figure?")) return;
+    // If shapes exist AND have NOT been inserted yet → warn (first-time discard)
+    // If already inserted (lastMarkerRef set), closing just hides the editor;
+    //   shapes persist in memory so user can reopen & re-edit.
+    if (shapes.length > 0 && !lastMarkerRef.current) {
+      if (!confirm(isJa ? "編集中の図を破棄しますか？ (挿入していません)" : "Discard unsaved figure? (not yet inserted)")) return;
+      resetAll();
+    }
+    // When already inserted, we keep shapes in memory → reopening the editor restores them
     closeFigureEditor();
-    resetAll();
   }, [shapes.length, closeFigureEditor, resetAll, isJa]);
 
   return (
@@ -354,16 +423,32 @@ export function FigureEditor() {
 
           <div className="w-px h-5 bg-foreground/[0.08] mx-0.5" />
 
+          {/* Insert position selector */}
+          <HelpTip title={isJa ? "挿入位置" : "Insert position"}
+            description={isJa ? "図を文書のどこに入れるか選択" : "Choose where in the document to place the figure"}>
+            <select
+              value={insertPos}
+              onChange={(e) => setInsertPos(e.target.value as "end" | "top" | "cursor")}
+              className="h-7 pl-2 pr-6 text-[10px] rounded-lg border border-foreground/[0.08] bg-white/70 dark:bg-white/5 font-semibold text-foreground/65 focus:outline-none focus:ring-1 focus:ring-teal-500/40 transition-all"
+            >
+              <option value="end">{isJa ? "末尾" : "End"}</option>
+              <option value="top">{isJa ? "先頭" : "Top"}</option>
+              <option value="cursor">{isJa ? "カーソル前" : "Cursor"}</option>
+            </select>
+          </HelpTip>
+
           {/* Insert */}
-          <HelpTip title={isJa ? "LaTeX文書に挿入" : "Insert into LaTeX document"}
-            description={isJa ? "選んだサイズで図をエディタに挿入" : "Drop the figure into the editor at the chosen size"}>
+          <HelpTip title={lastMarkerRef.current ? (isJa ? "図を更新" : "Update figure") : (isJa ? "LaTeX文書に挿入" : "Insert into LaTeX document")}
+            description={lastMarkerRef.current
+              ? (isJa ? "挿入済みの図をこの設定で更新 (サイズ・キャプション反映)" : "Replace the previously inserted figure with these settings")
+              : (isJa ? "選んだサイズ・位置で図をエディタに挿入" : "Drop the figure into the editor at the chosen size & position")}>
           <button
             onClick={handleInsert}
             disabled={shapes.length === 0}
             className="flex items-center gap-1.5 h-8 px-4 rounded-full text-[11px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md hover:opacity-90 transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ImagePlus size={13} />
-            <span>{isJa ? "挿入" : "Insert"}</span>
+            <span>{lastMarkerRef.current ? (isJa ? "更新" : "Update") : (isJa ? "挿入" : "Insert")}</span>
           </button>
           </HelpTip>
 
@@ -379,6 +464,34 @@ export function FigureEditor() {
           </HelpTip>
         </div>
       </header>
+
+      {/* ══════════ CAPTION BAR ══════════ */}
+      {shapes.length > 0 && (
+        <div className="shrink-0 border-b border-foreground/[0.06] bg-gradient-to-r from-teal-50/40 to-cyan-50/20 dark:from-teal-500/5 dark:to-cyan-500/5 px-3 py-1.5 flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400 shrink-0">
+            {isJa ? "キャプション" : "Caption"}
+          </span>
+          <HelpTip
+            title={isJa ? "図の説明文" : "Figure caption"}
+            description={isJa
+              ? "入力すると figure 環境で挿入され、キャプションが図の下に配置されます (LaTeX慣例)"
+              : "If set, the figure is wrapped in a figure environment with caption BELOW (LaTeX convention)"}
+            side="bottom"
+          >
+            <input
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder={isJa ? "図の下に表示されます (空欄なら図のみ)" : "Shown below the figure (leave empty for no caption)"}
+              className="flex-1 h-6 px-2 text-[11px] rounded-md border border-teal-500/20 bg-white/80 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-teal-500/40 focus:border-teal-500/50 transition-all placeholder:text-foreground/30"
+            />
+          </HelpTip>
+          {caption && (
+            <span className="text-[9px] text-foreground/40 font-mono shrink-0">
+              {isJa ? "fig:ref → " : "fig:ref → "}<code className="text-teal-600 dark:text-teal-400">{lastMarkerRef.current ? `fig:${lastMarkerRef.current}` : "…"}</code>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ══════════ SHORTCUTS PANEL ══════════ */}
       {showShortcuts && (

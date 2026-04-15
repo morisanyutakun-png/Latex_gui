@@ -650,16 +650,33 @@ function RenderOpAmp(p: ShapeRenderProps) {
 
 function RenderSpring(p: ShapeRenderProps) {
   return TwoTerminal(p, (len, w) => {
-    const coils = 8, amp = 6;
-    const leadL = len * 0.08;
-    const bodyS = -len / 2 + leadL, bodyE = len / 2 - leadL;
-    const segW = (bodyE - bodyS) / coils;
-    let d = `M${-len / 2},0 L${bodyS},0`;
-    for (let i = 0; i < coils; i++) {
-      d += ` L${bodyS + (i + 0.5) * segW},${(i % 2 === 0 ? -1 : 1) * amp}`;
-    }
-    d += ` L${bodyE},0 L${len / 2},0`;
-    return <path d={d} stroke={stroke(p)} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+    const strokeColor = stroke(p);
+    const leadL = Math.min(len * 0.06, 8);
+    const bodyS = -len / 2 + leadL;
+    const bodyE = len / 2 - leadL;
+    const bodyLen = Math.max(1, bodyE - bodyS);
+    // Adapt coil count to body length; ~7-8px per coil for good density
+    const coils = Math.max(4, Math.round(bodyLen / 7));
+    const coilWidth = bodyLen / coils;
+    // Coil height: grows with coilWidth but capped so short springs stay sensible
+    const amp = Math.min(Math.max(coilWidth * 1.1, 5), 10);
+    // Overlap factor: each ellipse slightly wider than pitch → overlapping rings (helical look)
+    const rx = coilWidth * 0.58;
+    const ry = amp;
+    return (<>
+      {/* Lead-in line */}
+      <line x1={-len / 2} y1={0} x2={bodyS} y2={0} stroke={strokeColor} strokeWidth={w} />
+      {/* Helical coils — overlapping ellipses create 3D coil illusion */}
+      {Array.from({ length: coils }).map((_, i) => {
+        const cx = bodyS + (i + 0.5) * coilWidth;
+        return (
+          <ellipse key={i} cx={cx} cy={0} rx={rx} ry={ry}
+            stroke={strokeColor} strokeWidth={w} fill="none" strokeLinecap="round" />
+        );
+      })}
+      {/* Lead-out line */}
+      <line x1={bodyE} y1={0} x2={len / 2} y2={0} stroke={strokeColor} strokeWidth={w} />
+    </>);
   });
 }
 
@@ -674,10 +691,12 @@ function RenderMass(p: ShapeRenderProps) {
         x2={p.cx + p.pw * (f - 0.15)} y2={p.cy + p.ph * 0.7}
         stroke={stroke(p)} strokeWidth={0.5} opacity={0.3} />
     ))}
-    <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none" fontStyle="italic">
-      {p.shape.labelMathMode ? renderMathPlaceholder(p.shape.label || "m") : (p.shape.label || "m")}
-    </text>
+    {p.shape.label && (
+      <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2} textAnchor="middle" dominantBaseline="central"
+        fontSize={fs(p)} fill={stroke(p)} pointerEvents="none" fontStyle="italic">
+        {p.shape.labelMathMode ? renderMathPlaceholder(p.shape.label) : p.shape.label}
+      </text>
+    )}
   </>);
 }
 
@@ -694,9 +713,13 @@ function RenderPulley(p: ShapeRenderProps) {
 //  CS / FLOWCHART
 // ══════════════════════════════════════════════════════════════════
 
-function maybeMath(s: FigureShape, fallback: string): string {
-  const t = s.label || fallback;
-  return s.labelMathMode ? renderMathPlaceholder(t) : t;
+/**
+ * Render the shape's label with math rendering if enabled.
+ * Returns empty string if no label — the caller decides whether to show a fallback.
+ */
+function maybeMath(s: FigureShape): string {
+  if (!s.label) return "";
+  return s.labelMathMode ? renderMathPlaceholder(s.label) : s.label;
 }
 
 function RenderFlowchartDecision(p: ShapeRenderProps) {
@@ -705,7 +728,7 @@ function RenderFlowchartDecision(p: ShapeRenderProps) {
   return wrap(p, <>
     <polygon points={pts} stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} />
     <text x={midX} y={midY} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape, "?")}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape)}</text>
   </>);
 }
 
@@ -714,7 +737,7 @@ function RenderFlowchartTerminal(p: ShapeRenderProps) {
     <rect x={p.cx} y={p.cy} width={p.pw} height={p.ph} rx={p.ph / 2}
       stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} />
     <text x={p.cx + p.pw / 2} y={p.cy + p.ph / 2} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape, "Start")}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape)}</text>
   </>);
 }
 
@@ -724,7 +747,7 @@ function RenderAutomatonState(p: ShapeRenderProps) {
   return wrap(p, <>
     <circle cx={cx} cy={cy} r={r} stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} />
     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape, "q")}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape)}</text>
   </>);
 }
 
@@ -735,7 +758,7 @@ function RenderAutomatonAccept(p: ShapeRenderProps) {
     <circle cx={cx} cy={cy} r={r} stroke={stroke(p)} strokeWidth={sw(p)} fill={fill(p)} fillOpacity={fillOp(p)} />
     <circle cx={cx} cy={cy} r={r * 0.78} stroke={stroke(p)} strokeWidth={sw(p)} fill="none" />
     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape, "q")}</text>
+      fontSize={fs(p)} fill={stroke(p)} pointerEvents="none">{maybeMath(p.shape)}</text>
   </>);
 }
 

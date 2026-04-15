@@ -19,7 +19,7 @@ import type { FigureShape, ShapeStyle, DashStyle, ArrowHead } from "./types";
 import {
   IPE_COLORS, PEN_PRESETS, DASH_PATTERNS, OPACITY_PRESETS, ARROW_SIZES, colorRgb,
 } from "./types";
-import { ChevronRight, Sparkles, Tag, Move, Palette, PaintBucket, Minus, Type, Droplets } from "lucide-react";
+import { ChevronRight, SlidersHorizontal, Tag, Move, Palette, PaintBucket, Minus, Type } from "lucide-react";
 import { LabelEditor } from "./label-editor";
 
 function useIsJa() {
@@ -396,7 +396,7 @@ export function FigureProperties() {
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 pt-10 flex flex-col items-center text-center gap-3">
             <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-500/10 dark:to-orange-500/10 flex items-center justify-center shadow-inner">
-              <Sparkles className="h-6 w-6 text-amber-500/70" />
+              <SlidersHorizontal className="h-6 w-6 text-amber-500/70" />
             </div>
             <div>
               <h4 className="text-[12px] font-bold text-foreground/70">
