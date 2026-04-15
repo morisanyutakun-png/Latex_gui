@@ -829,6 +829,11 @@ export function generateFullLatex(shapes: FigureShape[], connections: Connection
   const tikz = generateTikZ(shapes, connections);
 
   const preamble: string[] = [];
+  // Always load tikz itself — `\usetikzlibrary{...}` is defined by tikz.sty,
+  // and base templates (blank / JA_BASE) don't load it, so leaving this out
+  // makes the injected `\usetikzlibrary` line blow up with "Undefined control
+  // sequence", which lualatex then surfaces as "Missing \begin{document}".
+  preamble.push("\\usepackage{tikz}");
   // Always include arrows.meta for IPE-style arrow heads
   preamble.push("\\usetikzlibrary{arrows.meta}");
   if (pkgs.includes("circuitikz")) preamble.push("\\usepackage{circuitikz}");
