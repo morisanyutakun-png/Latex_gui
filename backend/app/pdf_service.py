@@ -218,29 +218,52 @@ def _compile_latex(latex_source: str, timeout: int = 120) -> bytes:
         current_source = retried_source
         log_output = retry_log or log_output
 
+    # ── 3) 最終手段: lenient モードで再コンパイル ──
+    # --halt-on-error を外して -interaction=nonstopmode のみで実行し、
+    # エラーがあっても出力可能な範囲で PDF を生成する。
+    # tikzpicture のライブラリ不足等で後続テキストが消える問題を緩和する。
+    logger.info("[autofix] strict retries exhausted — trying lenient compile")
+    lenient_pdf, lenient_log = _try_compile_once(current_source, timeout, lenient=True)
+    if lenient_pdf is not None:
+        logger.info("[autofix] lenient compile produced a PDF despite errors")
+        gc.collect()
+        return lenient_pdf
+
     # ここまで来たら救えない — 元のエラー扱いで投げ直す
-    user_msg = _parse_latex_error(log_output or "")
-    raise PDFGenerationError(user_msg, detail=(log_output or "")[-2000:])
+    user_msg = _parse_latex_error(lenient_log or log_output or "")
+    raise PDFGenerationError(user_msg, detail=(lenient_log or log_output or "")[-2000:])
 
 
-def _try_compile_once(latex_source: str, timeout: int) -> tuple[bytes | None, str | None]:
+def _try_compile_once(
+    latex_source: str,
+    timeout: int,
+    *,
+    lenient: bool = False,
+) -> tuple[bytes | None, str | None]:
     """1 回だけ lualatex を呼ぶ。成功なら (bytes, None)、失敗なら (None, log)。
 
     タイムアウトや FileNotFoundError は救済不能なので即 PDFGenerationError を投げる。
     シグナル kill (returncode<0) もメモリ不足が疑われるため救済しない。
+
+    lenient=True の場合、--halt-on-error を外して -interaction=nonstopmode のみで
+    コンパイルする。エラーがあっても出力可能な範囲で PDF を生成する (プレビュー向け)。
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = Path(tmpdir) / "document.tex"
         pdf_path = Path(tmpdir) / "document.pdf"
 
         tex_path.write_text(latex_source, encoding="utf-8")
-        logger.info("Compiling with lualatex...")
+        logger.info("Compiling with lualatex...%s", " (lenient)" if lenient else "")
 
         cmd_args = get_compile_args(
             LUALATEX_CMD,
             str(tmpdir),
             str(tex_path),
         )
+        if lenient:
+            # Remove --halt-on-error so compilation continues past errors,
+            # producing a partial PDF that still shows compilable content.
+            cmd_args = [a for a in cmd_args if a != "-halt-on-error"]
 
         try:
             result = subprocess.run(
@@ -264,7 +287,6 @@ def _try_compile_once(latex_source: str, timeout: int) -> tuple[bytes | None, st
 
         if result.returncode != 0:
             log_output = result.stdout + "\n" + result.stderr
-            logger.error(f"lualatex failed (exit={result.returncode}):\n{log_output[-3000:]}")
 
             if result.returncode < 0:
                 import signal as _signal
@@ -277,6 +299,16 @@ def _try_compile_once(latex_source: str, timeout: int) -> tuple[bytes | None, st
                     detail=f"Process killed by {sig_name}. Log: {log_output[-1000:]}"
                 )
 
+            # In lenient mode, even if returncode != 0, a partial PDF may exist.
+            # Return it so the preview shows whatever content compiled successfully.
+            if lenient and pdf_path.exists():
+                logger.warning(
+                    "lualatex exited with errors (exit=%d) but produced a PDF in lenient mode",
+                    result.returncode,
+                )
+                return pdf_path.read_bytes(), None
+
+            logger.error(f"lualatex failed (exit={result.returncode}):\n{log_output[-3000:]}")
             return None, log_output
 
         if not pdf_path.exists():

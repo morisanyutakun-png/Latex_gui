@@ -1283,7 +1283,11 @@ def autofix_after_failure(src: str, log: str) -> Optional[str]:
     # 足りないとき、\kvtcb@title や \tcb@breakable@xxx のような内部コマンドが
     # 未定義になる。パッケージ補完では救えない (既にロード済み) ので、
     # ライブラリ補完を再度走らせる。
-    undef_cmds = extract_undefined_commands(_unwrap_tex_log(log))
+    #
+    # また、PGF の "Decoration 'X' not found" エラーも tikzlibrary 不足なので
+    # 同様に補完対象とする (--halt-on-error で後続テキストが消える主原因)。
+    unwrapped_log = _unwrap_tex_log(log)
+    undef_cmds = extract_undefined_commands(unwrapped_log)
     needs_tcb_libs = any(
         cmd.startswith(r"\kvtcb@") or cmd.startswith(r"\tcb@")
         for cmd in undef_cmds
@@ -1292,6 +1296,16 @@ def autofix_after_failure(src: str, log: str) -> Optional[str]:
         cmd.startswith(r"\tikz@") or cmd.startswith(r"\pgf@")
         for cmd in undef_cmds
     )
+    # PGF decoration errors (e.g. "Decoration 'coil' not found") → need tikz libs
+    if not needs_tikz_libs and re.search(
+        r"Package pgf Error.*[Dd]ecoration.*not found", unwrapped_log
+    ):
+        needs_tikz_libs = True
+    # PGF/TikZ key errors (e.g. "I do not know the key '/tikz/...'") → need tikz libs
+    if not needs_tikz_libs and re.search(
+        r"do not know the key\s+['\"]?/(?:tikz|pgf)/", unwrapped_log
+    ):
+        needs_tikz_libs = True
     if needs_tcb_libs or needs_tikz_libs:
         fixed = src
         if needs_tcb_libs:

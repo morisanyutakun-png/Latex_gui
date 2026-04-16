@@ -678,15 +678,25 @@ function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }:
     };
   }, [openMathEditor]);
 
-  // Cmd/Ctrl+M で空チップを挿入してポップオーバーを開く (commit は COMMIT_EVENT 経由)
+  // Enter = commit (blur), Shift+Enter = line break, Cmd/Ctrl+M = math chip
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLElement>) => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "m") return;
-      e.preventDefault();
-      e.stopPropagation();
-      const node = ref.current;
-      if (!node) return;
-      insertEmptyMathChipAndEdit(node, openMathEditor);
+      // Cmd/Ctrl+M → 数式チップ挿入
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        e.stopPropagation();
+        const node = ref.current;
+        if (!node) return;
+        insertEmptyMathChipAndEdit(node, openMathEditor);
+        return;
+      }
+      // Enter (without Shift) → commit by blurring
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).blur();
+        return;
+      }
+      // Shift+Enter → default line break (allow contentEditable default)
     },
     [openMathEditor]
   );
@@ -1634,15 +1644,25 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
     };
   }, [innerRef, openMathEditor]);
 
-  // Cmd/Ctrl+M で空チップ挿入 → ポップオーバー (commit は COMMIT_EVENT 経由)
+  // Enter = commit (insert paragraph), Shift+Enter = line break, Cmd/Ctrl+M = math chip
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLElement>) => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "m") return;
-      e.preventDefault();
-      e.stopPropagation();
-      const node = innerRef.current;
-      if (!node) return;
-      insertEmptyMathChipAndEdit(node, openMathEditor);
+      // Cmd/Ctrl+M → 数式チップ挿入
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        e.stopPropagation();
+        const node = innerRef.current;
+        if (!node) return;
+        insertEmptyMathChipAndEdit(node, openMathEditor);
+        return;
+      }
+      // Enter (without Shift) → commit by blurring
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).blur();
+        return;
+      }
+      // Shift+Enter → default line break (allow contentEditable default)
     },
     [innerRef, openMathEditor]
   );
