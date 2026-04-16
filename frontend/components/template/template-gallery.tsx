@@ -1705,7 +1705,8 @@ export function TemplateGallery() {
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月3回" : "High-performance AI: 3/month",
-                  isJa ? "PDF出力 月1回" : "PDF export: 1/month",
+                  isJa ? "教材PDF出力 月1回" : "Worksheet PDF: 1/month",
+                  isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
                   isJa ? "基本テンプレート" : "Basic templates",
                   isJa ? "リアルタイムプレビュー" : "Real-time preview",
                   isJa ? "思考ログ表示" : "Thinking log display",
@@ -1744,10 +1745,9 @@ export function TemplateGallery() {
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月150回" : "High-performance AI: 150/month",
-                  isJa ? "PDF出力 無制限" : "Unlimited PDF export",
+                  isJa ? "教材PDF出力 無制限" : "Worksheet PDF: unlimited",
+                  isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
                   isJa ? "基本テンプレート" : "Basic templates",
-                  isJa ? "リアルタイムプレビュー" : "Real-time preview",
-                  isJa ? "思考ログ表示" : "Thinking log display",
                   isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
@@ -1785,7 +1785,8 @@ export function TemplateGallery() {
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月500回" : "High-performance AI: 500/month",
-                  isJa ? "PDF出力 無制限 (優先処理)" : "Unlimited PDF (priority)",
+                  isJa ? "教材PDF出力 無制限 (優先処理)" : "Worksheet PDF: unlimited (priority)",
+                  isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
                   isJa ? "全テンプレート利用可" : "All templates",
                   isJa ? "PDF・画像から問題を抽出 (OCR)" : "Import from PDF & images (OCR)",
                   isJa ? "バッチ処理 (最大100行)" : "Batch (up to 100 rows)",
@@ -1826,7 +1827,8 @@ export function TemplateGallery() {
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月2,000回" : "High-performance AI: 2,000/month",
-                  isJa ? "PDF出力 無制限 (最優先処理)" : "Unlimited PDF (highest priority)",
+                  isJa ? "教材PDF出力 無制限 (最優先処理)" : "Worksheet PDF: unlimited (highest priority)",
+                  isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
                   isJa ? "Proの全機能を含む" : "Everything in Pro",
                   isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",
                   isJa ? "カスタムテンプレート作成" : "Custom template creation",

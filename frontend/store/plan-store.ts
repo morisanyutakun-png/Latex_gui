@@ -21,15 +21,19 @@ function monthKey(): string {
 interface UsageData {
   daily: Record<string, number>;   // { "2026-04-04": 5 }
   monthly: Record<string, number>; // { "2026-04": 42 }
+  pdfMonthly: Record<string, number>; // { "2026-04": 1 }  教材PDF出力
 }
 
 function loadUsage(): UsageData {
-  if (typeof window === "undefined") return { daily: {}, monthly: {} };
+  if (typeof window === "undefined") return { daily: {}, monthly: {}, pdfMonthly: {} };
   try {
     const raw = localStorage.getItem(LS_USAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { daily: parsed.daily || {}, monthly: parsed.monthly || {}, pdfMonthly: parsed.pdfMonthly || {} };
+    }
   } catch { /* ignore */ }
-  return { daily: {}, monthly: {} };
+  return { daily: {}, monthly: {}, pdfMonthly: {} };
 }
 
 function saveUsage(data: UsageData) {
@@ -46,7 +50,12 @@ function saveUsage(data: UsageData) {
     const d = new Date(key + "-01");
     if (now.getTime() - d.getTime() < 90 * 86400000) cleanedMonthly[key] = val;
   }
-  localStorage.setItem(LS_USAGE_KEY, JSON.stringify({ daily: cleanedDaily, monthly: cleanedMonthly }));
+  const cleanedPdfMonthly: Record<string, number> = {};
+  for (const [key, val] of Object.entries(data.pdfMonthly || {})) {
+    const d = new Date(key + "-01");
+    if (now.getTime() - d.getTime() < 90 * 86400000) cleanedPdfMonthly[key] = val;
+  }
+  localStorage.setItem(LS_USAGE_KEY, JSON.stringify({ daily: cleanedDaily, monthly: cleanedMonthly, pdfMonthly: cleanedPdfMonthly }));
 }
 
 function loadPlan(): PlanId {
@@ -70,14 +79,18 @@ export interface PlanState {
   // 読み取り
   todayUsage: () => number;
   monthUsage: () => number;
+  pdfMonthUsage: () => number;
   dailyLimit: () => number;
   monthlyLimit: () => number;
+  pdfMonthlyLimit: () => number;
   canMakeRequest: () => { allowed: boolean; reason: string };
+  canExportPDF: () => { allowed: boolean; reason: string };
   usagePercent: () => { daily: number; monthly: number };
 
   // 操作
   setPlan: (plan: PlanId) => void;
   incrementUsage: () => void;
+  incrementPdfUsage: () => void;
   setShowPricing: (v: boolean) => void;
   initFromStorage: () => void;
   fetchSubscription: () => Promise<void>;
@@ -85,19 +98,20 @@ export interface PlanState {
 
 export const usePlanStore = create<PlanState>((set, get) => ({
   currentPlan: "free",
-  usage: { daily: {}, monthly: {} },
+  usage: { daily: {}, monthly: {}, pdfMonthly: {} },
   showPricing: false,
   isLoadingSubscription: false,
   subscriptionFetched: false,
 
   todayUsage: () => get().usage.daily[todayKey()] || 0,
   monthUsage: () => get().usage.monthly[monthKey()] || 0,
+  pdfMonthUsage: () => get().usage.pdfMonthly?.[monthKey()] || 0,
 
   dailyLimit: () => PLANS[get().currentPlan].requestsPerDay,
   monthlyLimit: () => PLANS[get().currentPlan].requestsPerMonth,
+  pdfMonthlyLimit: () => PLANS[get().currentPlan].pdfPerMonth,
 
   canMakeRequest: () => {
-    // 開発段階: 制限超過は警告のみ、ブロックしない
     const state = get();
     const plan = PLANS[state.currentPlan];
     const daily = state.usage.daily[todayKey()] || 0;
@@ -105,14 +119,29 @@ export const usePlanStore = create<PlanState>((set, get) => ({
 
     if (daily >= plan.requestsPerDay) {
       return {
-        allowed: true,  // TODO: リリース時に false に変更
-        reason: `⚠️ 本日のAIリクエスト上限 (${plan.requestsPerDay}回) を超えています。開発中のため引き続き利用可能です。`,
+        allowed: false,
+        reason: `本日の高性能AI上限 (${plan.requestsPerDay}回) に達しました。プランをアップグレードすると上限が増えます。`,
       };
     }
     if (monthly >= plan.requestsPerMonth) {
       return {
-        allowed: true,  // TODO: リリース時に false に変更
-        reason: `⚠️ 今月のAIリクエスト上限 (${plan.requestsPerMonth.toLocaleString()}回) を超えています。開発中のため引き続き利用可能です。`,
+        allowed: false,
+        reason: `今月の高性能AI上限 (${plan.requestsPerMonth.toLocaleString()}回) に達しました。プランをアップグレードすると上限が増えます。`,
+      };
+    }
+    return { allowed: true, reason: "" };
+  },
+
+  canExportPDF: () => {
+    const state = get();
+    const plan = PLANS[state.currentPlan];
+    // pdfPerMonth === 0 は無制限
+    if (plan.pdfPerMonth === 0) return { allowed: true, reason: "" };
+    const used = state.usage.pdfMonthly?.[monthKey()] || 0;
+    if (used >= plan.pdfPerMonth) {
+      return {
+        allowed: false,
+        reason: `今月の教材PDF出力上限 (${plan.pdfPerMonth}回) に達しました。Starterプラン以上で無制限にPDF出力できます。`,
       };
     }
     return { allowed: true, reason: "" };
@@ -141,6 +170,19 @@ export const usePlanStore = create<PlanState>((set, get) => ({
     const newUsage: UsageData = {
       daily: { ...state.usage.daily, [dk]: (state.usage.daily[dk] || 0) + 1 },
       monthly: { ...state.usage.monthly, [mk]: (state.usage.monthly[mk] || 0) + 1 },
+      pdfMonthly: state.usage.pdfMonthly || {},
+    };
+    saveUsage(newUsage);
+    set({ usage: newUsage });
+  },
+
+  incrementPdfUsage: () => {
+    const state = get();
+    const mk = monthKey();
+    const newUsage: UsageData = {
+      daily: state.usage.daily,
+      monthly: state.usage.monthly,
+      pdfMonthly: { ...(state.usage.pdfMonthly || {}), [mk]: ((state.usage.pdfMonthly || {})[mk] || 0) + 1 },
     };
     saveUsage(newUsage);
     set({ usage: newUsage });

@@ -13,6 +13,7 @@ import { chatLog } from "@/lib/logger";
 import { compressHistory } from "@/lib/chat-compression";
 import { buildDocumentContext } from "@/lib/document-context";
 import { buildLastAIAction } from "./utils";
+import { toast } from "sonner";
 
 import { MessageRow } from "./message-row";
 import { ThinkingIndicator } from "./thinking-indicator";
@@ -134,6 +135,16 @@ export function AIChatPanel() {
     if (!text || isChatLoading || !document) return;
 
     const limitCheck = canMakeRequest();
+    if (!limitCheck.allowed) {
+      toast.error(limitCheck.reason, {
+        duration: 6000,
+        action: {
+          label: "アップグレード",
+          onClick: () => setShowPricing(true),
+        },
+      });
+      return;
+    }
     if (limitCheck.reason) {
       console.warn("[chat:limit]", limitCheck.reason);
     }

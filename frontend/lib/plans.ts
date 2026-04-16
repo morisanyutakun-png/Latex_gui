@@ -24,6 +24,7 @@ export interface PlanDef {
   requestsPerDay: number;   // 1日のAIリクエスト上限 (内部スロットル)
   requestsPerMonth: number; // 月間AIリクエスト上限
   premiumAiPerMonth: number; // 互換用 (= requestsPerMonth と同値、UI上は区別しない)
+  pdfPerMonth: number;      // 月間 教材PDF出力 上限 (0 = 無制限)
   tagline: string;          // プランの一言説明 (日本語)
   taglineEn: string;        // プランの一言説明 (英語)
   features: string[];       // 機能一覧 (日本語)
@@ -42,18 +43,21 @@ export const PLANS: Record<PlanId, PlanDef> = {
     requestsPerDay: 3,
     requestsPerMonth: 3,
     premiumAiPerMonth: 3,
+    pdfPerMonth: 1,
     tagline: "まずは体験してみたい方に",
     taglineEn: "Try before you commit",
     features: [
       "高性能AI 月3回",
-      "PDF出力 月1回",
+      "教材PDF出力 月1回",
+      "TikZ図の作成・保存 無制限",
       "基本テンプレート",
       "リアルタイムプレビュー",
       "思考ログ表示",
     ],
     featuresEn: [
       "High-performance AI: 3/month",
-      "PDF export: 1/month",
+      "Worksheet PDF export: 1/month",
+      "TikZ figures: unlimited",
       "Basic templates",
       "Real-time preview",
       "Thinking log display",
@@ -68,22 +72,21 @@ export const PLANS: Record<PlanId, PlanDef> = {
     requestsPerDay: 15,
     requestsPerMonth: 150,
     premiumAiPerMonth: 150,
+    pdfPerMonth: 0,           // 0 = 無制限
     tagline: "個人塾・家庭教師の方に",
     taglineEn: "For individual tutors",
     features: [
       "高性能AI 月150回",
-      "PDF出力 無制限",
+      "教材PDF出力 無制限",
+      "TikZ図の作成・保存 無制限",
       "基本テンプレート",
-      "リアルタイムプレビュー",
-      "思考ログ表示",
       "LaTeXソースエクスポート",
     ],
     featuresEn: [
       "High-performance AI: 150/month",
-      "Unlimited PDF export",
+      "Worksheet PDF export: unlimited",
+      "TikZ figures: unlimited",
       "Basic templates",
-      "Real-time preview",
-      "Thinking log display",
       "LaTeX source export",
     ],
     badge: "手軽に始める",
@@ -97,11 +100,13 @@ export const PLANS: Record<PlanId, PlanDef> = {
     requestsPerDay: 40,
     requestsPerMonth: 500,
     premiumAiPerMonth: 500,
+    pdfPerMonth: 0,
     tagline: "毎日使うならこのプラン",
     taglineEn: "Best for daily use",
     features: [
       "高性能AI 月500回",
-      "PDF出力 無制限 (優先処理)",
+      "教材PDF出力 無制限 (優先処理)",
+      "TikZ図の作成・保存 無制限",
       "全テンプレート利用可",
       "PDF・画像から問題を抽出 (OCR)",
       "バッチ処理 (最大100行)",
@@ -109,7 +114,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
     ],
     featuresEn: [
       "High-performance AI: 500/month",
-      "Unlimited PDF export (priority)",
+      "Worksheet PDF export: unlimited (priority)",
+      "TikZ figures: unlimited",
       "All templates",
       "Import from PDF & images (OCR)",
       "Batch processing (up to 100 rows)",
@@ -127,11 +133,13 @@ export const PLANS: Record<PlanId, PlanDef> = {
     requestsPerDay: 150,
     requestsPerMonth: 2000,
     premiumAiPerMonth: 2000,
+    pdfPerMonth: 0,
     tagline: "教育機関・大量利用に",
     taglineEn: "For schools & heavy use",
     features: [
       "高性能AI 月2,000回",
-      "PDF出力 無制限 (最優先処理)",
+      "教材PDF出力 無制限 (最優先処理)",
+      "TikZ図の作成・保存 無制限",
       "Proの全機能を含む",
       "バッチ処理 (最大300行)",
       "カスタムテンプレート作成",
@@ -140,7 +148,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
     ],
     featuresEn: [
       "High-performance AI: 2,000/month",
-      "Unlimited PDF export (highest priority)",
+      "Worksheet PDF export: unlimited (highest priority)",
+      "TikZ figures: unlimited",
       "Everything in Pro",
       "Batch processing (up to 300 rows)",
       "Custom template creation",

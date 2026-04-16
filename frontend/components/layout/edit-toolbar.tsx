@@ -15,6 +15,7 @@ import { TemplatePicker } from "@/components/editor/template-picker";
 import { FormattingToolbar } from "@/components/editor/formatting-toolbar";
 import { Download, Loader2, Printer, PenTool } from "lucide-react";
 import { toast } from "sonner";
+import { usePlanStore } from "@/store/plan-store";
 
 const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
   { value: "a4", label: "A4" },
@@ -59,9 +60,25 @@ export function EditToolbar() {
 
   const handleGeneratePDF = async () => {
     if (!document) return;
+
+    // プランゲート: 教材PDF出力の制限チェック
+    const pdfCheck = usePlanStore.getState().canExportPDF();
+    if (!pdfCheck.allowed) {
+      toast.error(pdfCheck.reason, {
+        duration: 6000,
+        action: {
+          label: isJa ? "アップグレード" : "Upgrade",
+          onClick: () => usePlanStore.getState().setShowPricing(true),
+        },
+      });
+      return;
+    }
+
     setGenerating(true);
     try {
       const blob = await generatePDF(document);
+      // PDF生成成功 → 使用量をカウント
+      usePlanStore.getState().incrementPdfUsage();
       const defaultName = sanitizePdfName(document.metadata.title || "document");
 
       if ("showSaveFilePicker" in window) {
