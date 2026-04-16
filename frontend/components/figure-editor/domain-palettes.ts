@@ -272,14 +272,19 @@ export const PALETTE_ITEMS: DomainPaletteItem[] = [
   {
     kind: "angle-arc", label: "Angle", labelJa: "角度",
     icon: "angle", category: "math",
-    defaultWidth: 1, defaultHeight: 1,
-    description: "Angle arc with label", descriptionJa: "角度弧（ラベル付き）",
+    defaultWidth: 2.4, defaultHeight: 2.4,
+    defaultTikzOptions: { start: "0", end: "60", radius: "0.55" },
+    defaultLabel: "\\theta",
+    description: "Two rays + arc + label (θ, 60° …)",
+    descriptionJa: "二本の直線 + 角度弧 + ラベル (θ / 60° など)",
   },
   {
     kind: "right-angle", label: "Right Angle", labelJa: "直角",
     icon: "rightangle", category: "math",
-    defaultWidth: 0.4, defaultHeight: 0.4,
-    description: "Right angle marker", descriptionJa: "直角記号",
+    defaultWidth: 0.5, defaultHeight: 0.5,
+    defaultTikzOptions: { start: "0" },
+    description: "Right angle marker with optional label",
+    descriptionJa: "直角記号(ラベル付与可)",
   },
   {
     kind: "function-plot", label: "Function", labelJa: "関数グラフ",

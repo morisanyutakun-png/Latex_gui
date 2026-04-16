@@ -409,16 +409,54 @@ function genAxes(s: FigureShape): string {
 }
 
 function genAngleArc(s: FigureShape): string {
-  const r = Math.min(s.width, s.height) * 0.8;
-  const lbl = s.label || "$\\theta$";
-  const startAngle = s.tikzOptions["start"] || "0";
-  const endAngle = s.tikzOptions["end"] || "45";
-  return `  \\draw ${coord(s.x, s.y)} ++(${startAngle}:${fmt(r)}) arc (${startAngle}:${endAngle}:${fmt(r)}) node[midway, right] {${lbl}};`;
+  const startAngle = parseFloat(s.tikzOptions["start"] ?? "0") || 0;
+  const endAngle = parseFloat(s.tikzOptions["end"] ?? "60") || 60;
+  const radiusFactor = parseFloat(s.tikzOptions["radius"] ?? "0.55") || 0.55;
+  const side = Math.min(s.width, s.height);
+  const r = side * radiusFactor;
+  const rayLen = side;
+  const opts = buildDrawOptions(s.style);
+  // Label placement: center of arc at mean angle, pushed slightly outward so
+  // it sits cleanly INSIDE the angular wedge (the differentiating UX feature
+  // — the user set a label, we make sure it's legible and positioned).
+  const meanDeg = (startAngle + endAngle) / 2;
+  const meanRad = meanDeg * Math.PI / 180;
+  const labelRadius = r * 0.72;
+  const lblX = Math.cos(meanRad) * labelRadius;
+  const lblY = Math.sin(meanRad) * labelRadius;
+  const lblText = s.label ? labelText(s) : "$\\theta$";
+  return [
+    `  \\draw[${opts}] ${coord(s.x, s.y)} -- +(${fmt(startAngle)}:${fmt(rayLen)});`,
+    `  \\draw[${opts}] ${coord(s.x, s.y)} -- +(${fmt(endAngle)}:${fmt(rayLen)});`,
+    `  \\draw[${opts}] ${coord(s.x, s.y)} ++(${fmt(startAngle)}:${fmt(r)}) arc (${fmt(startAngle)}:${fmt(endAngle)}:${fmt(r)});`,
+    `  \\node at ${coord(s.x + lblX, s.y + lblY)} {${lblText}};`,
+  ].join("\n");
 }
 
 function genRightAngle(s: FigureShape): string {
   const sz = Math.min(s.width, s.height);
-  return `  \\draw ${coord(s.x + sz, s.y)} -- ${coord(s.x + sz, s.y + sz)} -- ${coord(s.x, s.y + sz)};`;
+  const startAngle = parseFloat(s.tikzOptions["start"] ?? "0") || 0;
+  const opts = buildDrawOptions(s.style);
+  // The square marker sits in the corner; `start` rotates the whole symbol so
+  // the user can place it against any edge (0 = ⌐, 90 = ¬, etc.).
+  const a = startAngle * Math.PI / 180;
+  const bDeg = startAngle + 90;
+  const b = bDeg * Math.PI / 180;
+  const p1x = s.x + Math.cos(a) * sz;
+  const p1y = s.y + Math.sin(a) * sz;
+  const p2x = s.x + Math.cos(a) * sz + Math.cos(b) * sz;
+  const p2y = s.y + Math.sin(a) * sz + Math.sin(b) * sz;
+  const p3x = s.x + Math.cos(b) * sz;
+  const p3y = s.y + Math.sin(b) * sz;
+  const lines = [
+    `  \\draw[${opts}] ${coord(p1x, p1y)} -- ${coord(p2x, p2y)} -- ${coord(p3x, p3y)};`,
+  ];
+  if (s.label) {
+    const meanRad = (a + b) / 2;
+    const labelR = sz * 1.1;
+    lines.push(`  \\node at ${coord(s.x + Math.cos(meanRad) * labelR, s.y + Math.sin(meanRad) * labelR)} {${labelText(s)}};`);
+  }
+  return lines.join("\n");
 }
 
 function genFunctionPlot(s: FigureShape): string {

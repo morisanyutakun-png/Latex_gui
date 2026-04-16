@@ -1123,13 +1123,15 @@ function RenderAxes(p: ShapeRenderProps) {
   </>);
 }
 
-/** Angle arc preview — vertex at bottom-left, arc between two rays. */
+/** Angle arc preview — two rays + arc + label inside the wedge. */
 function RenderAngleArc(p: ShapeRenderProps) {
   const w = sw(p);
   const col = stroke(p);
-  const r = Math.min(p.pw, p.ph) * 0.8;
+  const side = Math.min(p.pw, p.ph);
+  const radiusFactor = parseFloat(p.shape.tikzOptions?.["radius"] ?? "0.55") || 0.55;
+  const r = side * radiusFactor;
   const startDeg = parseFloat(p.shape.tikzOptions?.["start"] ?? "0") || 0;
-  const endDeg = parseFloat(p.shape.tikzOptions?.["end"] ?? "45") || 45;
+  const endDeg = parseFloat(p.shape.tikzOptions?.["end"] ?? "60") || 60;
   const vx = p.cx;
   const vy = p.cy + p.ph;
   const proj = (deg: number, rr: number) => ({
@@ -1138,36 +1140,46 @@ function RenderAngleArc(p: ShapeRenderProps) {
   });
   const a = proj(startDeg, r);
   const b = proj(endDeg, r);
-  const rayLen = r * 1.18;
-  const rayA = proj(startDeg, rayLen);
-  const rayB = proj(endDeg, rayLen);
+  const rayA = proj(startDeg, side);
+  const rayB = proj(endDeg, side);
   const largeArc = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
   const d = `M ${a.x},${a.y} A ${r},${r} 0 ${largeArc} 0 ${b.x},${b.y}`;
   const midDeg = (startDeg + endDeg) / 2;
-  const lblPt = proj(midDeg, r * 0.62);
+  const lblPt = proj(midDeg, r * 0.72);
   return wrap(p, <>
-    <line x1={vx} y1={vy} x2={rayA.x} y2={rayA.y} stroke={col} strokeWidth={w} opacity={0.55} strokeLinecap="round" />
-    <line x1={vx} y1={vy} x2={rayB.x} y2={rayB.y} stroke={col} strokeWidth={w} opacity={0.55} strokeLinecap="round" />
+    <line x1={vx} y1={vy} x2={rayA.x} y2={rayA.y} stroke={col} strokeWidth={w} strokeLinecap="round" />
+    <line x1={vx} y1={vy} x2={rayB.x} y2={rayB.y} stroke={col} strokeWidth={w} strokeLinecap="round" />
     <path d={d} stroke={col} strokeWidth={w} fill="none" strokeLinecap="round" />
     {!p.shape.label && (
       <text x={lblPt.x} y={lblPt.y} fontSize={fs(p)} fill={col} textAnchor="middle" dominantBaseline="central" fontStyle="italic" pointerEvents="none">θ</text>
     )}
-    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} naturalCenter={{ x: lblPt.x, y: lblPt.y }} />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} naturalCenter={lblPt} />
   </>);
 }
 
-/** Right-angle square marker (L-shape). */
+/** Right-angle square marker with rotatable orientation via tikzOptions.start. */
 function RenderRightAngle(p: ShapeRenderProps) {
   const w = sw(p);
   const col = stroke(p);
   const sz = Math.min(p.pw, p.ph);
-  // Corner at bottom-left; L opens up-right (matches genRightAngle TikZ output).
-  const x0 = p.cx;
-  const y0 = p.cy + p.ph;
+  const startDeg = parseFloat(p.shape.tikzOptions?.["start"] ?? "0") || 0;
+  const vx = p.cx;
+  const vy = p.cy + p.ph;
+  const a = startDeg * Math.PI / 180;
+  const b = (startDeg + 90) * Math.PI / 180;
+  // Screen Y is inverted, so negate the y-component.
+  const p1 = { x: vx + Math.cos(a) * sz, y: vy - Math.sin(a) * sz };
+  const p3 = { x: vx + Math.cos(b) * sz, y: vy - Math.sin(b) * sz };
+  const p2 = { x: p1.x + (p3.x - vx), y: p1.y + (p3.y - vy) };
+  const meanRad = (a + b) / 2;
+  const lblPt = {
+    x: vx + Math.cos(meanRad) * sz * 1.1,
+    y: vy - Math.sin(meanRad) * sz * 1.1,
+  };
   return wrap(p, <>
-    <path d={`M ${x0 + sz},${y0} L ${x0 + sz},${y0 - sz} L ${x0},${y0 - sz}`}
+    <path d={`M ${p1.x},${p1.y} L ${p2.x},${p2.y} L ${p3.x},${p3.y}`}
           stroke={col} strokeWidth={w} fill="none" strokeLinejoin="miter" strokeLinecap="square" />
-    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} naturalCenter={lblPt} />
   </>);
 }
 

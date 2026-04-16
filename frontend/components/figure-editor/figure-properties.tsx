@@ -90,6 +90,182 @@ function InputRow({ label, children }: { label: string; children: React.ReactNod
 }
 
 // ══════════════════════════════════════════════════════════════════
+//  Angle controls — dedicated UI for `angle-arc` / `right-angle`.
+//
+//  The figure editor's differentiation feature is quick + labelled angles:
+//  two rays, an arc between them, and a label (θ / 60° / α …) picked from
+//  presets or entered freely. This section exposes those knobs in one place
+//  so the user doesn't have to hunt through the generic TikZ key/value grid.
+// ══════════════════════════════════════════════════════════════════
+
+const ANGLE_PRESETS: { start: number; end: number; label: string }[] = [
+  { start: 0,  end: 30,  label: "30°" },
+  { start: 0,  end: 45,  label: "45°" },
+  { start: 0,  end: 60,  label: "60°" },
+  { start: 0,  end: 90,  label: "90°" },
+  { start: 0,  end: 120, label: "120°" },
+  { start: 0,  end: 180, label: "180°" },
+];
+
+const LABEL_PRESETS: { display: string; value: string; math: boolean }[] = [
+  { display: "θ",   value: "\\theta",  math: true },
+  { display: "α",   value: "\\alpha",  math: true },
+  { display: "β",   value: "\\beta",   math: true },
+  { display: "φ",   value: "\\phi",    math: true },
+  { display: "30°", value: "30^\\circ", math: true },
+  { display: "45°", value: "45^\\circ", math: true },
+  { display: "60°", value: "60^\\circ", math: true },
+  { display: "90°", value: "90^\\circ", math: true },
+];
+
+function AngleControls({
+  shape,
+  isJa,
+  onOptionChange,
+  onLabelChange,
+}: {
+  shape: FigureShape;
+  isJa: boolean;
+  onOptionChange: (key: string, value: string) => void;
+  onLabelChange: (label: string, mathMode: boolean) => void;
+}) {
+  const isArc = shape.kind === "angle-arc";
+  const startDeg = parseFloat(shape.tikzOptions["start"] ?? "0") || 0;
+  const endDeg = parseFloat(shape.tikzOptions["end"] ?? (isArc ? "60" : "0")) || 0;
+  const radiusFactor = parseFloat(shape.tikzOptions["radius"] ?? "0.55") || 0.55;
+  const sweep = endDeg - startDeg;
+
+  return (
+    <Section
+      title={isJa ? (isArc ? "角度の設定" : "直角の向き") : (isArc ? "Angle" : "Right-angle")}
+      icon={<span className="text-[10px]">∠</span>}
+      color="violet"
+      defaultOpen
+    >
+      {isArc && (
+        <>
+          {/* Big read-out of the current sweep — makes the degree obvious */}
+          <div className="flex items-center justify-between px-2 py-1.5 rounded-md bg-violet-500/[0.08] border border-violet-500/[0.15]">
+            <span className="text-[10px] text-foreground/55 uppercase font-mono">
+              {isJa ? "角度" : "Sweep"}
+            </span>
+            <span className="text-[16px] font-bold tabular-nums text-violet-600 dark:text-violet-400">
+              {sweep.toFixed(0)}°
+            </span>
+          </div>
+
+          {/* Preset sweeps */}
+          <div className="grid grid-cols-3 gap-1 mt-1">
+            {ANGLE_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                onClick={() => {
+                  onOptionChange("start", String(p.start));
+                  onOptionChange("end", String(p.end));
+                }}
+                className={`h-6 text-[10px] font-mono rounded border transition-colors ${
+                  Math.abs(sweep - (p.end - p.start)) < 0.5
+                    ? "bg-violet-500 text-white border-violet-500"
+                    : "bg-white/60 dark:bg-white/5 border-foreground/[0.08] hover:bg-violet-500/10"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Fine-grained sliders */}
+          <InputRow label={isJa ? "開始" : "Start"}>
+            <div className="flex items-center gap-2">
+              <input type="range" min={-180} max={360} step={1} value={startDeg}
+                onChange={(e) => onOptionChange("start", e.target.value)}
+                className="flex-1 h-1 accent-violet-500" />
+              <span className="text-[10px] font-mono text-foreground/55 w-9 text-right tabular-nums">{startDeg}°</span>
+            </div>
+          </InputRow>
+          <InputRow label={isJa ? "終了" : "End"}>
+            <div className="flex items-center gap-2">
+              <input type="range" min={-180} max={360} step={1} value={endDeg}
+                onChange={(e) => onOptionChange("end", e.target.value)}
+                className="flex-1 h-1 accent-violet-500" />
+              <span className="text-[10px] font-mono text-foreground/55 w-9 text-right tabular-nums">{endDeg}°</span>
+            </div>
+          </InputRow>
+          <InputRow label={isJa ? "半径" : "Radius"}>
+            <div className="flex items-center gap-2">
+              <input type="range" min={0.2} max={1} step={0.05} value={radiusFactor}
+                onChange={(e) => onOptionChange("radius", e.target.value)}
+                className="flex-1 h-1 accent-violet-500" />
+              <span className="text-[10px] font-mono text-foreground/55 w-9 text-right tabular-nums">{radiusFactor.toFixed(2)}</span>
+            </div>
+          </InputRow>
+
+          {/* Label presets — the differentiation feature */}
+          <div className="pt-1.5 border-t border-foreground/[0.06] mt-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-foreground/55 uppercase font-mono">
+                {isJa ? "ラベル" : "Label"}
+              </span>
+              {shape.label && (
+                <button
+                  onClick={() => onLabelChange("", false)}
+                  className="text-[9px] text-foreground/40 hover:text-foreground/70 underline"
+                >
+                  {isJa ? "消去" : "Clear"}
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {LABEL_PRESETS.map((p) => (
+                <button
+                  key={p.display}
+                  onClick={() => onLabelChange(p.value, p.math)}
+                  className={`h-7 text-[11px] rounded border transition-colors ${
+                    shape.label === p.value
+                      ? "bg-violet-500 text-white border-violet-500"
+                      : "bg-white/60 dark:bg-white/5 border-foreground/[0.08] hover:bg-violet-500/10"
+                  }`}
+                >
+                  {p.display}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {!isArc && (
+        <>
+          <InputRow label={isJa ? "向き" : "Orient"}>
+            <div className="flex items-center gap-2">
+              <input type="range" min={0} max={360} step={15} value={startDeg}
+                onChange={(e) => onOptionChange("start", e.target.value)}
+                className="flex-1 h-1 accent-violet-500" />
+              <span className="text-[10px] font-mono text-foreground/55 w-9 text-right tabular-nums">{startDeg}°</span>
+            </div>
+          </InputRow>
+          <div className="grid grid-cols-4 gap-1 mt-1">
+            {[0, 90, 180, 270].map((d) => (
+              <button
+                key={d}
+                onClick={() => onOptionChange("start", String(d))}
+                className={`h-7 text-[10px] font-mono rounded border transition-colors ${
+                  Math.round(startDeg) === d
+                    ? "bg-violet-500 text-white border-violet-500"
+                    : "bg-white/60 dark:bg-white/5 border-foreground/[0.08] hover:bg-violet-500/10"
+                }`}
+              >
+                {d}°
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </Section>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  Color picker (shared for stroke & fill)
 // ══════════════════════════════════════════════════════════════════
 
@@ -508,6 +684,19 @@ export function FigureProperties() {
           pushHistory={pushHistory}
         />
       </Section>
+
+      {/* ══════ Angle-specific controls ══════ */}
+      {(selectedShape.kind === "angle-arc" || selectedShape.kind === "right-angle") && (
+        <AngleControls
+          shape={selectedShape}
+          isJa={isJa}
+          onOptionChange={handleTikzOptionChange}
+          onLabelChange={(label, mathMode) => {
+            pushHistory();
+            updateShape(selectedShape.id, { label, labelMathMode: mathMode });
+          }}
+        />
+      )}
 
       {/* ══════ Geometry ══════ */}
       <Section title={isJa ? "位置・サイズ" : "Geometry"} icon={<Move size={11} />} color="emerald">

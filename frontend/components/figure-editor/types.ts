@@ -301,6 +301,8 @@ export interface DomainPaletteItem {
   defaultStyle?: Partial<ShapeStyle>;
   defaultPoints?: Point[];
   defaultTikzOptions?: Record<string, string>;
+  /** Initial label; wrapped as math if it contains a `\` sequence. */
+  defaultLabel?: string;
   description?: string;
   descriptionJa?: string;
 }
