@@ -1704,11 +1704,10 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AI教材生成 月30回" : "AI generation: 30/month",
-                  isJa ? "高性能AI 月3回まで" : "High-perf AI: 3/month",
-                  isJa ? "PDF出力 月1回まで" : "PDF export: 1/month",
+                  isJa ? "高性能AI 月10回" : "High-performance AI: 10/month",
+                  isJa ? "PDF出力 月1回" : "PDF export: 1/month",
                   isJa ? "基本テンプレート" : "Basic templates",
-                  isJa ? "エディタ上でプレビュー" : "In-editor preview",
+                  isJa ? "エディタ上でリアルタイムプレビュー" : "Real-time in-editor preview",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-muted-foreground">
                     <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
@@ -1743,8 +1742,7 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AI教材生成 月400回" : "AI generation: 400/month",
-                  isJa ? "高性能AI 月40回" : "High-perf AI: 40/month",
+                  isJa ? "高性能AI 月150回" : "High-performance AI: 150/month",
                   isJa ? "PDF出力 無制限" : "Unlimited PDF export",
                   isJa ? "基本テンプレート" : "Basic templates",
                   isJa ? "思考ログ表示" : "Thinking log display",
@@ -1774,7 +1772,7 @@ export function TemplateGallery() {
               </div>
               <p className="text-[12px] text-muted-foreground mb-1">{isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime"}</p>
               <p className="text-[11px] bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent font-medium mb-5">
-                {isJa ? "Starterの3倍以上のAI — 1日あたり約¥166" : "3× more AI than Starter — ~¥166/day"}
+                {isJa ? "Starterの3倍以上 — 1日あたり約¥166" : "3× more than Starter — ~¥166/day"}
               </p>
               <button
                 onClick={() => handlePlanSelect("pro")}
@@ -1784,12 +1782,11 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AI教材生成 月1,500回" : "AI generation: 1,500/month",
-                  isJa ? "高性能AI 月200回 (5倍)" : "High-perf AI: 200/month (5×)",
-                  isJa ? "PDF出力 無制限 (優先キュー)" : "Unlimited PDF (priority queue)",
+                  isJa ? "高性能AI 月500回" : "High-performance AI: 500/month",
+                  isJa ? "PDF出力 無制限 (優先処理)" : "Unlimited PDF (priority)",
                   isJa ? "全テンプレート利用可" : "All templates",
-                  isJa ? "PDF・画像から問題を抽出" : "Import from PDF & images",
-                  isJa ? "バッチ処理 (上限100行)" : "Batch (up to 100 rows)",
+                  isJa ? "PDF・画像から問題を抽出 (OCR)" : "Import from PDF & images (OCR)",
+                  isJa ? "バッチ処理 (最大100行)" : "Batch (up to 100 rows)",
                   isJa ? "メールサポート" : "Email support",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
@@ -1816,7 +1813,7 @@ export function TemplateGallery() {
               </div>
               <p className="text-[12px] text-muted-foreground mb-1">{isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime"}</p>
               <p className="text-[11px] bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent font-medium mb-5">
-                {isJa ? "Proの5倍以上のAI — 講師1人分の人件費以下" : "5× more AI than Pro — less than hiring one tutor"}
+                {isJa ? "Proの4倍 — 講師1人分の人件費以下" : "4× more than Pro — less than hiring one tutor"}
               </p>
               <button
                 onClick={() => handlePlanSelect("premium")}
@@ -1826,9 +1823,8 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AI教材生成 月8,000回" : "AI generation: 8,000/month",
-                  isJa ? "高性能AI 月800回 (20倍)" : "High-perf AI: 800/month (20×)",
-                  isJa ? "PDF出力 無制限 (最優先キュー)" : "Unlimited PDF (highest priority)",
+                  isJa ? "高性能AI 月2,000回" : "High-performance AI: 2,000/month",
+                  isJa ? "PDF出力 無制限 (最優先処理)" : "Unlimited PDF (highest priority)",
                   isJa ? "Proの全機能を含む" : "Everything in Pro",
                   isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",
                   isJa ? "カスタムテンプレート作成" : "Custom template creation",
