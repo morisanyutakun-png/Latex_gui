@@ -166,23 +166,28 @@ export function estimateMargin(planId: PlanId): {
   margin: number;
 } {
   const plan = PLANS[planId];
-  const standardCostPerReq = 4;   // 円 (軽量AI)
-  const premiumCostPerReq = 18;   // 円 (高性能AI)
-  const standardReqs = plan.requestsPerMonth - plan.premiumAiPerMonth;
-  const standardCost = Math.max(0, standardReqs) * standardCostPerReq;
-  const premiumCost = plan.premiumAiPerMonth * premiumCostPerReq;
-  const maxMonthlyCost = standardCost + premiumCost;
+  // 実測値: $0.01/リクエスト ≈ ¥1.5 ($1=¥150)
+  // 現在は全リクエスト同一モデルのため一律コスト
+  const costPerReq = 1.5;          // 円/リクエスト (実測 $0.01)
+  const standardCost = 0;          // 内部区分用 (現在は未使用)
+  const premiumCost = 0;           // 内部区分用 (現在は未使用)
+  const maxMonthlyCost = plan.requestsPerMonth * costPerReq;
   const revenue = plan.price;
   const margin = revenue - maxMonthlyCost;
   return { standardCost, premiumCost, maxMonthlyCost, revenue, margin };
 }
-// 利益試算 (最大使用時):
-//   free:    cost ¥190,     revenue ¥0       → margin -¥190 (獲得コスト)
-//   starter: cost ¥2,160,   revenue ¥1,980   → margin -¥180 (集客重視、ほぼトントン)
-//   pro:     cost ¥8,800,   revenue ¥4,980   → margin -¥3,820 (実利用率40%想定で黒字化)
-//   premium: cost ¥43,200,  revenue ¥19,800  → margin -¥23,400 (実利用率30%想定で黒字化)
+// 利益試算 (実測 $0.01/req = ¥1.5, 全上限使い切った最悪ケース):
+//   free:    cost ¥45,      revenue ¥0       → margin -¥45    (獲得コスト)
+//   starter: cost ¥600,     revenue ¥1,980   → margin +¥1,380 (利益率 70%)
+//   pro:     cost ¥2,250,   revenue ¥4,980   → margin +¥2,730 (利益率 55%)
+//   premium: cost ¥12,000,  revenue ¥19,800  → margin +¥7,800 (利益率 39%)
 //
-// 補足: 上記は全上限使い切った場合の最悪ケース。実利用率 (典型 30-50%) を掛けると
-//   starter: 実コスト ≈ ¥865 → 実利益 ≈ ¥1,115 (利益率 56%)
-//   pro:     実コスト ≈ ¥3,520 → 実利益 ≈ ¥1,460 (利益率 29%)
-//   premium: 実コスト ≈ ¥12,960 → 実利益 ≈ ¥6,840 (利益率 35%)
+// Stripe手数料 (3.6% + ¥40) 控除後:
+//   starter: net ¥1,869 → margin +¥1,269 (利益率 68%)
+//   pro:     net ¥4,701 → margin +¥2,451 (利益率 52%)
+//   premium: net ¥19,047 → margin +¥7,047 (利益率 37%)
+//
+// 実利用率 (典型 30-40%) を掛けると:
+//   starter: 実コスト ≈ ¥210  → 実利益 ≈ ¥1,659 (利益率 89%)
+//   pro:     実コスト ≈ ¥788  → 実利益 ≈ ¥3,913 (利益率 83%)
+//   premium: 実コスト ≈ ¥4,200 → 実利益 ≈ ¥14,847 (利益率 78%)
