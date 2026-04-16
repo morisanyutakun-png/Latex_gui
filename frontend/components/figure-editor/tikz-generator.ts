@@ -409,25 +409,44 @@ function genAxes(s: FigureShape): string {
 }
 
 function genAngleArc(s: FigureShape): string {
+  const radiusFactor = parseFloat(s.tikzOptions["radius"] ?? "0.55") || 0.55;
+  const opts = buildDrawOptions(s.style);
+  const lblText = s.label ? labelText(s) : "$\\theta$";
+
+  // Guided-draw flow carries the geometry directly in shape.points
+  // ([vertex, ray1End, ray2End] in local coords). When present we honour the
+  // exact user-drawn angles — rays can fan out in any direction.
+  if (s.points.length >= 3) {
+    const vAbs = { x: s.x + s.points[0].x, y: s.y + s.points[0].y };
+    const r1Abs = { x: s.x + s.points[1].x, y: s.y + s.points[1].y };
+    const r2Abs = { x: s.x + s.points[2].x, y: s.y + s.points[2].y };
+    const startAngle = Math.atan2(r1Abs.y - vAbs.y, r1Abs.x - vAbs.x) * 180 / Math.PI;
+    const endAngle = Math.atan2(r2Abs.y - vAbs.y, r2Abs.x - vAbs.x) * 180 / Math.PI;
+    const lenA = Math.hypot(r1Abs.x - vAbs.x, r1Abs.y - vAbs.y);
+    const lenB = Math.hypot(r2Abs.x - vAbs.x, r2Abs.y - vAbs.y);
+    const r = Math.min(lenA, lenB) * radiusFactor;
+    const meanRad = ((startAngle + endAngle) / 2) * Math.PI / 180;
+    const lblX = vAbs.x + Math.cos(meanRad) * r * 0.72;
+    const lblY = vAbs.y + Math.sin(meanRad) * r * 0.72;
+    return [
+      `  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} -- ${coord(r1Abs.x, r1Abs.y)};`,
+      `  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} -- ${coord(r2Abs.x, r2Abs.y)};`,
+      `  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} ++(${fmt(startAngle)}:${fmt(r)}) arc (${fmt(startAngle)}:${fmt(endAngle)}:${fmt(r)});`,
+      `  \\node at ${coord(lblX, lblY)} {${lblText}};`,
+    ].join("\n");
+  }
+
+  // Legacy bbox-based shape — derive rays from bbox bottom-left.
   const startAngle = parseFloat(s.tikzOptions["start"] ?? "0") || 0;
   const endAngle = parseFloat(s.tikzOptions["end"] ?? "60") || 60;
-  const radiusFactor = parseFloat(s.tikzOptions["radius"] ?? "0.55") || 0.55;
   const side = Math.min(s.width, s.height);
   const r = side * radiusFactor;
-  const rayLen = side;
-  const opts = buildDrawOptions(s.style);
-  // Label placement: center of arc at mean angle, pushed slightly outward so
-  // it sits cleanly INSIDE the angular wedge (the differentiating UX feature
-  // — the user set a label, we make sure it's legible and positioned).
-  const meanDeg = (startAngle + endAngle) / 2;
-  const meanRad = meanDeg * Math.PI / 180;
-  const labelRadius = r * 0.72;
-  const lblX = Math.cos(meanRad) * labelRadius;
-  const lblY = Math.sin(meanRad) * labelRadius;
-  const lblText = s.label ? labelText(s) : "$\\theta$";
+  const meanRad = ((startAngle + endAngle) / 2) * Math.PI / 180;
+  const lblX = Math.cos(meanRad) * r * 0.72;
+  const lblY = Math.sin(meanRad) * r * 0.72;
   return [
-    `  \\draw[${opts}] ${coord(s.x, s.y)} -- +(${fmt(startAngle)}:${fmt(rayLen)});`,
-    `  \\draw[${opts}] ${coord(s.x, s.y)} -- +(${fmt(endAngle)}:${fmt(rayLen)});`,
+    `  \\draw[${opts}] ${coord(s.x, s.y)} -- +(${fmt(startAngle)}:${fmt(side)});`,
+    `  \\draw[${opts}] ${coord(s.x, s.y)} -- +(${fmt(endAngle)}:${fmt(side)});`,
     `  \\draw[${opts}] ${coord(s.x, s.y)} ++(${fmt(startAngle)}:${fmt(r)}) arc (${fmt(startAngle)}:${fmt(endAngle)}:${fmt(r)});`,
     `  \\node at ${coord(s.x + lblX, s.y + lblY)} {${lblText}};`,
   ].join("\n");

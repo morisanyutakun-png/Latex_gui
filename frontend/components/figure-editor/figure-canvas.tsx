@@ -236,7 +236,7 @@ const AREA_TOOLS = new Set<string>([
   // Biology
   "cell", "nucleus", "mitochondria", "membrane", "neuron", "synapse",
   // Math
-  "axes", "angle-arc", "right-angle", "function-plot", "brace",
+  "axes", "right-angle", "function-plot", "brace",
   // Physics
   "wave", "lens-convex", "lens-concave", "prism", "vector-field",
 ]);
@@ -246,9 +246,10 @@ const CLICK_TOOLS = new Set<string>([
   "text", "ground", "transistor-npn", "transistor-pnp", "opamp",
 ]);
 
-type DrawMode = "line" | "area" | "freehand" | "click";
+type DrawMode = "line" | "area" | "freehand" | "click" | "angle";
 function classifyTool(t: ToolMode): DrawMode {
   if (t === "freehand") return "freehand";
+  if (t === "angle-arc") return "angle";
   if (LINE_TOOLS.has(t)) return "line";
   if (AREA_TOOLS.has(t)) return "area";
   return "click";
@@ -338,6 +339,31 @@ export function FigureCanvas() {
   const [pendingStart, setPendingStart] = useState<Point | null>(null);
   /** 2-click mode: preview end (cursor position) */
   const [previewEnd, setPreviewEnd] = useState<Point | null>(null);
+
+  // ── Angle drawing state (step-by-step: ray1 → angle+label → ray2) ──
+  //
+  // The angle tool deliberately uses a guided 3-click flow instead of the
+  // generic area-drag so a user can author a labelled geometry angle exactly
+  // like they would on paper:
+  //
+  //   1. click → set vertex (no preview yet)
+  //   2. click → set first ray endpoint (fixes line 1)
+  //      → popup asks for angle (°) and label (θ / 30° / …)
+  //   3. click → set second ray length (direction locked to the popup angle,
+  //      only the distance from vertex matters)
+  //
+  // This is the app's differentiating feature for math diagrams, so it lives
+  // on a dedicated state machine separate from `pendingStart`/`previewEnd`.
+  type AngleDrawStep =
+    | { kind: "ray1-start" }
+    | { kind: "ray1-end"; vertex: Point }
+    | { kind: "awaiting-input"; vertex: Point; ray1End: Point }
+    | { kind: "ray2-end"; vertex: Point; ray1End: Point; angleDeg: number; label: string; labelMath: boolean };
+  const [angleDraw, setAngleDraw] = useState<AngleDrawStep | null>(null);
+  // Popup scratch fields
+  const [angleInput, setAngleInput] = useState<string>("60");
+  const [angleLabelInput, setAngleLabelInput] = useState<string>("\\theta");
+  const [angleLabelMath, setAngleLabelMath] = useState<boolean>(true);
   /** ID of shape whose grab-zone the cursor is currently over (null = cursor not on any shape body) */
   const [grabTargetId, setGrabTargetId] = useState<string | null>(null);
   /** Active snap visualization (while moving) */
@@ -546,7 +572,7 @@ export function FigureCanvas() {
   }, [fitToContent, zoomIn, zoomOut, centerCanvas]);
 
   // Cancel pending start when tool changes
-  useEffect(() => { setPendingStart(null); setPreviewEnd(null); }, [activeTool]);
+  useEffect(() => { setPendingStart(null); setPreviewEnd(null); setAngleDraw(null); }, [activeTool]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -771,6 +797,74 @@ export function FigureCanvas() {
       return;
     }
 
+    // Angle: guided 3-click flow
+    //   1st click → vertex
+    //   2nd click → first ray end (opens the angle + label popup)
+    //   3rd click (after popup confirm) → second ray length; direction is
+    //     locked to the angle from the popup
+    if (mode === "angle") {
+      if (!angleDraw || angleDraw.kind === "ray1-start") {
+        setAngleDraw({ kind: "ray1-end", vertex: { x: sx, y: sy } });
+        return;
+      }
+      if (angleDraw.kind === "ray1-end") {
+        const vx = angleDraw.vertex.x, vy = angleDraw.vertex.y;
+        if (Math.hypot(sx - vx, sy - vy) < 0.1) return; // same spot → ignore
+        setAngleDraw({ kind: "awaiting-input", vertex: angleDraw.vertex, ray1End: { x: sx, y: sy } });
+        return;
+      }
+      if (angleDraw.kind === "awaiting-input") {
+        // Popup is open; ignore canvas clicks until user confirms.
+        return;
+      }
+      if (angleDraw.kind === "ray2-end") {
+        // Third click: commit shape. Direction is locked to vertex + angle.
+        const { vertex, ray1End, angleDeg, label, labelMath } = angleDraw;
+        const ray1DirDeg = Math.atan2(ray1End.y - vertex.y, ray1End.x - vertex.x) * 180 / Math.PI;
+        const ray2DirDeg = ray1DirDeg + angleDeg;
+        // User's click distance = ray2 length (projected onto ray2 direction if needed)
+        const clickDx = sx - vertex.x, clickDy = sy - vertex.y;
+        const clickDist = Math.hypot(clickDx, clickDy);
+        if (clickDist < 0.1) return;
+        const ray2Len = clickDist;
+        const ray2End = {
+          x: vertex.x + Math.cos(ray2DirDeg * Math.PI / 180) * ray2Len,
+          y: vertex.y + Math.sin(ray2DirDeg * Math.PI / 180) * ray2Len,
+        };
+        const ray1Len = Math.hypot(ray1End.x - vertex.x, ray1End.y - vertex.y);
+        // Bbox = min/max of vertex, ray1End, ray2End (vertex anchored in the shape's local frame)
+        const xs = [vertex.x, ray1End.x, ray2End.x];
+        const ys = [vertex.y, ray1End.y, ray2End.y];
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        const w = Math.max(maxX - minX, 0.2);
+        const h = Math.max(maxY - minY, 0.2);
+        // Place shape so that its bottom-left corner = (minX, minY). The
+        // renderer uses the bbox's bottom-left as the vertex, which matches
+        // since minX/minY are the vertex's own coordinates whenever the rays
+        // point up-right. For other directions we keep the vertex-in-corner
+        // convention by adjusting the shape's bbox to fit.
+        const id = addShapeFromPalette("angle-arc", minX, minY);
+        updateShape(id, {
+          x: minX, y: minY,
+          width: w, height: h,
+          label, labelMathMode: labelMath,
+          tikzOptions: {
+            start: Math.round(ray1DirDeg).toString(),
+            end: Math.round(ray2DirDeg).toString(),
+            radius: Math.max(0.2, Math.min(1, (Math.min(ray1Len, ray2Len) * 0.6) / Math.max(w, h))).toFixed(2),
+          },
+          points: [
+            { x: vertex.x - minX, y: vertex.y - minY },
+            { x: ray1End.x - minX, y: ray1End.y - minY },
+            { x: ray2End.x - minX, y: ray2End.y - minY },
+          ],
+        });
+        setAngleDraw(null);
+        return;
+      }
+    }
+
     // Click-to-place single-click tools (text, ground, transistor, opamp)
     if (mode === "click") {
       const pal = getPaletteItem(activeTool);
@@ -834,7 +928,7 @@ export function FigureCanvas() {
       setPendingStart(null);
       setPreviewEnd(null);
     }
-  }, [activeTool, spaceHeld, shapes, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, getSvgCoords, clearSelection, addShapeFromPalette, updateShape, select, pushHistory, pendingStart, previewEnd]);
+  }, [activeTool, spaceHeld, shapes, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, getSvgCoords, clearSelection, addShapeFromPalette, updateShape, select, pushHistory, pendingStart, previewEnd, angleDraw]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const px = getSvgCoords(e);
@@ -1090,7 +1184,8 @@ export function FigureCanvas() {
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        if (pendingStart) { setPendingStart(null); setPreviewEnd(null); }
+        if (angleDraw) { setAngleDraw(null); }
+        else if (pendingStart) { setPendingStart(null); setPreviewEnd(null); }
         else { clearSelection(); setActiveTool("select"); setDragging(null); }
         return;
       }
@@ -1155,6 +1250,86 @@ export function FigureCanvas() {
       const [bx, by] = tikzToCanvas(dragging.startTikz.x, dragging.startTikz.y, canvasHeight, zoom, offsetX, offsetY);
       const d = dragging.drawPoints.map((p, i) => `${i === 0 ? "M" : "L"}${bx + p.x * scale},${by + (-p.y) * scale}`).join(" ");
       return <path d={d} stroke="#0d9488" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+    }
+
+    // ── Angle-drawing preview ─────────────────────────────────────
+    if (angleDraw && mousePos) {
+      const cursorTikz = mousePos;
+      if (angleDraw.kind === "ray1-end") {
+        const [vx, vy] = tikzToCanvas(angleDraw.vertex.x, angleDraw.vertex.y, canvasHeight, zoom, offsetX, offsetY);
+        const [cx, cy] = tikzToCanvas(cursorTikz.x, cursorTikz.y, canvasHeight, zoom, offsetX, offsetY);
+        return (<g>
+          <line x1={vx} y1={vy} x2={cx} y2={cy} stroke="#a855f7" strokeWidth={2} strokeDasharray="6,3" />
+          <circle cx={vx} cy={vy} r={5} fill="#a855f7" />
+          <circle cx={vx} cy={vy} r={2} fill="white" />
+          <circle cx={cx} cy={cy} r={4} fill="white" stroke="#a855f7" strokeWidth={2} />
+        </g>);
+      }
+      if (angleDraw.kind === "awaiting-input") {
+        const [vx, vy] = tikzToCanvas(angleDraw.vertex.x, angleDraw.vertex.y, canvasHeight, zoom, offsetX, offsetY);
+        const [r1x, r1y] = tikzToCanvas(angleDraw.ray1End.x, angleDraw.ray1End.y, canvasHeight, zoom, offsetX, offsetY);
+        return (<g>
+          <line x1={vx} y1={vy} x2={r1x} y2={r1y} stroke="#a855f7" strokeWidth={2} />
+          <circle cx={vx} cy={vy} r={5} fill="#a855f7" />
+          <circle cx={vx} cy={vy} r={2} fill="white" />
+          <circle cx={r1x} cy={r1y} r={4} fill="white" stroke="#a855f7" strokeWidth={2} />
+        </g>);
+      }
+      if (angleDraw.kind === "ray2-end") {
+        // Ray2 direction is locked to vertex + (ray1 direction + angleDeg)
+        const { vertex, ray1End, angleDeg, label, labelMath } = angleDraw;
+        const ray1DirDeg = Math.atan2(ray1End.y - vertex.y, ray1End.x - vertex.x) * 180 / Math.PI;
+        const ray2DirDeg = ray1DirDeg + angleDeg;
+        // Project cursor onto ray2 direction to get length
+        const dx = cursorTikz.x - vertex.x, dy = cursorTikz.y - vertex.y;
+        const rayUx = Math.cos(ray2DirDeg * Math.PI / 180);
+        const rayUy = Math.sin(ray2DirDeg * Math.PI / 180);
+        const proj = dx * rayUx + dy * rayUy;
+        const ray2Len = Math.max(0.3, proj);
+        const ray2End = { x: vertex.x + rayUx * ray2Len, y: vertex.y + rayUy * ray2Len };
+        const [vx, vy] = tikzToCanvas(vertex.x, vertex.y, canvasHeight, zoom, offsetX, offsetY);
+        const [r1x, r1y] = tikzToCanvas(ray1End.x, ray1End.y, canvasHeight, zoom, offsetX, offsetY);
+        const [r2x, r2y] = tikzToCanvas(ray2End.x, ray2End.y, canvasHeight, zoom, offsetX, offsetY);
+        // Arc between ray1 and ray2 at small radius for preview
+        const ray1Len = Math.hypot(ray1End.x - vertex.x, ray1End.y - vertex.y);
+        const previewRcm = Math.min(ray1Len, ray2Len) * 0.45;
+        const previewRpx = previewRcm * scale;
+        const a1 = ray1DirDeg * Math.PI / 180;
+        const a2 = ray2DirDeg * Math.PI / 180;
+        const arcStart = { x: vx + Math.cos(a1) * previewRpx, y: vy - Math.sin(a1) * previewRpx };
+        const arcEnd   = { x: vx + Math.cos(a2) * previewRpx, y: vy - Math.sin(a2) * previewRpx };
+        const sweep = angleDeg > 0 ? 0 : 1;  // SVG sweep flag (screen Y inverted)
+        const largeArc = Math.abs(angleDeg) > 180 ? 1 : 0;
+        const arcPath = `M ${arcStart.x},${arcStart.y} A ${previewRpx},${previewRpx} 0 ${largeArc} ${sweep} ${arcEnd.x},${arcEnd.y}`;
+        const midDeg = ray1DirDeg + angleDeg / 2;
+        const lblPx = {
+          x: vx + Math.cos(midDeg * Math.PI / 180) * previewRpx * 1.35,
+          y: vy - Math.sin(midDeg * Math.PI / 180) * previewRpx * 1.35,
+        };
+        return (<g>
+          <line x1={vx} y1={vy} x2={r1x} y2={r1y} stroke="#a855f7" strokeWidth={2} />
+          <line x1={vx} y1={vy} x2={r2x} y2={r2y} stroke="#a855f7" strokeWidth={2} strokeDasharray="6,3" />
+          <path d={arcPath} stroke="#a855f7" strokeWidth={2} fill="none" />
+          <circle cx={vx} cy={vy} r={5} fill="#a855f7" />
+          <circle cx={vx} cy={vy} r={2} fill="white" />
+          <circle cx={r2x} cy={r2y} r={4} fill="white" stroke="#a855f7" strokeWidth={2} />
+          <rect x={lblPx.x - 18} y={lblPx.y - 9} width={36} height={16} rx={3}
+            fill="white" stroke="#a855f7" strokeWidth={0.7} />
+          <text x={lblPx.x} y={lblPx.y + 3} textAnchor="middle" fontSize="10"
+            fill="#a855f7" fontFamily="monospace" fontWeight="700">
+            {angleDeg.toFixed(0)}°
+          </text>
+          <text x={(vx + r2x) / 2} y={(vy + r2y) / 2 - 6} textAnchor="middle" fontSize="9"
+            fill="#a855f7" fontFamily="monospace">
+            {ray2Len.toFixed(2)}cm
+          </text>
+          {label && (
+            <text x={lblPx.x + 22} y={lblPx.y + 3} fontSize="10" fill="#a855f7" fontStyle="italic">
+              {labelMath ? label.replace(/\\/g, "") : label}
+            </text>
+          )}
+        </g>);
+      }
     }
 
     // 2-click mode preview
@@ -1223,7 +1398,7 @@ export function FigureCanvas() {
     }
 
     return startMarker;
-  }, [dragging, pendingStart, previewEnd, activeTool, canvasHeight, zoom, offsetX, offsetY, scale]);
+  }, [dragging, pendingStart, previewEnd, activeTool, canvasHeight, zoom, offsetX, offsetY, scale, angleDraw, mousePos]);
 
   // ── Cursor ────────────────────────────────────────────────────
 
@@ -1277,6 +1452,20 @@ export function FigureCanvas() {
       label: isJa ? "領域描画モード" : "Area drawing",
       value: isJa ? "対角の2点をクリックで矩形の大きさを指定"
                   : "Click two opposite corners to define the bounding box",
+    });
+  } else if (classifyTool(activeTool) === "angle") {
+    const step = angleDraw?.kind ?? "ray1-start";
+    const hintJa = step === "ray1-start" ? "① 頂点をクリック"
+                 : step === "ray1-end"   ? "② 1本目の直線の終点をクリック"
+                 : step === "awaiting-input" ? "③ 角度とラベルを入力して「次へ」"
+                 : "④ 2本目の直線の長さをクリックで決定";
+    const hintEn = step === "ray1-start" ? "1) click the vertex"
+                 : step === "ray1-end"   ? "2) click the first ray endpoint"
+                 : step === "awaiting-input" ? "3) set angle + label, press Next"
+                 : "4) click to set the second ray length";
+    contextBarItems.push({
+      label: isJa ? "角度ツール" : "Angle tool",
+      value: isJa ? hintJa : hintEn,
     });
   } else if (activeTool === "freehand") {
     contextBarItems.push({
@@ -1448,6 +1637,130 @@ export function FigureCanvas() {
 
         {renderRulers()}
       </svg>
+
+      {/* ══════════════════════════════════════════════════════════════
+           ANGLE DRAWING — popup for angle + label between rays
+        ══════════════════════════════════════════════════════════════ */}
+      {angleDraw?.kind === "awaiting-input" && (() => {
+        const [vx, vy] = tikzToCanvas(angleDraw.vertex.x, angleDraw.vertex.y, canvasHeight, zoom, offsetX, offsetY);
+        const popupW = 260;
+        const left = Math.max(8, Math.min(containerSize.w - popupW - 8, vx + 20));
+        const top = Math.max(8, Math.min(containerSize.h - 240, vy - 60));
+        const anglePresets = [30, 45, 60, 90, 120, 150];
+        const labelPresets: { display: string; value: string; math: boolean }[] = [
+          { display: "θ", value: "\\theta", math: true },
+          { display: "α", value: "\\alpha", math: true },
+          { display: "β", value: "\\beta", math: true },
+          { display: "φ", value: "\\phi", math: true },
+          { display: "30°", value: "30^\\circ", math: true },
+          { display: "45°", value: "45^\\circ", math: true },
+          { display: "60°", value: "60^\\circ", math: true },
+          { display: "90°", value: "90^\\circ", math: true },
+        ];
+        const confirm = () => {
+          const deg = parseFloat(angleInput);
+          if (!isFinite(deg) || deg === 0) return;
+          if (!angleDraw || angleDraw.kind !== "awaiting-input") return;
+          setAngleDraw({
+            kind: "ray2-end",
+            vertex: angleDraw.vertex,
+            ray1End: angleDraw.ray1End,
+            angleDeg: deg,
+            label: angleLabelInput,
+            labelMath: angleLabelMath,
+          });
+        };
+        return (
+          <div
+            className="absolute z-30 bg-white dark:bg-neutral-900 rounded-xl shadow-2xl border border-violet-500/30 p-3 animate-scale-in pointer-events-auto"
+            style={{ left, top, width: popupW }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-violet-600 dark:text-violet-400">
+                {isJa ? "角度を指定" : "Set angle"}
+              </span>
+              <button
+                onClick={() => setAngleDraw(null)}
+                className="text-[10px] text-foreground/40 hover:text-foreground/70"
+              >
+                {isJa ? "キャンセル" : "Cancel"}
+              </button>
+            </div>
+            {/* Angle input + presets */}
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                autoFocus
+                type="number"
+                value={angleInput}
+                onChange={(e) => setAngleInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); confirm(); }
+                  if (e.key === "Escape") { e.preventDefault(); setAngleDraw(null); }
+                }}
+                className="w-20 h-7 px-2 text-sm font-mono rounded border border-foreground/[0.1] bg-white/70 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+              />
+              <span className="text-[13px] text-foreground/55">°</span>
+            </div>
+            <div className="grid grid-cols-6 gap-1 mb-2">
+              {anglePresets.map((d) => (
+                <button key={d}
+                  onClick={() => setAngleInput(String(d))}
+                  className={`h-6 text-[10px] font-mono rounded border transition-colors ${
+                    parseFloat(angleInput) === d
+                      ? "bg-violet-500 text-white border-violet-500"
+                      : "bg-white/60 dark:bg-white/5 border-foreground/[0.08] hover:bg-violet-500/10"
+                  }`}
+                >
+                  {d}°
+                </button>
+              ))}
+            </div>
+            {/* Label presets */}
+            <div className="text-[10px] font-mono text-foreground/45 uppercase mb-1">
+              {isJa ? "ラベル" : "Label"}
+            </div>
+            <div className="grid grid-cols-4 gap-1 mb-2">
+              {labelPresets.map((p) => (
+                <button key={p.display}
+                  onClick={() => { setAngleLabelInput(p.value); setAngleLabelMath(p.math); }}
+                  className={`h-7 text-[11px] rounded border transition-colors ${
+                    angleLabelInput === p.value
+                      ? "bg-violet-500 text-white border-violet-500"
+                      : "bg-white/60 dark:bg-white/5 border-foreground/[0.08] hover:bg-violet-500/10"
+                  }`}
+                >
+                  {p.display}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              value={angleLabelInput}
+              onChange={(e) => setAngleLabelInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); confirm(); }
+                if (e.key === "Escape") { e.preventDefault(); setAngleDraw(null); }
+              }}
+              placeholder={isJa ? "ラベル (例: \\theta)" : "Label (e.g. \\theta)"}
+              className="w-full h-7 px-2 text-sm font-mono rounded border border-foreground/[0.1] bg-white/70 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-violet-500/40 mb-2"
+            />
+            <label className="flex items-center gap-1.5 text-[10px] text-foreground/60 mb-2 cursor-pointer">
+              <input type="checkbox" checked={angleLabelMath}
+                onChange={(e) => setAngleLabelMath(e.target.checked)}
+                className="h-3 w-3 accent-violet-500" />
+              {isJa ? "数式モード ($...$ で囲む)" : "Math mode (wrap with $…$)"}
+            </label>
+            <button
+              onClick={confirm}
+              className="w-full h-8 text-[12px] font-semibold rounded-md bg-violet-600 text-white hover:bg-violet-700 transition-colors shadow-sm"
+            >
+              {isJa ? "次: 2本目の直線を描く →" : "Next: draw second line →"}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ══════════════════════════════════════════════════════════════
            FLOATING QUICK ACTIONS — appears above selected shape

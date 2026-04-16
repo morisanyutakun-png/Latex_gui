@@ -1123,32 +1123,70 @@ function RenderAxes(p: ShapeRenderProps) {
   </>);
 }
 
-/** Angle arc preview — two rays + arc + label inside the wedge. */
+/** Angle arc preview — two rays + arc + label inside the wedge.
+ *
+ * Two coordinate paths coexist:
+ *   - Guided-draw shapes carry shape.points = [vertex, ray1End, ray2End] in
+ *     local (tikz) coords → pxPoints gives us the three screen points, which
+ *     we use verbatim. This lets the vertex sit *anywhere* in the bbox —
+ *     required when the two rays fan out in opposite directions.
+ *   - Legacy bbox-based shapes (created via the old area-drag flow) only
+ *     have tikzOptions.start/end; we derive rays from the bottom-left of the
+ *     bbox as before.
+ */
 function RenderAngleArc(p: ShapeRenderProps) {
   const w = sw(p);
   const col = stroke(p);
-  const side = Math.min(p.pw, p.ph);
   const radiusFactor = parseFloat(p.shape.tikzOptions?.["radius"] ?? "0.55") || 0.55;
-  const r = side * radiusFactor;
-  const startDeg = parseFloat(p.shape.tikzOptions?.["start"] ?? "0") || 0;
-  const endDeg = parseFloat(p.shape.tikzOptions?.["end"] ?? "60") || 60;
-  const vx = p.cx;
-  const vy = p.cy + p.ph;
-  const proj = (deg: number, rr: number) => ({
-    x: vx + rr * Math.cos(deg * Math.PI / 180),
-    y: vy - rr * Math.sin(deg * Math.PI / 180),
-  });
-  const a = proj(startDeg, r);
-  const b = proj(endDeg, r);
-  const rayA = proj(startDeg, side);
-  const rayB = proj(endDeg, side);
-  const largeArc = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
-  const d = `M ${a.x},${a.y} A ${r},${r} 0 ${largeArc} 0 ${b.x},${b.y}`;
+
+  let vx: number, vy: number;
+  let rayAx: number, rayAy: number;
+  let rayBx: number, rayBy: number;
+  let startDeg: number, endDeg: number;
+  let r: number;
+
+  if (p.pxPoints && p.pxPoints.length >= 3) {
+    // Explicit points from guided-draw flow.
+    [vx, vy] = [p.pxPoints[0].x, p.pxPoints[0].y];
+    [rayAx, rayAy] = [p.pxPoints[1].x, p.pxPoints[1].y];
+    [rayBx, rayBy] = [p.pxPoints[2].x, p.pxPoints[2].y];
+    const dax = rayAx - vx, day = rayAy - vy;
+    const dbx = rayBx - vx, dby = rayBy - vy;
+    // Screen Y is inverted — flip Y for math-convention degrees.
+    startDeg = Math.atan2(-day, dax) * 180 / Math.PI;
+    endDeg = Math.atan2(-dby, dbx) * 180 / Math.PI;
+    const lenA = Math.hypot(dax, day);
+    const lenB = Math.hypot(dbx, dby);
+    r = Math.min(lenA, lenB) * radiusFactor;
+  } else {
+    const side = Math.min(p.pw, p.ph);
+    startDeg = parseFloat(p.shape.tikzOptions?.["start"] ?? "0") || 0;
+    endDeg = parseFloat(p.shape.tikzOptions?.["end"] ?? "60") || 60;
+    r = side * radiusFactor;
+    vx = p.cx;
+    vy = p.cy + p.ph;
+    rayAx = vx + side * Math.cos(startDeg * Math.PI / 180);
+    rayAy = vy - side * Math.sin(startDeg * Math.PI / 180);
+    rayBx = vx + side * Math.cos(endDeg * Math.PI / 180);
+    rayBy = vy - side * Math.sin(endDeg * Math.PI / 180);
+  }
+
+  const a = { x: vx + r * Math.cos(startDeg * Math.PI / 180), y: vy - r * Math.sin(startDeg * Math.PI / 180) };
+  const b = { x: vx + r * Math.cos(endDeg * Math.PI / 180),   y: vy - r * Math.sin(endDeg * Math.PI / 180) };
+  const sweep = endDeg - startDeg;
+  const largeArc = Math.abs(sweep) > 180 ? 1 : 0;
+  // sweep > 0 (CCW in math) = sweep flag 0 on screen (screen Y inverted).
+  const sweepFlag = sweep > 0 ? 0 : 1;
+  const d = `M ${a.x},${a.y} A ${r},${r} 0 ${largeArc} ${sweepFlag} ${b.x},${b.y}`;
   const midDeg = (startDeg + endDeg) / 2;
-  const lblPt = proj(midDeg, r * 0.72);
+  const lblPt = {
+    x: vx + r * 0.72 * Math.cos(midDeg * Math.PI / 180),
+    y: vy - r * 0.72 * Math.sin(midDeg * Math.PI / 180),
+  };
+
   return wrap(p, <>
-    <line x1={vx} y1={vy} x2={rayA.x} y2={rayA.y} stroke={col} strokeWidth={w} strokeLinecap="round" />
-    <line x1={vx} y1={vy} x2={rayB.x} y2={rayB.y} stroke={col} strokeWidth={w} strokeLinecap="round" />
+    <line x1={vx} y1={vy} x2={rayAx} y2={rayAy} stroke={col} strokeWidth={w} strokeLinecap="round" />
+    <line x1={vx} y1={vy} x2={rayBx} y2={rayBy} stroke={col} strokeWidth={w} strokeLinecap="round" />
     <path d={d} stroke={col} strokeWidth={w} fill="none" strokeLinecap="round" />
     {!p.shape.label && (
       <text x={lblPt.x} y={lblPt.y} fontSize={fs(p)} fill={col} textAnchor="middle" dominantBaseline="central" fontStyle="italic" pointerEvents="none">θ</text>
@@ -1227,6 +1265,162 @@ function RenderBrace(p: ShapeRenderProps) {
   ].join(" ");
   return wrap(p, <>
     <path d={d} stroke={col} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+  </>);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  BIOLOGY — membrane / neuron / synapse / orbital-p
+// ══════════════════════════════════════════════════════════════════
+
+/** Lipid bilayer: two rows of heads (circles) with tails (short lines) between. */
+function RenderMembrane(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const fillCol = fill(p) === "transparent" ? "#fde68a" : fill(p);
+  const headR = Math.max(2, Math.min(p.pw / 18, p.ph * 0.14));
+  const count = Math.max(4, Math.floor(p.pw / (headR * 2.3)));
+  const spacing = p.pw / count;
+  const topY = p.cy + p.ph * 0.25;
+  const botY = p.cy + p.ph * 0.75;
+  const tailLen = (botY - topY) / 2 - headR * 1.1;
+  const heads: React.ReactElement[] = [];
+  for (let i = 0; i < count; i++) {
+    const x = p.cx + spacing * (i + 0.5);
+    heads.push(
+      <circle key={`t${i}`} cx={x} cy={topY} r={headR} stroke={col} strokeWidth={w * 0.7} fill={fillCol} />,
+      <circle key={`b${i}`} cx={x} cy={botY} r={headR} stroke={col} strokeWidth={w * 0.7} fill={fillCol} />,
+      <line key={`tt${i}`} x1={x - headR * 0.35} y1={topY + headR} x2={x - headR * 0.35} y2={topY + headR + tailLen}
+        stroke={col} strokeWidth={w * 0.6} opacity={0.7} />,
+      <line key={`tt2${i}`} x1={x + headR * 0.35} y1={topY + headR} x2={x + headR * 0.35} y2={topY + headR + tailLen}
+        stroke={col} strokeWidth={w * 0.6} opacity={0.7} />,
+      <line key={`bb${i}`} x1={x - headR * 0.35} y1={botY - headR} x2={x - headR * 0.35} y2={botY - headR - tailLen}
+        stroke={col} strokeWidth={w * 0.6} opacity={0.7} />,
+      <line key={`bb2${i}`} x1={x + headR * 0.35} y1={botY - headR} x2={x + headR * 0.35} y2={botY - headR - tailLen}
+        stroke={col} strokeWidth={w * 0.6} opacity={0.7} />
+    );
+  }
+  return wrap(p, <>
+    {heads}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+  </>);
+}
+
+/** Neuron: soma (cell body) + dendrites radiating from left + axon extending right + terminals. */
+function RenderNeuron(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const fillCol = fill(p) === "transparent" ? "#dbeafe" : fill(p);
+  const somaR = Math.min(p.pw * 0.18, p.ph * 0.4);
+  const cx = p.cx + p.pw * 0.3;
+  const cy = p.cy + p.ph / 2;
+  const axonEnd = p.cx + p.pw * 0.92;
+  // Dendrites: 4 branches from left side of soma
+  const dendrites: React.ReactElement[] = [];
+  const dendAngles = [-140, -110, 110, 140];
+  dendAngles.forEach((deg, i) => {
+    const rad = deg * Math.PI / 180;
+    const sx = cx + Math.cos(rad) * somaR;
+    const sy = cy + Math.sin(rad) * somaR;
+    const ex = cx + Math.cos(rad) * somaR * 3.2;
+    const ey = cy + Math.sin(rad) * somaR * 3.2;
+    const mx = sx + (ex - sx) * 0.5 + Math.cos(rad + Math.PI / 2) * somaR * 0.5;
+    const my = sy + (ey - sy) * 0.5 + Math.sin(rad + Math.PI / 2) * somaR * 0.5;
+    dendrites.push(
+      <path key={`d${i}`} d={`M ${sx},${sy} Q ${mx},${my} ${ex},${ey}`}
+        stroke={col} strokeWidth={w} fill="none" strokeLinecap="round" />
+    );
+  });
+  // Axon terminals (branching at end)
+  const terminalBranch = (dy: number, key: string) => (
+    <path key={key} d={`M ${axonEnd - somaR * 0.6},${cy} Q ${axonEnd - somaR * 0.3},${cy + dy * 0.4} ${axonEnd},${cy + dy}`}
+      stroke={col} strokeWidth={w * 0.9} fill="none" strokeLinecap="round" />
+  );
+  return wrap(p, <>
+    {dendrites}
+    {/* Soma */}
+    <ellipse cx={cx} cy={cy} rx={somaR} ry={somaR * 0.85} stroke={col} strokeWidth={w} fill={fillCol} />
+    {/* Axon */}
+    <line x1={cx + somaR * 0.95} y1={cy} x2={axonEnd - somaR * 0.6} y2={cy}
+      stroke={col} strokeWidth={w} strokeLinecap="round" />
+    {terminalBranch(-somaR * 1.1, "t1")}
+    {terminalBranch(0, "t2")}
+    {terminalBranch(somaR * 1.1, "t3")}
+    {/* Axon terminal buttons */}
+    <circle cx={axonEnd} cy={cy - somaR * 1.1} r={w * 1.4} fill={col} />
+    <circle cx={axonEnd} cy={cy} r={w * 1.4} fill={col} />
+    <circle cx={axonEnd} cy={cy + somaR * 1.1} r={w * 1.4} fill={col} />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+  </>);
+}
+
+/** Synapse: pre-terminal bulb + vesicles + cleft + post-synaptic membrane. */
+function RenderSynapse(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const fillCol = fill(p) === "transparent" ? "#fce7f3" : fill(p);
+  // Pre-synaptic terminal (top bulb)
+  const termW = p.pw * 0.7;
+  const termH = p.ph * 0.45;
+  const termX = p.cx + (p.pw - termW) / 2;
+  const termY = p.cy;
+  // Post-synaptic membrane (bottom bar)
+  const postY = p.cy + p.ph * 0.78;
+  // Vesicles
+  const vR = Math.max(2, Math.min(termW / 12, termH / 8));
+  const vesicles: React.ReactElement[] = [];
+  for (let i = 0; i < 4; i++) {
+    const vx = termX + termW * (0.25 + i * 0.17);
+    const vy = termY + termH * 0.55;
+    vesicles.push(
+      <circle key={`v${i}`} cx={vx} cy={vy} r={vR} stroke={col} strokeWidth={w * 0.7} fill="white" />
+    );
+    // inner dot (neurotransmitter)
+    vesicles.push(<circle key={`vi${i}`} cx={vx} cy={vy} r={vR * 0.35} fill={col} opacity={0.6} />);
+  }
+  // Neurotransmitters in cleft (diffusing)
+  const cleftNT: React.ReactElement[] = [];
+  for (let i = 0; i < 5; i++) {
+    const nx = termX + termW * (0.2 + i * 0.15);
+    const ny = termY + termH + (postY - termY - termH) * (0.3 + (i % 2) * 0.35);
+    cleftNT.push(<circle key={`nt${i}`} cx={nx} cy={ny} r={vR * 0.4} fill={col} opacity={0.75} />);
+  }
+  return wrap(p, <>
+    {/* Pre-synaptic bulb */}
+    <path d={`M ${termX},${termY + termH} Q ${termX},${termY} ${termX + termW / 2},${termY} Q ${termX + termW},${termY} ${termX + termW},${termY + termH} Z`}
+      stroke={col} strokeWidth={w} fill={fillCol} />
+    {vesicles}
+    {cleftNT}
+    {/* Post-synaptic membrane */}
+    <line x1={p.cx + p.pw * 0.05} y1={postY} x2={p.cx + p.pw * 0.95} y2={postY}
+      stroke={col} strokeWidth={w * 1.3} strokeLinecap="round" />
+    {/* Receptors */}
+    {[0.2, 0.4, 0.6, 0.8].map((t, i) => (
+      <rect key={`r${i}`} x={p.cx + p.pw * t - vR * 0.5} y={postY + w * 0.5} width={vR} height={vR * 0.7}
+        stroke={col} strokeWidth={w * 0.6} fill="white" />
+    ))}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+  </>);
+}
+
+/** p-orbital: dumbbell (figure-8) along the horizontal axis. */
+function RenderOrbitalP(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const fillCol = fill(p) === "transparent" ? "#ddd6fe" : fill(p);
+  const cx = p.cx + p.pw / 2;
+  const cy = p.cy + p.ph / 2;
+  const lobeRx = p.pw * 0.25;
+  const lobeRy = p.ph * 0.45;
+  const lobeCxL = cx - lobeRx;
+  const lobeCxR = cx + lobeRx;
+  return wrap(p, <>
+    <ellipse cx={lobeCxL} cy={cy} rx={lobeRx} ry={lobeRy} stroke={col} strokeWidth={w}
+      fill={fillCol} fillOpacity={fillOp(p)} />
+    <ellipse cx={lobeCxR} cy={cy} rx={lobeRx} ry={lobeRy} stroke={col} strokeWidth={w}
+      fill={fillCol} fillOpacity={fillOp(p)} />
+    {/* Nucleus marker */}
+    <circle cx={cx} cy={cy} r={Math.max(1.5, w)} fill={col} />
     <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
   </>);
 }
@@ -1318,15 +1512,15 @@ export function ShapeRenderer(p: ShapeRenderProps) {
     // Chemistry
     case "benzene": return <RenderBenzene {...p} />;
     case "orbital-s": return <RenderCircle {...p} />;
-    case "orbital-p": return <RenderEllipse {...p} />;
+    case "orbital-p": return <RenderOrbitalP {...p} />;
 
     // Biology
     case "cell": return <RenderEllipse {...p} />;
     case "nucleus": return <RenderCircle {...p} />;
     case "mitochondria": return <RenderEllipse {...p} />;
-    case "membrane": return RenderGenericDomain(p, "Membrane");
-    case "neuron": return RenderGenericDomain(p, "Neuron");
-    case "synapse": return RenderGenericDomain(p, "Synapse");
+    case "membrane": return <RenderMembrane {...p} />;
+    case "neuron": return <RenderNeuron {...p} />;
+    case "synapse": return <RenderSynapse {...p} />;
 
     default: return RenderGenericDomain(p, p.shape.kind);
   }
