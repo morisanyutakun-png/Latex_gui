@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { PlanId, PLANS } from "@/lib/plans";
+import { PlanId, PLANS, GatedFeature, canUseFeature, requiredPlanFor, FEATURE_LABELS } from "@/lib/plans";
 import { fetchMySubscription } from "@/lib/subscription-api";
 
 // ─── LocalStorage キー ───────────────────────────────────────────────────────
@@ -85,6 +85,7 @@ export interface PlanState {
   pdfMonthlyLimit: () => number;
   canMakeRequest: () => { allowed: boolean; reason: string };
   canExportPDF: () => { allowed: boolean; reason: string };
+  checkFeature: (feature: GatedFeature) => { allowed: boolean; reason: string; requiredPlan: PlanId };
   usagePercent: () => { daily: number; monthly: number };
 
   // 操作
@@ -145,6 +146,19 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       };
     }
     return { allowed: true, reason: "" };
+  },
+
+  checkFeature: (feature: GatedFeature) => {
+    const state = get();
+    const allowed = canUseFeature(state.currentPlan, feature);
+    const req = requiredPlanFor(feature);
+    const label = FEATURE_LABELS[feature];
+    if (allowed) return { allowed: true, reason: "", requiredPlan: req };
+    return {
+      allowed: false,
+      reason: `「${label.ja}」は${PLANS[req].name}プラン以上でご利用いただけます。`,
+      requiredPlan: req,
+    };
   },
 
   usagePercent: () => {

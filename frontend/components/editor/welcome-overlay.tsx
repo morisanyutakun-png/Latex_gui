@@ -17,6 +17,8 @@ import { useUIStore } from "@/store/ui-store";
 import { useI18n } from "@/lib/i18n";
 import { TemplatePicker } from "./template-picker";
 import { createFromTemplate } from "@/lib/templates";
+import { usePlanStore } from "@/store/plan-store";
+import { toast } from "sonner";
 
 const DISMISS_KEY = "lx-welcome-dismissed-v1";
 
@@ -83,11 +85,21 @@ export function WelcomeOverlay() {
   };
 
   const startWithScan = () => {
+    const check = usePlanStore.getState().checkFeature("ocr");
+    if (!check.allowed) {
+      toast.error(check.reason, { duration: 5000, action: { label: "アップグレード", onClick: () => usePlanStore.getState().setShowPricing(true) } });
+      return;
+    }
     setDismissedSession(true);
     triggerOMR();
   };
 
   const startWithGrading = () => {
+    const check = usePlanStore.getState().checkFeature("grading");
+    if (!check.allowed) {
+      toast.error(check.reason, { duration: 5000, action: { label: "アップグレード", onClick: () => usePlanStore.getState().setShowPricing(true) } });
+      return;
+    }
     setDismissedSession(true);
     openGrading(document?.latex || "", document?.metadata.title || "");
   };

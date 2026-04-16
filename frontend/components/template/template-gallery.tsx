@@ -1747,7 +1747,8 @@ export function TemplateGallery() {
                   isJa ? "高性能AI 月150回" : "High-performance AI: 150/month",
                   isJa ? "教材PDF出力 無制限" : "Worksheet PDF: unlimited",
                   isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
-                  isJa ? "基本テンプレート" : "Basic templates",
+                  isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
+                  isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
@@ -1788,9 +1789,9 @@ export function TemplateGallery() {
                   isJa ? "教材PDF出力 無制限 (優先処理)" : "Worksheet PDF: unlimited (priority)",
                   isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
                   isJa ? "全テンプレート利用可" : "All templates",
-                  isJa ? "PDF・画像から問題を抽出 (OCR)" : "Import from PDF & images (OCR)",
+                  isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
+                  isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大100行)" : "Batch (up to 100 rows)",
-                  isJa ? "メールサポート" : "Email support",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
                     <Check className="h-3.5 w-3.5 text-violet-500 shrink-0" />
@@ -1829,11 +1830,10 @@ export function TemplateGallery() {
                   isJa ? "高性能AI 月2,000回" : "High-performance AI: 2,000/month",
                   isJa ? "教材PDF出力 無制限 (最優先処理)" : "Worksheet PDF: unlimited (highest priority)",
                   isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
-                  isJa ? "Proの全機能を含む" : "Everything in Pro",
+                  isJa ? "全テンプレート + カスタム作成" : "All templates + custom creation",
+                  isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
+                  isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",
-                  isJa ? "カスタムテンプレート作成" : "Custom template creation",
-                  isJa ? "紙デザインそのままPDF出力" : "Paper design preserved in PDF",
-                  isJa ? "専任サポート担当" : "Dedicated support",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
                     <Check className="h-3.5 w-3.5 text-amber-500 shrink-0" />

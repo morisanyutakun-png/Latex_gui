@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { TemplatePicker } from "./template-picker";
 import { createFromTemplate, TEMPLATES } from "@/lib/templates";
+import { usePlanStore } from "@/store/plan-store";
+import { toast } from "sonner";
 
 const DISMISS_KEY = "lx-quickstart-dismissed-v1";
 
@@ -137,11 +139,18 @@ export function QuickStartBar() {
           {/* 区切り */}
           <div className="w-px bg-foreground/[0.06] shrink-0 my-1" />
 
-          {/* 画像読取 */}
+          {/* 画像読取 (Starter+) */}
           <button
             type="button"
-            onClick={() => { triggerOMR(); dismiss(); }}
-            className="group flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border border-emerald-300/30 dark:border-emerald-500/15 bg-white/80 dark:bg-white/[0.04] hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-400/50 transition-all shrink-0"
+            onClick={() => {
+              const check = usePlanStore.getState().checkFeature("ocr");
+              if (!check.allowed) {
+                toast.error(check.reason, { duration: 5000, action: { label: isJa ? "アップグレード" : "Upgrade", onClick: () => usePlanStore.getState().setShowPricing(true) } });
+                return;
+              }
+              triggerOMR(); dismiss();
+            }}
+            className="group relative flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border border-emerald-300/30 dark:border-emerald-500/15 bg-white/80 dark:bg-white/[0.04] hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-400/50 transition-all shrink-0"
           >
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-sm shrink-0">
               <ScanLine className="h-4 w-4 text-white" />
@@ -152,11 +161,18 @@ export function QuickStartBar() {
             </div>
           </button>
 
-          {/* 採点 */}
+          {/* 採点 (Starter+) */}
           <button
             type="button"
-            onClick={() => { openGrading(doc?.latex || "", doc?.metadata.title || ""); dismiss(); }}
-            className="group flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border border-rose-300/30 dark:border-rose-500/15 bg-white/80 dark:bg-white/[0.04] hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:border-rose-400/50 transition-all shrink-0"
+            onClick={() => {
+              const check = usePlanStore.getState().checkFeature("grading");
+              if (!check.allowed) {
+                toast.error(check.reason, { duration: 5000, action: { label: isJa ? "アップグレード" : "Upgrade", onClick: () => usePlanStore.getState().setShowPricing(true) } });
+                return;
+              }
+              openGrading(doc?.latex || "", doc?.metadata.title || ""); dismiss();
+            }}
+            className="group relative flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border border-rose-300/30 dark:border-rose-500/15 bg-white/80 dark:bg-white/[0.04] hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:border-rose-400/50 transition-all shrink-0"
           >
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-rose-400 to-pink-600 flex items-center justify-center shadow-sm shrink-0">
               <ClipboardCheck className="h-4 w-4 text-white" />
