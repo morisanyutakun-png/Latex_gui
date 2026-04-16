@@ -818,35 +818,46 @@ export function FigureCanvas() {
         return;
       }
       if (angleDraw.kind === "ray2-end") {
-        // Third click: commit shape. Direction is locked to vertex + angle.
+        // Third click: commit shape. Cursor side decides CCW vs CW; distance
+        // projected onto the (now-signed) second ray becomes the ray length.
         const { vertex, ray1End, angleDeg, label, labelMath } = angleDraw;
         const ray1DirDeg = Math.atan2(ray1End.y - vertex.y, ray1End.x - vertex.x) * 180 / Math.PI;
-        const ray2DirDeg = ray1DirDeg + angleDeg;
-        // User's click distance = ray2 length (projected onto ray2 direction if needed)
-        const clickDx = sx - vertex.x, clickDy = sy - vertex.y;
-        const clickDist = Math.hypot(clickDx, clickDy);
-        if (clickDist < 0.1) return;
-        const ray2Len = clickDist;
+        // Cursor-side sign: cross product of ray1 direction and cursor vector.
+        const cursorDx = sx - vertex.x, cursorDy = sy - vertex.y;
+        const ray1Ux = Math.cos(ray1DirDeg * Math.PI / 180);
+        const ray1Uy = Math.sin(ray1DirDeg * Math.PI / 180);
+        const cross = ray1Ux * cursorDy - ray1Uy * cursorDx;
+        const sign = cross >= 0 ? 1 : -1;
+        const signedAngleDeg = sign * Math.abs(angleDeg);
+        const ray2DirDeg = ray1DirDeg + signedAngleDeg;
+        // Projection of cursor onto ray2 direction = length. Snap to grid so
+        // the full shape is grid-anchored even on off-axis angles.
+        const rayUx = Math.cos(ray2DirDeg * Math.PI / 180);
+        const rayUy = Math.sin(ray2DirDeg * Math.PI / 180);
+        const proj = cursorDx * rayUx + cursorDy * rayUy;
+        let ray2Len = Math.max(0.3, proj);
+        if (snapToGrid && gridSize > 0) {
+          ray2Len = Math.max(gridSize, Math.round(ray2Len / gridSize) * gridSize);
+        }
         const ray2End = {
-          x: vertex.x + Math.cos(ray2DirDeg * Math.PI / 180) * ray2Len,
-          y: vertex.y + Math.sin(ray2DirDeg * Math.PI / 180) * ray2Len,
+          x: vertex.x + rayUx * ray2Len,
+          y: vertex.y + rayUy * ray2Len,
         };
         const ray1Len = Math.hypot(ray1End.x - vertex.x, ray1End.y - vertex.y);
-        // Bbox = min/max of vertex, ray1End, ray2End (vertex anchored in the shape's local frame)
+        // Bbox
         const xs = [vertex.x, ray1End.x, ray2End.x];
         const ys = [vertex.y, ray1End.y, ray2End.y];
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
-        const w = Math.max(maxX - minX, 0.2);
-        const h = Math.max(maxY - minY, 0.2);
-        // Place shape so that its bottom-left corner = (minX, minY). The
-        // renderer uses the bbox's bottom-left as the vertex, which matches
-        // since minX/minY are the vertex's own coordinates whenever the rays
-        // point up-right. For other directions we keep the vertex-in-corner
-        // convention by adjusting the shape's bbox to fit.
-        const id = addShapeFromPalette("angle-arc", minX, minY);
+        // Snap the shape anchor to grid so the rendered SVG lands on grid
+        // lines even when the rays extend into off-grid coordinates.
+        const anchorX = snapV(minX, gridSize, snapToGrid);
+        const anchorY = snapV(minY, gridSize, snapToGrid);
+        const w = Math.max(maxX - anchorX, 0.2);
+        const h = Math.max(maxY - anchorY, 0.2);
+        const id = addShapeFromPalette("angle-arc", anchorX, anchorY);
         updateShape(id, {
-          x: minX, y: minY,
+          x: anchorX, y: anchorY,
           width: w, height: h,
           label, labelMathMode: labelMath,
           tikzOptions: {
@@ -855,9 +866,9 @@ export function FigureCanvas() {
             radius: Math.max(0.2, Math.min(1, (Math.min(ray1Len, ray2Len) * 0.6) / Math.max(w, h))).toFixed(2),
           },
           points: [
-            { x: vertex.x - minX, y: vertex.y - minY },
-            { x: ray1End.x - minX, y: ray1End.y - minY },
-            { x: ray2End.x - minX, y: ray2End.y - minY },
+            { x: vertex.x - anchorX, y: vertex.y - anchorY },
+            { x: ray1End.x - anchorX, y: ray1End.y - anchorY },
+            { x: ray2End.x - anchorX, y: ray2End.y - anchorY },
           ],
         });
         setAngleDraw(null);
@@ -1276,17 +1287,27 @@ export function FigureCanvas() {
         </g>);
       }
       if (angleDraw.kind === "ray2-end") {
-        // Ray2 direction is locked to vertex + (ray1 direction + angleDeg)
+        // Ray2 direction follows the cursor side (CCW above ray1, CW below)
+        // so the user can pick which side the angle opens to.
         const { vertex, ray1End, angleDeg, label, labelMath } = angleDraw;
         const ray1DirDeg = Math.atan2(ray1End.y - vertex.y, ray1End.x - vertex.x) * 180 / Math.PI;
-        const ray2DirDeg = ray1DirDeg + angleDeg;
-        // Project cursor onto ray2 direction to get length
         const dx = cursorTikz.x - vertex.x, dy = cursorTikz.y - vertex.y;
+        const r1Ux = Math.cos(ray1DirDeg * Math.PI / 180);
+        const r1Uy = Math.sin(ray1DirDeg * Math.PI / 180);
+        const cross = r1Ux * dy - r1Uy * dx;
+        const sign = cross >= 0 ? 1 : -1;
+        const signedAngle = sign * Math.abs(angleDeg);
+        const ray2DirDeg = ray1DirDeg + signedAngle;
         const rayUx = Math.cos(ray2DirDeg * Math.PI / 180);
         const rayUy = Math.sin(ray2DirDeg * Math.PI / 180);
         const proj = dx * rayUx + dy * rayUy;
-        const ray2Len = Math.max(0.3, proj);
+        let ray2Len = Math.max(0.3, proj);
+        if (snapToGrid && gridSize > 0) {
+          ray2Len = Math.max(gridSize, Math.round(ray2Len / gridSize) * gridSize);
+        }
         const ray2End = { x: vertex.x + rayUx * ray2Len, y: vertex.y + rayUy * ray2Len };
+        // For preview, use the signed angle so the arc/label track cursor side.
+        const effectiveAngleDeg = signedAngle;
         const [vx, vy] = tikzToCanvas(vertex.x, vertex.y, canvasHeight, zoom, offsetX, offsetY);
         const [r1x, r1y] = tikzToCanvas(ray1End.x, ray1End.y, canvasHeight, zoom, offsetX, offsetY);
         const [r2x, r2y] = tikzToCanvas(ray2End.x, ray2End.y, canvasHeight, zoom, offsetX, offsetY);
@@ -1298,10 +1319,10 @@ export function FigureCanvas() {
         const a2 = ray2DirDeg * Math.PI / 180;
         const arcStart = { x: vx + Math.cos(a1) * previewRpx, y: vy - Math.sin(a1) * previewRpx };
         const arcEnd   = { x: vx + Math.cos(a2) * previewRpx, y: vy - Math.sin(a2) * previewRpx };
-        const sweep = angleDeg > 0 ? 0 : 1;  // SVG sweep flag (screen Y inverted)
-        const largeArc = Math.abs(angleDeg) > 180 ? 1 : 0;
+        const sweep = effectiveAngleDeg > 0 ? 0 : 1;  // SVG sweep flag (screen Y inverted)
+        const largeArc = Math.abs(effectiveAngleDeg) > 180 ? 1 : 0;
         const arcPath = `M ${arcStart.x},${arcStart.y} A ${previewRpx},${previewRpx} 0 ${largeArc} ${sweep} ${arcEnd.x},${arcEnd.y}`;
-        const midDeg = ray1DirDeg + angleDeg / 2;
+        const midDeg = ray1DirDeg + effectiveAngleDeg / 2;
         const lblPx = {
           x: vx + Math.cos(midDeg * Math.PI / 180) * previewRpx * 1.35,
           y: vy - Math.sin(midDeg * Math.PI / 180) * previewRpx * 1.35,
@@ -1317,7 +1338,7 @@ export function FigureCanvas() {
             fill="white" stroke="#a855f7" strokeWidth={0.7} />
           <text x={lblPx.x} y={lblPx.y + 3} textAnchor="middle" fontSize="10"
             fill="#a855f7" fontFamily="monospace" fontWeight="700">
-            {angleDeg.toFixed(0)}°
+            {Math.abs(effectiveAngleDeg).toFixed(0)}°{sign < 0 ? " ↻" : " ↺"}
           </text>
           <text x={(vx + r2x) / 2} y={(vy + r2y) / 2 - 6} textAnchor="middle" fontSize="9"
             fill="#a855f7" fontFamily="monospace">
@@ -1458,11 +1479,11 @@ export function FigureCanvas() {
     const hintJa = step === "ray1-start" ? "① 頂点をクリック"
                  : step === "ray1-end"   ? "② 1本目の直線の終点をクリック"
                  : step === "awaiting-input" ? "③ 角度とラベルを入力して「次へ」"
-                 : "④ 2本目の直線の長さをクリックで決定";
+                 : "④ カーソルの位置(上/下)で角度の向きを選び、クリックで確定";
     const hintEn = step === "ray1-start" ? "1) click the vertex"
                  : step === "ray1-end"   ? "2) click the first ray endpoint"
                  : step === "awaiting-input" ? "3) set angle + label, press Next"
-                 : "4) click to set the second ray length";
+                 : "4) hover either side of line 1 to pick CCW/CW, click to commit";
     contextBarItems.push({
       label: isJa ? "角度ツール" : "Angle tool",
       value: isJa ? hintJa : hintEn,

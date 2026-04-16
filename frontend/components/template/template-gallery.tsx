@@ -1696,8 +1696,9 @@ export function TemplateGallery() {
             </span>
           </div>
 
-          {/* Plans */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+          {/* Plans — 4 tiers: Free + 松 (Starter) / 竹 (Pro) / 梅 (Premium).
+              Differentiated by the monthly quota of 高性能AI (high-performance AI). */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
             {/* Free */}
             <div className="relative p-6 rounded-[20px] bg-card/70 backdrop-blur-xl border border-foreground/[0.06] hover:border-foreground/[0.1] transition-all duration-300">
               <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground/50 mb-3">Free</p>
@@ -1713,11 +1714,10 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AIリクエスト 3回/日（月30回）" : "3 AI requests/day (30/month)",
-                  isJa ? "AIモデル: Haiku（軽量）" : "AI model: Haiku (lightweight)",
+                  isJa ? "標準AI 3回/日(月30回)" : "Standard AI 3/day (30/mo)",
+                  isJa ? "高性能AI 月5回まで(お試し)" : "Premium AI 5/mo (trial)",
                   isJa ? "基本テンプレート" : "Basic templates",
                   isJa ? "PDF出力" : "PDF export",
-                  isJa ? "テキストから問題生成" : "Generate from text prompts",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-muted-foreground">
                     <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
@@ -1727,22 +1727,61 @@ export function TemplateGallery() {
               </ul>
             </div>
 
-            {/* Pro */}
-            <div className="relative p-6 rounded-[20px] bg-gradient-to-b from-violet-500/[0.06] to-blue-500/[0.03] border-2 border-violet-500/[0.25] shadow-2xl shadow-violet-500/[0.08] hover:shadow-violet-500/[0.15] transition-all duration-300">
+            {/* Starter (松) — entry paid tier */}
+            <div className="relative p-6 rounded-[20px] bg-card/70 backdrop-blur-xl border border-emerald-500/[0.2] hover:border-emerald-500/[0.35] transition-all duration-300">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold shadow-lg flex items-center gap-1">
-                  <Crown className="h-3 w-3" />
-                  {isJa ? "おすすめ" : "Most popular"}
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/95 text-white font-bold shadow">
+                  {isJa ? "松" : "Starter"}
                 </span>
               </div>
-              <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-3">Pro</p>
+              <p className="text-[11px] font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400 mb-3">Starter</p>
               <div className="flex items-baseline gap-1 mb-1">
                 <span className="text-[32px] font-black tracking-tight">¥{annual ? "980" : "1,480"}</span>
                 <span className="text-[13px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
               </div>
               <p className="text-[12px] text-muted-foreground mb-5">
                 {annual
-                  ? (isJa ? "年払い ¥11,760/年（月あたり¥980）" : "Billed annually at ¥11,760/yr")
+                  ? (isJa ? "年払い ¥11,760/年(月あたり¥980)" : "Billed annually at ¥11,760/yr")
+                  : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
+              </p>
+              <button
+                onClick={() => handlePlanSelect("starter")}
+                className="w-full py-2.5 rounded-xl bg-emerald-500/95 text-white font-bold text-[13px] shadow hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
+              >
+                {isJa ? "7日間無料で試す" : "Start 7-day free trial"}
+              </button>
+              <ul className="space-y-2.5">
+                {[
+                  isJa ? "標準AI 15回/日(月300回)" : "Standard AI 15/day (300/mo)",
+                  isJa ? "高性能AI 月30回まで" : "Premium AI 30/mo",
+                  isJa ? "基本テンプレート" : "Basic templates",
+                  isJa ? "思考ログ表示" : "Thinking log display",
+                  isJa ? "LaTeXソース書出" : "LaTeX source export",
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
+                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Pro (竹) — most popular */}
+            <div className="relative p-6 rounded-[20px] bg-gradient-to-b from-violet-500/[0.06] to-blue-500/[0.03] border-2 border-violet-500/[0.25] shadow-2xl shadow-violet-500/[0.08] hover:shadow-violet-500/[0.15] transition-all duration-300">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold shadow-lg flex items-center gap-1">
+                  <Crown className="h-3 w-3" />
+                  {isJa ? "竹 · 人気" : "Pro · Popular"}
+                </span>
+              </div>
+              <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-3">Pro</p>
+              <div className="flex items-baseline gap-1 mb-1">
+                <span className="text-[32px] font-black tracking-tight">¥{annual ? "3,180" : "4,800"}</span>
+                <span className="text-[13px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
+              </div>
+              <p className="text-[12px] text-muted-foreground mb-5">
+                {annual
+                  ? (isJa ? "年払い ¥38,160/年(月あたり¥3,180)" : "Billed annually at ¥38,160/yr")
                   : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
               </p>
               <button
@@ -1753,11 +1792,11 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AIリクエスト 25回/日（月500回）" : "25 AI requests/day (500/month)",
-                  isJa ? "高精度AI（Sonnet）月50回" : "High-quality AI (Sonnet) 50/month",
+                  isJa ? "標準AI 50回/日(月1,200回)" : "Standard AI 50/day (1,200/mo)",
+                  isJa ? "高性能AI 月150回まで(5倍)" : "Premium AI 150/mo (5×)",
+                  isJa ? "全テンプレート利用可" : "All templates",
                   isJa ? "PDF・画像から問題を抽出" : "Import from PDF & images",
-                  isJa ? "解答付きPDF自動生成" : "Auto answer-key PDF",
-                  isJa ? "バッチ処理（上限50行）" : "Batch processing (up to 50 rows)",
+                  isJa ? "バッチ処理(上限100行)" : "Batch (up to 100 rows)",
                   isJa ? "メールサポート" : "Email support",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
@@ -1773,17 +1812,17 @@ export function TemplateGallery() {
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold shadow-lg flex items-center gap-1">
                   <Crown className="h-3 w-3" />
-                  {isJa ? "最上位" : "Best value"}
+                  {isJa ? "梅 · 最上位" : "Premium · Top"}
                 </span>
               </div>
               <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent mb-3">Premium</p>
               <div className="flex items-baseline gap-1 mb-1">
-                <span className="text-[32px] font-black tracking-tight">¥{annual ? "9,800" : "12,800"}</span>
+                <span className="text-[32px] font-black tracking-tight">¥{annual ? "9,800" : "14,800"}</span>
                 <span className="text-[13px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
               </div>
               <p className="text-[12px] text-muted-foreground mb-5">
                 {annual
-                  ? (isJa ? "年払い ¥117,600/年（月あたり¥9,800）" : "Billed annually at ¥117,600/yr")
+                  ? (isJa ? "年払い ¥117,600/年(月あたり¥9,800)" : "Billed annually at ¥117,600/yr")
                   : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
               </p>
               <button
@@ -1794,11 +1833,11 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AIリクエスト 80回/日（月1,500回）" : "80 AI requests/day (1,500/month)",
-                  isJa ? "高精度AI（Sonnet）月200回" : "High-quality AI (Sonnet) 200/month",
+                  isJa ? "標準AI 200回/日(月5,000回)" : "Standard AI 200/day (5,000/mo)",
+                  isJa ? "高性能AI 月600回まで(20倍)" : "Premium AI 600/mo (20×)",
                   isJa ? "Proの全機能を含む" : "Everything in Pro",
                   isJa ? "紙デザインそのままPDF出力" : "Paper design preserved in PDF",
-                  isJa ? "バッチ処理（最大200行）" : "Batch processing (up to 200 rows)",
+                  isJa ? "バッチ処理(最大300行)" : "Batch (up to 300 rows)",
                   isJa ? "カスタムテンプレート作成" : "Custom template creation",
                   isJa ? "最優先サポート" : "Priority support",
                 ].map((f) => (

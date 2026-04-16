@@ -158,10 +158,10 @@ export function PricingModal() {
                       {isJa ? "回/月" : "/mo"}
                     </span>
                   </div>
-                  {plan.sonnetPerMonth > 0 && (
+                  {plan.premiumAiPerMonth > 0 && (
                     <div className="flex items-baseline gap-1 mt-1 pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
                       <span className={`text-sm font-semibold ${isPremium ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 dark:text-indigo-400"}`}>
-                        Sonnet {plan.sonnetPerMonth.toLocaleString()}
+                        {isJa ? "高性能AI" : "Premium AI"} {plan.premiumAiPerMonth.toLocaleString()}
                       </span>
                       <span className="text-xs text-slate-500">
                         {isJa ? "回/月" : "/mo"}
