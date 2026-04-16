@@ -1088,7 +1088,7 @@ export function TemplateGallery() {
   const setDocument = useDocumentStore((s) => s.setDocument);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [powerOpen, setPowerOpen] = useState(false);
-  const [annual, setAnnual] = useState(true);
+
 
   const personaFade = useFadeIn(0);
   const mockupFade = useFadeIn(0);
@@ -1664,45 +1664,34 @@ export function TemplateGallery() {
           ref={pricingFade.ref}
           className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${pricingFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <div className="text-center mb-8">
+          {/* Section header */}
+          <div className="text-center mb-14">
             <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
               {isJa ? "料金プラン" : "Pricing"}
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.6rem)] font-bold tracking-tight mb-4">
               {isJa ? "授業1コマ分以下で、教材作成を自動化。" : "Automate your worksheets for less than one tutoring hour."}
             </h2>
-            <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
+            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto mb-6">
               {isJa
-                ? "まず無料で試して、気に入ったらProへ。"
-                : "Start free, upgrade when you're ready."}
+                ? "すべてのプランに高性能AI搭載。違いは使える回数だけ。まず無料で試して、気に入ったらアップグレード。"
+                : "High-performance AI on every plan. The only difference is usage limits. Start free, upgrade when you're ready."}
             </p>
+            {/* AI badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 to-violet-500/10 border border-blue-500/15">
+              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+              <span className="text-[12px] font-semibold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
+                {isJa ? "全プラン高性能AI搭載" : "High-performance AI on all plans"}
+              </span>
+            </div>
           </div>
 
-          {/* Billing toggle */}
-          <div className="flex items-center justify-center gap-3 mb-12">
-            <span className={`text-[13px] font-medium transition-colors ${!annual ? "text-foreground" : "text-muted-foreground/50"}`}>
-              {isJa ? "月払い" : "Monthly"}
-            </span>
-            <button
-              onClick={() => setAnnual((v) => !v)}
-              className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${annual ? "bg-violet-500" : "bg-foreground/20"}`}
-            >
-              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-300 ${annual ? "translate-x-6" : "translate-x-0.5"}`} />
-            </button>
-            <span className={`text-[13px] font-medium transition-colors ${annual ? "text-foreground" : "text-muted-foreground/50"}`}>
-              {isJa ? "年払い" : "Annual"}
-            </span>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/15">
-              {isJa ? "34%お得" : "Save 34%"}
-            </span>
-          </div>
-
-          {/* Plans — 4 tiers: Free + 松 (Starter) / 竹 (Pro) / 梅 (Premium).
-              Differentiated by the monthly quota of 高性能AI (high-performance AI). */}
+          {/* Plans grid — monthly only */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
             {/* Free */}
             <div className="relative p-6 rounded-[20px] bg-card/70 backdrop-blur-xl border border-foreground/[0.06] hover:border-foreground/[0.1] transition-all duration-300">
-              <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground/50 mb-3">Free</p>
+              <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground/50 mb-1">Free</p>
+              <p className="text-[11px] text-muted-foreground/60 mb-3">{isJa ? "まずは体験してみたい方に" : "Try before you commit"}</p>
               <div className="flex items-baseline gap-1 mb-1">
                 <span className="text-[32px] font-black tracking-tight">¥0</span>
               </div>
@@ -1715,8 +1704,8 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "標準AI 3回/日(月30回)" : "Standard AI 3/day (30/mo)",
-                  isJa ? "高性能AI 月5回まで(お試し)" : "Premium AI 5/mo (trial)",
+                  isJa ? "AI教材生成 3回/日 (月30回)" : "AI generation: 3/day (30/mo)",
+                  isJa ? "高性能AI 月5回まで (お試し)" : "High-perf AI: 5/mo (trial)",
                   isJa ? "基本テンプレート" : "Basic templates",
                   isJa ? "PDF出力" : "PDF export",
                 ].map((f) => (
@@ -1728,22 +1717,22 @@ export function TemplateGallery() {
               </ul>
             </div>
 
-            {/* Starter (松) — entry paid tier */}
+            {/* Starter — entry paid tier */}
             <div className="relative p-6 rounded-[20px] bg-card/70 backdrop-blur-xl border border-emerald-500/[0.2] hover:border-emerald-500/[0.35] transition-all duration-300">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/95 text-white font-bold shadow">
-                  {isJa ? "松" : "Starter"}
+                  {isJa ? "手軽に始める" : "Easy start"}
                 </span>
               </div>
-              <p className="text-[11px] font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400 mb-3">Starter</p>
+              <p className="text-[11px] font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400 mb-1">Starter</p>
+              <p className="text-[11px] text-muted-foreground/60 mb-3">{isJa ? "個人塾・家庭教師の方に" : "For individual tutors"}</p>
               <div className="flex items-baseline gap-1 mb-1">
-                <span className="text-[32px] font-black tracking-tight">¥{annual ? "980" : "1,480"}</span>
+                <span className="text-[32px] font-black tracking-tight">¥1,980</span>
                 <span className="text-[13px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
               </div>
-              <p className="text-[12px] text-muted-foreground mb-5">
-                {annual
-                  ? (isJa ? "年払い ¥11,760/年(月あたり¥980)" : "Billed annually at ¥11,760/yr")
-                  : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
+              <p className="text-[12px] text-muted-foreground mb-1">{isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime"}</p>
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mb-5">
+                {isJa ? "1日あたり約¥66 — コーヒー1杯以下" : "~¥66/day — less than a coffee"}
               </p>
               <button
                 onClick={() => handlePlanSelect("starter")}
@@ -1753,8 +1742,8 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "標準AI 15回/日(月300回)" : "Standard AI 15/day (300/mo)",
-                  isJa ? "高性能AI 月30回まで" : "Premium AI 30/mo",
+                  isJa ? "AI教材生成 20回/日 (月400回)" : "AI generation: 20/day (400/mo)",
+                  isJa ? "高性能AI 月40回" : "High-perf AI: 40/mo",
                   isJa ? "基本テンプレート" : "Basic templates",
                   isJa ? "思考ログ表示" : "Thinking log display",
                   isJa ? "LaTeXソース書出" : "LaTeX source export",
@@ -1767,23 +1756,23 @@ export function TemplateGallery() {
               </ul>
             </div>
 
-            {/* Pro (竹) — most popular */}
+            {/* Pro — most popular */}
             <div className="relative p-6 rounded-[20px] bg-gradient-to-b from-violet-500/[0.06] to-blue-500/[0.03] border-2 border-violet-500/[0.25] shadow-2xl shadow-violet-500/[0.08] hover:shadow-violet-500/[0.15] transition-all duration-300">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold shadow-lg flex items-center gap-1">
                   <Crown className="h-3 w-3" />
-                  {isJa ? "竹 · 人気" : "Pro · Popular"}
+                  {isJa ? "人気 No.1" : "Most Popular"}
                 </span>
               </div>
-              <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-3">Pro</p>
+              <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-1">Pro</p>
+              <p className="text-[11px] text-muted-foreground/60 mb-3">{isJa ? "毎日使うならこのプラン" : "Best for daily use"}</p>
               <div className="flex items-baseline gap-1 mb-1">
-                <span className="text-[32px] font-black tracking-tight">¥{annual ? "3,180" : "4,800"}</span>
+                <span className="text-[32px] font-black tracking-tight">¥4,980</span>
                 <span className="text-[13px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
               </div>
-              <p className="text-[12px] text-muted-foreground mb-5">
-                {annual
-                  ? (isJa ? "年払い ¥38,160/年(月あたり¥3,180)" : "Billed annually at ¥38,160/yr")
-                  : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
+              <p className="text-[12px] text-muted-foreground mb-1">{isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime"}</p>
+              <p className="text-[11px] bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent font-medium mb-5">
+                {isJa ? "Starterの3倍以上のAI — 1日あたり約¥166" : "3× more AI than Starter — ~¥166/day"}
               </p>
               <button
                 onClick={() => handlePlanSelect("pro")}
@@ -1793,11 +1782,11 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "標準AI 50回/日(月1,200回)" : "Standard AI 50/day (1,200/mo)",
-                  isJa ? "高性能AI 月150回まで(5倍)" : "Premium AI 150/mo (5×)",
+                  isJa ? "AI教材生成 60回/日 (月1,500回)" : "AI generation: 60/day (1,500/mo)",
+                  isJa ? "高性能AI 月200回 (5倍)" : "High-perf AI: 200/mo (5×)",
                   isJa ? "全テンプレート利用可" : "All templates",
                   isJa ? "PDF・画像から問題を抽出" : "Import from PDF & images",
-                  isJa ? "バッチ処理(上限100行)" : "Batch (up to 100 rows)",
+                  isJa ? "バッチ処理 (上限100行)" : "Batch (up to 100 rows)",
                   isJa ? "メールサポート" : "Email support",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
@@ -1813,18 +1802,18 @@ export function TemplateGallery() {
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold shadow-lg flex items-center gap-1">
                   <Crown className="h-3 w-3" />
-                  {isJa ? "梅 · 最上位" : "Premium · Top"}
+                  {isJa ? "最上位プラン" : "Top Tier"}
                 </span>
               </div>
-              <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent mb-3">Premium</p>
+              <p className="text-[11px] font-bold tracking-wider uppercase bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent mb-1">Premium</p>
+              <p className="text-[11px] text-muted-foreground/60 mb-3">{isJa ? "教育機関・大量利用に" : "For schools & heavy use"}</p>
               <div className="flex items-baseline gap-1 mb-1">
-                <span className="text-[32px] font-black tracking-tight">¥{annual ? "9,800" : "14,800"}</span>
+                <span className="text-[36px] font-black tracking-tight">¥19,800</span>
                 <span className="text-[13px] text-muted-foreground font-medium">/ {isJa ? "月" : "mo"}</span>
               </div>
-              <p className="text-[12px] text-muted-foreground mb-5">
-                {annual
-                  ? (isJa ? "年払い ¥117,600/年(月あたり¥9,800)" : "Billed annually at ¥117,600/yr")
-                  : (isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime")}
+              <p className="text-[12px] text-muted-foreground mb-1">{isJa ? "月払い · いつでも解約OK" : "Billed monthly · Cancel anytime"}</p>
+              <p className="text-[11px] bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent font-medium mb-5">
+                {isJa ? "Proの5倍以上のAI — 講師1人分の人件費以下" : "5× more AI than Pro — less than hiring one tutor"}
               </p>
               <button
                 onClick={() => handlePlanSelect("premium")}
@@ -1834,13 +1823,14 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "標準AI 200回/日(月5,000回)" : "Standard AI 200/day (5,000/mo)",
-                  isJa ? "高性能AI 月600回まで(20倍)" : "Premium AI 600/mo (20×)",
+                  isJa ? "AI教材生成 300回/日 (月8,000回)" : "AI generation: 300/day (8,000/mo)",
+                  isJa ? "高性能AI 月800回 (20倍)" : "High-perf AI: 800/mo (20×)",
                   isJa ? "Proの全機能を含む" : "Everything in Pro",
-                  isJa ? "紙デザインそのままPDF出力" : "Paper design preserved in PDF",
-                  isJa ? "バッチ処理(最大300行)" : "Batch (up to 300 rows)",
+                  isJa ? "PDF出力 (最優先キュー)" : "PDF export (highest priority)",
+                  isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",
                   isJa ? "カスタムテンプレート作成" : "Custom template creation",
-                  isJa ? "最優先サポート" : "Priority support",
+                  isJa ? "紙デザインそのままPDF出力" : "Paper design preserved in PDF",
+                  isJa ? "専任サポート担当" : "Dedicated support",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
                     <Check className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -1851,9 +1841,21 @@ export function TemplateGallery() {
             </div>
           </div>
 
-          <p className="text-center text-[12px] text-muted-foreground/40 mt-8">
-            {isJa ? "Stripe による安全な決済 · いつでもキャンセル可能 · 領収書発行対応" : "Secure payment via Stripe · Cancel anytime · Receipts available"}
-          </p>
+          {/* Trust signals */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 mt-10">
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground/50">
+              <Shield className="h-3.5 w-3.5" />
+              {isJa ? "Stripeによる安全な決済" : "Secure payment via Stripe"}
+            </div>
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground/50">
+              <Check className="h-3.5 w-3.5" />
+              {isJa ? "いつでもキャンセル可能" : "Cancel anytime"}
+            </div>
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground/50">
+              <FileDown className="h-3.5 w-3.5" />
+              {isJa ? "領収書発行対応" : "Receipts available"}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1931,8 +1933,8 @@ export function TemplateGallery() {
           </h2>
           <p className="text-muted-foreground text-[16px] mb-12 max-w-md mx-auto leading-relaxed">
             {isJa
-              ? "無料で始めて、気に入ったらProへ。月¥980から。"
-              : "Start free, upgrade to Pro from ¥980/mo when you're ready."}
+              ? "無料で始めて、気に入ったらアップグレード。月¥1,980から。"
+              : "Start free, upgrade when you're ready. From ¥1,980/mo."}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button

@@ -2,8 +2,10 @@
  * EddivomAI 料金プラン定義
  *
  * 差別化戦略:
- *   全プラン共通で軽量AI を使い、**高性能AI (high-performance AI) の月間回数**
- *   を主軸にプランを差別化する。松竹梅 (Starter → Pro → Premium) の3段階。
+ *   全プラン共通で高性能AI搭載。月間リクエスト数と機能で差別化。
+ *   Starter → Pro → Premium の3段階 + Free。
+ *   Proを「人気No.1」ポジションに据え、Premiumのアンカリング効果で
+ *   Proへの誘導を狙う。月額払い (Stripe) のみ。
  *
  * 内部コスト見積もり (参考):
  *   軽量AI:    ~¥4/リクエスト
@@ -22,6 +24,8 @@ export interface PlanDef {
   requestsPerDay: number;   // 1日の標準AIリクエスト上限
   requestsPerMonth: number; // 月間標準AIリクエスト上限
   premiumAiPerMonth: number; // 月間「高性能AI」リクエスト上限 (0 = 利用不可)
+  tagline: string;          // プランの一言説明 (日本語)
+  taglineEn: string;        // プランの一言説明 (英語)
   features: string[];       // 機能一覧 (日本語)
   featuresEn: string[];     // 機能一覧 (英語)
   highlight?: boolean;      // おすすめ表示
@@ -38,15 +42,17 @@ export const PLANS: Record<PlanId, PlanDef> = {
     requestsPerDay: 3,
     requestsPerMonth: 30,
     premiumAiPerMonth: 5,
+    tagline: "まずは体験してみたい方に",
+    taglineEn: "Try before you commit",
     features: [
-      "標準AI 3回/日 (月30回)",
+      "AI教材生成 3回/日 (月30回)",
       "高性能AI 月5回まで (お試し)",
       "基本テンプレート",
       "PDF出力",
       "LaTeXソースエクスポート",
     ],
     featuresEn: [
-      "Standard AI: 3/day (30/month)",
+      "AI generation: 3/day (30/month)",
       "High-performance AI: 5/month (trial)",
       "Basic templates",
       "PDF export",
@@ -57,91 +63,95 @@ export const PLANS: Record<PlanId, PlanDef> = {
     id: "starter",
     name: "Starter",
     nameEn: "Starter",
-    price: 1480,
-    priceLabel: "¥1,480",
-    requestsPerDay: 15,
-    requestsPerMonth: 300,
-    premiumAiPerMonth: 30,
+    price: 1980,
+    priceLabel: "¥1,980",
+    requestsPerDay: 20,
+    requestsPerMonth: 400,
+    premiumAiPerMonth: 40,
+    tagline: "個人塾・家庭教師の方に",
+    taglineEn: "For individual tutors",
     features: [
-      "標準AI 15回/日 (月300回)",
-      "高性能AI 月30回まで",
+      "AI教材生成 20回/日 (月400回)",
+      "高性能AI 月40回",
       "基本テンプレート",
       "思考ログ表示",
       "PDF出力",
       "LaTeXソースエクスポート",
     ],
     featuresEn: [
-      "Standard AI: 15/day (300/month)",
-      "High-performance AI: 30/month",
+      "AI generation: 20/day (400/month)",
+      "High-performance AI: 40/month",
       "Basic templates",
       "Thinking log display",
       "PDF export",
       "LaTeX source export",
     ],
-    badge: "松",
+    badge: "手軽に始める",
   },
   pro: {
     id: "pro",
     name: "Pro",
     nameEn: "Pro",
-    price: 4800,
-    priceLabel: "¥4,800",
-    requestsPerDay: 50,
-    requestsPerMonth: 1200,
-    premiumAiPerMonth: 150,
+    price: 4980,
+    priceLabel: "¥4,980",
+    requestsPerDay: 60,
+    requestsPerMonth: 1500,
+    premiumAiPerMonth: 200,
+    tagline: "毎日使うならこのプラン",
+    taglineEn: "Best for daily use",
     features: [
-      "標準AI 50回/日 (月1,200回)",
-      "高性能AI 月150回まで (5倍)",
+      "AI教材生成 60回/日 (月1,500回)",
+      "高性能AI 月200回 (5倍)",
       "全テンプレート利用可",
       "PDF出力 (優先キュー)",
+      "PDF・画像から問題を抽出",
       "バッチ処理 (上限100行)",
-      "画像 (OMR) 解析",
       "メールサポート",
     ],
     featuresEn: [
-      "Standard AI: 50/day (1,200/month)",
-      "High-performance AI: 150/month (5×)",
+      "AI generation: 60/day (1,500/month)",
+      "High-performance AI: 200/month (5×)",
       "All templates",
       "PDF export (priority queue)",
+      "Import from PDF & images",
       "Batch processing (up to 100 rows)",
-      "Image (OMR) analysis",
       "Email support",
     ],
     highlight: true,
-    badge: "竹 · 人気",
+    badge: "人気 No.1",
   },
   premium: {
     id: "premium",
     name: "Premium",
     nameEn: "Premium",
-    price: 14800,
-    priceLabel: "¥14,800",
-    requestsPerDay: 200,
-    requestsPerMonth: 5000,
-    premiumAiPerMonth: 600,
+    price: 19800,
+    priceLabel: "¥19,800",
+    requestsPerDay: 300,
+    requestsPerMonth: 8000,
+    premiumAiPerMonth: 800,
+    tagline: "教育機関・大量利用に",
+    taglineEn: "For schools & heavy use",
     features: [
-      "標準AI 200回/日 (月5,000回)",
-      "高性能AI 月600回まで (20倍)",
-      "全テンプレート利用可",
-      "PDF出力 (最優先)",
-      "バッチ処理 (上限300行)",
-      "画像 (OMR) 解析",
-      "優先サポート",
+      "AI教材生成 300回/日 (月8,000回)",
+      "高性能AI 月800回 (20倍)",
+      "Proの全機能を含む",
+      "PDF出力 (最優先キュー)",
+      "バッチ処理 (最大300行)",
       "カスタムテンプレート作成",
       "紙デザインそのままPDF出力",
+      "専任サポート担当",
     ],
     featuresEn: [
-      "Standard AI: 200/day (5,000/month)",
-      "High-performance AI: 600/month (20×)",
-      "All templates",
+      "AI generation: 300/day (8,000/month)",
+      "High-performance AI: 800/month (20×)",
+      "Everything in Pro",
       "PDF export (highest priority)",
       "Batch processing (up to 300 rows)",
-      "Image (OMR) analysis",
-      "Priority support",
       "Custom template creation",
       "Paper design preserved in PDF",
+      "Dedicated support",
     ],
-    badge: "梅 · 最上位",
+    badge: "最上位プラン",
   },
 };
 
@@ -168,10 +178,11 @@ export function estimateMargin(planId: PlanId): {
 }
 // 利益試算 (最大使用時):
 //   free:    cost ¥190,     revenue ¥0       → margin -¥190 (獲得コスト)
-//   starter: cost ¥1,620,   revenue ¥1,480   → margin -¥140 (MVP段階は集客重視)
-//   pro:     cost ¥6,900,   revenue ¥4,800   → margin -¥2,100 (実利用率50%想定で黒字化)
-//   premium: cost ¥21,400,  revenue ¥14,800  → margin -¥6,600 (実利用率40%想定で黒字化)
+//   starter: cost ¥2,160,   revenue ¥1,980   → margin -¥180 (集客重視、ほぼトントン)
+//   pro:     cost ¥8,800,   revenue ¥4,980   → margin -¥3,820 (実利用率40%想定で黒字化)
+//   premium: cost ¥43,200,  revenue ¥19,800  → margin -¥23,400 (実利用率30%想定で黒字化)
 //
 // 補足: 上記は全上限使い切った場合の最悪ケース。実利用率 (典型 30-50%) を掛けると
-//   pro: 実コスト ≈ ¥3,450 → 実利益 ≈ ¥1,350 (利益率 28%)
-//   premium: 実コスト ≈ ¥8,560 → 実利益 ≈ ¥6,240 (利益率 42%)
+//   starter: 実コスト ≈ ¥865 → 実利益 ≈ ¥1,115 (利益率 56%)
+//   pro:     実コスト ≈ ¥3,520 → 実利益 ≈ ¥1,460 (利益率 29%)
+//   premium: 実コスト ≈ ¥12,960 → 実利益 ≈ ¥6,840 (利益率 35%)

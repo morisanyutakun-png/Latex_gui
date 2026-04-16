@@ -91,8 +91,8 @@ export function PricingModal() {
           </DialogTitle>
           <DialogDescription className="text-center text-sm text-slate-500">
             {isJa
-              ? "AIリクエスト数に基づくシンプルな料金体系"
-              : "Simple pricing based on AI request count"}
+              ? "全プラン高性能AI搭載 — 違いは使える回数だけ"
+              : "High-performance AI on every plan — only usage limits differ"}
           </DialogDescription>
         </DialogHeader>
 
