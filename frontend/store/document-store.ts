@@ -7,6 +7,7 @@ import {
   DocumentMetadata,
   createDefaultDocument,
 } from "@/lib/types";
+import { getTemplateLatex } from "@/lib/templates";
 
 interface DocumentState {
   document: DocumentModel | null;
@@ -43,7 +44,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   initBlankDocument: () => {
     const { document } = get();
     if (document) return;
-    set({ document: createDefaultDocument("blank", ""), past: [], future: [] });
+    set({ document: createDefaultDocument("blank", getTemplateLatex("blank")), past: [], future: [] });
   },
 
   updateMetadata: (updates) => {

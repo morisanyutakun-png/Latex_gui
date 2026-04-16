@@ -790,21 +790,78 @@ def _ensure_cjk_support(src: str) -> str:
     return src
 
 
+def _wrap_bare_fragment(src: str) -> str:
+    r"""``\documentclass`` も ``\begin{document}`` も無い裸テキストを
+    完全な LaTeX ドキュメント構造で包む。
+
+    白紙ドキュメントでユーザーがいきなりテキストを打った場合や、
+    フロントエンドのテンプレート注入を通らなかった場合の安全ネット。
+    """
+    has_docclass = bool(_DOCUMENTCLASS_RE.search(src))
+    has_begin_doc = bool(_BEGIN_DOCUMENT_RE.search(src))
+
+    if has_docclass and has_begin_doc:
+        return src  # 正常なドキュメント
+
+    if has_docclass and not has_begin_doc:
+        # \documentclass はあるが \begin{document} がない → 追加
+        src = src.rstrip() + "\n\n\\begin{document}\n\\end{document}\n"
+        logger.info("[autofix] appended \\begin/end{document}")
+        return src
+
+    # \documentclass すらない → 完全にラッピング
+    body = src.strip()
+    if not body:
+        return src
+
+    # 本文の内容から必要なパッケージを推定
+    preamble_lines = [
+        r"\documentclass[11pt,a4paper]{article}",
+    ]
+
+    # CJK 検出
+    if _CJK_RANGE_RE.search(body):
+        preamble_lines.append(r"\usepackage[haranoaji]{luatexja-preset}")
+
+    # 基本パッケージ
+    preamble_lines.append(r"\usepackage{geometry}")
+    preamble_lines.append(r"\geometry{margin=22mm}")
+    preamble_lines.append(r"\usepackage{amsmath, amssymb}")
+
+    # tikz 検出
+    if r"\begin{tikzpicture}" in body or r"\begin{circuitikz}" in body:
+        preamble_lines.append(r"\usepackage{tikz}")
+
+    # graphicx 検出
+    if r"\includegraphics" in body:
+        preamble_lines.append(r"\usepackage{graphicx}")
+
+    # xcolor 検出
+    if r"\color{" in body or r"\textcolor{" in body:
+        preamble_lines.append(r"\usepackage{xcolor}")
+
+    wrapped = "\n".join(preamble_lines) + "\n\n\\begin{document}\n\n" + body + "\n\n\\end{document}\n"
+    logger.info("[autofix] wrapped bare fragment in full document structure (detected packages: %d)", len(preamble_lines))
+    return wrapped
+
+
 def autofix_latex(src: str) -> str:
     r"""コンパイル前に呼ぶ軽量サニタイズ + パッケージ補完。
 
+    - 裸テキスト (documentclass 無し) → 完全なドキュメント構造でラッピング
     - スマートクォート / NBSP 等を ASCII へ
     - コマンド使用パターンから不足パッケージを推定して \usepackage を追加
     - CJK 文字検出 → luatexja-preset 自動注入
     - tcolorbox / tikz のライブラリ自動ロード
-    - \documentclass や preamble が無い fragment は文字置換だけ行う
     """
     if not src:
         return src
 
     fixed = _normalize_text_chars(src)
 
-    # \documentclass を持たない fragment は preamble をいじれない
+    # \documentclass を持たない裸テキスト → 完全ドキュメント構造で包む
+    fixed = _wrap_bare_fragment(fixed)
+
     if _DOCUMENTCLASS_RE.search(fixed):
         needed = _detect_required_packages(fixed)
         if needed:

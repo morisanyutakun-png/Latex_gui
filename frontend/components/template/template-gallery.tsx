@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDocumentStore } from "@/store/document-store";
 import { createDefaultDocument } from "@/lib/types";
+import { getTemplateLatex } from "@/lib/templates";
 import { loadFromLocalStorage } from "@/lib/storage";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
@@ -1148,7 +1149,7 @@ export function TemplateGallery() {
     if (searchParams.get("checkout") === "success") {
       const plan = searchParams.get("plan") || "";
       window.history.replaceState({}, "", "/");
-      const doc = loadFromLocalStorage() || createDefaultDocument("blank", "");
+      const doc = loadFromLocalStorage() || createDefaultDocument("blank", getTemplateLatex("blank"));
       setDocument(doc);
       router.push(`/editor?checkout=success${plan ? `&plan=${plan}` : ""}`);
       return;

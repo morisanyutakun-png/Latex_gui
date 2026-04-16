@@ -15,6 +15,7 @@ import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
+import { getTemplateLatex } from "@/lib/templates";
 import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
@@ -68,7 +69,7 @@ export default function EditorPage() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("new") === "1" && !doc) {
-      setDocument(createDefaultDocument("blank", ""));
+      setDocument(createDefaultDocument("blank", getTemplateLatex("blank")));
       window.history.replaceState({}, "", "/editor");
     }
   }, [doc, setDocument]);
@@ -83,7 +84,7 @@ export default function EditorPage() {
 
     // 1. ドキュメントを即座に作成
     if (!useDocumentStore.getState().document) {
-      useDocumentStore.getState().setDocument(createDefaultDocument("blank", ""));
+      useDocumentStore.getState().setDocument(createDefaultDocument("blank", getTemplateLatex("blank")));
     }
 
     // 2. URL をクリーン
