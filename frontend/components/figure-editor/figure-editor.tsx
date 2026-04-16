@@ -38,6 +38,59 @@ interface SizePreset {
   descriptionJa: string;
 }
 
+/**
+ * Guarantee a minimal compile-able LaTeX document structure.
+ *
+ * If any of `\documentclass`, `\begin{document}`, `\end{document}` is missing
+ * from `src`, add the missing parts without touching existing content. This
+ * protects figure insertion against starting from (or accidentally landing in)
+ * a stripped-down document where lualatex would otherwise fail with
+ * "Missing \begin{document}".
+ */
+function ensureDocumentStructure(src: string): string {
+  let out = src;
+
+  const hasDocClass = /\\documentclass\b/.test(out);
+  const hasBeginDoc = /\\begin\{document\}/.test(out);
+  const hasEndDoc = /\\end\{document\}/.test(out);
+
+  // If all three exist the doc is structurally valid — leave untouched.
+  if (hasDocClass && hasBeginDoc && hasEndDoc) return out;
+
+  // 1. Prepend \documentclass if missing.
+  if (!hasDocClass) {
+    out = "\\documentclass[11pt,a4paper]{article}\n\\usepackage{tikz}\n" + out;
+  }
+
+  // 2. Ensure \begin{document} exists. Inserted either right after the
+  //    preamble (heuristically: after the last \usepackage/\usetikzlibrary/
+  //    \definecolor/\tikzset/\pgfplotsset/\hypersetup/\geometry line) or
+  //    right after \documentclass.
+  if (!/\\begin\{document\}/.test(out)) {
+    const preambleEndRe = /((?:^|\n)\s*\\(?:usepackage|usetikzlibrary|pgfplotsset|definecolor|tikzset|hypersetup|geometry|newcommand|renewcommand|DeclareMathOperator)\b[^\n]*\n)(?![\s\S]*(?:\\usepackage|\\usetikzlibrary|\\pgfplotsset|\\definecolor|\\tikzset|\\hypersetup|\\geometry|\\newcommand|\\renewcommand|\\DeclareMathOperator))/;
+    const m = out.match(preambleEndRe);
+    if (m && m.index !== undefined) {
+      const insertAt = m.index + m[0].length;
+      out = out.slice(0, insertAt) + "\n\\begin{document}\n" + out.slice(insertAt);
+    } else {
+      const docClassMatch = out.match(/\\documentclass(?:\[[^\]]*\])?\{[^}]+\}/);
+      if (docClassMatch && docClassMatch.index !== undefined) {
+        const at = docClassMatch.index + docClassMatch[0].length;
+        out = out.slice(0, at) + "\n\\begin{document}\n" + out.slice(at);
+      } else {
+        out = "\\begin{document}\n" + out;
+      }
+    }
+  }
+
+  // 3. Append \end{document} if missing.
+  if (!/\\end\{document\}/.test(out)) {
+    out = out.replace(/\n*$/, "") + "\n\\end{document}\n";
+  }
+
+  return out;
+}
+
 const SIZE_PRESETS: SizePreset[] = [
   { label: "Small",    labelJa: "小",  scale: "0.6",  description: "~5cm wide", descriptionJa: "約5cm幅" },
   { label: "Medium",   labelJa: "中",  scale: "0.8",  description: "~7cm wide", descriptionJa: "約7cm幅" },
@@ -237,7 +290,7 @@ export function FigureEditor() {
     if (existingBegin >= 0 && existingEnd >= 0) {
       const before = currentLatex.slice(0, existingBegin).replace(/\n$/, "");
       const after = currentLatex.slice(existingEnd + endMark.length).replace(/^\n/, "");
-      currentLatex = before + block + after;
+      currentLatex = ensureDocumentStructure(before + block + after);
       setLatex(currentLatex);
       lastMarkerRef.current = marker;
       setShowPdfPanel(true);
@@ -275,6 +328,13 @@ export function FigureEditor() {
         newLatex = currentLatex + block;
       }
     }
+
+    // ── Post-insertion structural self-heal ───────────────────────────
+    // Guarantee the result has \documentclass, \begin{document}, \end{document}
+    // even if the starting doc was broken (empty / missing structure). Without
+    // this, a figure inserted into a stripped-down doc compiles as an orphan
+    // block and lualatex errors with "Missing \begin{document}".
+    newLatex = ensureDocumentStructure(newLatex);
 
     setLatex(newLatex);
     lastMarkerRef.current = marker;
