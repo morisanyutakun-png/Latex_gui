@@ -151,13 +151,58 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
     insertEmptyMathChipAndEdit(target, openMathEditor);
   }, [openMathEditor]);
 
+  // ── 動的プリアンブルパッケージ注入 ──
+  // LaTeX ソースを更新する前に、本文の内容に応じて不足パッケージをプリアンブルに追加する。
+  // バックエンド autofix にも同等の検出があるが、フロントエンドで先に入れることで
+  // プレビューが即座に正しくコンパイルされる。
+  const smartOnChange = useCallback(
+    (newLatex: string) => {
+      let src = newLatex;
+      const hasDocClass = /\\documentclass/.test(src);
+      const beginDocMatch = src.match(/\\begin\{document\}/);
+      if (hasDocClass && beginDocMatch) {
+        const preamble = src.slice(0, beginDocMatch.index!);
+        const body = src.slice(beginDocMatch.index! + beginDocMatch[0].length);
+        const loaded = new Set<string>();
+        for (const m of preamble.matchAll(/\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}/g)) {
+          for (const p of m[1].split(",")) loaded.add(p.trim());
+        }
+        const injections: string[] = [];
+
+        // CJK / Japanese → luatexja-preset
+        if (!loaded.has("luatexja-preset") && !loaded.has("luatexja")) {
+          if (/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(body)) {
+            injections.push("\\usepackage[haranoaji]{luatexja-preset}");
+          }
+        }
+
+        // amsmath (common math commands)
+        if (!loaded.has("amsmath") && !loaded.has("mathtools")) {
+          if (/\\(?:dfrac|tfrac|text|align|gather|boxed|binom)\b/.test(body)) {
+            injections.push("\\usepackage{amsmath}");
+          }
+        }
+
+        if (injections.length > 0) {
+          const dcMatch = src.match(/\\documentclass(?:\[[^\]]*\])?\{[^}]+\}/);
+          if (dcMatch) {
+            const insertAt = dcMatch.index! + dcMatch[0].length;
+            src = src.slice(0, insertAt) + "\n" + injections.join("\n") + src.slice(insertAt);
+          }
+        }
+      }
+      onChange(src);
+    },
+    [onChange]
+  );
+
   // Edit を発行するヘルパー: range と新スニペットを受け取り、onChange を呼ぶ
   const applyRangeEdit = useCallback(
     (range: Range, newSnippet: string) => {
       const newLatex = replaceRange(latex, range, newSnippet);
-      if (newLatex !== latex) onChange(newLatex);
+      if (newLatex !== latex) smartOnChange(newLatex);
     },
-    [latex, onChange]
+    [latex, smartOnChange]
   );
 
   // 新しい段落を本文末尾 (\end{document} の直前) に挿入する
@@ -177,9 +222,9 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
         const after = latex.slice(endDocIdx);
         next = before + "\n\n" + trimmed + "\n\n" + after;
       }
-      onChange(next);
+      smartOnChange(next);
     },
-    [latex, onChange]
+    [latex, smartOnChange]
   );
 
   // 表示対象となるセグメント (preamble / documentEnd / hidden raw を除外)
@@ -649,7 +694,8 @@ function EditableHeading({ tag: Tag, initialText, className, style, onCommit }: 
         }
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter") {
+        // IME 変換中の Enter はスキップ (文字確定 vs ブロック確定)
+        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
           e.preventDefault();
           (e.currentTarget as HTMLElement).blur();
         }
@@ -783,7 +829,18 @@ function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }:
     };
   }, [openMathEditor]);
 
+  // ── IME composition tracking ──
+  // 日本語 IME で変換確定の Enter と、ブロック確定の Enter を区別する。
+  // compositionend 直後に keydown(Enter) が発火するブラウザがあるため、
+  // compositionend 後 50ms のクールダウンを設けて誤発動を防ぐ。
+  const composingRef = useRef(false);
+  const onCompositionStart = useCallback(() => { composingRef.current = true; }, []);
+  const onCompositionEnd = useCallback(() => {
+    setTimeout(() => { composingRef.current = false; }, 50);
+  }, []);
+
   // Enter = commit (blur), Shift+Enter = line break, Cmd/Ctrl+M = math chip
+  // IME 変換中の Enter は無視 → 文字確定 Enter とブロック確定 Enter を分離
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLElement>) => {
       // Cmd/Ctrl+M → 数式チップ挿入
@@ -795,8 +852,8 @@ function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }:
         insertEmptyMathChipAndEdit(node, openMathEditor);
         return;
       }
-      // Enter (without Shift) → commit by blurring
-      if (e.key === "Enter" && !e.shiftKey) {
+      // Enter (without Shift, not composing) → commit by blurring
+      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
         e.preventDefault();
         (e.currentTarget as HTMLElement).blur();
         return;
@@ -821,6 +878,8 @@ function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }:
       spellCheck={false}
       className={`${className ?? ""} editable-text-box outline-none cursor-text whitespace-pre-wrap`}
       onKeyDown={onKeyDown}
+      onCompositionStart={onCompositionStart}
+      onCompositionEnd={onCompositionEnd}
       onBlur={(e) => {
         const el = e.currentTarget as HTMLElement;
         // 子孫にフォーカスが移っただけなら commit しない
@@ -894,7 +953,7 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
       className="display-math-block my-4 cursor-pointer outline-none"
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if ((e.key === "Enter" || e.key === " ") && !e.nativeEvent.isComposing) {
           e.preventDefault();
           onClick();
         }
@@ -1749,7 +1808,15 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
     };
   }, [innerRef, openMathEditor]);
 
+  // ── IME composition tracking ──
+  const composingRef = useRef(false);
+  const onCompositionStart = useCallback(() => { composingRef.current = true; }, []);
+  const onCompositionEnd = useCallback(() => {
+    setTimeout(() => { composingRef.current = false; }, 50);
+  }, []);
+
   // Enter = commit (insert paragraph), Shift+Enter = line break, Cmd/Ctrl+M = math chip
+  // IME 変換中の Enter は無視 → 文字確定 Enter とブロック確定 Enter を分離
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLElement>) => {
       // Cmd/Ctrl+M → 数式チップ挿入
@@ -1761,8 +1828,8 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
         insertEmptyMathChipAndEdit(node, openMathEditor);
         return;
       }
-      // Enter (without Shift) → commit by blurring
-      if (e.key === "Enter" && !e.shiftKey) {
+      // Enter (without Shift, not composing) → commit by blurring
+      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
         e.preventDefault();
         (e.currentTarget as HTMLElement).blur();
         return;
@@ -1783,6 +1850,8 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
       data-placeholder={placeholder}
       className="trailing-editable editable-text-box text-[15px] leading-[1.75] text-foreground/85 my-3 outline-none cursor-text whitespace-pre-wrap min-h-[1.75em]"
       onKeyDown={onKeyDown}
+      onCompositionStart={onCompositionStart}
+      onCompositionEnd={onCompositionEnd}
       onBlur={(e) => {
         const el = e.currentTarget as HTMLElement;
         // 子孫 (math chip) にフォーカスが移っただけなら commit しない

@@ -745,11 +745,57 @@ def _ensure_tikz_libraries(src: str) -> str:
     return src
 
 
+_CJK_RANGE_RE = re.compile(
+    r"[\u3000-\u303f"       # CJK punctuation
+    r"\u3040-\u309f"        # Hiragana
+    r"\u30a0-\u30ff"        # Katakana
+    r"\u4e00-\u9fff"        # CJK Unified Ideographs
+    r"\uf900-\ufaff"        # CJK Compatibility Ideographs
+    r"\uff00-\uffef]",      # Fullwidth forms
+)
+
+
+def _ensure_cjk_support(src: str) -> str:
+    r"""日本語 / CJK 文字が本文に含まれていれば luatexja-preset を保証する。
+
+    テンプレートから始めた場合は既に入っているが、白紙 (EN テンプレ) や
+    手書きの \documentclass 等では入っていないことがある。
+    """
+    loaded = _loaded_packages(src)
+    if "luatexja-preset" in loaded or "luatexja" in loaded:
+        return src
+
+    # preamble 部分は検査対象外 (コメントやパッケージ名に CJK が紛れうる)
+    begin_doc = _BEGIN_DOCUMENT_RE.search(src)
+    body = src[begin_doc.end():] if begin_doc else src
+    if not _CJK_RANGE_RE.search(body):
+        return src
+
+    # luatexja-preset[haranoaji] をプリアンブルに注入
+    # (_inject_packages はオプション引数に対応していないため手動で挿入)
+    inject_line = r"\usepackage[haranoaji]{luatexja-preset}"
+
+    m = _DOCUMENTCLASS_RE.search(src)
+    if m:
+        # \documentclass の直後 (最優先位置 — フォント系は早期ロードが安全)
+        insert_at = m.end()
+        logger.info("[autofix] injected luatexja-preset (CJK text detected in body)")
+        return src[:insert_at] + "\n" + inject_line + src[insert_at:]
+
+    if begin_doc:
+        insert_at = begin_doc.start()
+        logger.info("[autofix] injected luatexja-preset before \\begin{document}")
+        return src[:insert_at] + inject_line + "\n" + src[insert_at:]
+
+    return src
+
+
 def autofix_latex(src: str) -> str:
     r"""コンパイル前に呼ぶ軽量サニタイズ + パッケージ補完。
 
     - スマートクォート / NBSP 等を ASCII へ
     - コマンド使用パターンから不足パッケージを推定して \usepackage を追加
+    - CJK 文字検出 → luatexja-preset 自動注入
     - tcolorbox / tikz のライブラリ自動ロード
     - \documentclass や preamble が無い fragment は文字置換だけ行う
     """
@@ -768,6 +814,9 @@ def autofix_latex(src: str) -> str:
                 injected = [p for p in needed if p not in _loaded_packages(before)]
                 if injected:
                     logger.info("[autofix] injected packages: %s", injected)
+
+        # CJK 文字検出 → luatexja-preset 注入
+        fixed = _ensure_cjk_support(fixed)
 
         # tcolorbox / tikz のライブラリ補完
         fixed = _ensure_tcolorbox_libraries(fixed)
