@@ -836,6 +836,159 @@ html {
   border-bottom: 1px solid hsl(var(--foreground) / 0.06);
 }
 
+/* ── Eddivom brand mark in header ── */
+.eddivom-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+  padding: 0.15rem 0.25rem;
+  border-radius: 0.5rem;
+  transition: all 150ms ease;
+}
+.eddivom-brand:hover {
+  background: hsl(var(--foreground) / 0.04);
+}
+.eddivom-brand-icon {
+  height: 1.65rem;
+  width: 1.65rem;
+  border-radius: 0.45rem;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #c026d3 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px -1px rgba(124, 58, 237, 0.35);
+  transition: box-shadow 150ms ease;
+}
+.eddivom-brand:hover .eddivom-brand-icon {
+  box-shadow: 0 2px 12px -1px rgba(124, 58, 237, 0.5);
+}
+.eddivom-brand-text {
+  font-size: 0.825rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 40%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  user-select: none;
+}
+.dark .eddivom-brand-text {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 40%, #c084fc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* ── Block delete UI — ergonomic 2-phase delete ── */
+.deletable-block {
+  position: relative;
+}
+
+/* Phase 1: ghost button — appears on hover, top-right corner */
+.del-btn-idle {
+  position: absolute;
+  top: -2px;
+  right: -28px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--foreground) / 0.15);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 120ms ease;
+}
+.deletable-block:hover > .del-btn-idle,
+.group\/del:hover > .del-btn-idle {
+  opacity: 1;
+  pointer-events: auto;
+}
+.del-btn-idle:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* Phase 2: confirmation bar — inline, replaces the ghost button */
+.del-confirm-bar {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(239, 68, 68, 0.06);
+  animation: del-bar-in 150ms ease;
+}
+.dark .del-confirm-bar {
+  background: hsl(var(--background));
+  border-color: rgba(239, 68, 68, 0.25);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.4);
+}
+@keyframes del-bar-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.del-confirm-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ef4444;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.del-confirm-yes {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: none;
+  background: #ef4444;
+  color: white;
+  cursor: pointer;
+  transition: background 120ms ease;
+  white-space: nowrap;
+}
+.del-confirm-yes:hover {
+  background: #dc2626;
+}
+.del-confirm-no {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: none;
+  background: hsl(var(--foreground) / 0.06);
+  color: hsl(var(--foreground) / 0.5);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.del-confirm-no:hover {
+  background: hsl(var(--foreground) / 0.12);
+  color: hsl(var(--foreground) / 0.8);
+}
+
+/* Highlight the block being targeted for delete */
+.deletable-block:has(> .del-confirm-bar) {
+  outline: 2px solid rgba(239, 68, 68, 0.2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ── Edit toolbar — frosted glass ── */
 .editor-toolbar {
   backdrop-filter: blur(16px) saturate(160%);

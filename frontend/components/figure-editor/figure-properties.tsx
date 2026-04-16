@@ -200,6 +200,24 @@ function AngleControls({
             </div>
           </InputRow>
 
+          {/* Arc side toggle — switch between near (interior) and far (reflex) side */}
+          <InputRow label={isJa ? "弧の面" : "Arc side"}>
+            <div className="flex gap-1">
+              {([["near", isJa ? "内側 (鋭角側)" : "Near"], ["far", isJa ? "外側 (鈍角側)" : "Far"]] as const).map(([val, lbl]) => (
+                <button key={val}
+                  onClick={() => onOptionChange("arcSide", val)}
+                  className={`flex-1 h-6 text-[10px] font-mono rounded border transition-colors ${
+                    (shape.tikzOptions["arcSide"] ?? "near") === val
+                      ? "bg-violet-500 text-white border-violet-500"
+                      : "bg-white/60 dark:bg-white/5 border-foreground/[0.08] hover:bg-violet-500/10"
+                  }`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </InputRow>
+
           {/* Label presets — the differentiation feature */}
           <div className="pt-1.5 border-t border-foreground/[0.06] mt-1">
             <div className="flex items-center justify-between mb-1">

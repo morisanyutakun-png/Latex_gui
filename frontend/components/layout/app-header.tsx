@@ -84,18 +84,19 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
   return (
     <header className="editor-header relative flex items-center gap-2 px-3 h-12 sticky top-0 z-40 shrink-0">
 
-      {/* Logo */}
+      {/* Brand */}
       <button
         onClick={() => router.push("/")}
-        className="flex items-center gap-2 group shrink-0"
+        className="eddivom-brand"
         title={t("header.home")}
       >
-        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/25 group-hover:shadow-violet-500/40 transition-all">
+        <div className="eddivom-brand-icon">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
             <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
             <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
           </svg>
         </div>
+        <span className="eddivom-brand-text">Eddivom</span>
       </button>
 
       <div className="w-px h-5 bg-border/40 shrink-0" />

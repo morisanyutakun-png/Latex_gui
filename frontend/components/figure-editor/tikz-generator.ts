@@ -416,6 +416,9 @@ function genAngleArc(s: FigureShape): string {
   // When hideRays is set (reference-line mode), only emit the arc + label
   const hideRays = s.tikzOptions["hideRays"] === "true";
 
+  // arcSide: "far" flips the arc to the reflex/complementary side
+  const flipped = s.tikzOptions["arcSide"] === "far";
+
   // Guided-draw flow carries the geometry directly in shape.points
   // ([vertex, ray1End, ray2End] in local coords). When present we honour the
   // exact user-drawn angles — rays can fan out in any direction.
@@ -423,11 +426,14 @@ function genAngleArc(s: FigureShape): string {
     const vAbs = { x: s.x + s.points[0].x, y: s.y + s.points[0].y };
     const r1Abs = { x: s.x + s.points[1].x, y: s.y + s.points[1].y };
     const r2Abs = { x: s.x + s.points[2].x, y: s.y + s.points[2].y };
-    const startAngle = Math.atan2(r1Abs.y - vAbs.y, r1Abs.x - vAbs.x) * 180 / Math.PI;
-    const endAngle = Math.atan2(r2Abs.y - vAbs.y, r2Abs.x - vAbs.x) * 180 / Math.PI;
+    let startAngle = Math.atan2(r1Abs.y - vAbs.y, r1Abs.x - vAbs.x) * 180 / Math.PI;
+    let endAngle = Math.atan2(r2Abs.y - vAbs.y, r2Abs.x - vAbs.x) * 180 / Math.PI;
     const lenA = Math.hypot(r1Abs.x - vAbs.x, r1Abs.y - vAbs.y);
     const lenB = Math.hypot(r2Abs.x - vAbs.x, r2Abs.y - vAbs.y);
     const r = Math.min(lenA, lenB) * radiusFactor;
+    // When flipped, swap arc direction so TikZ draws the complementary arc.
+    // TikZ arc goes from start to end CCW; swapping makes it go the other way.
+    if (flipped) { [startAngle, endAngle] = [endAngle, startAngle]; }
     const meanRad = ((startAngle + endAngle) / 2) * Math.PI / 180;
     const lblX = vAbs.x + Math.cos(meanRad) * r * 0.72;
     const lblY = vAbs.y + Math.sin(meanRad) * r * 0.72;
@@ -442,10 +448,11 @@ function genAngleArc(s: FigureShape): string {
   }
 
   // Legacy bbox-based shape — derive rays from bbox bottom-left.
-  const startAngle = parseFloat(s.tikzOptions["start"] ?? "0") || 0;
-  const endAngle = parseFloat(s.tikzOptions["end"] ?? "60") || 60;
+  let startAngle = parseFloat(s.tikzOptions["start"] ?? "0") || 0;
+  let endAngle = parseFloat(s.tikzOptions["end"] ?? "60") || 60;
   const side = Math.min(s.width, s.height);
   const r = side * radiusFactor;
+  if (flipped) { [startAngle, endAngle] = [endAngle, startAngle]; }
   const meanRad = ((startAngle + endAngle) / 2) * Math.PI / 180;
   const lblX = Math.cos(meanRad) * r * 0.72;
   const lblY = Math.sin(meanRad) * r * 0.72;

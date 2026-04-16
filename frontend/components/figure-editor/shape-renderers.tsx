@@ -1176,11 +1176,19 @@ function RenderAngleArc(p: ShapeRenderProps) {
   const a = { x: vx + r * Math.cos(startDeg * Math.PI / 180), y: vy - r * Math.sin(startDeg * Math.PI / 180) };
   const b = { x: vx + r * Math.cos(endDeg * Math.PI / 180),   y: vy - r * Math.sin(endDeg * Math.PI / 180) };
   const sweep = endDeg - startDeg;
-  const largeArc = Math.abs(sweep) > 180 ? 1 : 0;
+  const flipped = p.shape.tikzOptions?.["arcSide"] === "far";
+  let largeArc = Math.abs(sweep) > 180 ? 1 : 0;
   // sweep > 0 (CCW in math) = sweep flag 0 on screen (screen Y inverted).
-  const sweepFlag = sweep > 0 ? 0 : 1;
+  let sweepFlag = sweep > 0 ? 0 : 1;
+  if (flipped) {
+    // Flip to the complementary arc (other side of the two rays)
+    largeArc = 1 - largeArc;
+    sweepFlag = 1 - sweepFlag;
+  }
   const d = `M ${a.x},${a.y} A ${r},${r} 0 ${largeArc} ${sweepFlag} ${b.x},${b.y}`;
-  const midDeg = (startDeg + endDeg) / 2;
+  // Label position: midpoint of the arc. When flipped, shift 180° to the other side.
+  const normalMidDeg = (startDeg + endDeg) / 2;
+  const midDeg = flipped ? normalMidDeg + 180 : normalMidDeg;
   const lblPt = {
     x: vx + r * 0.72 * Math.cos(midDeg * Math.PI / 180),
     y: vy - r * 0.72 * Math.sin(midDeg * Math.PI / 180),

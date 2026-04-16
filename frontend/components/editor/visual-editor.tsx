@@ -7,7 +7,7 @@ import {
   renderInlineMathOrPlaceholder,
   renderDisplayMathOrPlaceholder,
 } from "@/lib/katex-render";
-import { Sigma } from "lucide-react";
+import { Sigma, Trash2, Undo2 } from "lucide-react";
 import {
   parseLatexToSegments,
   replaceRange,
@@ -222,12 +222,17 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
               onMouseDown={handlePageMouseDown}
             >
               {visibleSegments.map((seg, idx) => (
-                <SegmentRenderer
+                <DeletableBlock
                   key={`${idx}-${seg.kind}`}
                   segment={seg}
-                  latex={latex}
-                  applyRangeEdit={applyRangeEdit}
-                />
+                  onDelete={() => applyRangeEdit(seg.range, "")}
+                >
+                  <SegmentRenderer
+                    segment={seg}
+                    latex={latex}
+                    applyRangeEdit={applyRangeEdit}
+                  />
+                </DeletableBlock>
               ))}
               <TrailingEditableParagraph
                 innerRef={trailingRef}
@@ -266,6 +271,106 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
         />
       )}
     </MathEditorContext.Provider>
+  );
+}
+
+// ─────────────────────────────────────
+// DeletableBlock — hover で削除ボタンを表示し、誤消去防止の 2 段階 UI を提供
+// ─────────────────────────────────────
+
+/** Segment kinds that are deletable as a block.
+ *  Simple paragraphs are edited via backspace, not block-level delete. */
+const DELETABLE_KINDS = new Set([
+  "section", "subsection", "subsubsection",
+  "displayMath",
+  "paragraph",
+  "itemize", "enumerate",
+  "daimon", "center", "container",
+  "table", "raw",
+  "vspace", "pageBreak",
+  "bibliography",
+]);
+
+interface DeletableBlockProps {
+  segment: Segment;
+  onDelete: () => void;
+  children: React.ReactNode;
+}
+
+function DeletableBlock({ segment, onDelete, children }: DeletableBlockProps) {
+  const { locale } = useI18n();
+  const isJa = locale === "ja";
+  const [phase, setPhase] = useState<"idle" | "confirm">("idle");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-cancel confirmation after 3 seconds
+  useEffect(() => {
+    if (phase === "confirm") {
+      timerRef.current = setTimeout(() => setPhase("idle"), 3000);
+      return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    }
+  }, [phase]);
+
+  // Reset on unmount
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  if (!DELETABLE_KINDS.has(segment.kind)) return <>{children}</>;
+
+  const handleFirstClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setPhase("confirm");
+  };
+
+  const handleConfirm = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setPhase("idle");
+    onDelete();
+  };
+
+  const handleCancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setPhase("idle");
+  };
+
+  return (
+    <div
+      className="deletable-block group/del relative"
+      onMouseLeave={() => { if (phase === "confirm") setPhase("idle"); }}
+    >
+      {children}
+
+      {/* Phase 1: subtle trash icon on hover */}
+      {phase === "idle" && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleFirstClick}
+          className="del-btn-idle"
+          title={isJa ? "このブロックを削除" : "Delete this block"}
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
+
+      {/* Phase 2: confirmation bar */}
+      {phase === "confirm" && (
+        <div className="del-confirm-bar" onMouseDown={(e) => e.preventDefault()}>
+          <span className="del-confirm-label">
+            {isJa ? "削除しますか？" : "Delete?"}
+          </span>
+          <button onClick={handleConfirm} className="del-confirm-yes">
+            <Trash2 className="h-3 w-3" />
+            {isJa ? "削除" : "Delete"}
+          </button>
+          <button onClick={handleCancel} className="del-confirm-no">
+            <Undo2 className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
