@@ -39,22 +39,24 @@ export const PLANS: Record<PlanId, PlanDef> = {
     nameEn: "Free",
     price: 0,
     priceLabel: "¥0",
-    requestsPerDay: 5,
-    requestsPerMonth: 10,
-    premiumAiPerMonth: 10,
+    requestsPerDay: 3,
+    requestsPerMonth: 3,
+    premiumAiPerMonth: 3,
     tagline: "まずは体験してみたい方に",
     taglineEn: "Try before you commit",
     features: [
-      "高性能AI 月10回",
+      "高性能AI 月3回",
       "PDF出力 月1回",
       "基本テンプレート",
-      "エディタ上でリアルタイムプレビュー",
+      "リアルタイムプレビュー",
+      "思考ログ表示",
     ],
     featuresEn: [
-      "High-performance AI: 10/month",
+      "High-performance AI: 3/month",
       "PDF export: 1/month",
       "Basic templates",
-      "Real-time in-editor preview",
+      "Real-time preview",
+      "Thinking log display",
     ],
   },
   starter: {
@@ -72,6 +74,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "高性能AI 月150回",
       "PDF出力 無制限",
       "基本テンプレート",
+      "リアルタイムプレビュー",
       "思考ログ表示",
       "LaTeXソースエクスポート",
     ],
@@ -79,6 +82,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "High-performance AI: 150/month",
       "Unlimited PDF export",
       "Basic templates",
+      "Real-time preview",
       "Thinking log display",
       "LaTeX source export",
     ],
@@ -168,7 +172,7 @@ export function estimateMargin(planId: PlanId): {
   return { standardCost, premiumCost, maxMonthlyCost, revenue, margin };
 }
 // 利益試算 (実測 $0.01/req = ¥1.5, 全上限使い切った最悪ケース):
-//   free:    cost ¥15,    revenue ¥0       → margin -¥15     (獲得コスト)
+//   free:    cost ¥4.5,   revenue ¥0       → margin -¥4.5    (獲得コスト)
 //   starter: cost ¥225,   revenue ¥1,980   → margin +¥1,755  (利益率 89%)
 //   pro:     cost ¥750,   revenue ¥4,980   → margin +¥4,230  (利益率 85%)
 //   premium: cost ¥3,000, revenue ¥19,800  → margin +¥16,800 (利益率 85%)

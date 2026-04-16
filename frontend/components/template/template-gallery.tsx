@@ -1704,10 +1704,11 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "高性能AI 月10回" : "High-performance AI: 10/month",
+                  isJa ? "高性能AI 月3回" : "High-performance AI: 3/month",
                   isJa ? "PDF出力 月1回" : "PDF export: 1/month",
                   isJa ? "基本テンプレート" : "Basic templates",
-                  isJa ? "エディタ上でリアルタイムプレビュー" : "Real-time in-editor preview",
+                  isJa ? "リアルタイムプレビュー" : "Real-time preview",
+                  isJa ? "思考ログ表示" : "Thinking log display",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-muted-foreground">
                     <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
@@ -1745,6 +1746,7 @@ export function TemplateGallery() {
                   isJa ? "高性能AI 月150回" : "High-performance AI: 150/month",
                   isJa ? "PDF出力 無制限" : "Unlimited PDF export",
                   isJa ? "基本テンプレート" : "Basic templates",
+                  isJa ? "リアルタイムプレビュー" : "Real-time preview",
                   isJa ? "思考ログ表示" : "Thinking log display",
                   isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
                 ].map((f) => (
