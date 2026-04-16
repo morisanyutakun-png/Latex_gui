@@ -479,7 +479,11 @@ function genRightAngle(s: FigureShape): string {
 }
 
 function genFunctionPlot(s: FigureShape): string {
-  const func = s.tikzOptions["function"] || "x^2";
+  // TikZ `plot` variable is `\x`, NOT bare `x`. The user can store the
+  // expression with `\x` directly (e.g. `\x^2`), or with bare `x` which we
+  // convert to `\x` automatically so the pgfmath evaluator accepts it.
+  const rawFunc = s.tikzOptions["function"] || "\\x^2";
+  const func = rawFunc.replace(/(?<!\\)\bx\b/g, "\\x");
   const domain = s.tikzOptions["domain"] || "-2:2";
   const samples = s.tikzOptions["samples"] || "100";
   const opts = buildDrawOptions(s.style, { domain, samples, smooth: "" });

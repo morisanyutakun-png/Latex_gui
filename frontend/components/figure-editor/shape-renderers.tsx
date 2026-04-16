@@ -1147,9 +1147,11 @@ function RenderAngleArc(p: ShapeRenderProps) {
 
   if (p.pxPoints && p.pxPoints.length >= 3) {
     // Explicit points from guided-draw flow.
-    [vx, vy] = [p.pxPoints[0].x, p.pxPoints[0].y];
-    [rayAx, rayAy] = [p.pxPoints[1].x, p.pxPoints[1].y];
-    [rayBx, rayBy] = [p.pxPoints[2].x, p.pxPoints[2].y];
+    // pxPoints are LOCAL (relative to shape's top-left) — add p.cx/p.cy
+    // to get absolute screen positions for rendering.
+    [vx, vy] = [p.cx + p.pxPoints[0].x, p.cy + p.pxPoints[0].y];
+    [rayAx, rayAy] = [p.cx + p.pxPoints[1].x, p.cy + p.pxPoints[1].y];
+    [rayBx, rayBy] = [p.cx + p.pxPoints[2].x, p.cy + p.pxPoints[2].y];
     const dax = rayAx - vx, day = rayAy - vy;
     const dbx = rayBx - vx, dby = rayBy - vy;
     // Screen Y is inverted — flip Y for math-convention degrees.

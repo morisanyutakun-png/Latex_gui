@@ -290,7 +290,7 @@ export const PALETTE_ITEMS: DomainPaletteItem[] = [
     kind: "function-plot", label: "Function", labelJa: "関数グラフ",
     icon: "plot", category: "math",
     defaultWidth: 4, defaultHeight: 3,
-    defaultTikzOptions: { domain: "-2:2", samples: "100" },
+    defaultTikzOptions: { function: "\\x^2", domain: "-2:2", samples: "100" },
     description: "Function graph (y=f(x))", descriptionJa: "関数グラフ y=f(x)",
   },
   {
