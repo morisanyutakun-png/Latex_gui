@@ -1704,10 +1704,11 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AI教材生成 3回/日 (月30回)" : "AI generation: 3/day (30/mo)",
-                  isJa ? "高性能AI 月5回まで (お試し)" : "High-perf AI: 5/mo (trial)",
+                  isJa ? "AI教材生成 月30回" : "AI generation: 30/month",
+                  isJa ? "高性能AI 月3回まで" : "High-perf AI: 3/month",
+                  isJa ? "PDF出力 月1回まで" : "PDF export: 1/month",
                   isJa ? "基本テンプレート" : "Basic templates",
-                  isJa ? "PDF出力" : "PDF export",
+                  isJa ? "エディタ上でプレビュー" : "In-editor preview",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-muted-foreground">
                     <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
@@ -1742,11 +1743,12 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AI教材生成 20回/日 (月400回)" : "AI generation: 20/day (400/mo)",
-                  isJa ? "高性能AI 月40回" : "High-perf AI: 40/mo",
+                  isJa ? "AI教材生成 月400回" : "AI generation: 400/month",
+                  isJa ? "高性能AI 月40回" : "High-perf AI: 40/month",
+                  isJa ? "PDF出力 無制限" : "Unlimited PDF export",
                   isJa ? "基本テンプレート" : "Basic templates",
                   isJa ? "思考ログ表示" : "Thinking log display",
-                  isJa ? "LaTeXソース書出" : "LaTeX source export",
+                  isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
                     <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
@@ -1782,8 +1784,9 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AI教材生成 60回/日 (月1,500回)" : "AI generation: 60/day (1,500/mo)",
-                  isJa ? "高性能AI 月200回 (5倍)" : "High-perf AI: 200/mo (5×)",
+                  isJa ? "AI教材生成 月1,500回" : "AI generation: 1,500/month",
+                  isJa ? "高性能AI 月200回 (5倍)" : "High-perf AI: 200/month (5×)",
+                  isJa ? "PDF出力 無制限 (優先キュー)" : "Unlimited PDF (priority queue)",
                   isJa ? "全テンプレート利用可" : "All templates",
                   isJa ? "PDF・画像から問題を抽出" : "Import from PDF & images",
                   isJa ? "バッチ処理 (上限100行)" : "Batch (up to 100 rows)",
@@ -1823,10 +1826,10 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "AI教材生成 300回/日 (月8,000回)" : "AI generation: 300/day (8,000/mo)",
-                  isJa ? "高性能AI 月800回 (20倍)" : "High-perf AI: 800/mo (20×)",
+                  isJa ? "AI教材生成 月8,000回" : "AI generation: 8,000/month",
+                  isJa ? "高性能AI 月800回 (20倍)" : "High-perf AI: 800/month (20×)",
+                  isJa ? "PDF出力 無制限 (最優先キュー)" : "Unlimited PDF (highest priority)",
                   isJa ? "Proの全機能を含む" : "Everything in Pro",
-                  isJa ? "PDF出力 (最優先キュー)" : "PDF export (highest priority)",
                   isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",
                   isJa ? "カスタムテンプレート作成" : "Custom template creation",
                   isJa ? "紙デザインそのままPDF出力" : "Paper design preserved in PDF",
