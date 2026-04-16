@@ -1099,6 +1099,127 @@ function RenderBenzene(p: ShapeRenderProps) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+//  MATH — real SVG previews for angle / right-angle / axes / etc.
+// ══════════════════════════════════════════════════════════════════
+
+/** Cartesian axes preview — origin at bottom-left of bbox, two arrows. */
+function RenderAxes(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const ox = p.cx;
+  const oy = p.cy + p.ph;
+  const rx = p.cx + p.pw;
+  const ty = p.cy;
+  const ah = Math.max(4, Math.min(p.pw, p.ph) * 0.08);
+  return wrap(p, <>
+    <line x1={ox} y1={oy} x2={rx} y2={oy} stroke={col} strokeWidth={w} strokeLinecap="round" />
+    <polygon points={`${rx},${oy} ${rx - ah},${oy - ah * 0.45} ${rx - ah},${oy + ah * 0.45}`} fill={col} />
+    <line x1={ox} y1={oy} x2={ox} y2={ty} stroke={col} strokeWidth={w} strokeLinecap="round" />
+    <polygon points={`${ox},${ty} ${ox - ah * 0.45},${ty + ah} ${ox + ah * 0.45},${ty + ah}`} fill={col} />
+    <text x={rx + 3} y={oy} fontSize={fs(p)} fill={col} dominantBaseline="central" fontStyle="italic">x</text>
+    <text x={ox} y={ty - 3} fontSize={fs(p)} fill={col} textAnchor="middle" fontStyle="italic">y</text>
+    <text x={ox - 3} y={oy + 3} fontSize={fs(p) * 0.85} fill={col} textAnchor="end" dominantBaseline="hanging" opacity={0.7}>O</text>
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+  </>);
+}
+
+/** Angle arc preview — vertex at bottom-left, arc between two rays. */
+function RenderAngleArc(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const r = Math.min(p.pw, p.ph) * 0.8;
+  const startDeg = parseFloat(p.shape.tikzOptions?.["start"] ?? "0") || 0;
+  const endDeg = parseFloat(p.shape.tikzOptions?.["end"] ?? "45") || 45;
+  const vx = p.cx;
+  const vy = p.cy + p.ph;
+  const proj = (deg: number, rr: number) => ({
+    x: vx + rr * Math.cos(deg * Math.PI / 180),
+    y: vy - rr * Math.sin(deg * Math.PI / 180),
+  });
+  const a = proj(startDeg, r);
+  const b = proj(endDeg, r);
+  const rayLen = r * 1.18;
+  const rayA = proj(startDeg, rayLen);
+  const rayB = proj(endDeg, rayLen);
+  const largeArc = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
+  const d = `M ${a.x},${a.y} A ${r},${r} 0 ${largeArc} 0 ${b.x},${b.y}`;
+  const midDeg = (startDeg + endDeg) / 2;
+  const lblPt = proj(midDeg, r * 0.62);
+  return wrap(p, <>
+    <line x1={vx} y1={vy} x2={rayA.x} y2={rayA.y} stroke={col} strokeWidth={w} opacity={0.55} strokeLinecap="round" />
+    <line x1={vx} y1={vy} x2={rayB.x} y2={rayB.y} stroke={col} strokeWidth={w} opacity={0.55} strokeLinecap="round" />
+    <path d={d} stroke={col} strokeWidth={w} fill="none" strokeLinecap="round" />
+    {!p.shape.label && (
+      <text x={lblPt.x} y={lblPt.y} fontSize={fs(p)} fill={col} textAnchor="middle" dominantBaseline="central" fontStyle="italic" pointerEvents="none">θ</text>
+    )}
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} naturalCenter={{ x: lblPt.x, y: lblPt.y }} />
+  </>);
+}
+
+/** Right-angle square marker (L-shape). */
+function RenderRightAngle(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const sz = Math.min(p.pw, p.ph);
+  // Corner at bottom-left; L opens up-right (matches genRightAngle TikZ output).
+  const x0 = p.cx;
+  const y0 = p.cy + p.ph;
+  return wrap(p, <>
+    <path d={`M ${x0 + sz},${y0} L ${x0 + sz},${y0 - sz} L ${x0},${y0 - sz}`}
+          stroke={col} strokeWidth={w} fill="none" strokeLinejoin="miter" strokeLinecap="square" />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+  </>);
+}
+
+/** Function plot preview — axes + sample curve (parabola placeholder). */
+function RenderFunctionPlot(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const cx = p.cx + p.pw / 2;
+  const cy = p.cy + p.ph / 2;
+  const w2 = p.pw / 2;
+  const h2 = p.ph / 2;
+  const samples = 30;
+  let d = "";
+  for (let i = 0; i <= samples; i++) {
+    const t = (i / samples) * 2 - 1;
+    const x = cx + t * w2 * 0.85;
+    const y = cy - (1 - t * t) * h2 * 0.7 + h2 * 0.15;
+    d += (i === 0 ? "M" : " L") + ` ${x},${y}`;
+  }
+  return wrap(p, <>
+    <line x1={p.cx} y1={cy} x2={p.cx + p.pw} y2={cy} stroke={col} strokeWidth={w * 0.7} opacity={0.4} />
+    <line x1={cx} y1={p.cy} x2={cx} y2={p.cy + p.ph} stroke={col} strokeWidth={w * 0.7} opacity={0.4} />
+    <path d={d} stroke={col} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    <text x={p.cx + p.pw + 2} y={cy} fontSize={fs(p) * 0.85} fill={col} dominantBaseline="central" opacity={0.6} fontStyle="italic">x</text>
+    <text x={cx} y={p.cy - 2} fontSize={fs(p) * 0.85} fill={col} textAnchor="middle" opacity={0.6} fontStyle="italic">y</text>
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+  </>);
+}
+
+/** Curly brace — vertical, opening to the left. */
+function RenderBrace(p: ShapeRenderProps) {
+  const w = sw(p);
+  const col = stroke(p);
+  const x = p.cx + p.pw;
+  const y0 = p.cy;
+  const y1 = p.cy + p.ph;
+  const amp = Math.min(p.pw * 0.6, 10);
+  const mid = (y0 + y1) / 2;
+  const d = [
+    `M ${x},${y0}`,
+    `Q ${x - amp},${y0 + (mid - y0) * 0.3} ${x - amp},${(y0 + mid) / 2}`,
+    `Q ${x - amp},${mid} ${x - amp * 1.8},${mid}`,
+    `Q ${x - amp},${mid} ${x - amp},${(y1 + mid) / 2}`,
+    `Q ${x - amp},${y1 - (y1 - mid) * 0.3} ${x},${y1}`,
+  ].join(" ");
+  return wrap(p, <>
+    <path d={d} stroke={col} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    <ShapeLabel shape={p.shape} scale={p.scale} bboxInScreen={{ x: p.cx, y: p.cy, w: p.pw, h: p.ph }} />
+  </>);
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  Generic domain placeholder (for shapes without custom SVG)
 // ══════════════════════════════════════════════════════════════════
 
@@ -1168,11 +1289,11 @@ export function ShapeRenderer(p: ShapeRenderProps) {
     case "mirror-convex": return RenderMirror(p, false);
 
     // Math
-    case "axes": return RenderGenericDomain(p, "Axes");
-    case "angle-arc": return RenderGenericDomain(p, "Angle");
-    case "right-angle": return RenderGenericDomain(p, "90deg");
-    case "function-plot": return RenderGenericDomain(p, "f(x)");
-    case "brace": return RenderGenericDomain(p, "Brace");
+    case "axes": return <RenderAxes {...p} />;
+    case "angle-arc": return <RenderAngleArc {...p} />;
+    case "right-angle": return <RenderRightAngle {...p} />;
+    case "function-plot": return <RenderFunctionPlot {...p} />;
+    case "brace": return <RenderBrace {...p} />;
 
     // CS
     case "flowchart-process": return <RenderRect {...p} />;

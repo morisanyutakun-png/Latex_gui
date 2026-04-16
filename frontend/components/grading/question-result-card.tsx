@@ -9,6 +9,7 @@ import {
   AlertTriangle, FileQuestion, EyeOff,
 } from "lucide-react";
 import type { GradedQuestion, AnswerStatus } from "@/lib/grading-types";
+import { useI18n } from "@/lib/i18n";
 
 interface Props {
   question: GradedQuestion;
@@ -32,7 +33,9 @@ function StatusIcon({ s }: { s: "ok" | "partial" | "ng" }) {
 
 // answerStatus → 注意バナー (answered 以外のときだけ表示)
 function AnswerStatusBanner({ status }: { status: AnswerStatus }) {
+  const { locale } = useI18n();
   if (status === "answered") return null;
+  const isEn = locale === "en";
   const meta: Record<Exclude<AnswerStatus, "answered">, {
     icon: React.ReactNode;
     title: string;
@@ -41,20 +44,26 @@ function AnswerStatusBanner({ status }: { status: AnswerStatus }) {
   }> = {
     off_topic: {
       icon: <AlertTriangle className="h-3.5 w-3.5" />,
-      title: "問題と無関係な画像",
-      body: "アップロードされた画像はこの問題への答案ではないようです。問題に対応する答案を再度アップロードしてください。",
+      title: isEn ? "Image unrelated to the question" : "問題と無関係な画像",
+      body: isEn
+        ? "The uploaded image does not appear to be an answer to this question. Please re-upload the correct image."
+        : "アップロードされた画像はこの問題への答案ではないようです。問題に対応する答案を再度アップロードしてください。",
       cls: "bg-rose-50 text-rose-700 border-rose-300/50 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-700/40",
     },
     blank: {
       icon: <FileQuestion className="h-3.5 w-3.5" />,
-      title: "答案記述なし",
-      body: "この設問に対する答案記述が見つかりませんでした。",
+      title: isEn ? "No answer written" : "答案記述なし",
+      body: isEn
+        ? "No answer was found for this question."
+        : "この設問に対する答案記述が見つかりませんでした。",
       cls: "bg-amber-50 text-amber-700 border-amber-300/50 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-700/40",
     },
     illegible: {
       icon: <EyeOff className="h-3.5 w-3.5" />,
-      title: "判読不能",
-      body: "答案を読み取れませんでした。鮮明な画像で再アップロードしてください。",
+      title: isEn ? "Illegible" : "判読不能",
+      body: isEn
+        ? "The answer could not be read. Please re-upload a clearer image."
+        : "答案を読み取れませんでした。鮮明な画像で再アップロードしてください。",
       cls: "bg-slate-100 text-slate-700 border-slate-300/60 dark:bg-slate-800/40 dark:text-slate-200 dark:border-slate-600/50",
     },
   };
@@ -71,6 +80,8 @@ function AnswerStatusBanner({ status }: { status: AnswerStatus }) {
 }
 
 export function QuestionResultCard({ question, selected = false, onClick }: Props) {
+  const { locale } = useI18n();
+  const isEn = locale === "en";
   const [open, setOpen] = useState(true);
   const status = statusOf(question.awardedPoints, question.maxPoints);
   const answerStatus: AnswerStatus = question.answerStatus ?? "answered";
@@ -134,7 +145,7 @@ export function QuestionResultCard({ question, selected = false, onClick }: Prop
           {question.transcribedAnswer && (
             <details className="mt-2">
               <summary className="text-[10px] font-mono text-muted-foreground cursor-pointer hover:text-foreground/80">
-                読み取り答案
+                {isEn ? "Transcribed answer" : "読み取り答案"}
               </summary>
               <pre className="mt-1 text-[11px] font-mono text-foreground/70 bg-background border border-border/30 rounded p-2 overflow-x-auto whitespace-pre-wrap">
                 {question.transcribedAnswer}

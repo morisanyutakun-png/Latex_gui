@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function Step3Grading({ log, highlightPage }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const files = useUIStore((s) => s.gradingAnswerFiles);
 
   return (
@@ -32,7 +32,7 @@ export function Step3Grading({ log, highlightPage }: Props) {
       {/* ── 左: サムネ列 ── */}
       <div className="flex flex-col gap-3 overflow-hidden">
         <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-          答案
+          {locale === "en" ? "Answers" : "答案"}
         </span>
         <div className="overflow-y-auto">
           <div className="flex flex-col gap-2">

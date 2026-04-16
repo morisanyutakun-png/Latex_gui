@@ -132,7 +132,7 @@ export function Step1Rubric() {
       <div className="flex flex-col min-h-0 border border-border/40 rounded-lg overflow-hidden bg-background">
         <div className="px-3 py-2 border-b border-border/30 bg-muted/30 flex items-center gap-2">
           <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider flex-1">
-            採点基準
+            {locale === "en" ? "Grading rubric" : "採点基準"}
           </span>
           {dirty && (
             <button
@@ -150,7 +150,7 @@ export function Step1Rubric() {
           {parsing && (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
-              <span className="text-sm">採点基準を読み込み中…</span>
+              <span className="text-sm">{locale === "en" ? "Loading grading rubric…" : "採点基準を読み込み中…"}</span>
             </div>
           )}
 
@@ -181,7 +181,7 @@ export function Step1Rubric() {
           {extracting && (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-              <span className="text-sm">{extractStatus || "AI が採点観点を考えています…"}</span>
+              <span className="text-sm">{extractStatus || (locale === "en" ? "AI is drafting grading criteria…" : "AI が採点観点を考えています…")}</span>
             </div>
           )}
 
@@ -207,7 +207,7 @@ export function Step1Rubric() {
                   className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                 >
                   <Sparkles className="h-3 w-3" />
-                  AI で再生成
+                  {locale === "en" ? "Regenerate with AI" : "AI で再生成"}
                 </button>
               </div>
             </>
@@ -278,9 +278,9 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
       if (e instanceof CompileError) {
         setCompileError(formatCompileError(e, t));
       } else if (e instanceof Error) {
-        setCompileError({ title: "コンパイルエラー", lines: [e.message] });
+        setCompileError({ title: t("error.compile"), lines: [e.message] });
       } else {
-        setCompileError({ title: "コンパイルエラー", lines: ["問題 PDF の生成に失敗しました"] });
+        setCompileError({ title: t("error.compile"), lines: [t("error.pdf_generation_failed")] });
       }
     } finally {
       if (seq === compileSeqRef.current) setCompiling(false);
@@ -306,12 +306,12 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
       <div className="px-3 py-2 border-b border-border/30 bg-muted/30 flex items-center gap-2">
         <FileText className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider flex-1">
-          問題プレビュー
+          {t("grading.rubric.preview")}
         </span>
         {compiling && (
           <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
-            コンパイル中…
+            {t("doc.editor.compiling")}
           </span>
         )}
         <button
