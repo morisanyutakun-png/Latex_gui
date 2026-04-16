@@ -1186,9 +1186,12 @@ function RenderAngleArc(p: ShapeRenderProps) {
     y: vy - r * 0.72 * Math.sin(midDeg * Math.PI / 180),
   };
 
+  // When hideRays is set (reference-line mode), only draw arc + label
+  const hideRays = p.shape.tikzOptions?.["hideRays"] === "true";
+
   return wrap(p, <>
-    <line x1={vx} y1={vy} x2={rayAx} y2={rayAy} stroke={col} strokeWidth={w} strokeLinecap="round" />
-    <line x1={vx} y1={vy} x2={rayBx} y2={rayBy} stroke={col} strokeWidth={w} strokeLinecap="round" />
+    {!hideRays && <line x1={vx} y1={vy} x2={rayAx} y2={rayAy} stroke={col} strokeWidth={w} strokeLinecap="round" />}
+    {!hideRays && <line x1={vx} y1={vy} x2={rayBx} y2={rayBy} stroke={col} strokeWidth={w} strokeLinecap="round" />}
     <path d={d} stroke={col} strokeWidth={w} fill="none" strokeLinecap="round" />
     {!p.shape.label && (
       <text x={lblPt.x} y={lblPt.y} fontSize={fs(p)} fill={col} textAnchor="middle" dominantBaseline="central" fontStyle="italic" pointerEvents="none">θ</text>

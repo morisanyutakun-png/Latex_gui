@@ -95,6 +95,58 @@ function findGrabTarget(shapes: FigureShape[], pt: Point): string | null {
   return null;
 }
 
+// ── Find nearest line-like shape (for angle tool reference line) ──
+
+/** Distance from point P to line segment AB. */
+function pointToSegmentDist(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-10) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+interface NearestLineResult {
+  shape: FigureShape;
+  /** The endpoint of the line closest to the click — becomes the vertex */
+  vertex: Point;
+  /** The other endpoint of the line — defines the ray1 direction */
+  ray1End: Point;
+  dist: number;
+}
+
+/** LINE_TOOLS kinds that can serve as angle reference lines */
+const REF_LINE_KINDS = new Set<string>([
+  "line", "arrow", "force-arrow", "vector",
+]);
+
+/**
+ * Find the nearest line-like shape whose segment is within `threshold` cm of `pt`.
+ * Returns the shape, which endpoint is closest to the click (vertex), and the other (ray1End).
+ */
+function findNearestLine(shapes: FigureShape[], pt: Point, threshold: number): NearestLineResult | null {
+  let best: NearestLineResult | null = null;
+  for (const s of shapes) {
+    if (!REF_LINE_KINDS.has(s.kind)) continue;
+    if (s.points.length < 2) continue;
+    // Convert relative points to absolute TikZ coords
+    const a: Point = { x: s.x + s.points[0].x, y: s.y + s.points[0].y };
+    const b: Point = { x: s.x + s.points[s.points.length - 1].x, y: s.y + s.points[s.points.length - 1].y };
+    const d = pointToSegmentDist(pt, a, b);
+    if (d > threshold) continue;
+    if (best && d >= best.dist) continue;
+    // Determine which endpoint is closer to the click — that becomes the vertex
+    const dA = Math.hypot(pt.x - a.x, pt.y - a.y);
+    const dB = Math.hypot(pt.x - b.x, pt.y - b.y);
+    if (dA <= dB) {
+      best = { shape: s, vertex: a, ray1End: b, dist: d };
+    } else {
+      best = { shape: s, vertex: b, ray1End: a, dist: d };
+    }
+  }
+  return best;
+}
+
 // ── Smart snap system ──────────────────────────────────────────
 
 type SnapPointType = "terminal" | "corner" | "center" | "mid-edge";
@@ -357,8 +409,8 @@ export function FigureCanvas() {
   type AngleDrawStep =
     | { kind: "ray1-start" }
     | { kind: "ray1-end"; vertex: Point }
-    | { kind: "awaiting-input"; vertex: Point; ray1End: Point }
-    | { kind: "ray2-end"; vertex: Point; ray1End: Point; angleDeg: number; label: string; labelMath: boolean };
+    | { kind: "awaiting-input"; vertex: Point; ray1End: Point; refShapeId?: string }
+    | { kind: "ray2-end"; vertex: Point; ray1End: Point; angleDeg: number; label: string; labelMath: boolean; refShapeId?: string };
   const [angleDraw, setAngleDraw] = useState<AngleDrawStep | null>(null);
   // Popup scratch fields
   const [angleInput, setAngleInput] = useState<string>("60");
@@ -366,6 +418,8 @@ export function FigureCanvas() {
   const [angleLabelMath, setAngleLabelMath] = useState<boolean>(true);
   /** ID of shape whose grab-zone the cursor is currently over (null = cursor not on any shape body) */
   const [grabTargetId, setGrabTargetId] = useState<string | null>(null);
+  /** ID of line-like shape near cursor when angle tool is active (hover highlight candidate) */
+  const [angleRefHoverId, setAngleRefHoverId] = useState<string | null>(null);
   /** Active snap visualization (while moving) */
   const [activeSnap, setActiveSnap] = useState<ReturnType<typeof computeSmartSnap>>(null);
   /** Help popover visibility */
@@ -572,7 +626,7 @@ export function FigureCanvas() {
   }, [fitToContent, zoomIn, zoomOut, centerCanvas]);
 
   // Cancel pending start when tool changes
-  useEffect(() => { setPendingStart(null); setPreviewEnd(null); setAngleDraw(null); }, [activeTool]);
+  useEffect(() => { setPendingStart(null); setPreviewEnd(null); setAngleDraw(null); setAngleRefHoverId(null); }, [activeTool]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -798,12 +852,23 @@ export function FigureCanvas() {
     }
 
     // Angle: guided 3-click flow
-    //   1st click → vertex
+    //   1st click → vertex  (OR click on existing line → skip to popup)
     //   2nd click → first ray end (opens the angle + label popup)
     //   3rd click (after popup confirm) → second ray length; direction is
     //     locked to the angle from the popup
     if (mode === "angle") {
       if (!angleDraw || angleDraw.kind === "ray1-start") {
+        // ── Reference-line shortcut: click on an existing line → jump to popup ──
+        const nearLine = findNearestLine(shapes, { x: tx, y: ty }, 0.35);
+        if (nearLine) {
+          setAngleDraw({
+            kind: "awaiting-input",
+            vertex: nearLine.vertex,
+            ray1End: nearLine.ray1End,
+            refShapeId: nearLine.shape.id,
+          });
+          return;
+        }
         setAngleDraw({ kind: "ray1-end", vertex: { x: sx, y: sy } });
         return;
       }
@@ -820,7 +885,7 @@ export function FigureCanvas() {
       if (angleDraw.kind === "ray2-end") {
         // Third click: commit shape. Cursor side decides CCW vs CW; distance
         // projected onto the (now-signed) second ray becomes the ray length.
-        const { vertex, ray1End, angleDeg, label, labelMath } = angleDraw;
+        const { vertex, ray1End, angleDeg, label, labelMath, refShapeId } = angleDraw;
         const ray1DirDeg = Math.atan2(ray1End.y - vertex.y, ray1End.x - vertex.x) * 180 / Math.PI;
         // Cursor-side sign: cross product of ray1 direction and cursor vector.
         const cursorDx = sx - vertex.x, cursorDy = sy - vertex.y;
@@ -844,6 +909,57 @@ export function FigureCanvas() {
           y: vertex.y + rayUy * ray2Len,
         };
         const ray1Len = Math.hypot(ray1End.x - vertex.x, ray1End.y - vertex.y);
+
+        // ── Reference-line mode: create a new line for ray2 + arc-only angle-arc ──
+        if (refShapeId) {
+          // 1) Create new line from vertex to ray2End
+          const lineMinX = Math.min(vertex.x, ray2End.x);
+          const lineMinY = Math.min(vertex.y, ray2End.y);
+          const lineW = Math.max(Math.abs(ray2End.x - vertex.x), 0.05);
+          const lineH = Math.max(Math.abs(ray2End.y - vertex.y), 0.05);
+          const lineId = addShapeFromPalette("line", lineMinX, lineMinY);
+          updateShape(lineId, {
+            x: lineMinX, y: lineMinY,
+            width: lineW, height: lineH,
+            points: [
+              { x: vertex.x - lineMinX, y: vertex.y - lineMinY },
+              { x: ray2End.x - lineMinX, y: ray2End.y - lineMinY },
+            ],
+          });
+
+          // 2) Create angle-arc (arc + label only — hideRays since reference line already exists)
+          const xs = [vertex.x, ray1End.x, ray2End.x];
+          const ys = [vertex.y, ray1End.y, ray2End.y];
+          const minX = Math.min(...xs), maxX = Math.max(...xs);
+          const minY = Math.min(...ys), maxY = Math.max(...ys);
+          const anchorX = snapV(minX, gridSize, snapToGrid);
+          const anchorY = snapV(minY, gridSize, snapToGrid);
+          const w = Math.max(maxX - anchorX, 0.2);
+          const h = Math.max(maxY - anchorY, 0.2);
+          const arcId = addShapeFromPalette("angle-arc", anchorX, anchorY);
+          updateShape(arcId, {
+            x: anchorX, y: anchorY,
+            width: w, height: h,
+            label, labelMathMode: labelMath,
+            tikzOptions: {
+              start: Math.round(ray1DirDeg).toString(),
+              end: Math.round(ray2DirDeg).toString(),
+              radius: Math.max(0.2, Math.min(1, (Math.min(ray1Len, ray2Len) * 0.6) / Math.max(w, h))).toFixed(2),
+              hideRays: "true",
+            },
+            points: [
+              { x: vertex.x - anchorX, y: vertex.y - anchorY },
+              { x: ray1End.x - anchorX, y: ray1End.y - anchorY },
+              { x: ray2End.x - anchorX, y: ray2End.y - anchorY },
+            ],
+          });
+
+          setAngleDraw(null);
+          setAngleRefHoverId(null);
+          return;
+        }
+
+        // ── Standard mode: single angle-arc with both rays ──
         // Bbox
         const xs = [vertex.x, ray1End.x, ray2End.x];
         const ys = [vertex.y, ray1End.y, ray2End.y];
@@ -951,6 +1067,15 @@ export function FigureCanvas() {
     if (!dragging) {
       const target = findGrabTarget(shapes, { x: tx, y: ty });
       if (target !== grabTargetId) setGrabTargetId(target);
+    }
+
+    // Angle tool: highlight nearby line candidates for reference-line shortcut
+    if (classifyTool(activeTool) === "angle" && (!angleDraw || angleDraw.kind === "ray1-start")) {
+      const near = findNearestLine(shapes, { x: tx, y: ty }, 0.35);
+      const newId = near?.shape.id ?? null;
+      if (newId !== angleRefHoverId) setAngleRefHoverId(newId);
+    } else if (angleRefHoverId !== null && !(angleDraw && "refShapeId" in angleDraw && angleDraw.refShapeId)) {
+      setAngleRefHoverId(null);
     }
 
     // 2-click preview (between clicks, no drag in progress)
@@ -1073,7 +1198,7 @@ export function FigureCanvas() {
       setDragging((prev) => prev ? { ...prev } : null); // trigger re-render
       return;
     }
-  }, [dragging, pendingStart, shapes, grabTargetId, getSvgCoords, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, updateShape, setViewport]);
+  }, [dragging, pendingStart, shapes, grabTargetId, getSvgCoords, canvasHeight, zoom, offsetX, offsetY, gridSize, snapToGrid, updateShape, setViewport, activeTool, angleDraw, angleRefHoverId]);
 
   const handleMouseUp = useCallback(() => {
     if (!dragging) return;
@@ -1442,6 +1567,16 @@ export function FigureCanvas() {
       toolHint = pendingStart
         ? (isJa ? "対角の点をクリック" : "Click OPPOSITE corner")
         : (isJa ? "最初の角をクリック" : "Click FIRST corner");
+    else if (mode === "angle") {
+      if (!angleDraw || angleDraw.kind === "ray1-start")
+        toolHint = angleRefHoverId
+          ? (isJa ? "クリックで基準線に設定" : "Click to use as reference line")
+          : (isJa ? "直線をクリック(基準線) or 空白(頂点)" : "Click a line (reference) or empty space (vertex)");
+      else if (angleDraw.kind === "ray1-end")
+        toolHint = isJa ? "1本目の終点をクリック" : "Click first ray endpoint";
+      else if (angleDraw.kind === "ray2-end")
+        toolHint = isJa ? "クリックで2本目を確定" : "Click to commit second line";
+    }
     else if (mode === "freehand") toolHint = isJa ? "ドラッグで自由に描画" : "Drag to draw freely";
     else toolHint = isJa ? "クリックして配置" : "Click to place";
   }
@@ -1476,13 +1611,14 @@ export function FigureCanvas() {
     });
   } else if (classifyTool(activeTool) === "angle") {
     const step = angleDraw?.kind ?? "ray1-start";
-    const hintJa = step === "ray1-start" ? "① 頂点をクリック"
+    const hasRef = angleDraw && "refShapeId" in angleDraw && angleDraw.refShapeId;
+    const hintJa = step === "ray1-start" ? "① 既存の直線をクリック(基準線) または 空白をクリック(頂点)"
                  : step === "ray1-end"   ? "② 1本目の直線の終点をクリック"
-                 : step === "awaiting-input" ? "③ 角度とラベルを入力して「次へ」"
+                 : step === "awaiting-input" ? (hasRef ? "③ 基準線からの角度を入力して「次へ」" : "③ 角度とラベルを入力して「次へ」")
                  : "④ カーソルの位置(上/下)で角度の向きを選び、クリックで確定";
-    const hintEn = step === "ray1-start" ? "1) click the vertex"
+    const hintEn = step === "ray1-start" ? "1) click an existing line (reference) or empty space (vertex)"
                  : step === "ray1-end"   ? "2) click the first ray endpoint"
-                 : step === "awaiting-input" ? "3) set angle + label, press Next"
+                 : step === "awaiting-input" ? (hasRef ? "3) set angle from reference line, press Next" : "3) set angle + label, press Next")
                  : "4) hover either side of line 1 to pick CCW/CW, click to commit";
     contextBarItems.push({
       label: isJa ? "角度ツール" : "Angle tool",
@@ -1604,6 +1740,40 @@ export function FigureCanvas() {
           </g>);
         })()}
 
+        {/* Angle tool: reference-line hover/selected highlight */}
+        {(() => {
+          // Show highlight on hovered line candidate or on the selected reference line
+          const refId = (angleDraw && "refShapeId" in angleDraw && angleDraw.refShapeId) || angleRefHoverId;
+          if (!refId) return null;
+          const sh = shapes.find((s) => s.id === refId);
+          if (!sh || sh.points.length < 2) return null;
+          const a = { x: sh.x + sh.points[0].x, y: sh.y + sh.points[0].y };
+          const b = { x: sh.x + sh.points[sh.points.length - 1].x, y: sh.y + sh.points[sh.points.length - 1].y };
+          const [ax, ay] = tikzToCanvas(a.x, a.y, canvasHeight, zoom, offsetX, offsetY);
+          const [bx, by] = tikzToCanvas(b.x, b.y, canvasHeight, zoom, offsetX, offsetY);
+          const isSelected = !!(angleDraw && "refShapeId" in angleDraw && angleDraw.refShapeId);
+          return (<g pointerEvents="none">
+            {/* Glow behind the line */}
+            <line x1={ax} y1={ay} x2={bx} y2={by}
+              stroke={isSelected ? "#a855f7" : "#8b5cf6"} strokeWidth={isSelected ? 6 : 4}
+              opacity={isSelected ? 0.25 : 0.15} strokeLinecap="round" />
+            {/* Highlight line overlay */}
+            <line x1={ax} y1={ay} x2={bx} y2={by}
+              stroke={isSelected ? "#a855f7" : "#8b5cf6"} strokeWidth={2.5}
+              opacity={isSelected ? 0.9 : 0.6} strokeLinecap="round"
+              strokeDasharray={isSelected ? "none" : "6,3"} />
+            {/* Endpoint dots */}
+            <circle cx={ax} cy={ay} r={5} fill={isSelected ? "#a855f7" : "#8b5cf6"} opacity={0.7} />
+            <circle cx={bx} cy={by} r={5} fill={isSelected ? "#a855f7" : "#8b5cf6"} opacity={0.7} />
+            {!isSelected && (
+              <text x={(ax + bx) / 2} y={(ay + by) / 2 - 10} textAnchor="middle" fontSize="10"
+                fill="#8b5cf6" fontFamily="monospace" fontWeight="600" opacity={0.8}>
+                {isJa ? "クリックで基準線に" : "Click to use as reference"}
+              </text>
+            )}
+          </g>);
+        })()}
+
         {/* Draw preview */}
         {renderDrawPreview()}
 
@@ -1689,6 +1859,7 @@ export function FigureCanvas() {
             angleDeg: deg,
             label: angleLabelInput,
             labelMath: angleLabelMath,
+            refShapeId: angleDraw.refShapeId,
           });
         };
         return (
@@ -1700,7 +1871,9 @@ export function FigureCanvas() {
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold text-violet-600 dark:text-violet-400">
-                {isJa ? "角度を指定" : "Set angle"}
+                {angleDraw.refShapeId
+                  ? (isJa ? "基準線からの角度" : "Angle from reference line")
+                  : (isJa ? "角度を指定" : "Set angle")}
               </span>
               <button
                 onClick={() => setAngleDraw(null)}
@@ -1709,6 +1882,16 @@ export function FigureCanvas() {
                 {isJa ? "キャンセル" : "Cancel"}
               </button>
             </div>
+            {angleDraw.refShapeId && (
+              <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20">
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                  <line x1="2" y1="12" x2="12" y2="2" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <span className="text-[10px] text-violet-600 dark:text-violet-400">
+                  {isJa ? "既存の直線を基準に新しい線を描きます" : "Drawing a new line relative to the selected line"}
+                </span>
+              </div>
+            )}
             {/* Angle input + presets */}
             <div className="flex items-center gap-2 mb-2">
               <input

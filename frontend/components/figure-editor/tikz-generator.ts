@@ -413,6 +413,9 @@ function genAngleArc(s: FigureShape): string {
   const opts = buildDrawOptions(s.style);
   const lblText = s.label ? labelText(s) : "$\\theta$";
 
+  // When hideRays is set (reference-line mode), only emit the arc + label
+  const hideRays = s.tikzOptions["hideRays"] === "true";
+
   // Guided-draw flow carries the geometry directly in shape.points
   // ([vertex, ray1End, ray2End] in local coords). When present we honour the
   // exact user-drawn angles — rays can fan out in any direction.
@@ -428,12 +431,14 @@ function genAngleArc(s: FigureShape): string {
     const meanRad = ((startAngle + endAngle) / 2) * Math.PI / 180;
     const lblX = vAbs.x + Math.cos(meanRad) * r * 0.72;
     const lblY = vAbs.y + Math.sin(meanRad) * r * 0.72;
-    return [
-      `  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} -- ${coord(r1Abs.x, r1Abs.y)};`,
-      `  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} -- ${coord(r2Abs.x, r2Abs.y)};`,
-      `  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} ++(${fmt(startAngle)}:${fmt(r)}) arc (${fmt(startAngle)}:${fmt(endAngle)}:${fmt(r)});`,
-      `  \\node at ${coord(lblX, lblY)} {${lblText}};`,
-    ].join("\n");
+    const lines: string[] = [];
+    if (!hideRays) {
+      lines.push(`  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} -- ${coord(r1Abs.x, r1Abs.y)};`);
+      lines.push(`  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} -- ${coord(r2Abs.x, r2Abs.y)};`);
+    }
+    lines.push(`  \\draw[${opts}] ${coord(vAbs.x, vAbs.y)} ++(${fmt(startAngle)}:${fmt(r)}) arc (${fmt(startAngle)}:${fmt(endAngle)}:${fmt(r)});`);
+    lines.push(`  \\node at ${coord(lblX, lblY)} {${lblText}};`);
+    return lines.join("\n");
   }
 
   // Legacy bbox-based shape — derive rays from bbox bottom-left.
