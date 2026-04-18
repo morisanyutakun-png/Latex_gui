@@ -27,11 +27,7 @@ PLAN_PRICE_IDS: dict[str, str] = {
 PRICE_TO_PLAN: dict[str, str] = {v: k for k, v in PLAN_PRICE_IDS.items() if v}
 
 
-def create_or_get_customer(db: Session, user: User) -> str:
-    """Stripe Customer を取得または作成し、stripe_customer_id を DB に保存して返す。"""
-    if user.stripe_customer_id:
-        return user.stripe_customer_id
-
+def _ensure_api_key() -> None:
     if not stripe.api_key:
         stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
     if not stripe.api_key:
@@ -39,30 +35,64 @@ def create_or_get_customer(db: Session, user: User) -> str:
             "STRIPE_SECRET_KEY が未設定です。バックエンドの環境変数を確認してください。"
         )
 
+
+def _create_new_customer(user: User) -> str:
     customer = stripe.Customer.create(
         email=user.email or "",
         name=user.name or "",
         metadata={"user_id": user.id},
     )
-    user.stripe_customer_id = customer.id
-    db.commit()
-    logger.info("Created Stripe customer %s for user %s", customer.id, user.id)
     return customer.id
 
 
-def create_checkout_session(customer_id: str, plan_id: str, user_id: str = "") -> str:
+def create_or_get_customer(db: Session, user: User) -> str:
+    """Stripe Customer を取得または作成し、stripe_customer_id を DB に保存して返す。
+
+    DB に保存されている customer_id が現在の Stripe 環境に存在しない場合
+    (test/live キー切替、Stripe 側で手動削除、別プロジェクトの customer 等) は
+    自動的に無効化して新しい customer を作成する。
+    """
+    _ensure_api_key()
+
+    if user.stripe_customer_id:
+        try:
+            retrieved = stripe.Customer.retrieve(user.stripe_customer_id)
+            # 削除済み customer は deleted=True で返る
+            if getattr(retrieved, "deleted", False):
+                raise stripe.error.InvalidRequestError(
+                    "customer deleted", param="customer"
+                )
+            return user.stripe_customer_id
+        except stripe.error.InvalidRequestError as e:
+            logger.warning(
+                "Stale stripe_customer_id %s for user %s (%s); recreating",
+                user.stripe_customer_id, user.id, e,
+            )
+            user.stripe_customer_id = None
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+
+    customer_id = _create_new_customer(user)
+    user.stripe_customer_id = customer_id
+    db.commit()
+    logger.info("Created Stripe customer %s for user %s", customer_id, user.id)
+    return customer_id
+
+
+def create_checkout_session(
+    db: Session,
+    user: User,
+    plan_id: str,
+) -> str:
     """Stripe Checkout Session を作成してURLを返す。有料プラン専用。
 
-    環境変数の検証を毎回実施する (モジュール import 時の値を信用しない)。
-    サーバのプロセス起動後に env を書き換えた場合でも反映される。
+    現プランからの「一段飛ばしアップグレード」(Free→Pro 等) や同一プランの
+    再購読も通す。price_id や customer_id のどちらで失敗しても、
+    stale な customer_id は自動で無効化して 1 回だけリトライする。
     """
-    if not stripe.api_key:
-        # stripe.api_key は import 時の値でキャッシュされているため、都度 env から読み直す
-        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
-    if not stripe.api_key:
-        raise ValueError(
-            "STRIPE_SECRET_KEY が未設定です。バックエンドの環境変数を確認してください。"
-        )
+    _ensure_api_key()
 
     # env 優先で毎回解決 (モジュール import 時の値を使わない)
     env_key = f"STRIPE_PRICE_ID_{plan_id.upper()}"
@@ -72,23 +102,44 @@ def create_checkout_session(customer_id: str, plan_id: str, user_id: str = "") -
             f"{env_key} が未設定です。バックエンドの環境変数に Price ID を設定してください。"
         )
 
-    # `{CHECKOUT_SESSION_ID}` は Stripe がリダイレクト時にサーバサイドで
-    # 実際のセッションID (cs_xxx) に置換してくれるテンプレート変数。
-    # f-string 内では `{{...}}` で literal の `{...}` を表現する。
+    # `{CHECKOUT_SESSION_ID}` は Stripe がリダイレクト時に実セッションID に置換するテンプレート変数
     success_url = (
         f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}"
         f"&session_id={{CHECKOUT_SESSION_ID}}"
     )
-    session = stripe.checkout.Session.create(
-        customer=customer_id,
-        line_items=[{"price": price_id, "quantity": 1}],
-        mode="subscription",
-        success_url=success_url,
-        cancel_url=f"{FRONTEND_URL}/",
-        metadata={"plan_id": plan_id, "user_id": user_id},
-        subscription_data={"metadata": {"user_id": user_id, "plan_id": plan_id}},
-    )
-    return session.url
+
+    def _create(customer_id: str) -> str:
+        session = stripe.checkout.Session.create(
+            customer=customer_id,
+            line_items=[{"price": price_id, "quantity": 1}],
+            mode="subscription",
+            success_url=success_url,
+            cancel_url=f"{FRONTEND_URL}/",
+            metadata={"plan_id": plan_id, "user_id": user.id},
+            subscription_data={"metadata": {"user_id": user.id, "plan_id": plan_id}},
+            # 同一 Customer で複数サブスクを許可 (Free→Pro 等の一段飛ばしにも対応)
+            allow_promotion_codes=True,
+        )
+        return session.url
+
+    customer_id = create_or_get_customer(db, user)
+    try:
+        return _create(customer_id)
+    except stripe.error.InvalidRequestError as e:
+        msg = str(e).lower()
+        # customer 側の問題なら無効化して 1 回だけリトライ
+        if "customer" in msg or "no such customer" in msg:
+            logger.warning(
+                "Checkout failed due to customer (%s); invalidating and retrying", e,
+            )
+            user.stripe_customer_id = None
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+            customer_id = create_or_get_customer(db, user)
+            return _create(customer_id)
+        raise
 
 
 # Stripe の zero-decimal currencies (JPY等はそもそも「sen」単位がないので amount_total が yen そのまま)

@@ -202,8 +202,7 @@ async def create_checkout(
 
     # ── 有料プラン: Stripe Checkout ──
     try:
-        customer_id = stripe_service.create_or_get_customer(db, user)
-        checkout_url = stripe_service.create_checkout_session(customer_id, body.plan_id, user_id=user.id)
+        checkout_url = stripe_service.create_checkout_session(db, user, body.plan_id)
     except ValueError as e:
         # 設定不備 (env 未設定など) はクライアントに原因を返す
         logger.error("Stripe checkout config error (plan=%s): %s", body.plan_id, e)
