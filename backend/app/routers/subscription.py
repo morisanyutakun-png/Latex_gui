@@ -305,19 +305,42 @@ async def verify_checkout_endpoint(
     return VerifyCheckoutResponse(**result)
 
 
+def _classify_price_value(v: str) -> str:
+    v = (v or "").strip()
+    if not v:
+        return "empty"
+    if v.startswith("price_"):
+        return "price_id"
+    if v.startswith(("http://", "https://")):
+        return "url"
+    return f"invalid({v[:20]}...)"
+
+
+def _classify_secret_key(v: str) -> str:
+    v = (v or "").strip()
+    if not v:
+        return "empty"
+    if v.startswith("sk_live_"):
+        return "live"
+    if v.startswith("sk_test_"):
+        return "test"
+    return "invalid"
+
+
 @router.get("/stripe-config-check")
 async def stripe_config_check():
-    """Stripe 関連の環境変数が設定されているかを返す (値自体は返さない)。
+    """Stripe 関連の環境変数の種別を返す (値そのものは返さない)。
 
-    LP のアップグレードボタンが 500 を返す原因を切り分けるための診断用エンドポイント。
+    LP のアップグレードボタンがプランごとに失敗する原因を切り分けるための診断用。
+    例: Pro だけ test の price を、SECRET は live にしていると必ず失敗する。
     """
     return {
-        "stripe_secret_key": bool(os.environ.get("STRIPE_SECRET_KEY", "").strip()),
-        "stripe_webhook_secret": bool(os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()),
+        "stripe_secret_key_mode": _classify_secret_key(os.environ.get("STRIPE_SECRET_KEY", "")),
+        "stripe_webhook_secret_set": bool(os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()),
         "price_ids": {
-            "starter": bool(os.environ.get("STRIPE_PRICE_ID_STARTER", "").strip()),
-            "pro": bool(os.environ.get("STRIPE_PRICE_ID_PRO", "").strip()),
-            "premium": bool(os.environ.get("STRIPE_PRICE_ID_PREMIUM", "").strip()),
+            "starter": _classify_price_value(os.environ.get("STRIPE_PRICE_ID_STARTER", "")),
+            "pro": _classify_price_value(os.environ.get("STRIPE_PRICE_ID_PRO", "")),
+            "premium": _classify_price_value(os.environ.get("STRIPE_PRICE_ID_PREMIUM", "")),
         },
         "frontend_url": os.environ.get("FRONTEND_URL", ""),
         "internal_api_secret_set": bool(os.environ.get("INTERNAL_API_SECRET", "").strip()),

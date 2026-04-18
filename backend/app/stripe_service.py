@@ -88,20 +88,39 @@ def create_checkout_session(
 ) -> str:
     """Stripe Checkout Session を作成してURLを返す。有料プラン専用。
 
-    現プランからの「一段飛ばしアップグレード」(Free→Pro 等) や同一プランの
-    再購読も通す。price_id や customer_id のどちらで失敗しても、
+    `STRIPE_PRICE_ID_<PLAN>` は以下のどちらでもよい:
+      1. 通常の Price ID (`price_xxx`) — その場で Checkout Session を作成する
+      2. Stripe Payment Link / Checkout URL (`https://...`) — そのURLをそのまま返す
+         (サンドボックスや test mode のリンクを貼って動作確認したい場合に使う)
+
     stale な customer_id は自動で無効化して 1 回だけリトライする。
     """
     _ensure_api_key()
 
     # env 優先で毎回解決 (モジュール import 時の値を使わない)
     env_key = f"STRIPE_PRICE_ID_{plan_id.upper()}"
-    price_id = os.environ.get(env_key, "") or PLAN_PRICE_IDS.get(plan_id, "")
-    if not price_id:
+    raw = (os.environ.get(env_key, "") or PLAN_PRICE_IDS.get(plan_id, "")).strip()
+    if not raw:
         raise ValueError(
             f"{env_key} が未設定です。バックエンドの環境変数に Price ID を設定してください。"
         )
 
+    # ── ① URL が入っている場合は Payment Link としてそのまま返す ─────────────
+    # 例: https://buy.stripe.com/test_xxx (Stripe サンドボックスの Payment Link)
+    if raw.startswith("http://") or raw.startswith("https://"):
+        logger.info("Using direct payment URL for plan=%s (%s)", plan_id, raw[:60])
+        return raw
+
+    # ── ② Price ID として通常の Checkout Session を作成 ────────────────────
+    if not raw.startswith("price_"):
+        # よくあるコピペミス (例: prod_xxx や plan_xxx) を早期に弾く
+        raise ValueError(
+            f"{env_key} の値が Price ID 形式ではありません ('{raw[:40]}...')。 "
+            f"Stripe Dashboard > Products > 各プランの『Price ID』(price_ で始まる) "
+            f"または Payment Link URL (https://...) を設定してください。"
+        )
+
+    price_id = raw
     # `{CHECKOUT_SESSION_ID}` は Stripe がリダイレクト時に実セッションID に置換するテンプレート変数
     success_url = (
         f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}"
