@@ -3,8 +3,19 @@ import os
 import json
 import logging
 from pathlib import Path
+
+# backend/.env を自動ロード (Stripe / OpenAI / DB 等のシークレットが空のまま起動して
+# "Internal Server Error" で落ちるのを防ぐ。python-dotenv が未インストールでも動く)
+try:
+    from dotenv import load_dotenv  # type: ignore
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path, override=False)
+except Exception:
+    pass
+
 import pydantic
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
@@ -64,6 +75,22 @@ app.add_middleware(
 app.add_middleware(AuditMiddleware)
 app.include_router(subscription_router)
 app.include_router(grading_router)
+
+
+# BaseHTTPMiddleware を経由した未捕捉例外は Starlette の ServerErrorMiddleware が
+# "Internal Server Error" というプレーンテキストで返してしまい、フロントで原因不明になる。
+# JSON で詳細を返すグローバルハンドラを登録する。
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"サーバーエラー: {type(exc).__name__}: {str(exc)[:300]}",
+            "error_type": type(exc).__name__,
+            "path": request.url.path,
+        },
+    )
 
 
 @app.on_event("startup")

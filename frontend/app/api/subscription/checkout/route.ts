@@ -36,7 +36,14 @@ export async function POST(req: NextRequest) {
     const text = await res.text();
     console.log("[checkout] backend responded:", res.status, text);
     let data;
-    try { data = JSON.parse(text); } catch { data = { detail: text }; }
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // バックエンドが JSON ではなくプレーンテキスト (例: Starlette の "Internal Server Error") を
+      // 返した場合は、原因不明にならないよう HTTP ステータスと本文をそのまま detail に詰める
+      const trimmed = (text || "").trim().slice(0, 500) || res.statusText || `HTTP ${res.status}`;
+      data = { detail: `バックエンド ${res.status}: ${trimmed}` };
+    }
     return NextResponse.json(data, { status: res.status });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

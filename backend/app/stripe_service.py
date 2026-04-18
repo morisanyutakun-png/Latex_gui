@@ -32,6 +32,13 @@ def create_or_get_customer(db: Session, user: User) -> str:
     if user.stripe_customer_id:
         return user.stripe_customer_id
 
+    if not stripe.api_key:
+        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    if not stripe.api_key:
+        raise ValueError(
+            "STRIPE_SECRET_KEY が未設定です。バックエンドの環境変数を確認してください。"
+        )
+
     customer = stripe.Customer.create(
         email=user.email or "",
         name=user.name or "",
@@ -44,10 +51,26 @@ def create_or_get_customer(db: Session, user: User) -> str:
 
 
 def create_checkout_session(customer_id: str, plan_id: str, user_id: str = "") -> str:
-    """Stripe Checkout Session を作成してURLを返す。有料プラン専用。"""
-    price_id = PLAN_PRICE_IDS.get(plan_id)
+    """Stripe Checkout Session を作成してURLを返す。有料プラン専用。
+
+    環境変数の検証を毎回実施する (モジュール import 時の値を信用しない)。
+    サーバのプロセス起動後に env を書き換えた場合でも反映される。
+    """
+    if not stripe.api_key:
+        # stripe.api_key は import 時の値でキャッシュされているため、都度 env から読み直す
+        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    if not stripe.api_key:
+        raise ValueError(
+            "STRIPE_SECRET_KEY が未設定です。バックエンドの環境変数を確認してください。"
+        )
+
+    # env 優先で毎回解決 (モジュール import 時の値を使わない)
+    env_key = f"STRIPE_PRICE_ID_{plan_id.upper()}"
+    price_id = os.environ.get(env_key, "") or PLAN_PRICE_IDS.get(plan_id, "")
     if not price_id:
-        raise ValueError(f"Unknown plan_id or price not configured: {plan_id}")
+        raise ValueError(
+            f"{env_key} が未設定です。バックエンドの環境変数に Price ID を設定してください。"
+        )
 
     # `{CHECKOUT_SESSION_ID}` は Stripe がリダイレクト時にサーバサイドで
     # 実際のセッションID (cs_xxx) に置換してくれるテンプレート変数。

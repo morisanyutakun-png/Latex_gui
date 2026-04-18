@@ -4,6 +4,7 @@ import logging
 from typing import Optional
 from urllib.parse import unquote
 
+import stripe
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -153,10 +154,25 @@ async def create_checkout(
         customer_id = stripe_service.create_or_get_customer(db, user)
         checkout_url = stripe_service.create_checkout_session(customer_id, body.plan_id, user_id=user.id)
     except ValueError as e:
+        # 設定不備 (env 未設定など) はクライアントに原因を返す
+        logger.error("Stripe checkout config error (plan=%s): %s", body.plan_id, e)
         raise HTTPException(status_code=400, detail=str(e))
+    except stripe.error.StripeError as e:  # type: ignore[attr-defined]
+        logger.error("Stripe API error (plan=%s): %s", body.plan_id, e, exc_info=True)
+        user_msg = getattr(e, "user_message", None) or str(e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Stripe API エラー: {type(e).__name__}: {user_msg[:200]}",
+        )
     except Exception as e:
-        logger.error("Stripe checkout error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Stripe決済の初期化に失敗しました: {type(e).__name__}: {str(e)[:200]}")
+        logger.error("Stripe checkout error (plan=%s): %s", body.plan_id, e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stripe決済の初期化に失敗しました: {type(e).__name__}: {str(e)[:200]}",
+        )
+
+    if not checkout_url:
+        raise HTTPException(status_code=502, detail="Stripe から checkout URL が返りませんでした")
 
     return CheckoutResponse(checkout_url=checkout_url)
 
@@ -237,6 +253,25 @@ async def verify_checkout_endpoint(
         raise HTTPException(status_code=502, detail=f"Stripe検証に失敗しました: {type(e).__name__}")
 
     return VerifyCheckoutResponse(**result)
+
+
+@router.get("/stripe-config-check")
+async def stripe_config_check():
+    """Stripe 関連の環境変数が設定されているかを返す (値自体は返さない)。
+
+    LP のアップグレードボタンが 500 を返す原因を切り分けるための診断用エンドポイント。
+    """
+    return {
+        "stripe_secret_key": bool(os.environ.get("STRIPE_SECRET_KEY", "").strip()),
+        "stripe_webhook_secret": bool(os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()),
+        "price_ids": {
+            "starter": bool(os.environ.get("STRIPE_PRICE_ID_STARTER", "").strip()),
+            "pro": bool(os.environ.get("STRIPE_PRICE_ID_PRO", "").strip()),
+            "premium": bool(os.environ.get("STRIPE_PRICE_ID_PREMIUM", "").strip()),
+        },
+        "frontend_url": os.environ.get("FRONTEND_URL", ""),
+        "internal_api_secret_set": bool(os.environ.get("INTERNAL_API_SECRET", "").strip()),
+    }
 
 
 class PortalResponse(BaseModel):

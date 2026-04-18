@@ -272,6 +272,10 @@ docker-compose up --build
 2. Git 連携で自動デプロイ
 3. 環境変数: 上記すべて
 4. NextAuth コールバック: `https://<vercel-url>/api/auth/callback/google`
+   - カスタムドメイン使用時(例 `https://eddivom.yuta-eng.com`)は、Google Cloud Console の OAuth クライアントで以下をすべて登録する必要あり:
+     - 承認済み JavaScript 生成元: `https://eddivom.yuta-eng.com`
+     - 承認済みリダイレクト URI: `https://eddivom.yuta-eng.com/api/auth/callback/google`
+   - Vercel 環境変数に `AUTH_URL=https://eddivom.yuta-eng.com` を追加しておくと安定(`trustHost: true` により必須ではないが推奨)
 
 ### DB(Neon)
 
