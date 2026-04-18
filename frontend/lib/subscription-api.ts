@@ -8,10 +8,39 @@ export interface SubscriptionStatus {
   stripe_customer_id: string | null;
 }
 
+export interface UsageStatus {
+  plan_id: PlanId;
+  ai_used_day: number;
+  ai_used_month: number;
+  ai_limit_day: number;
+  ai_limit_month: number;
+  pdf_used_month: number;
+  pdf_limit_month: number;  // 0 = 無制限
+  batch_max_rows: number;
+}
+
 /** 現在のサブスクリプション状態をバックエンドから取得する。 */
 export async function fetchMySubscription(): Promise<SubscriptionStatus> {
   const res = await fetch("/api/subscription/me", { cache: "no-store" });
   if (!res.ok) return { plan_id: "free", status: "free", current_period_end: null, cancel_at_period_end: false, stripe_customer_id: null };
+  return res.json();
+}
+
+/** サーバサイドで記録された今月/今日の利用状況を取得する。 */
+export async function fetchMyUsage(): Promise<UsageStatus> {
+  const res = await fetch("/api/subscription/usage", { cache: "no-store" });
+  if (!res.ok) {
+    return {
+      plan_id: "free",
+      ai_used_day: 0,
+      ai_used_month: 0,
+      ai_limit_day: 3,
+      ai_limit_month: 3,
+      pdf_used_month: 0,
+      pdf_limit_month: 1,
+      batch_max_rows: 0,
+    };
+  }
   return res.json();
 }
 

@@ -4,9 +4,10 @@ import json
 import logging
 from pathlib import Path
 import pydantic
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse, FileResponse
+from sqlalchemy.orm import Session
 
 from .models import DocumentModel, ErrorResponse, BatchRequest, BatchResponse, BatchResultItem
 from .pdf_service import compile_pdf, compile_raw_latex, generate_latex, PDFGenerationError
@@ -27,6 +28,10 @@ from .ai_service import chat as ai_chat, chat_stream as ai_chat_stream
 from .omr_service import analyze_image as omr_analyze_image, analyze_image_stream as omr_analyze_image_stream
 from .routers.subscription import router as subscription_router
 from .routers.grading import router as grading_router
+from .database import get_db
+from .db_models import User
+from .auth_deps import enforce_ai_quota, enforce_pdf_quota
+from .usage_service import log_usage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -253,8 +258,16 @@ async def preview_latex(doc: DocumentModel):
 
 
 @app.post("/api/generate-pdf")
-async def generate_pdf(doc: DocumentModel):
-    """PDF生成エンドポイント — DocumentModel.latex をコンパイルしてPDFバイトを返す"""
+async def generate_pdf(
+    doc: DocumentModel,
+    user: User = Depends(enforce_pdf_quota),
+    db: Session = Depends(get_db),
+):
+    """PDF生成エンドポイント — DocumentModel.latex をコンパイルしてPDFバイトを返す。
+
+    認証必須。プランの月間PDF出力上限を超えている場合は 429。
+    コンパイル成功後に `pdf_export` を UsageLog に記録する。
+    """
     if not (doc.latex or "").strip():
         raise HTTPException(status_code=400, detail={
             "success": False,
@@ -280,6 +293,8 @@ async def generate_pdf(doc: DocumentModel):
             "success": False,
             "message": "予期しないエラーが発生しました。しばらく待ってからもう一度お試しください。",
         })
+
+    log_usage(db, user.id, "pdf_export")
 
     filename = (doc.metadata.title or "document").replace(" ", "_") + ".pdf"
 
@@ -345,8 +360,26 @@ async def detect_variables(doc: DocumentModel):
 
 
 @app.post("/api/batch/generate")
-async def batch_generate_pdfs(req: BatchRequest):
-    """テンプレート × 変数データで複数PDFを量産→ZIPで返却"""
+async def batch_generate_pdfs(
+    req: BatchRequest,
+    user: User = Depends(enforce_pdf_quota),
+    db: Session = Depends(get_db),
+):
+    """テンプレート × 変数データで複数PDFを量産→ZIPで返却。
+
+    プランの batch_max_rows を超える指定はサーバサイドで切り詰める (クライアント値は信用しない)。
+    batch 機能が利用不可プラン (batch_max_rows=0) は 403。
+    """
+    from .plan_limits import get_effective_plan, get_limits
+    plan_id = get_effective_plan(db, user.id)
+    plan_limits = get_limits(plan_id)
+    if plan_limits["batch_max_rows"] <= 0:
+        raise HTTPException(status_code=403, detail={
+            "success": False,
+            "code": "FEATURE_NOT_AVAILABLE",
+            "message": "バッチ処理は Pro プラン以上でご利用いただけます。",
+        })
+
     variable_rows = []
     try:
         if req.variables_csv:
@@ -370,9 +403,14 @@ async def batch_generate_pdfs(req: BatchRequest):
             "message": "変数データが空です",
         })
 
+    # プランで許可された最大行数でサーバ側クランプ。クライアントの req.max_rows は信用しない。
+    effective_max_rows = min(req.max_rows or plan_limits["batch_max_rows"], plan_limits["batch_max_rows"])
+
     log_audit(AuditEvent.COMPILE_BATCH, details={
         "row_count": len(variable_rows),
         "template": req.template.template,
+        "user_id": user.id,
+        "plan_id": plan_id,
     })
 
     try:
@@ -380,7 +418,7 @@ async def batch_generate_pdfs(req: BatchRequest):
             req.template,
             variable_rows,
             filename_template=req.filename_template,
-            max_rows=req.max_rows,
+            max_rows=effective_max_rows,
         )
     except Exception as e:
         logger.exception("Batch generation failed")
@@ -388,6 +426,10 @@ async def batch_generate_pdfs(req: BatchRequest):
             "success": False,
             "message": f"バッチ生成に失敗: {str(e)}",
         })
+
+    # 成功したPDF 1件につき pdf_export を1回記録する
+    for _ in range(batch_result.success_count):
+        log_usage(db, user.id, "pdf_export")
 
     if batch_result.success_count == 0:
         errors = [r.get("error", "") for r in batch_result.results if not r["success"]]
@@ -489,8 +531,16 @@ class ChatRequest(pydantic.BaseModel):
 
 
 @app.post("/api/ai/chat")
-async def ai_chat_endpoint(request: ChatRequest):
-    """AIチャット — raw LaTeX を直接編集する自律エージェント"""
+async def ai_chat_endpoint(
+    request: ChatRequest,
+    user: User = Depends(enforce_ai_quota),
+    db: Session = Depends(get_db),
+):
+    """AIチャット — raw LaTeX を直接編集する自律エージェント。
+
+    認証必須。プランの日次/月間AIリクエスト上限を超えている場合は 429。
+    Claude 呼び出しに成功した時点で `ai_request` を UsageLog に記録する。
+    """
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -508,6 +558,9 @@ async def ai_chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=400, detail={"message": _localized(
             request.locale, "messages is empty.", "messages が空です",
         )})
+
+    # 呼び出し前にカウント (Claude API コストは呼び出した時点で発生するため)
+    log_usage(db, user.id, "ai_request")
 
     try:
         result = await ai_chat(request.messages, request.document, locale=request.locale)
@@ -527,8 +580,12 @@ async def ai_chat_endpoint(request: ChatRequest):
 
 
 @app.post("/api/ai/chat/stream")
-async def ai_chat_stream_endpoint(request: ChatRequest):
-    """AIチャット (SSEストリーミング)"""
+async def ai_chat_stream_endpoint(
+    request: ChatRequest,
+    user: User = Depends(enforce_ai_quota),
+    db: Session = Depends(get_db),
+):
+    """AIチャット (SSEストリーミング)。認証 + quota チェック付き。"""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(
@@ -548,7 +605,10 @@ async def ai_chat_stream_endpoint(request: ChatRequest):
             request.locale, "messages is empty.", "messages が空です",
         )})
 
-    logger.info("[stream] Starting SSE stream: %d messages", len(request.messages))
+    # ストリーム開始時点でカウント (Claude API コールは即座に発生する)
+    log_usage(db, user.id, "ai_request")
+
+    logger.info("[stream] Starting SSE stream: %d messages, user=%s", len(request.messages), user.id)
 
     return StreamingResponse(
         ai_chat_stream(request.messages, request.document, locale=request.locale),
@@ -569,8 +629,10 @@ async def omr_analyze_endpoint(
     document: str = Form("{}"),
     hint: str = Form(""),
     locale: str = Form("ja"),
+    user: User = Depends(enforce_ai_quota),
+    db: Session = Depends(get_db),
 ):
-    """OMR解析 — 画像から raw LaTeX を抽出"""
+    """OMR解析 — 画像から raw LaTeX を抽出。AI quota に含める。"""
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -612,6 +674,8 @@ async def omr_analyze_endpoint(
         doc_dict = json.loads(document) if document else {}
     except json.JSONDecodeError:
         doc_dict = {}
+
+    log_usage(db, user.id, "ai_request")
 
     try:
         result = await omr_analyze_image(image_bytes, media_type, doc_dict, hint, locale=locale)
@@ -637,8 +701,10 @@ async def omr_analyze_stream_endpoint(
     document: str = Form("{}"),
     hint: str = Form(""),
     locale: str = Form("ja"),
+    user: User = Depends(enforce_ai_quota),
+    db: Session = Depends(get_db),
 ):
-    """OMR解析 SSEストリーミング"""
+    """OMR解析 SSEストリーミング。AI quota に含める。"""
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -680,6 +746,8 @@ async def omr_analyze_stream_endpoint(
         doc_dict = json.loads(document) if document else {}
     except json.JSONDecodeError:
         doc_dict = {}
+
+    log_usage(db, user.id, "ai_request")
 
     return StreamingResponse(
         omr_analyze_image_stream(image_bytes, media_type, doc_dict, hint, locale=locale),

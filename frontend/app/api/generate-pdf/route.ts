@@ -7,21 +7,33 @@
  * v5: タイムアウト大幅緩和 (Dockerビルド時キャッシュ活用)
  */
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 
 // Vercel Serverless Function の実行時間上限 (秒)
 // Hobby: max 60s, Pro: max 300s
 export const maxDuration = 60;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || "";
 
 // バックエンドの COMPILE_TIMEOUT=120s + ネットワーク遅延に余裕を持たせる
 // Vercel Hobbyの60秒制限を考慮し、その範囲内で最大限待つ
 const BACKEND_TIMEOUT_MS = 55000;
 
-async function callBackend(body: string): Promise<Response> {
+function authHeaders(session: Awaited<ReturnType<typeof auth>>): Record<string, string> {
+  if (!session?.user?.id) return {};
+  return {
+    "x-user-id": session.user.id,
+    "x-user-email": session.user.email ?? "",
+    "x-user-name": encodeURIComponent(session.user.name ?? ""),
+    ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
+  };
+}
+
+async function callBackend(body: string, extra: Record<string, string>): Promise<Response> {
   return fetch(`${BACKEND}/api/generate-pdf`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extra },
     body,
     signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
   });
@@ -31,12 +43,21 @@ export async function POST(req: NextRequest) {
   const t0 = Date.now();
   console.log(`[proxy] generate-pdf → ${BACKEND}/api/generate-pdf`);
 
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { detail: { code: "UNAUTHORIZED", message: "PDF出力にはログインが必要です。サインインしてからもう一度お試しください。" } },
+      { status: 401 },
+    );
+  }
+  const headers = authHeaders(session);
+
   try {
     const body = await req.text();
 
     let res: Response;
     try {
-      res = await callBackend(body);
+      res = await callBackend(body, headers);
     } catch (firstErr) {
       // 初回失敗時: コールドスタートの可能性があるためリトライ
       const elapsed1 = Date.now() - t0;
@@ -50,7 +71,7 @@ export async function POST(req: NextRequest) {
         try {
           res = await fetch(`${BACKEND}/api/generate-pdf`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...headers },
             body,
             signal: AbortSignal.timeout(retryTimeout),
           });

@@ -2,17 +2,35 @@
  * 採点モード — AI 採点 SSE プロキシ (multipart)
  */
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 
 export const maxDuration = 60;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || "";
 
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
+
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { detail: { code: "UNAUTHORIZED", message: "採点機能を使うにはログインが必要です。" } },
+      { status: 401 },
+    );
+  }
+  const authHdrs: Record<string, string> = {
+    "x-user-id": session.user.id,
+    "x-user-email": session.user.email ?? "",
+    "x-user-name": encodeURIComponent(session.user.name ?? ""),
+    ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
+  };
+
   try {
     const formData = await req.formData();
     const res = await fetch(`${BACKEND}/api/grading/grade/stream`, {
       method: "POST",
+      headers: authHdrs,
       body: formData,
       signal: AbortSignal.timeout(58000),
     });

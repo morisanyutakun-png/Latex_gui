@@ -5,17 +5,33 @@
  * フロントから直接バックエンドに繋ぐ。設定がない場合のみこのプロキシ経由。
  */
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 
 export const maxDuration = 60;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || "";
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { detail: { code: "UNAUTHORIZED", message: "採点機能を使うにはログインが必要です。" } },
+      { status: 401 },
+    );
+  }
+  const authHdrs: Record<string, string> = {
+    "x-user-id": session.user.id,
+    "x-user-email": session.user.email ?? "",
+    "x-user-name": encodeURIComponent(session.user.name ?? ""),
+    ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
+  };
+
   try {
     const body = await req.text();
     const res = await fetch(`${BACKEND}/api/grading/extract-rubric/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHdrs },
       body,
       signal: AbortSignal.timeout(58000),
     });

@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..db_models import User, Subscription
 from .. import stripe_service
+from ..plan_limits import get_effective_plan, get_limits
+from ..usage_service import count_day, count_month
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +159,49 @@ async def create_checkout(
         raise HTTPException(status_code=500, detail=f"Stripe決済の初期化に失敗しました: {type(e).__name__}: {str(e)[:200]}")
 
     return CheckoutResponse(checkout_url=checkout_url)
+
+
+class UsageStatus(BaseModel):
+    plan_id: str
+    ai_used_day: int
+    ai_used_month: int
+    ai_limit_day: int
+    ai_limit_month: int
+    pdf_used_month: int
+    pdf_limit_month: int   # 0 = 無制限
+    batch_max_rows: int
+
+
+@router.get("/usage", response_model=UsageStatus)
+async def get_my_usage(
+    user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """現在のユーザーの今月/今日の利用状況を返す。未ログインなら Free プランの空利用状況を返す。"""
+    if not user:
+        free_limits = get_limits("free")
+        return UsageStatus(
+            plan_id="free",
+            ai_used_day=0, ai_used_month=0,
+            ai_limit_day=free_limits["ai_per_day"],
+            ai_limit_month=free_limits["ai_per_month"],
+            pdf_used_month=0,
+            pdf_limit_month=free_limits["pdf_per_month"],
+            batch_max_rows=free_limits["batch_max_rows"],
+        )
+
+    plan_id = get_effective_plan(db, user.id)
+    limits = get_limits(plan_id)
+    return UsageStatus(
+        plan_id=plan_id,
+        ai_used_day=count_day(db, user.id, "ai_request"),
+        ai_used_month=count_month(db, user.id, "ai_request"),
+        ai_limit_day=limits["ai_per_day"],
+        ai_limit_month=limits["ai_per_month"],
+        pdf_used_month=count_month(db, user.id, "pdf_export"),
+        pdf_limit_month=limits["pdf_per_month"],
+        batch_max_rows=limits["batch_max_rows"],
+    )
 
 
 class PortalResponse(BaseModel):

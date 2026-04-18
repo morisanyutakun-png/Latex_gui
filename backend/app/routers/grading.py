@@ -15,9 +15,10 @@ import json as _json
 import logging
 import os
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from ..grading_models import GradingResult, RubricBundle, Rubric
 from ..rubric_parser import parse_rubrics, serialize_rubrics_into_latex
@@ -28,6 +29,10 @@ from ..grading_renderer import (
     compile_with_images,
 )
 from ..pdf_service import compile_raw_latex, PDFGenerationError
+from ..database import get_db
+from ..db_models import User
+from ..auth_deps import enforce_ai_quota
+from ..usage_service import log_usage
 
 
 def _loc(locale: str, en: str, ja: str) -> str:
@@ -83,7 +88,11 @@ class ExtractRubricRequest(BaseModel):
 
 
 @router.post("/extract-rubric/stream")
-async def extract_rubric_stream_endpoint(req: ExtractRubricRequest):
+async def extract_rubric_stream_endpoint(
+    req: ExtractRubricRequest,
+    user: User = Depends(enforce_ai_quota),
+    db: Session = Depends(get_db),
+):
     """問題LaTeX に AI が `%@rubric` コメントを追加した更新版 LaTeX を返す (SSE)。
 
     SSE events:
@@ -110,6 +119,8 @@ async def extract_rubric_stream_endpoint(req: ExtractRubricRequest):
             detail={"message": _loc(req.locale, "Problem LaTeX is empty.", "問題LaTeX が空です")},
         )
 
+    log_usage(db, user.id, "ai_request")
+
     return StreamingResponse(
         extract_rubric_with_ai_stream(req.latex, locale=req.locale),
         media_type="text/event-stream",
@@ -132,6 +143,8 @@ _MAX_ANSWER_SIZE = 20 * 1024 * 1024  # 1 ファイルあたり 20MB
 async def grade_stream_endpoint(
     request_json: str = Form(...),
     answers: list[UploadFile] = File(...),
+    user: User = Depends(enforce_ai_quota),
+    db: Session = Depends(get_db),
 ):
     """AI 採点 SSE エンドポイント。
 
@@ -207,6 +220,8 @@ async def grade_stream_endpoint(
                 )},
             )
         file_tuples.append((data, mime, f.filename or "answer"))
+
+    log_usage(db, user.id, "ai_request")
 
     return StreamingResponse(
         grade_answer_stream(

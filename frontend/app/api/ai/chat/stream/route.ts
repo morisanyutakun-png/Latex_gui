@@ -3,18 +3,34 @@
  * ブラウザ → Vercel → Koyeb バックエンド
  */
 import { NextRequest } from "next/server";
+import { auth } from "@/auth";
 
 export const maxDuration = 300;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || "";
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return new Response(
+      JSON.stringify({ detail: { code: "UNAUTHORIZED", message: "AI機能を使うにはログインが必要です。" } }),
+      { status: 401, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  const authHdrs: Record<string, string> = {
+    "x-user-id": session.user.id,
+    "x-user-email": session.user.email ?? "",
+    "x-user-name": encodeURIComponent(session.user.name ?? ""),
+    ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
+  };
+
   try {
     const body = await req.text();
 
     const res = await fetch(`${BACKEND}/api/ai/chat/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHdrs },
       body,
       signal: AbortSignal.timeout(300000),
     });

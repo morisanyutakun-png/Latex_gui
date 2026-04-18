@@ -265,7 +265,9 @@ export async function detectVariables(doc: DocumentModel): Promise<string[]> {
 }
 
 export async function batchGeneratePDFs(req: BatchRequest): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/api/batch/generate`, {
+  // NextAuth セッションを使ってバックエンドの quota/auth を通すため、
+  // 常に Next.js プロキシ (同一オリジン) 経由で呼ぶ。
+  const res = await fetch(`/api/batch/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

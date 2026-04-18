@@ -1,6 +1,6 @@
-"""SQLAlchemy ORM モデル (User / Subscription)"""
+"""SQLAlchemy ORM モデル (User / Subscription / UsageLog)"""
 import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Index
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -38,3 +38,20 @@ class Subscription(Base):
     updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     user = relationship("User", back_populates="subscriptions")
+
+
+class UsageLog(Base):
+    """
+    課金対象アクションの利用記録。プラン別の月次/日次上限判定に使う。
+    action: "ai_request" (AIチャット/OMR) または "pdf_export" (教材PDF出力)。
+    """
+    __tablename__ = "usage_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    action = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False, index=True)
+
+    __table_args__ = (
+        Index("ix_usage_logs_user_action_created", "user_id", "action", "created_at"),
+    )
