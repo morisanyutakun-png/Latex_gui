@@ -7,6 +7,7 @@
  * v5: タイムアウト大幅緩和 (Dockerビルド時キャッシュ活用)
  */
 import { NextRequest, NextResponse } from "next/server";
+import type { Session } from "next-auth";
 import { auth } from "@/auth";
 
 // Vercel Serverless Function の実行時間上限 (秒)
@@ -20,7 +21,7 @@ const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || "";
 // Vercel Hobbyの60秒制限を考慮し、その範囲内で最大限待つ
 const BACKEND_TIMEOUT_MS = 55000;
 
-function authHeaders(session: Awaited<ReturnType<typeof auth>>): Record<string, string> {
+function authHeaders(session: Session | null): Record<string, string> {
   if (!session?.user?.id) return {};
   return {
     "x-user-id": session.user.id,
