@@ -9,7 +9,11 @@ import { SessionProvider } from "@/components/auth/session-provider";
 import { SubscriptionInitializer } from "@/components/subscription-initializer";
 import "./globals.css";
 
+// gtag.js は「1 スクリプト + 複数 config」で GA4 と Google Ads の両方を扱える。
+// ここでは GA4 を主 (purchase event 送信先)、Ads ID は任意追加とする。
+const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID;
 const GOOGLE_ADS_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID;
+const PRIMARY_GTAG_ID = GA4_ID || GOOGLE_ADS_ID;
 
 export const metadata: Metadata = {
   title: {
@@ -33,19 +37,20 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
-        {GOOGLE_ADS_ID ? (
+        {PRIMARY_GTAG_ID ? (
           <>
             <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`}
+              src={`https://www.googletagmanager.com/gtag/js?id=${PRIMARY_GTAG_ID}`}
               strategy="afterInteractive"
             />
-            <Script id="google-ads-gtag" strategy="afterInteractive">
+            <Script id="gtag-base" strategy="afterInteractive">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
                 window.gtag = window.gtag || gtag;
                 gtag('js', new Date());
-                gtag('config', '${GOOGLE_ADS_ID}');
+                ${GA4_ID ? `gtag('config', '${GA4_ID}');` : ""}
+                ${GOOGLE_ADS_ID && GOOGLE_ADS_ID !== GA4_ID ? `gtag('config', '${GOOGLE_ADS_ID}');` : ""}
               `}
             </Script>
           </>

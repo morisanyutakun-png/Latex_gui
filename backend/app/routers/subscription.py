@@ -204,6 +204,41 @@ async def get_my_usage(
     )
 
 
+class VerifyCheckoutResponse(BaseModel):
+    paid: bool
+    payment_status: Optional[str] = None
+    value: float = 0.0
+    currency: str = ""
+    transaction_id: str = ""
+    plan_id: str = ""
+
+
+@router.get("/verify-checkout", response_model=VerifyCheckoutResponse)
+async def verify_checkout_endpoint(
+    session_id: str,
+    user: Optional[User] = Depends(get_current_user),
+):
+    """Stripe Checkout Session が実際に支払い済みかサーバサイドで検証する。
+
+    Google Ads の Purchase conversion を、URL パラメータだけではなく
+    サーバ確認済みの成功データに基づいて発火させるため。
+    """
+    if not user:
+        raise HTTPException(status_code=401, detail="認証が必要です")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id が空です")
+
+    try:
+        result = stripe_service.verify_checkout_session(session_id, user.id)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="このセッションを検証する権限がありません")
+    except Exception as e:
+        logger.error("verify_checkout error: %s", e, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Stripe検証に失敗しました: {type(e).__name__}")
+
+    return VerifyCheckoutResponse(**result)
+
+
 class PortalResponse(BaseModel):
     portal_url: str
 

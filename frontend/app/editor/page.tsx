@@ -24,6 +24,9 @@ import { FigureEditor } from "@/components/figure-editor/figure-editor";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
 import { toast } from "sonner";
+import { verifyCheckoutSession } from "@/lib/subscription-api";
+import { sendPurchaseEvent } from "@/lib/gtag";
+import type { PlanId } from "@/lib/plans";
 
 type SidebarTab = "ai";
 
@@ -81,16 +84,42 @@ export default function EditorPage() {
     if (params.get("checkout") !== "success") return;
 
     const planParam = params.get("plan") || "";
+    // Stripe が success_url に埋め込んだ session ID (cs_xxx)。Free プランは無い。
+    const sessionId = params.get("session_id") || "";
 
     // 1. ドキュメントを即座に作成
     if (!useDocumentStore.getState().document) {
       useDocumentStore.getState().setDocument(createDefaultDocument("blank", getTemplateLatex("blank")));
     }
 
-    // 2. URL をクリーン
+    // 2. URL をクリーン (session_id を露出させない)
     window.history.replaceState({}, "", "/editor");
 
-    // 3. サブスクリプション状態を非同期で取得
+    // 3. 有料プランは Stripe に問い合わせて実際に支払い済みか確認してから
+    //    GA4 の purchase event を発火する。URL だけでは誤発火しない。
+    //    Google Ads へは GA4 のコンバージョンインポートで連携する想定。
+    if (planParam !== "free" && sessionId) {
+      verifyCheckoutSession(sessionId).then((v) => {
+        if (!v || !v.paid) return;
+        const planDef = PLANS[v.plan_id as PlanId];
+        sendPurchaseEvent({
+          transactionId: v.transaction_id,  // Stripe Checkout Session ID (cs_xxx)
+          value: v.value,
+          currency: v.currency,
+          items: [
+            {
+              item_id: v.plan_id || "subscription",
+              item_name: planDef?.name || v.plan_id || "Subscription",
+              item_category: "subscription",
+              price: v.value,
+              quantity: 1,
+            },
+          ],
+        });
+      });
+    }
+
+    // 4. サブスクリプション状態を非同期で取得
     const fetchWithRetry = async (retries: number): Promise<string> => {
       const { fetchSubscription } = usePlanStore.getState();
       await fetchSubscription();

@@ -49,16 +49,74 @@ def create_checkout_session(customer_id: str, plan_id: str, user_id: str = "") -
     if not price_id:
         raise ValueError(f"Unknown plan_id or price not configured: {plan_id}")
 
+    # `{CHECKOUT_SESSION_ID}` は Stripe がリダイレクト時にサーバサイドで
+    # 実際のセッションID (cs_xxx) に置換してくれるテンプレート変数。
+    # f-string 内では `{{...}}` で literal の `{...}` を表現する。
+    success_url = (
+        f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}"
+        f"&session_id={{CHECKOUT_SESSION_ID}}"
+    )
     session = stripe.checkout.Session.create(
         customer=customer_id,
         line_items=[{"price": price_id, "quantity": 1}],
         mode="subscription",
-        success_url=f"{FRONTEND_URL}/editor?checkout=success&plan={plan_id}",
+        success_url=success_url,
         cancel_url=f"{FRONTEND_URL}/",
         metadata={"plan_id": plan_id, "user_id": user_id},
         subscription_data={"metadata": {"user_id": user_id, "plan_id": plan_id}},
     )
     return session.url
+
+
+# Stripe の zero-decimal currencies (JPY等はそもそも「sen」単位がないので amount_total が yen そのまま)
+_ZERO_DECIMAL_CURRENCIES = {
+    "bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga", "pyg",
+    "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf",
+}
+
+
+def _to_decimal_amount(amount: Optional[int], currency: str) -> float:
+    """Stripe の最小単位金額 → Google Ads が期待する 10 進金額へ変換。
+
+    JPY は既に yen 単位、USD などは cents 単位なので /100 が必要。
+    """
+    if amount is None:
+        return 0.0
+    if (currency or "").lower() in _ZERO_DECIMAL_CURRENCIES:
+        return float(amount)
+    return amount / 100.0
+
+
+def verify_checkout_session(session_id: str, user_id: str) -> dict:
+    """Stripe Checkout Session の支払い状況をサーバサイドで検証する。
+
+    URL パラメータだけでは成功扱いしないための要。
+    ほかのユーザーのセッションで発火されないよう metadata.user_id と照合する。
+    """
+    session = stripe.checkout.Session.retrieve(session_id)
+
+    # セッションが当該ユーザーのものかを確認
+    meta_user_id = (session.get("metadata") or {}).get("user_id")
+    if meta_user_id and meta_user_id != user_id:
+        raise PermissionError("Session does not belong to the authenticated user")
+
+    payment_status = session.get("payment_status")  # "paid" / "unpaid" / "no_payment_required"
+    # subscription の初回支払いが完了している状態は "paid" で表現される。
+    paid = payment_status == "paid"
+
+    currency = (session.get("currency") or "").lower()
+    amount_total = session.get("amount_total")
+    value = _to_decimal_amount(amount_total, currency)
+    plan_id = (session.get("metadata") or {}).get("plan_id", "")
+
+    return {
+        "paid": paid,
+        "payment_status": payment_status,
+        "value": value,
+        "currency": currency.upper(),
+        "transaction_id": session_id,
+        "plan_id": plan_id,
+    }
 
 
 def activate_free_plan(db: Session, user: User) -> None:

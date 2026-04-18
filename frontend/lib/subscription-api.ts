@@ -26,6 +26,41 @@ export async function fetchMySubscription(): Promise<SubscriptionStatus> {
   return res.json();
 }
 
+export interface CheckoutVerification {
+  paid: boolean;
+  payment_status?: string;
+  value: number;
+  currency: string;
+  transaction_id: string;
+  plan_id: string;
+}
+
+/**
+ * Stripe Checkout Session の支払い状況をサーバサイドで検証する。
+ * Google Ads の Purchase conversion を URL パラメータだけで判定させないための関門。
+ */
+export async function verifyCheckoutSession(sessionId: string): Promise<CheckoutVerification | null> {
+  if (!sessionId) return null;
+  try {
+    const res = await fetch(
+      `/api/subscription/verify-checkout?session_id=${encodeURIComponent(sessionId)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      paid: !!data.paid,
+      payment_status: data.payment_status,
+      value: Number(data.value ?? 0),
+      currency: String(data.currency ?? ""),
+      transaction_id: String(data.transaction_id ?? sessionId),
+      plan_id: String(data.plan_id ?? ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** サーバサイドで記録された今月/今日の利用状況を取得する。 */
 export async function fetchMyUsage(): Promise<UsageStatus> {
   const res = await fetch("/api/subscription/usage", { cache: "no-store" });
