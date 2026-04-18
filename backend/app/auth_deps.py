@@ -13,6 +13,7 @@ from typing import Optional
 from urllib.parse import unquote
 
 from fastapi import Depends, Header, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .database import get_db
@@ -31,29 +32,53 @@ def _resolve_user(
     x_user_name: Optional[str],
     x_internal_secret: Optional[str],
 ) -> Optional[User]:
-    """x-user-id から User を取得。存在しない場合は upsert。"""
+    """x-user-id から User を取得。存在しない場合は upsert。
+
+    id が違っても email が一致する既存行があれば再利用する
+    (unique(email) 制約衝突で 500 にならないようにする)。
+    """
     if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
         return None
     if not x_user_id:
         return None
 
-    user = db.query(User).filter(User.id == x_user_id).first()
     decoded_name = unquote(x_user_name) if x_user_name else x_user_name
+
+    user = db.query(User).filter(User.id == x_user_id).first()
+    if not user and x_user_email:
+        user = db.query(User).filter(User.email == x_user_email).first()
+
     if not user:
         user = User(id=x_user_id, email=x_user_email, name=decoded_name)
         db.add(user)
-        db.commit()
-        db.refresh(user)
-    else:
-        changed = False
-        if x_user_email and user.email != x_user_email:
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            if x_user_email:
+                user = db.query(User).filter(User.email == x_user_email).first()
+            if not user:
+                user = db.query(User).filter(User.id == x_user_id).first()
+            if not user:
+                raise
+        else:
+            db.refresh(user)
+        return user
+
+    changed = False
+    if x_user_email and user.email != x_user_email:
+        other = db.query(User).filter(User.email == x_user_email, User.id != user.id).first()
+        if not other:
             user.email = x_user_email
             changed = True
-        if decoded_name and user.name != decoded_name:
-            user.name = decoded_name
-            changed = True
-        if changed:
+    if decoded_name and user.name != decoded_name:
+        user.name = decoded_name
+        changed = True
+    if changed:
+        try:
             db.commit()
+        except IntegrityError:
+            db.rollback()
     return user
 
 

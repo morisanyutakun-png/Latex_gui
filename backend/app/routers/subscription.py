@@ -7,6 +7,7 @@ from urllib.parse import unquote
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -26,18 +27,24 @@ INTERNAL_SECRET = os.environ.get("INTERNAL_API_SECRET", "")
 
 def get_current_user(
     x_user_id: Optional[str] = Header(default=None, alias="x-user-id"),
+    x_user_email: Optional[str] = Header(default=None, alias="x-user-email"),
     x_internal_secret: Optional[str] = Header(default=None, alias="x-internal-secret"),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
     """
     X-Internal-Secret が設定されている環境では、一致しない場合は X-User-Id を無視する。
     (ブラウザからの直接偽造を防ぐ)
+
+    id が一致する行が無い場合は email でフォールバック検索する
+    (AUTH_SECRET 変更等で session id が変わっても同じ Google アカウントを追従する)。
     """
     if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
         return None
     if not x_user_id:
         return None
     user = db.query(User).filter(User.id == x_user_id).first()
+    if not user and x_user_email:
+        user = db.query(User).filter(User.email == x_user_email).first()
     return user
 
 
@@ -48,31 +55,75 @@ def get_or_create_user(
     x_internal_secret: Optional[str] = Header(default=None, alias="x-internal-secret"),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
-    """ユーザーを取得。存在しない場合は新規作成 (upsert)。"""
+    """ユーザーを取得。存在しない場合は新規作成 (upsert)。
+
+    id が一致する行が無くても、email が一致する既存行があれば再利用する。
+    (AUTH_SECRET 変更 / DB 移行 / 旧 NextAuth 設定 などで session id が
+    切り替わっても、email は Google アカウントに紐づく安定 ID なので、
+    unique(email) 制約に衝突して 500 にならないようにする)。
+    """
     if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
         return None
     if not x_user_id:
         return None
-    user = db.query(User).filter(User.id == x_user_id).first()
     # フロントエンドで encodeURIComponent された日本語名をデコード
     decoded_name = unquote(x_user_name) if x_user_name else x_user_name
+    return _upsert_user(db, x_user_id, x_user_email, decoded_name)
+
+
+def _upsert_user(
+    db: Session,
+    user_id: str,
+    email: Optional[str],
+    name: Optional[str],
+) -> User:
+    """id または email で既存ユーザーを探し、無ければ新規作成して返す。"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user and email:
+        # id が違っても email が一致する既存ユーザーを再利用する
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            logger.info(
+                "Reusing existing user by email: session_id=%s existing_id=%s email=%s",
+                user_id, user.id, email,
+            )
+
     if not user:
-        user = User(id=x_user_id, email=x_user_email, name=decoded_name)
+        user = User(id=user_id, email=email, name=name)
         db.add(user)
-        db.commit()
-        db.refresh(user)
-        logger.info("Created new user %s (%s)", x_user_id, x_user_email)
-    else:
-        # 名前/メールを最新に更新
-        changed = False
-        if x_user_email and user.email != x_user_email:
-            user.email = x_user_email
-            changed = True
-        if decoded_name and user.name != decoded_name:
-            user.name = decoded_name
-            changed = True
-        if changed:
+        try:
             db.commit()
+        except IntegrityError:
+            # 並行リクエストで別プロセスが先に作成した可能性。rollback して再取得。
+            db.rollback()
+            if email:
+                user = db.query(User).filter(User.email == email).first()
+            if not user:
+                user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise
+            logger.info("Recovered user after IntegrityError: id=%s email=%s", user.id, email)
+        else:
+            db.refresh(user)
+            logger.info("Created new user %s (%s)", user_id, email)
+        return user
+
+    # 既存ユーザー: 名前/メールを最新に同期 (unique 衝突しない範囲で)
+    changed = False
+    if email and user.email != email:
+        # 別ユーザーに email が割り当たっていないかを確認してから更新
+        other = db.query(User).filter(User.email == email, User.id != user.id).first()
+        if not other:
+            user.email = email
+            changed = True
+    if name and user.name != name:
+        user.name = name
+        changed = True
+    if changed:
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
     return user
 
 
