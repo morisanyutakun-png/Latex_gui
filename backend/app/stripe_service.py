@@ -1,5 +1,6 @@
 """Stripe SDK 呼び出しをまとめたサービスモジュール"""
 import os
+import contextlib
 import datetime
 import logging
 from typing import Optional
@@ -12,6 +13,13 @@ from .db_models import User, Subscription
 logger = logging.getLogger(__name__)
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+
+# Stripe 呼び出しが詰まって Koyeb の request timeout (60s) に達し
+# "no healthy service" の 502 で切られるのを防ぐ。15s で強制エラーにする。
+stripe.max_network_retries = 1
+with contextlib.suppress(Exception):
+    from stripe.http_client import RequestsClient  # type: ignore
+    stripe.default_http_client = RequestsClient(timeout=15)
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
@@ -34,6 +42,25 @@ def _ensure_api_key() -> None:
         raise ValueError(
             "STRIPE_SECRET_KEY が未設定です。バックエンドの環境変数を確認してください。"
         )
+
+
+@contextlib.contextmanager
+def _api_key_for_plan(plan_id: str):
+    """プラン固有の `STRIPE_SECRET_KEY_<PLAN>` が設定されていれば、その呼び出し中だけ
+    差し替える。未設定ならデフォルトの STRIPE_SECRET_KEY のまま。
+
+    用途: Pro だけ test モードのサンドボックスで動作確認したい、など。
+    """
+    override = os.environ.get(f"STRIPE_SECRET_KEY_{plan_id.upper()}", "").strip()
+    if not override:
+        yield stripe.api_key
+        return
+    prev = stripe.api_key
+    stripe.api_key = override
+    try:
+        yield override
+    finally:
+        stripe.api_key = prev
 
 
 def _create_new_customer(user: User) -> str:
@@ -141,24 +168,39 @@ def create_checkout_session(
         )
         return session.url
 
-    customer_id = create_or_get_customer(db, user)
-    try:
-        return _create(customer_id)
-    except stripe.error.InvalidRequestError as e:
-        msg = str(e).lower()
-        # customer 側の問題なら無効化して 1 回だけリトライ
-        if "customer" in msg or "no such customer" in msg:
-            logger.warning(
-                "Checkout failed due to customer (%s); invalidating and retrying", e,
-            )
-            user.stripe_customer_id = None
-            try:
-                db.commit()
-            except Exception:
-                db.rollback()
+    # プラン固有のシークレットキーがあれば、customer の retrieve/create と
+    # checkout session 作成をその key の下で実行する (test price は test key が必要)
+    with _api_key_for_plan(plan_id):
+        override_key = os.environ.get(f"STRIPE_SECRET_KEY_{plan_id.upper()}", "").strip()
+        if override_key:
+            # test/live をプラン単位で混ぜる場合、DB に紐づいた customer は
+            # 別モードのものかもしれないので、毎回フレッシュな customer を作る
+            logger.info("Using plan-specific secret key for %s; creating fresh customer", plan_id)
+            customer_id = _create_new_customer(user)
+        else:
             customer_id = create_or_get_customer(db, user)
+        try:
             return _create(customer_id)
-        raise
+        except stripe.error.InvalidRequestError as e:
+            msg = str(e).lower()
+            # customer 側の問題なら無効化して 1 回だけリトライ
+            if "customer" in msg or "no such customer" in msg:
+                logger.warning(
+                    "Checkout failed due to customer (%s); invalidating and retrying", e,
+                )
+                if not override_key:
+                    user.stripe_customer_id = None
+                    try:
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                fresh_cid = (
+                    _create_new_customer(user) if override_key
+                    else create_or_get_customer(db, user)
+                )
+                return _create(fresh_cid)
+            # customer 以外 (例: "No such price") はそのまま上位へ
+            raise
 
 
 # Stripe の zero-decimal currencies (JPY等はそもそも「sen」単位がないので amount_total が yen そのまま)
