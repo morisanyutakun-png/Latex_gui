@@ -1740,7 +1740,7 @@ export function TemplateGallery() {
                 onClick={() => handlePlanSelect("starter")}
                 className="w-full py-2.5 rounded-xl bg-emerald-500/95 text-white font-bold text-[13px] shadow hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
               >
-                {isJa ? "7日間無料で試す" : "Start 7-day free trial"}
+                {isJa ? "Starterにアップグレード" : "Upgrade to Starter"}
               </button>
               <ul className="space-y-2.5">
                 {[
@@ -1781,7 +1781,7 @@ export function TemplateGallery() {
                 onClick={() => handlePlanSelect("pro")}
                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[13px] shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
               >
-                {isJa ? "7日間無料で試す" : "Start 7-day free trial"}
+                {isJa ? "Proにアップグレード" : "Upgrade to Pro"}
               </button>
               <ul className="space-y-2.5">
                 {[
@@ -1823,7 +1823,7 @@ export function TemplateGallery() {
                 onClick={() => handlePlanSelect("premium")}
                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-[13px] shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
               >
-                {isJa ? "14日間無料で試す" : "Start 14-day free trial"}
+                {isJa ? "Premiumにアップグレード" : "Upgrade to Premium"}
               </button>
               <ul className="space-y-2.5">
                 {[
