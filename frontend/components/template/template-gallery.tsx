@@ -1244,7 +1244,7 @@ export function TemplateGallery() {
             </div>
 
             {/* Headline */}
-            <h1 className="text-[clamp(2.5rem,6.5vw,4.8rem)] leading-[1.06] font-bold tracking-[-0.035em] mb-8">
+            <h1 className="text-[clamp(2rem,5.5vw,4.8rem)] leading-[1.06] font-bold tracking-[-0.035em] mb-8 whitespace-nowrap">
               <TypingLine lines={heroTypingLines} />
             </h1>
 
