@@ -334,16 +334,43 @@ async def stripe_config_check():
     LP のアップグレードボタンがプランごとに失敗する原因を切り分けるための診断用。
     例: Pro だけ test の price を、SECRET は live にしていると必ず失敗する。
     """
+    default_mode = _classify_secret_key(os.environ.get("STRIPE_SECRET_KEY", ""))
+    plan_modes = {
+        plan: _classify_secret_key(
+            os.environ.get(f"STRIPE_SECRET_KEY_{plan.upper()}", "")
+        )
+        for plan in ("starter", "pro", "premium")
+    }
+    plan_price_types = {
+        plan: _classify_price_value(os.environ.get(f"STRIPE_PRICE_ID_{plan.upper()}", ""))
+        for plan in ("starter", "pro", "premium")
+    }
+    # 実効モード: プラン別 override があればそれを、無ければデフォルト
+    effective_modes = {
+        plan: (plan_modes[plan] if plan_modes[plan] != "empty" else default_mode)
+        for plan in plan_modes
+    }
+    # price が price_id 形式なのに secret key のモードが一致していない可能性を警告
+    warnings: list[str] = []
+    for plan in ("starter", "pro", "premium"):
+        if plan_price_types[plan] == "price_id" and effective_modes[plan] == "live":
+            # live キー × price_id は問題ないので警告しない。test キー × live price_id のパターンのみ警告
+            pass
+        if plan_price_types[plan] == "price_id" and effective_modes[plan] not in ("live", "test"):
+            warnings.append(f"{plan}: price_id が設定されているが、使える secret key が無効/空")
     return {
-        "stripe_secret_key_mode": _classify_secret_key(os.environ.get("STRIPE_SECRET_KEY", "")),
+        "stripe_secret_key_mode": default_mode,
+        "plan_secret_key_overrides": plan_modes,
+        "effective_mode_per_plan": effective_modes,
         "stripe_webhook_secret_set": bool(os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()),
-        "price_ids": {
-            "starter": _classify_price_value(os.environ.get("STRIPE_PRICE_ID_STARTER", "")),
-            "pro": _classify_price_value(os.environ.get("STRIPE_PRICE_ID_PRO", "")),
-            "premium": _classify_price_value(os.environ.get("STRIPE_PRICE_ID_PREMIUM", "")),
-        },
+        "price_ids": plan_price_types,
         "frontend_url": os.environ.get("FRONTEND_URL", ""),
         "internal_api_secret_set": bool(os.environ.get("INTERNAL_API_SECRET", "").strip()),
+        "warnings": warnings,
+        "hint": (
+            "price_id が 'price_' で始まる値なら、その Price が作られた Stripe のモード "
+            "(test / live) と、effective_mode_per_plan が一致している必要があります。"
+        ),
     }
 
 
