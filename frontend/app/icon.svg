@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!--
+    Eddivom favicon — AI worksheet IDE のブランドロゴ。
+    アプリ内ヘッダーの `.eddivom-brand-icon` と揃えたグラデ + 3本線 + 円のモチーフ。
+      · 3本の白線 = 教材のテキスト行 (短い真ん中の行で AI 円のスペースを空ける)
+      · 右下の円 = AI / 解答・チェック
+      · 背景グラデ = Indigo → Violet → Fuchsia (#4f46e5 → #7c3aed → #c026d3)
+    ファビコンサイズでも視認できるよう、ストロークは太めにしてある。
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="50%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#c026d3"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.18"/>
+      <stop offset="45%" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 角丸の背景 (iOS / Android のアイコン慣習に合わせた 22% の角丸) -->
+  <rect width="256" height="256" rx="56" ry="56" fill="url(#bg)"/>
+
+  <!-- 上面にふわっとしたハイライト (光沢感) -->
+  <rect width="256" height="256" rx="56" ry="56" fill="url(#shine)"/>
+
+  <!-- 3本の白線 (教材の文書行) -->
+  <g fill="none" stroke="white" stroke-width="26" stroke-linecap="round">
+    <line x1="60"  y1="78"  x2="180" y2="78"/>
+    <line x1="60"  y1="128" x2="142" y2="128"/>
+    <line x1="60"  y1="178" x2="180" y2="178"/>
+  </g>
+
+  <!-- AI を表す円 (右側、真ん中の短い行の横) -->
+  <circle cx="196" cy="128" r="30"
+          fill="white" fill-opacity="0.42"
+          stroke="white" stroke-width="18"/>
+</svg>

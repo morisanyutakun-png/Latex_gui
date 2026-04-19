@@ -133,19 +133,66 @@ export interface RenderMathResult {
 }
 
 /**
+ * KaTeX が未サポート or 失敗しやすい LaTeX 記法を "意味を維持したまま" 無害化する前処理。
+ *
+ * 本番 PDF は LuaLaTeX なのでどんな記法も通るが、ブラウザの簡易プレビューは KaTeX 依存で、
+ * 以下のコマンドは「数式の意味とは無関係」「KaTeX が知らない」ため KaTeX エラーを起こす:
+ *   - `\label{...}` / `\tag{...}` / `\notag` / `\nonumber` (参照番号関連)
+ *   - `% ...` コメント
+ *   - `\intertext{...}` / `\shortintertext{...}` (align 内テキスト — KaTeX は align 内の
+ *     \intertext を知らない)
+ *   - `\allowbreak` / `\allowdisplaybreaks` / `\displaybreak`
+ *   - `\qedhere` (数式記号だが KaTeX 未対応)
+ *
+ * これらは剥がしても数式の意味を損なわない。
+ */
+function preprocessForKatex(src: string): string {
+  return src
+    // 行末 LaTeX コメント (`%` が \% のエスケープでないことを確認)
+    .replace(/(^|[^\\])%.*$/gm, "$1")
+    // \label{...} / \tag*?{...} — 1 引数コマンド
+    .replace(/\\label\s*\{[^}]*\}/g, "")
+    .replace(/\\tag\*?\s*\{[^}]*\}/g, "")
+    // \notag / \nonumber
+    .replace(/\\(?:notag|nonumber)\b/g, "")
+    // \intertext{...} / \shortintertext{...} — align 中のテキスト注入
+    .replace(/\\(?:short)?intertext\s*\{[^}]*\}/g, "")
+    // \allowbreak / \allowdisplaybreaks / \displaybreak[0-4]?
+    .replace(/\\(?:allowbreak|allowdisplaybreaks|displaybreak)(?:\[[0-9]+\])?/g, "")
+    // \qedhere / \qed
+    .replace(/\\qed(?:here)?\b/g, "")
+    // \mathstrut / \relax (空白調整で意味なし)
+    .replace(/\\(?:mathstrut|relax)\b/g, "")
+    // 空になった行を整える
+    .replace(/[ \t]+$/gm, "")
+    .trim();
+}
+
+/** HTML エスケープ (失敗時 fallback に生 LaTeX を出すので必要) */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * KaTeX の lenient 出力に含まれる `<span class="katex-error" ...>\command</span>` を
- * 「生 LaTeX を露出しない安全な見た目」に置換する。
- * - 1 文字のコマンド (例: `\ohm`) は `⟨cmd⟩` のような chip にまとめる
- * - 長いエラーは短縮して `⟨?⟩` にする
+ * 「失敗したソースは見えるが赤文字にしない控えめな chip」に置換する。
+ *
+ * 以前は `⟨?⟩` だけ出していたが、編集中のユーザーが「どの数式が失敗したか」
+ * 分からなくなるため、失敗コマンドそのものを小さな monospace chip で露出する。
+ * 生 LaTeX が見えても PDF は正常に出るので問題ない (編集者体験を優先)。
  * title 属性 (エラーメッセージ) は残して hover で原因が見えるようにする。
  */
 function sanitizeLenientKatexHtml(html: string): string {
   return html.replace(
     /<span class="katex-error"([^>]*)>([^<]*)<\/span>/g,
     (_m, attrs, inner) => {
-      // inner is the raw LaTeX that failed. Replace with a short safe chip.
-      const label = inner.length > 0 ? "?" : "?";
-      return `<span class="katex-error-safe"${attrs} data-katex-error="1">\u27E8${label}\u27E9</span>`;
+      const shown = escapeHtml(String(inner).slice(0, 80));
+      return `<span class="katex-error-safe"${attrs} data-katex-error="1"><code>${shown}</code></span>`;
     },
   );
 }
@@ -159,7 +206,10 @@ function sanitizeLenientKatexHtml(html: string): string {
  *   3. どちらも例外を投げた場合のみ placeholder
  */
 export function renderMathHTML(latex: string, opts: RenderMathOptions = {}): RenderMathResult {
-  const src = latex.trim();
+  const rawSrc = latex.trim();
+  if (!rawSrc) return { html: "", ok: false };
+  // KaTeX 互換に向けた前処理 (label/tag/コメント等の除去)
+  const src = preprocessForKatex(rawSrc);
   if (!src) return { html: "", ok: false };
   const displayMode = opts.displayMode ?? false;
   try {
@@ -194,23 +244,38 @@ export function renderMathHTML(latex: string, opts: RenderMathOptions = {}): Ren
 
 /**
  * インライン数式チップに入れる「成功時 HTML」または「失敗時プレースホルダ」を返す。
- * 生 LaTeX は絶対に返さない。
+ * 失敗時はプレースホルダだけではなく生 LaTeX も一緒に見せる (編集者が何が書かれているか
+ * 確認できるようにする — 従来は ⟨?⟩ だけで中身が見えず不便だった)。
  */
 export function renderInlineMathOrPlaceholder(latex: string): string {
   const { html, ok } = renderMathHTML(latex, { displayMode: false });
   if (ok) {
     return `<span class="math-chip-render" contenteditable="false">${html}</span>`;
   }
-  return `<span class="math-chip-placeholder" contenteditable="false" aria-label="math expression">\u2329 math \u232A</span>`;
+  // 失敗時: 生 LaTeX を monospace で露出する (PDF では正常に出るがブラウザプレビュー
+  // では描けない場合の fallback。これにより「何が書かれているか不明」状態を避ける)。
+  const source = escapeHtml(latex.trim().slice(0, 200));
+  return (
+    `<span class="math-chip-fallback" contenteditable="false" ` +
+    `title="この数式はブラウザで簡易プレビューできません。PDF では正しく出ます。">` +
+    `<code>${source}</code></span>`
+  );
 }
 
 /**
  * 表示数式ブロック用の「成功時 HTML」または「失敗時プレースホルダ」を返す。
+ * 失敗時は生 LaTeX ソースを囲んだ "プレビュー不可" ボックスを返す。
  */
 export function renderDisplayMathOrPlaceholder(latex: string): string {
   const { html, ok } = renderMathHTML(latex, { displayMode: true });
   if (ok) {
     return `<span class="display-math-render" contenteditable="false">${html}</span>`;
   }
-  return `<span class="display-math-placeholder" contenteditable="false" aria-label="display math">\u2329 math expression \u232A</span>`;
+  const source = escapeHtml(latex.trim().slice(0, 600));
+  return (
+    `<span class="display-math-fallback" contenteditable="false" ` +
+    `title="この数式はブラウザで簡易プレビューできません。PDF では正しく出ます。">` +
+    `<span class="display-math-fallback-label">数式プレビュー不可 — PDF では正常に出力されます</span>` +
+    `<code>${source}</code></span>`
+  );
 }

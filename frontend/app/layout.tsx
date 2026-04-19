@@ -22,10 +22,21 @@ export const metadata: Metadata = {
   },
   description: "Generate problems, multiply variants, and export answer-key PDFs with AI. A professional LaTeX worksheet tool for teachers, tutors, and content creators.",
   keywords: ["LaTeX editor", "worksheet generator", "math worksheet", "AI teaching tool", "PDF export", "rubric grading"],
+  // ブラウザタブ・スマホホーム画面用のアイコン。
+  // ファイル本体は app/icon.svg / app/apple-icon.png / app/favicon.ico。
+  // 再生成は `node scripts/gen-favicon.mjs` (icon.svg → PNG/ICO をまとめて出す)。
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
+    apple: { url: "/apple-icon.png", sizes: "180x180" },
+  },
   openGraph: {
     title: "Eddivom — AI worksheet IDE",
     description: "Generate problems, multiply variants, and export answer-key PDFs with AI.",
     type: "website",
+    images: [{ url: "/apple-icon.png", width: 180, height: 180 }],
   },
 };
 

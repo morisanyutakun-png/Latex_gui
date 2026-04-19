@@ -1443,7 +1443,9 @@ const PRESERVE_AS_RAW_ENVS = new Set([
   "tikzpicture", "pgfpicture", "scope",
   "circuitikz", "circuittikz",
   "verbatim", "verbatim*", "lstlisting", "minted", "alltt", "Verbatim",
-  "figure", "figure*", "table", "table*", "wrapfigure", "wraptable",
+  // figure / wrapfigure は内部で \includegraphics を使うことが多く、raw のまま
+  // FigureAssetPreview / FigureSnippetPreview に流す方が安定する。
+  "figure", "figure*", "wrapfigure",
   "filecontents", "filecontents*",
 ]);
 
