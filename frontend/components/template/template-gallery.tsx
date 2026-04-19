@@ -842,7 +842,7 @@ function WorksheetPaper({ variant, isJa }: { variant: PrintVariant; isJa: boolea
 }
 
 /* ── Sample Output Showcase ── */
-function SampleShowcase({ isJa, onTryNow }: { isJa: boolean; onTryNow: () => void }) {
+function SampleShowcase({ isJa, onTryNow, ctaLabel }: { isJa: boolean; onTryNow: () => void; ctaLabel?: string }) {
   const fadeIn = useFadeIn(0);
   const [active, setActive] = useState<PrintVariant>("exam");
 
@@ -902,12 +902,9 @@ function SampleShowcase({ isJa, onTryNow }: { isJa: boolean; onTryNow: () => voi
             onClick={onTryNow}
             className="group inline-flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[14px] shadow-xl shadow-blue-500/20 hover:shadow-blue-500/35 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
           >
-            {isJa ? "このプリントを自分で作る" : "Make this worksheet yourself"}
+            {ctaLabel ?? (isJa ? "このプリントを自分で作る" : "Make this worksheet yourself")}
             <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
           </button>
-          <p className="text-[11px] text-muted-foreground/40 mt-3">
-            {isJa ? "無料で試せます · カード不要" : "Free to try · No credit card needed"}
-          </p>
         </div>
       </div>
     </section>
@@ -1203,9 +1200,64 @@ export function TemplateGallery() {
     if (doc) { setDocument(doc); router.push("/editor"); }
   };
 
+  /** 新規ドキュメントで即エディタを開く (Stripe を挟まない)。有料プラン or 保存済みユーザー向け。 */
+  const openEditorBlank = () => {
+    setDocument(createDefaultDocument("blank", getTemplateLatex("blank")));
+    router.push("/editor?new=1");
+  };
+
   const { locale } = useI18n();
   const saved = typeof window !== "undefined" ? loadFromLocalStorage() : null;
   const isJa = locale !== "en";
+
+  /**
+   * プラン・保存ドキュメントの有無を踏まえて「LP 上の主要 CTA の文言と動作」を決める。
+   *
+   *   · ログアウト / Free:
+   *       - 保存なし → "無料で始める"  (Stripe で Free プランを有効化 → /editor)
+   *       - 保存あり → "続きから編集"   (/editor に直行、Stripe を挟まない)
+   *   · 有料プラン (Starter / Pro / Premium):
+   *       - 保存あり → "続きから編集"
+   *       - 保存なし → "白紙で始める"   (既に課金済みなので "無料で試す" は見せない)
+   *
+   * Stripe の Free 経路を踏まない有料・保存済みユーザーに、「登録しろ」感を
+   * 出さないのが目的。(= ユーザーの要望: Starter 以上や保存済みは別文言)
+   */
+  const primaryCta = React.useMemo(() => {
+    const planName = PLANS[currentPlan]?.name ?? "";
+    if (currentPlan === "free") {
+      if (saved) {
+        return {
+          label: isJa ? "続きから編集" : "Resume editing",
+          subLabel: isJa ? saved.metadata.title || "無題の教材" : saved.metadata.title || "Untitled",
+          onClick: handleResume,
+          variant: "resume" as const,
+        };
+      }
+      return {
+        label: isJa ? "無料で始める" : "Get started free",
+        subLabel: isJa ? "カード不要 · 30秒で最初の1枚" : "No credit card · First sheet in 30s",
+        onClick: () => handlePlanSelect("free"),
+        variant: "free" as const,
+      };
+    }
+    // 有料プラン: Stripe は挟まず /editor に直行する
+    if (saved) {
+      return {
+        label: isJa ? `続きから編集 (${planName})` : `Resume editing (${planName})`,
+        subLabel: isJa ? saved.metadata.title || "無題の教材" : saved.metadata.title || "Untitled",
+        onClick: handleResume,
+        variant: "resume" as const,
+      };
+    }
+    return {
+      label: isJa ? "白紙で始める" : "Start a new worksheet",
+      subLabel: isJa ? `${planName}プランでエディタへ` : `Open editor on ${planName}`,
+      onClick: openEditorBlank,
+      variant: "paid-new" as const,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlan, saved, isJa]);
 
   const heroTypingLines = React.useMemo(() => isJa
     ? ["教材を、もっと速く。", "ワークシートを、今夜中に。", "問題集を、AIと一緒に。"]
@@ -1238,10 +1290,10 @@ export function TemplateGallery() {
             <ThemeToggle />
             <UserMenu />
             <button
-              onClick={() => handlePlanSelect("free")}
+              onClick={primaryCta.onClick}
               className="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full bg-foreground text-background text-[13px] font-semibold hover:opacity-90 transition-opacity"
             >
-              {isJa ? "無料で始める" : "Get started"}
+              {primaryCta.label}
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -1285,16 +1337,27 @@ export function TemplateGallery() {
                 : "AI generates problems, multiplies variants,\nand auto-creates answer-key PDFs."}
             </p>
 
-            {/* CTAs */}
+            {/* CTAs — プランと保存状態に応じて文言・動作を変える */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
               <button
-                onClick={() => handlePlanSelect("free")}
+                onClick={primaryCta.onClick}
                 className="group relative flex items-center gap-3 px-9 py-4 rounded-full bg-foreground text-background font-bold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300 overflow-hidden"
               >
                 <span className="absolute inset-0 bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-600 opacity-0 group-hover:opacity-[0.08] transition-opacity duration-300" />
-                {isJa ? "無料で試す" : "Try free"}
+                {primaryCta.variant === "resume" && <FileText className="h-4 w-4" />}
+                {primaryCta.label}
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
+              {/* 有料 + 保存あり の場合は副ボタンに「白紙で始める」も出す */}
+              {primaryCta.variant === "resume" && currentPlan !== "free" && (
+                <button
+                  onClick={openEditorBlank}
+                  className="group flex items-center gap-3 px-7 py-4 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
+                >
+                  {isJa ? "白紙で始める" : "Start blank"}
+                  <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                </button>
+              )}
               <button
                 onClick={scrollToSample}
                 className="group flex items-center gap-3 px-8 py-4 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
@@ -1305,7 +1368,7 @@ export function TemplateGallery() {
             </div>
 
             <p className="text-[12px] text-muted-foreground/40">
-              {isJa ? "無料プランあり · カード不要 · 30秒で最初の1枚" : "Free plan available · No credit card · First worksheet in 30 seconds"}
+              {primaryCta.subLabel}
             </p>
           </div>
 
@@ -1329,7 +1392,7 @@ export function TemplateGallery() {
         </div>
       </section>
 
-      <SampleShowcase isJa={isJa} onTryNow={() => handlePlanSelect("free")} />
+      <SampleShowcase isJa={isJa} onTryNow={primaryCta.onClick} ctaLabel={primaryCta.label} />
 
       {/* ━━ Who is this for ━━ */}
       <section className="relative py-24 overflow-hidden">
@@ -1513,14 +1576,24 @@ export function TemplateGallery() {
               color="bg-gradient-to-br from-slate-500 to-gray-600" />
           </div>
 
+          {/* Workflow 下の主要 CTA — ユーザー状態に応じてラベル/動作が切り替わる */}
           <div className="text-center mt-12">
             <button
-              onClick={() => handlePlanSelect("free")}
+              onClick={primaryCta.onClick}
               className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[14px] shadow-2xl shadow-blue-500/25 hover:shadow-blue-500/35 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
             >
-              {isJa ? "PDFから始めてみる" : "Try it with your PDF"}
+              {primaryCta.variant === "resume"
+                ? (isJa ? "このワークフローで続きから編集" : "Continue with this workflow")
+                : primaryCta.variant === "paid-new"
+                ? (isJa ? "このワークフローで1枚作ってみる" : "Run this workflow now")
+                : (isJa ? "このワークフローを無料で試す" : "Try this workflow free")}
               <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
+            <p className="text-[12px] text-muted-foreground/50 mt-3">
+              {isJa
+                ? "アップロード・画像・テキスト、どれからでもスタートできます。"
+                : "Start from PDF, photo, or plain text — your choice."}
+            </p>
           </div>
         </div>
       </section>
@@ -2039,45 +2112,54 @@ export function TemplateGallery() {
           </div>
 
           <h2 className="text-[clamp(1.6rem,4.5vw,3rem)] font-bold tracking-tight mb-5 leading-tight">
-            {isJa ? "Eddivom で、教材づくりを今夜から変えよう。" : "Try Eddivom tonight.\nYour worksheet will be done before bed."}
+            {currentPlan === "free"
+              ? (isJa ? "Eddivom で、教材づくりを今夜から変えよう。" : "Try Eddivom tonight.\nYour worksheet will be done before bed.")
+              : (isJa ? `${PLANS[currentPlan].name} プランをご利用中。教材に戻りましょう。` : `You're on ${PLANS[currentPlan].name}. Jump back into your worksheet.`)}
           </h2>
           <p className="text-muted-foreground text-[16px] mb-12 max-w-md mx-auto leading-relaxed">
-            {isJa
-              ? "無料で始めて、気に入ったらアップグレード。月¥1,980から。"
-              : "Start free, upgrade when you're ready. From ¥1,980/mo."}
+            {currentPlan === "free"
+              ? (isJa
+                ? "無料で始めて、気に入ったらアップグレード。月¥1,980から。"
+                : "Start free, upgrade when you're ready. From ¥1,980/mo.")
+              : (isJa
+                ? "保存した教材の続きから、または白紙から新しい1枚を。"
+                : "Pick up where you left off, or start a fresh sheet.")}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
-              onClick={() => handlePlanSelect("free")}
+              onClick={primaryCta.onClick}
               className="group relative inline-flex items-center gap-3 px-12 py-5 rounded-full font-bold text-[16px] text-white overflow-hidden shadow-2xl shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.04] active:scale-[0.97] transition-all duration-300"
             >
               <span className="absolute inset-0 bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-600" />
               <span className="absolute inset-0 bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <span className="relative">{isJa ? "無料で試す" : "Try free"}</span>
+              {primaryCta.variant === "resume" && <FileText className="relative h-5 w-5" />}
+              <span className="relative">{primaryCta.label}</span>
               <ArrowRight className="relative h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
             </button>
-            <button
-              onClick={scrollToPricing}
-              className="group flex items-center gap-3 px-8 py-5 rounded-full border border-white/[0.15] text-foreground font-semibold text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
-            >
-              {isJa ? "料金プランを見る" : "See plans"}
-              <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-            </button>
+            {currentPlan === "free" ? (
+              <button
+                onClick={scrollToPricing}
+                className="group flex items-center gap-3 px-8 py-5 rounded-full border border-white/[0.15] text-foreground font-semibold text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
+              >
+                {isJa ? "料金プランを見る" : "See plans"}
+                <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            ) : primaryCta.variant === "resume" ? (
+              // 有料 + 保存あり: 白紙開始の副ボタン
+              <button
+                onClick={openEditorBlank}
+                className="group flex items-center gap-3 px-8 py-5 rounded-full border border-foreground/[0.12] text-foreground font-semibold text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
+              >
+                {isJa ? "白紙で始める" : "Start blank"}
+                <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            ) : (
+              // 有料 + 保存なし: 料金プランは既に購読中なので、別導線として採点/OMR紹介等を将来入れる枠
+              null
+            )}
           </div>
-          {saved && (
-            <button
-              onClick={handleResume}
-              className="group inline-flex items-center gap-2 mt-6 text-[13px] text-muted-foreground/50 hover:text-foreground/70 transition-colors"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              {isJa
-                ? `「${saved.metadata.title || "無題"}」を続ける`
-                : `Resume "${saved.metadata.title || "Untitled"}"`}
-              <ChevronRight className="h-3.5 w-3.5 opacity-50 group-hover:translate-x-0.5 transition-all" />
-            </button>
-          )}
           <p className="mt-5 text-[12px] text-muted-foreground/35">
-            {isJa ? "無料プランあり · カード不要 · 30秒で最初の1枚" : "Free plan available · No credit card · First worksheet in 30 seconds"}
+            {primaryCta.subLabel}
           </p>
         </div>
       </section>
