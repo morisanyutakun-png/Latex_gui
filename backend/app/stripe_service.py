@@ -222,13 +222,74 @@ def _to_decimal_amount(amount: Optional[int], currency: str) -> float:
     return amount / 100.0
 
 
+def _retrieve_session_any_mode(session_id: str):
+    """Checkout Session を取得する。デフォルトキーで失敗したら、
+    `STRIPE_SECRET_KEY_<PLAN>` オーバーライドを順に試す。
+
+    Pro だけ test モードで作られた session を live キーで retrieve して 404 になる
+    (=verify 失敗で purchase event が発火しない) 問題への対処。
+    """
+    _ensure_api_key()
+
+    # `cs_test_` で始まる session は必ず test キーが必要 (Stripe の命名規約)。
+    prefer_test = session_id.startswith("cs_test_")
+
+    # 試すキーを順に集める (重複除去しつつ順序維持)
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    def _add(k: str) -> None:
+        k = (k or "").strip()
+        if k and k not in seen:
+            seen.add(k)
+            candidates.append(k)
+
+    override_keys = [
+        os.environ.get(f"STRIPE_SECRET_KEY_{p.upper()}", "")
+        for p in ("starter", "pro", "premium")
+    ]
+    # test モードの session id なら sk_test_ を先に試す
+    if prefer_test:
+        for k in override_keys:
+            if k.startswith("sk_test_"):
+                _add(k)
+        _add(stripe.api_key)
+        for k in override_keys:
+            _add(k)
+    else:
+        _add(stripe.api_key)
+        for k in override_keys:
+            _add(k)
+
+    last_err: Optional[Exception] = None
+    prev = stripe.api_key
+    try:
+        for key in candidates:
+            stripe.api_key = key
+            try:
+                return stripe.checkout.Session.retrieve(session_id)
+            except stripe.error.InvalidRequestError as e:
+                last_err = e
+                continue
+    finally:
+        stripe.api_key = prev
+
+    # 全キーで見つからなかった: 最後の InvalidRequestError を再送
+    raise last_err or stripe.error.InvalidRequestError(
+        f"No such checkout session: {session_id}", param="session_id"
+    )
+
+
 def verify_checkout_session(session_id: str, user_id: str) -> dict:
     """Stripe Checkout Session の支払い状況をサーバサイドで検証する。
 
     URL パラメータだけでは成功扱いしないための要。
     ほかのユーザーのセッションで発火されないよう metadata.user_id と照合する。
+
+    プラン別の `STRIPE_SECRET_KEY_<PLAN>` オーバーライドを使っている環境でも、
+    test/live 両モードの session を自動で見分けて retrieve する。
     """
-    session = stripe.checkout.Session.retrieve(session_id)
+    session = _retrieve_session_any_mode(session_id)
 
     # セッションが当該ユーザーのものかを確認
     meta_user_id = (session.get("metadata") or {}).get("user_id")
