@@ -216,9 +216,16 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
     }
   }, []);
 
+  // 初回マウントフラグ。プレビューパネルを開いた瞬間にコンパイルを開始し、
+  // 600ms 待たずに PDF を出す (UX)。以降の変更は通常通り debounce する。
+  const hasCompiledOnceRef = useRef(false);
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => runCompile(latex), 600);
+    const delay = hasCompiledOnceRef.current ? 600 : 0;
+    debounceTimerRef.current = setTimeout(() => {
+      hasCompiledOnceRef.current = true;
+      runCompile(latex);
+    }, delay);
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
@@ -295,11 +302,23 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
           </div>
         )}
         {previewUrl ? (
-          <iframe
-            src={previewUrl}
-            title="Preview"
-            className="h-full w-full border-0"
-          />
+          <>
+            <iframe
+              src={previewUrl}
+              title="Preview"
+              className="h-full w-full border-0"
+            />
+            {/* 万一ブラウザ/拡張機能が blob: iframe を表示できない環境でも
+                PDF を取り出せるよう、右下にダウンロードリンクを常設 */}
+            <a
+              href={previewUrl}
+              download="preview.pdf"
+              className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-md bg-foreground/80 text-background px-2 py-1 text-[10px] font-medium shadow-md hover:bg-foreground"
+              title="PDFをダウンロード"
+            >
+              PDF
+            </a>
+          </>
         ) : !compileError && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             {compiling ? t("doc.editor.pdf.generating") : t("doc.editor.empty_preview")}
