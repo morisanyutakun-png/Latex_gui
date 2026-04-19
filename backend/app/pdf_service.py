@@ -38,11 +38,11 @@ logger = logging.getLogger(__name__)
 
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "1"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-# コンパイル timeout の既定は 90 秒 (fork bomb / 無限ループ耐性を上げる)。
-# 巨大な教材で必要なら環境変数で 300 まで伸ばせる。
-COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "90"))
-# subprocess のメモリ上限 (bytes)。既定 512 MiB は Koyeb 1GB 筐体で他処理と共存する想定。
-COMPILE_MEMORY_LIMIT_BYTES = int(os.environ.get("COMPILE_MEMORY_LIMIT_BYTES", str(512 * 1024 * 1024)))
+# コンパイル timeout の既定は 180 秒。以前 90 秒に絞ったところ、LuaLaTeX の
+# 初回コールドスタート (font cache 生成) や luatexja の大型フォント読み込みで
+# 合法なコンパイルまで落ちるケースが出たので戻した。
+# 環境変数 COMPILE_TIMEOUT_SECONDS で 60〜300 の範囲で上書きできる。
+COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "180"))
 # subprocess が書ける最大ファイルサイズ (bytes)。巨大 PDF 生成を防ぐ。
 COMPILE_FILE_SIZE_LIMIT_BYTES = int(os.environ.get("COMPILE_FILE_SIZE_LIMIT_BYTES", str(50 * 1024 * 1024)))
 
@@ -51,10 +51,17 @@ def _make_subprocess_limits():
     """lualatex subprocess に POSIX リソース上限を適用する preexec_fn を返す。
 
     - RLIMIT_CPU: wallclock timeout と同等の CPU 時間上限 (fork bomb 対策)
-    - RLIMIT_AS: 仮想メモリ上限 (malloc bomb 対策)
     - RLIMIT_FSIZE: 書き込みファイルサイズ上限 (出力 PDF 肥大化対策)
     - RLIMIT_CORE: コアダンプ無効化
-    - RLIMIT_NPROC: fork 可能プロセス数 (lualatex は通常子プロセスを起こさないので低めで良い)
+
+    注意: 以前は RLIMIT_AS (仮想メモリ) と RLIMIT_NPROC を含めていたが、
+      ・luatexja + Harano Aji フォントは mmap で大量の仮想アドレス空間を
+        必要とし、実 RSS が小さくても AS 上限に達して落ちる
+      ・lualatex はヘルパ (mkindex, pdftex など) を fork することがあり
+        NPROC 絞りで予期せぬ失敗を起こす
+    実質的なメモリ制限はコンテナ (Koyeb / Docker cgroup) で行う方針とし、
+    ここでは CPU と書き込みサイズ、コアダンプのみ縛る。
+
     Windows (resource モジュール非対応) では None を返してスキップする。
     """
     try:
@@ -62,9 +69,8 @@ def _make_subprocess_limits():
     except ImportError:
         return None
 
-    # CPU は timeout + 数秒の余裕。短すぎると合法的なコンパイルも落ちる。
-    cpu_limit = max(COMPILE_TIMEOUT + 10, 30)
-    mem_limit = COMPILE_MEMORY_LIMIT_BYTES
+    # CPU は timeout + 余裕 30秒。短すぎると cold start で落ちる。
+    cpu_limit = max(COMPILE_TIMEOUT + 30, 60)
     fsize_limit = COMPILE_FILE_SIZE_LIMIT_BYTES
 
     def _preexec():
@@ -74,21 +80,12 @@ def _make_subprocess_limits():
         except (ValueError, OSError):
             pass
         try:
-            resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
-        except (ValueError, OSError):
-            pass
-        try:
             resource.setrlimit(resource.RLIMIT_FSIZE, (fsize_limit, fsize_limit))
         except (ValueError, OSError):
             pass
         try:
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
         except (ValueError, OSError):
-            pass
-        # NPROC は実装差があり過剰に縛ると TeX ヘルパが落ちるので緩め (128)。
-        try:
-            resource.setrlimit(resource.RLIMIT_NPROC, (128, 128))
-        except (ValueError, OSError, AttributeError):
             pass
 
     return _preexec

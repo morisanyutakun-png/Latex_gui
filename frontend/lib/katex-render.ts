@@ -132,24 +132,14 @@ export interface RenderMathResult {
   ok: boolean;
 }
 
-// KaTeX の `trust` コールバック: 危険な URL プロトコル (javascript:, data:, vbscript:)
-// を含む \href / \url を XSS 経路として拒否する。
-// http / https / mailto / tel / 相対パスのみ許可。他は false を返して描画を止める。
-function isKatexTrustContextSafe(ctx: { command: string; url?: string }): boolean {
-  // URL を持たないコマンド (\htmlId, \htmlClass, \htmlStyle, \htmlData) は
-  // 任意 HTML 属性を埋め込めてしまうので一律拒否する。
-  if (ctx.command !== "\\href" && ctx.command !== "\\url" && ctx.command !== "\\includegraphics") {
-    return false;
-  }
-  const url = String(ctx.url ?? "").trim();
-  if (!url) return false;
-  // 相対パス / fragment は許可 (同一オリジン内の資料リンク等)
-  if (url.startsWith("/") || url.startsWith("#") || url.startsWith("?")) return true;
-  // プロトコル判定は case-insensitive かつ制御文字を剥がしてから
-  const normalized = url.replace(/[\u0000-\u001F\u007F]/g, "").toLowerCase();
-  const safeSchemes = ["http:", "https:", "mailto:", "tel:"];
-  return safeSchemes.some((s) => normalized.startsWith(s));
-}
+// KaTeX の `trust` 設定。以前は関数コールバックで \href の URL プロトコルを
+// 検証していたが、KaTeX の内部コマンド (\unicode, \char 等) まで意図せず trust
+// コールバックが呼ばれ、false 返却 → strict モードで throw → 単純な数式まで
+// プレビュー不可フォールバックに落ちる不具合が発生した。
+// 現在は KaTeX の既定である false に固定 — ブラウザプレビューでは \href / \url
+// はクリッカブルにならないが、PDF (LuaLaTeX) では通常通りリンクが機能する。
+// 教育用途で XSS ベクトルになりうる \href{javascript:...} も無力化される。
+const KATEX_TRUST: false = false;
 
 /**
  * KaTeX が未サポート or 失敗しやすい LaTeX 記法を "意味を維持したまま" 無害化する前処理。
@@ -235,7 +225,7 @@ export function renderMathHTML(latex: string, opts: RenderMathOptions = {}): Ren
     const html = katex.renderToString(src, {
       throwOnError: true,
       displayMode,
-      trust: isKatexTrustContextSafe,
+      trust: KATEX_TRUST,
       strict: "ignore",
       output: "html",
       macros: PROJECT_KATEX_MACROS,
@@ -249,7 +239,7 @@ export function renderMathHTML(latex: string, opts: RenderMathOptions = {}): Ren
       const html = katex.renderToString(src, {
         throwOnError: false,
         displayMode,
-        trust: isKatexTrustContextSafe,
+        trust: KATEX_TRUST,
         strict: "ignore",
         output: "html",
         macros: PROJECT_KATEX_MACROS,
