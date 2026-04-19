@@ -1702,16 +1702,16 @@ export function TemplateGallery() {
             <h2 className="text-[clamp(1.5rem,4vw,2.6rem)] font-bold tracking-tight mb-4">
               {isJa ? "授業1コマ分以下で、教材作成を自動化。" : "Automate your worksheets for less than one tutoring hour."}
             </h2>
-            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto mb-6">
+            <p className="text-muted-foreground text-[15px] max-w-xl mx-auto mb-6">
               {isJa
-                ? "すべてのプランに高性能AI搭載。違いは使える回数だけ。まず無料で試して、気に入ったらアップグレード。"
-                : "High-performance AI on every plan. The only difference is usage limits. Start free, upgrade when you're ready."}
+                ? "AI回数・テンプレート数・採点やOMRなど、プランごとに使える機能が変わります。まず無料で試して、必要な機能が増えたらアップグレード。"
+                : "Each plan unlocks different AI limits, templates, grading, OMR and more. Start free — upgrade when you need the next tier of features."}
             </p>
-            {/* AI badge */}
+            {/* 機能差別化バッジ */}
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 to-violet-500/10 border border-blue-500/15">
               <Sparkles className="h-3.5 w-3.5 text-violet-500" />
               <span className="text-[12px] font-semibold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
-                {isJa ? "全プラン高性能AI搭載" : "High-performance AI on all plans"}
+                {isJa ? "AI回数 × 機能解放 でプランを選ぶ" : "Choose by AI limits × unlocked features"}
               </span>
             </div>
           </div>

@@ -147,8 +147,8 @@ export function PricingModal() {
           </DialogTitle>
           <DialogDescription className="text-center text-[13px] text-muted-foreground">
             {isJa
-              ? "全プラン高性能AI搭載 — 違いは使える回数だけ"
-              : "High-performance AI on every plan — only usage limits differ"}
+              ? "AI回数・テンプレート数・採点/OMR などプランごとに使える機能が異なります"
+              : "Each plan unlocks different AI limits, templates, and pro features like grading & OCR"}
           </DialogDescription>
         </DialogHeader>
 
