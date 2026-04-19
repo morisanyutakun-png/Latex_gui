@@ -2393,6 +2393,12 @@ export interface TemplateDefinition {
   /** English starter LaTeX source. locale === "en" のとき使用。
    *  英訳されていないテンプレートでは undefined → ja 版にフォールバック。 */
   latexEn?: string;
+  /**
+   * 利用可能な最低プラン。"free" は全プラン (LP の「基本テンプレート」)、
+   * "pro" は Pro/Premium 限定 (LP の「全テンプレート利用可」の対象)。
+   * 省略時は "free" とみなす。
+   */
+  tier?: "free" | "pro";
 }
 
 export const TEMPLATES: TemplateDefinition[] = [
@@ -2430,6 +2436,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     documentClass: "article",
     latex: COMMON_TEST_LATEX,
     latexEn: COMMON_TEST_LATEX_EN,
+    tier: "pro",
   },
   {
     id: "kokuko-niji",
@@ -2446,6 +2453,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     documentClass: "article",
     latex: KOKUKO_NIJI_LATEX,
     latexEn: KOKUKO_NIJI_LATEX_EN,
+    tier: "pro",
   },
   {
     id: "school-test",
@@ -2480,6 +2488,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     documentClass: "article",
     latex: JUKU_LATEX,
     latexEn: JUKU_LATEX_EN,
+    tier: "pro",
   },
   {
     id: "kaisetsu-note",
@@ -2528,6 +2537,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     documentClass: "article",
     latex: ENGLISH_WORKSHEET_LATEX,
     latexEn: ENGLISH_WORKSHEET_LATEX_EN,
+    tier: "pro",
   },
 
   // ──── Document: 文書・レポート ────
@@ -2562,6 +2572,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     documentClass: "report",
     latex: REPORT_LATEX,
     latexEn: REPORT_LATEX_EN,
+    tier: "pro",
   },
 
   // ──── Slide ────
@@ -2580,6 +2591,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     documentClass: "beamer",
     latex: BEAMER_LATEX,
     latexEn: BEAMER_LATEX_EN,
+    tier: "pro",
   },
 
   // ──── Letter ────

@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
 import { generatePDF, CompileError, formatCompileError } from "@/lib/api";
-import { createFromTemplate } from "@/lib/templates";
+import { createFromTemplate, TEMPLATES } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
 import { TemplatePicker } from "@/components/editor/template-picker";
 import { FormattingToolbar } from "@/components/editor/formatting-toolbar";
@@ -38,6 +38,15 @@ export function EditToolbar() {
 
   const handleTemplateChange = (id: string) => {
     if (!id) return;
+    // LP:「全テンプレート利用可」は Pro+。Pro 未満が tier:"pro" を選んだら pricing 誘導。
+    const tpl = TEMPLATES.find((t) => t.id === id);
+    if (tpl?.tier === "pro") {
+      const check = usePlanStore.getState().checkFeature("allTemplates");
+      if (!check.allowed) {
+        usePlanStore.getState().setShowPricing(true);
+        return;
+      }
+    }
     if (document && document.latex.trim() && !confirm(t("edit.toolbar.template.confirm_overwrite"))) return;
     setDocument(createFromTemplate(id, locale));
   };

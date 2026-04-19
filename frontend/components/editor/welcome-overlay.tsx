@@ -11,13 +11,15 @@ import {
   Download,
   X,
   ArrowRight,
+  Lock,
 } from "lucide-react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useI18n } from "@/lib/i18n";
 import { TemplatePicker } from "./template-picker";
-import { createFromTemplate } from "@/lib/templates";
+import { createFromTemplate, TEMPLATES } from "@/lib/templates";
 import { usePlanStore } from "@/store/plan-store";
+import { canUseFeature, PLANS } from "@/lib/plans";
 import { toast } from "sonner";
 
 const DISMISS_KEY = "lx-welcome-dismissed-v1";
@@ -80,6 +82,15 @@ export function WelcomeOverlay() {
   };
 
   const startWithTemplate = (id: string) => {
+    // LP:「全テンプレート利用可」は Pro+。Pro 未満が tier:"pro" を選んだら pricing へ。
+    const tpl = TEMPLATES.find((t) => t.id === id);
+    if (tpl?.tier === "pro") {
+      const check = usePlanStore.getState().checkFeature("allTemplates");
+      if (!check.allowed) {
+        usePlanStore.getState().setShowPricing(true);
+        return;
+      }
+    }
     setDocument(createFromTemplate(id, locale));
     setDismissedSession(true);
   };
@@ -108,6 +119,15 @@ export function WelcomeOverlay() {
     setShowPdfPanel(true);
     setDismissedSession(true);
   };
+
+  // Starter+ 限定機能の視覚的ロック判定。判定根拠は canUseFeature に寄せて
+  // プラン変更で即時再レンダリングされるよう、currentPlan を購読する。
+  const currentPlan = usePlanStore((s) => s.currentPlan);
+  const ocrLocked = !canUseFeature(currentPlan, "ocr");
+  const gradingLocked = !canUseFeature(currentPlan, "grading");
+  const lockedBadge = locale === "en"
+    ? `${PLANS.starter.name} plan+`
+    : `${PLANS.starter.name}プラン〜`;
 
   return (
     <div
@@ -169,7 +189,7 @@ export function WelcomeOverlay() {
               onSelect={startWithTemplate}
             />
 
-            {/* 3. Scan PDF */}
+            {/* 3. Scan PDF — Starter+ */}
             <ModeCard
               accent="emerald"
               icon={<ScanLine className="h-5 w-5" />}
@@ -178,9 +198,11 @@ export function WelcomeOverlay() {
               desc={t("welcome.card.scan.desc")}
               cta={t("welcome.card.scan.cta")}
               onClick={startWithScan}
+              locked={ocrLocked}
+              lockedBadge={lockedBadge}
             />
 
-            {/* 4. Grading */}
+            {/* 4. Grading — Starter+ */}
             <ModeCard
               accent="rose"
               icon={<ClipboardCheck className="h-5 w-5" />}
@@ -189,6 +211,8 @@ export function WelcomeOverlay() {
               desc={t("welcome.card.grading.desc")}
               cta={t("welcome.card.grading.cta")}
               onClick={startWithGrading}
+              locked={gradingLocked}
+              lockedBadge={lockedBadge}
             />
           </div>
         </div>
@@ -273,24 +297,41 @@ interface ModeCardProps {
   desc: string;
   cta: string;
   onClick: () => void;
+  /** 現プランで使えない状態。クリックは pricing 誘導に流すのでボタンは生かす。 */
+  locked?: boolean;
+  /** ロック時にカード右肩に表示するミニバッジ (例: "Starterプラン〜") */
+  lockedBadge?: string;
 }
 
-function ModeCard({ accent, icon, badge, title, desc, cta, onClick }: ModeCardProps) {
+function ModeCard({ accent, icon, badge, title, desc, cta, onClick, locked = false, lockedBadge }: ModeCardProps) {
   const style = ACCENT_STYLES[accent];
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group flex items-center gap-3.5 p-4 rounded-xl border border-border/40 bg-background hover:bg-foreground/[0.02] text-left transition-all duration-200 hover:shadow-lg ${style.ring}`}
+      className={`group relative flex items-center gap-3.5 p-4 rounded-xl border text-left transition-all duration-200 ${
+        locked
+          ? "border-border/30 bg-foreground/[0.015] hover:border-violet-400/40 hover:bg-violet-500/[0.03]"
+          : `border-border/40 bg-background hover:bg-foreground/[0.02] hover:shadow-lg ${style.ring}`
+      }`}
     >
-      <div className={`shrink-0 h-11 w-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${style.iconBg}`}>
+      <div className={`shrink-0 h-11 w-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${style.iconBg} ${locked ? "grayscale opacity-65" : ""}`}>
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[14px] font-bold text-foreground/90">{title}</div>
-        <div className="text-[11px] text-muted-foreground/60 leading-snug mt-0.5">{desc}</div>
+        <div className={`text-[14px] font-bold ${locked ? "text-foreground/55" : "text-foreground/90"}`}>{title}</div>
+        <div className={`text-[11px] leading-snug mt-0.5 ${locked ? "text-muted-foreground/45" : "text-muted-foreground/60"}`}>{desc}</div>
       </div>
-      <ArrowRight className="h-4 w-4 text-foreground/20 group-hover:text-foreground/50 shrink-0 transition-all group-hover:translate-x-0.5" />
+      {locked ? (
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[9px] font-bold shadow">
+            <Lock className="h-2.5 w-2.5" />
+            {lockedBadge}
+          </span>
+        </div>
+      ) : (
+        <ArrowRight className="h-4 w-4 text-foreground/20 group-hover:text-foreground/50 shrink-0 transition-all group-hover:translate-x-0.5" />
+      )}
     </button>
   );
 }

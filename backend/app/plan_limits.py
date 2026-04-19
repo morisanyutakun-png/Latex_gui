@@ -17,12 +17,11 @@ Action = Literal["ai_request", "pdf_export"]
 
 # プランでゲートする機能。frontend/lib/plans.ts `GatedFeature` と同期させること。
 Feature = Literal[
-    "grading",          # 採点・自動採点
-    "ocr",              # OMR / PDF・画像から問題抽出
-    "latexExport",      # LaTeXソースエクスポート
-    "allTemplates",     # 全テンプレート利用
-    "batch",            # バッチ処理
-    "customTemplates",  # カスタムテンプレート作成
+    "grading",          # 採点・自動採点 (Starter+)
+    "ocr",              # OMR / PDF・画像から問題抽出 (Starter+)
+    "latexExport",      # LaTeXソースエクスポート (Starter+)
+    "allTemplates",     # 全テンプレート利用 (Pro+)
+    "batch",            # バッチ処理 (Pro+)
 ]
 
 # 機能 → 使えるようになる最低プラン。frontend/lib/plans.ts の FEATURE_MIN_PLAN と同期。
@@ -32,7 +31,6 @@ FEATURE_MIN_PLAN: dict[Feature, PlanId] = {
     "latexExport":     "starter",
     "allTemplates":    "pro",
     "batch":           "pro",
-    "customTemplates": "premium",
 }
 
 _PLAN_RANK: dict[PlanId, int] = {"free": 0, "starter": 1, "pro": 2, "premium": 3}

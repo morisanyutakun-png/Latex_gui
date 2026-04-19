@@ -1898,7 +1898,7 @@ export function TemplateGallery() {
                   isJa ? "高性能AI 月2,000回" : "High-performance AI: 2,000/month",
                   isJa ? "教材PDF出力 無制限 (最優先処理)" : "Worksheet PDF: unlimited (highest priority)",
                   isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
-                  isJa ? "全テンプレート + カスタム作成" : "All templates + custom creation",
+                  isJa ? "全テンプレート利用可" : "All templates",
                   isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",

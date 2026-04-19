@@ -16,13 +16,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
-import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool } from "lucide-react";
+import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
 import { FigureEditor } from "@/components/figure-editor/figure-editor";
 import { usePlanStore } from "@/store/plan-store";
-import { PLANS } from "@/lib/plans";
+import { PLANS, canUseFeature } from "@/lib/plans";
 import { toast } from "sonner";
 import { verifyCheckoutSession } from "@/lib/subscription-api";
 import { sendPurchaseEvent } from "@/lib/gtag";
@@ -51,6 +51,14 @@ export default function EditorPage() {
   const doc = useDocumentStore((s) => s.document);
   const setDocument = useDocumentStore((s) => s.setDocument);
   const router = useRouter();
+
+  // プラン状態を購読 — Activity bar の OMR / 採点 / LaTeXソース ボタンを
+  // 使えないプランでは視覚的にロック表示する (クリックは pricing 誘導に回す)。
+  // `currentPlan` の変化で再レンダリングされるよう、subscribe してから canUseFeature で判定する。
+  const currentPlan = usePlanStore((s) => s.currentPlan);
+  const ocrLocked = !canUseFeature(currentPlan, "ocr");
+  const gradingLocked = !canUseFeature(currentPlan, "grading");
+  const latexExportLocked = !canUseFeature(currentPlan, "latexExport");
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
@@ -372,8 +380,9 @@ export default function EditorPage() {
                 }
                 triggerOMR();
               }}
-              title={t("side.tooltip.scan")}
+              title={ocrLocked ? (locale === "en" ? "Starter plan or higher required" : "Starterプラン以上で利用可能") : t("side.tooltip.scan")}
               disabled={gradingMode}
+              locked={ocrLocked}
             />
 
             {/* Figure Editor — 図エディタ */}
@@ -412,8 +421,9 @@ export default function EditorPage() {
                 }
                 openGrading(doc.latex, doc.metadata.title || "");
               }}
-              title={t("side.tooltip.grading")}
+              title={gradingLocked ? (locale === "en" ? "Starter plan or higher required" : "Starterプラン以上で利用可能") : t("side.tooltip.grading")}
               pulse={gradingMode}
+              locked={gradingLocked}
             />
 
             <div className="h-px bg-foreground/[0.06] mx-2 my-1" />
@@ -428,14 +438,34 @@ export default function EditorPage() {
               title={t("side.tooltip.preview")}
             />
 
-            {/* LaTeX source toggle */}
+            {/* LaTeX source toggle — Starter+ 限定 (LP: LaTeXソースエクスポート) */}
             <ActivityBtn
               accent="violet"
               active={showSourcePanel}
               icon={<Braces className={showSourcePanel ? "h-[16px] w-[16px] text-white" : "h-[16px] w-[16px]"} />}
               label={t("side.label.source")}
-              onClick={toggleSourcePanel}
-              title={t("side.tooltip.source")}
+              onClick={() => {
+                // 閉じる方向は常に許可 (開いている状態から抜けられないと困る)。
+                // 開く方向だけプランチェックし、Free は pricing modal に誘導する。
+                if (showSourcePanel) {
+                  toggleSourcePanel();
+                  return;
+                }
+                const check = usePlanStore.getState().checkFeature("latexExport");
+                if (!check.allowed) {
+                  toast.error(check.reason, {
+                    duration: 5000,
+                    action: {
+                      label: locale === "en" ? "Upgrade" : "アップグレード",
+                      onClick: () => usePlanStore.getState().setShowPricing(true),
+                    },
+                  });
+                  return;
+                }
+                toggleSourcePanel();
+              }}
+              title={latexExportLocked ? (locale === "en" ? "Starter plan or higher required" : "Starterプラン以上で利用可能") : t("side.tooltip.source")}
+              locked={latexExportLocked}
             />
 
             <div className="flex-1" />
@@ -508,9 +538,15 @@ interface ActivityBtnProps {
   badge?: boolean;
   disabled?: boolean;
   pulse?: boolean;
+  /**
+   * プランで使えない状態。`disabled` (完全に押せない) とは別物で、
+   * click 自体は生きたまま pricing modal 誘導用のハンドラが走るようにする。
+   * 見た目だけ "上位プランが必要" と示す。
+   */
+  locked?: boolean;
 }
 
-function ActivityBtn({ accent, icon, label, onClick, title, active = false, badge = false, disabled = false, pulse = false }: ActivityBtnProps) {
+function ActivityBtn({ accent, icon, label, onClick, title, active = false, badge = false, disabled = false, pulse = false, locked = false }: ActivityBtnProps) {
   const style = ACCENT_CLASSES[accent];
   return (
     <button
@@ -521,6 +557,8 @@ function ActivityBtn({ accent, icon, label, onClick, title, active = false, badg
       className={`relative mx-1 h-[52px] flex flex-col items-center justify-center gap-0.5 rounded-lg transition-all duration-200 ${
         disabled && !active
           ? "text-foreground/15 cursor-not-allowed"
+          : locked
+          ? "text-foreground/25 hover:text-foreground/45 hover:bg-foreground/[0.03]"
           : active
           ? `${style.text} bg-foreground/[0.04]`
           : `text-foreground/35 ${style.hover}`
@@ -531,11 +569,16 @@ function ActivityBtn({ accent, icon, label, onClick, title, active = false, badg
           {icon}
         </div>
       ) : (
-        <div className="h-7 w-7 flex items-center justify-center">{icon}</div>
+        <div className={`h-7 w-7 flex items-center justify-center ${locked ? "opacity-50" : ""}`}>{icon}</div>
       )}
       <span className="text-[9px] font-medium leading-none tracking-tight">{label}</span>
       {badge && (
         <span className="absolute top-1 right-2 h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+      )}
+      {locked && !active && (
+        <span className="absolute top-1 right-1.5 h-3 w-3 rounded-full bg-foreground/70 dark:bg-white/80 flex items-center justify-center shadow-sm ring-1 ring-background">
+          <Lock className="h-2 w-2 text-background" strokeWidth={3} />
+        </span>
       )}
     </button>
   );

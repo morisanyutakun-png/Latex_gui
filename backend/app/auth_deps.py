@@ -32,7 +32,6 @@ _FEATURE_LABEL_JA: dict[str, str] = {
     "latexExport":     "LaTeXソースエクスポート",
     "allTemplates":    "全テンプレート利用",
     "batch":           "バッチ処理",
-    "customTemplates": "カスタムテンプレート作成",
 }
 
 

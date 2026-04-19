@@ -11,10 +11,12 @@ import {
   X,
   LayoutTemplate,
   ArrowRight,
+  Lock,
 } from "lucide-react";
 import { TemplatePicker } from "./template-picker";
 import { createFromTemplate, TEMPLATES } from "@/lib/templates";
 import { usePlanStore } from "@/store/plan-store";
+import { canUseFeature, PLANS } from "@/lib/plans";
 import { toast } from "sonner";
 
 const DISMISS_KEY = "lx-quickstart-dismissed-v1";
@@ -41,6 +43,11 @@ export function QuickStartBar() {
   const openGrading = useUIStore((s) => s.openGrading);
   const doc = useDocumentStore((s) => s.document);
 
+  // プラン別のロック判定。currentPlan の変化で即時再レンダリングされる。
+  const currentPlan = usePlanStore((s) => s.currentPlan);
+  const ocrLocked = !canUseFeature(currentPlan, "ocr");
+  const gradingLocked = !canUseFeature(currentPlan, "grading");
+
   const [dismissed, setDismissed] = useState(false);
   const [persistDismissed, setPersistDismissed] = useState<boolean | null>(null);
 
@@ -64,6 +71,16 @@ export function QuickStartBar() {
   };
 
   const handleTemplate = (id: string) => {
+    // LP:「全テンプレート利用可」は Pro+。tier:"pro" のテンプレを Pro 未満が選んだら
+    // pricing modal を開き、呼び出し側では何もしない (実体は TemplatePicker と同じ挙動)。
+    const tpl = TEMPLATES.find((t) => t.id === id);
+    if (tpl?.tier === "pro") {
+      const check = usePlanStore.getState().checkFeature("allTemplates");
+      if (!check.allowed) {
+        usePlanStore.getState().setShowPricing(true);
+        return;
+      }
+    }
     setDocument(createFromTemplate(id, locale));
     setDismissed(true);
   };
@@ -150,15 +167,26 @@ export function QuickStartBar() {
               }
               triggerOMR(); dismiss();
             }}
-            className="group relative flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border border-emerald-300/30 dark:border-emerald-500/15 bg-white/80 dark:bg-white/[0.04] hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-400/50 transition-all shrink-0"
+            title={ocrLocked ? (isJa ? `${PLANS.starter.name}プラン以上で利用可能` : `${PLANS.starter.name} plan or higher required`) : undefined}
+            className={`group relative flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border transition-all shrink-0 ${
+              ocrLocked
+                ? "border-foreground/[0.06] bg-foreground/[0.015] hover:border-violet-400/30 hover:bg-violet-500/[0.04]"
+                : "border-emerald-300/30 dark:border-emerald-500/15 bg-white/80 dark:bg-white/[0.04] hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-400/50"
+            }`}
           >
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-sm shrink-0">
+            <div className={`h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-sm shrink-0 ${ocrLocked ? "grayscale opacity-60" : ""}`}>
               <ScanLine className="h-4 w-4 text-white" />
             </div>
             <div className="text-left min-w-0">
-              <div className="text-[12px] font-bold text-foreground/80">{isJa ? "画像を読む" : "Scan image"}</div>
-              <div className="text-[10px] text-muted-foreground/50 leading-snug">{isJa ? "PDF/画像→教材に変換" : "PDF/image → worksheet"}</div>
+              <div className={`text-[12px] font-bold ${ocrLocked ? "text-foreground/55" : "text-foreground/80"}`}>{isJa ? "画像を読む" : "Scan image"}</div>
+              <div className={`text-[10px] leading-snug ${ocrLocked ? "text-muted-foreground/40" : "text-muted-foreground/50"}`}>{isJa ? "PDF/画像→教材に変換" : "PDF/image → worksheet"}</div>
             </div>
+            {ocrLocked && (
+              <span className="absolute -top-1.5 -right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[8.5px] font-bold shadow">
+                <Lock className="h-2.5 w-2.5" />
+                {isJa ? `${PLANS.starter.name}〜` : `${PLANS.starter.name}+`}
+              </span>
+            )}
           </button>
 
           {/* 採点 (Starter+) */}
@@ -172,15 +200,26 @@ export function QuickStartBar() {
               }
               openGrading(doc?.latex || "", doc?.metadata.title || ""); dismiss();
             }}
-            className="group relative flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border border-rose-300/30 dark:border-rose-500/15 bg-white/80 dark:bg-white/[0.04] hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:border-rose-400/50 transition-all shrink-0"
+            title={gradingLocked ? (isJa ? `${PLANS.starter.name}プラン以上で利用可能` : `${PLANS.starter.name} plan or higher required`) : undefined}
+            className={`group relative flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border transition-all shrink-0 ${
+              gradingLocked
+                ? "border-foreground/[0.06] bg-foreground/[0.015] hover:border-violet-400/30 hover:bg-violet-500/[0.04]"
+                : "border-rose-300/30 dark:border-rose-500/15 bg-white/80 dark:bg-white/[0.04] hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:border-rose-400/50"
+            }`}
           >
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-rose-400 to-pink-600 flex items-center justify-center shadow-sm shrink-0">
+            <div className={`h-8 w-8 rounded-lg bg-gradient-to-br from-rose-400 to-pink-600 flex items-center justify-center shadow-sm shrink-0 ${gradingLocked ? "grayscale opacity-60" : ""}`}>
               <ClipboardCheck className="h-4 w-4 text-white" />
             </div>
             <div className="text-left min-w-0">
-              <div className="text-[12px] font-bold text-foreground/80">{isJa ? "採点する" : "Grade answers"}</div>
-              <div className="text-[10px] text-muted-foreground/50 leading-snug">{isJa ? "答案→AI採点→赤入れ" : "AI grading + markup"}</div>
+              <div className={`text-[12px] font-bold ${gradingLocked ? "text-foreground/55" : "text-foreground/80"}`}>{isJa ? "採点する" : "Grade answers"}</div>
+              <div className={`text-[10px] leading-snug ${gradingLocked ? "text-muted-foreground/40" : "text-muted-foreground/50"}`}>{isJa ? "答案→AI採点→赤入れ" : "AI grading + markup"}</div>
             </div>
+            {gradingLocked && (
+              <span className="absolute -top-1.5 -right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[8.5px] font-bold shadow">
+                <Lock className="h-2.5 w-2.5" />
+                {isJa ? `${PLANS.starter.name}〜` : `${PLANS.starter.name}+`}
+              </span>
+            )}
           </button>
         </div>
       </div>

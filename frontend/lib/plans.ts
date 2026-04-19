@@ -4,7 +4,9 @@
  * 差別化軸:
  *   1. 高性能AI 回数 (主軸 — コストに直結)
  *   2. 教材PDF出力 回数 (Free のみ制限)
- *   3. 機能解放 (採点/OMR/OCR は Starter+、バッチは Pro+、カスタムテンプレは Premium)
+ *   3. 機能解放:
+ *        - 採点 / OMR(OCR) / LaTeXソースエクスポート は Starter+
+ *        - 全テンプレート利用 / バッチ処理 は Pro+
  *
  * TikZ図の作成・保存、リアルタイムプレビュー、思考ログは全プラン共通 (無制限)。
  * 月額払い (Stripe) のみ。内部コスト: $0.01/リクエスト ≈ ¥1.5 (実測値)
@@ -12,14 +14,19 @@
 
 export type PlanId = "free" | "starter" | "pro" | "premium";
 
-/** プランでゲートする機能 */
+/**
+ * プランでゲートする機能。
+ *
+ * LP の公約と必ず一致させる。LP に載せた機能はここに定義し、
+ * UI およびサーバで `canUseFeature` / `require_feature` を使って強制する。
+ * customTemplates はエディタに実装が無いため LP からも除外してある。
+ */
 export type GatedFeature =
-  | "grading"          // 採点・自動採点
-  | "ocr"              // PDF・画像から問題抽出
-  | "latexExport"      // LaTeXソースエクスポート
-  | "allTemplates"     // 全テンプレート利用
-  | "batch"            // バッチ処理
-  | "customTemplates"; // カスタムテンプレート作成
+  | "grading"          // 採点・自動採点 (Starter+)
+  | "ocr"              // PDF・画像から問題抽出 (Starter+)
+  | "latexExport"      // LaTeXソースエクスポート (Starter+)
+  | "allTemplates"     // 全テンプレート利用 (Pro+)
+  | "batch";           // バッチ処理 (Pro+)
 
 /** 機能 → 使えるようになる最低プラン */
 const FEATURE_MIN_PLAN: Record<GatedFeature, PlanId> = {
@@ -28,7 +35,6 @@ const FEATURE_MIN_PLAN: Record<GatedFeature, PlanId> = {
   latexExport:     "starter",
   allTemplates:    "pro",
   batch:           "pro",
-  customTemplates: "premium",
 };
 
 /** 機能ごとの日本語ラベル (アップグレード促進メッセージ用) */
@@ -38,7 +44,6 @@ export const FEATURE_LABELS: Record<GatedFeature, { ja: string; en: string }> = 
   latexExport:     { ja: "LaTeXソースエクスポート", en: "LaTeX source export" },
   allTemplates:    { ja: "全テンプレート利用", en: "All templates" },
   batch:           { ja: "バッチ処理", en: "Batch processing" },
-  customTemplates: { ja: "カスタムテンプレート作成", en: "Custom template creation" },
 };
 
 const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2, premium: 3 };
@@ -185,7 +190,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "高性能AI 月2,000回",
       "教材PDF出力 無制限 (最優先処理)",
       "TikZ図の作成・保存 無制限",
-      "全テンプレート + カスタム作成",
+      "全テンプレート利用可",
       "採点・自動採点 (OMR)",
       "PDF・画像取り込み (OCR)",
       "バッチ処理 (最大300行)",
@@ -194,7 +199,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "High-performance AI: 2,000/month",
       "Worksheet PDF: unlimited (highest priority)",
       "TikZ figures: unlimited",
-      "All templates + custom creation",
+      "All templates",
       "Grading & auto-scoring (OMR)",
       "PDF & image import (OCR)",
       "Batch processing (up to 300 rows)",
