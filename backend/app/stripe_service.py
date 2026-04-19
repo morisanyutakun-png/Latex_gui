@@ -283,33 +283,46 @@ def _upsert_subscription_from_session(
     user: User,
     session: object,
     matched_key: str,
-) -> None:
+) -> dict:
     """Checkout Session の内容から DB の Subscription 行を冪等に upsert する。
 
     Webhook (checkout.session.completed / subscription.updated) に頼らず、
     redirect 直後の verify でも DB に反映させるため。
-    webhook が後から来ても `_handle_*` 側が `existing` ガードで重複を防ぐ。
+
+    Returns: 診断 dict — フロントに upsert の結果を返すために使う。
     """
+    report: dict = {"attempted": True, "success": False, "error": None}
     sub_id = session.get("subscription")  # type: ignore[attr-defined]
     plan_id = (session.get("metadata") or {}).get("plan_id", "")  # type: ignore[attr-defined]
     customer_id = session.get("customer")  # type: ignore[attr-defined]
     is_test_session = bool(customer_id and isinstance(customer_id, str) and "test" in (matched_key or ""))
+    report.update({
+        "sub_id": sub_id,
+        "plan_id": plan_id,
+        "customer_id": customer_id,
+        "is_test_session": is_test_session,
+        "user_id_written": user.id,
+    })
 
     if not sub_id or not plan_id:
-        logger.warning(
-            "Cannot upsert subscription: sub_id=%s plan_id=%s", sub_id, plan_id,
-        )
-        return
+        msg = f"missing sub_id or plan_id in session: sub_id={sub_id} plan_id={plan_id}"
+        logger.warning(msg)
+        report["error"] = msg
+        return report
 
-    # customer_id を User に紐付ける (test session の場合は live の既存値を壊さないようスキップ)
-    if customer_id and not user.stripe_customer_id and not is_test_session:
+    # customer_id を User に紐付ける (test session でも紐付ける。同期に使うため)
+    # 以前は test 時にスキップしていたが、/sync が stripe_customer_id を必要とするので、
+    # test session でも保存する (test customer と live customer は異なる ID 空間だが
+    # DB の 1 列しかないため、最新のものを採用する方針にする)。
+    if customer_id and user.stripe_customer_id != customer_id:
         user.stripe_customer_id = customer_id
         try:
             db.commit()
-        except Exception:
+            report["customer_linked"] = True
+        except Exception as e:
             db.rollback()
+            report["customer_link_error"] = str(e)[:200]
 
-    # Stripe から最新のサブスク情報を引いて期間情報を取得 (マッチした key 下で実施)
     period_start = None
     period_end = None
     status = "active"
@@ -326,33 +339,28 @@ def _upsert_subscription_from_session(
         items = sub_obj.get("items", {}).get("data", [])
         if items:
             price_id = items[0].get("price", {}).get("id", "") or price_id
+        report["stripe_status"] = status
     except Exception as e:
-        # Subscription.retrieve に失敗しても、session から分かる最低限の情報は書く
         logger.warning("Subscription.retrieve(%s) failed: %s", sub_id, e)
+        report["subscription_retrieve_error"] = f"{type(e).__name__}: {str(e)[:200]}"
     finally:
         stripe.api_key = prev
 
     existing = db.query(Subscription).filter(Subscription.id == sub_id).first()
-    if existing:
-        existing.user_id = user.id
-        existing.stripe_price_id = price_id or existing.stripe_price_id
-        existing.plan_id = plan_id
-        existing.status = status
-        if period_start is not None:
-            existing.current_period_start = period_start
-        if period_end is not None:
-            existing.current_period_end = period_end
-        existing.cancel_at_period_end = False
-        try:
+    try:
+        if existing:
+            existing.user_id = user.id
+            existing.stripe_price_id = price_id or existing.stripe_price_id
+            existing.plan_id = plan_id
+            existing.status = status
+            if period_start is not None:
+                existing.current_period_start = period_start
+            if period_end is not None:
+                existing.current_period_end = period_end
+            existing.cancel_at_period_end = False
             db.commit()
-            logger.info(
-                "Updated subscription %s for user %s plan=%s status=%s",
-                sub_id, user.id, plan_id, status,
-            )
-        except Exception:
-            db.rollback()
-    else:
-        try:
+            report["db_action"] = "updated"
+        else:
             db.add(Subscription(
                 id=sub_id,
                 user_id=user.id,
@@ -364,14 +372,28 @@ def _upsert_subscription_from_session(
                 cancel_at_period_end=False,
             ))
             db.commit()
-            logger.info(
-                "Created subscription %s for user %s plan=%s status=%s (from verify)",
-                sub_id, user.id, plan_id, status,
-            )
-        except Exception as e:
-            # 並行リクエスト / webhook との競合で重複挿入した場合は rollback して取り直す
-            db.rollback()
-            logger.warning("Insert race on subscription %s: %s", sub_id, e)
+            report["db_action"] = "created"
+
+        # 書き込み後に確認クエリ (本当に見えるか)
+        verify_row = db.query(Subscription).filter(Subscription.id == sub_id).first()
+        report["verified_after_commit"] = bool(verify_row)
+        if verify_row:
+            report["verified_user_id"] = verify_row.user_id
+            report["verified_plan_id"] = verify_row.plan_id
+            report["verified_status"] = verify_row.status
+        report["success"] = bool(verify_row and verify_row.status in ("active", "trialing"))
+
+        logger.info(
+            "Upserted subscription %s user=%s plan=%s status=%s action=%s",
+            sub_id, user.id, plan_id, status, report.get("db_action"),
+        )
+    except Exception as e:
+        db.rollback()
+        msg = f"{type(e).__name__}: {str(e)[:300]}"
+        logger.error("DB upsert failed for sub %s user %s: %s", sub_id, user.id, msg, exc_info=True)
+        report["error"] = msg
+
+    return report
 
 
 def verify_checkout_session(db: Session, session_id: str, user: User) -> dict:
@@ -402,12 +424,13 @@ def verify_checkout_session(db: Session, session_id: str, user: User) -> dict:
     plan_id = (session.get("metadata") or {}).get("plan_id", "")  # type: ignore[attr-defined]
 
     # ★ DB upsert — webhook 未着でもここで反映させる
+    upsert_report: dict = {"attempted": False}
     if paid:
         try:
-            _upsert_subscription_from_session(db, user, session, matched_key)
+            upsert_report = _upsert_subscription_from_session(db, user, session, matched_key)
         except Exception as e:
-            # DB 書き込み失敗は purchase event を止めるほどではないので warning で続行
             logger.error("Failed to upsert subscription from verify: %s", e, exc_info=True)
+            upsert_report = {"attempted": True, "success": False, "error": f"{type(e).__name__}: {str(e)[:200]}"}
 
     return {
         "paid": paid,
@@ -416,6 +439,7 @@ def verify_checkout_session(db: Session, session_id: str, user: User) -> dict:
         "currency": currency.upper(),
         "transaction_id": session_id,
         "plan_id": plan_id,
+        "upsert": upsert_report,
     }
 
 

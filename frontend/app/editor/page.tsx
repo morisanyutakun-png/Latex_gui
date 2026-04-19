@@ -119,6 +119,26 @@ export default function EditorPage() {
             return;
           }
           diag(`[3/5] verify: paid=${v.paid} payment_status=${v.payment_status} value=${v.value} ${v.currency}`);
+
+          // ★ backend の upsert 結果を可視化 — これが success=false なら DB は更新されていない
+          if (v.upsert) {
+            const u = v.upsert;
+            if (u.success) {
+              diag(
+                `upsert OK: ${u.db_action} sub=${u.sub_id?.slice(0, 20)}… plan=${u.verified_plan_id} user_id=${u.verified_user_id}`,
+                "success",
+              );
+            } else if (u.attempted) {
+              diag(
+                `upsert FAILED: ${u.error || "unknown"} ${u.subscription_retrieve_error ? "| stripe.Subscription.retrieve: " + u.subscription_retrieve_error : ""}`,
+                "error",
+              );
+              console.error("[checkout-flow] full upsert report:", u);
+            }
+          } else {
+            diag("backend did NOT attempt upsert — /version 未反映の疑い", "warning");
+          }
+
           const acceptable = v.paid || v.payment_status === "no_payment_required";
           if (!acceptable) {
             diag(`not paid (payment_status=${v.payment_status}). Skip purchase & upgrade.`, "error");

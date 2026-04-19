@@ -33,6 +33,24 @@ export interface CheckoutVerification {
   currency: string;
   transaction_id: string;
   plan_id: string;
+  // backend が redirect 時に DB upsert を試みた結果の診断情報
+  upsert?: {
+    attempted?: boolean;
+    success?: boolean;
+    error?: string | null;
+    sub_id?: string;
+    plan_id?: string;
+    user_id_written?: string;
+    db_action?: string;
+    verified_after_commit?: boolean;
+    verified_user_id?: string;
+    verified_plan_id?: string;
+    verified_status?: string;
+    customer_id?: string;
+    is_test_session?: boolean;
+    subscription_retrieve_error?: string;
+    [k: string]: unknown;
+  };
 }
 
 /**
@@ -65,6 +83,7 @@ export async function verifyCheckoutSession(sessionId: string): Promise<Checkout
       currency: String(data.currency ?? ""),
       transaction_id: String(data.transaction_id ?? sessionId),
       plan_id: String(data.plan_id ?? ""),
+      upsert: data.upsert ?? undefined,
     };
   } catch (e) {
     console.error("[verifyCheckoutSession] fetch threw", e);

@@ -315,6 +315,8 @@ class VerifyCheckoutResponse(BaseModel):
     currency: str = ""
     transaction_id: str = ""
     plan_id: str = ""
+    # backend で DB upsert した結果。フロントで成功/失敗とその理由が見える。
+    upsert: Optional[dict] = None
 
 
 @router.get("/verify-checkout", response_model=VerifyCheckoutResponse)
@@ -409,6 +411,67 @@ def _classify_secret_key(v: str) -> str:
     if v.startswith("sk_test_"):
         return "test"
     return "invalid"
+
+
+@router.get("/whoami")
+async def whoami(
+    user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """認証済みユーザーの DB 上の全情報を返す診断用。
+
+    「PRO で購入したのに Free のまま」問題のピンポイント調査に使う。
+    - user row (id, email, stripe_customer_id)
+    - subscriptions 行 全部 (id, plan_id, status, user_id)
+    - get_effective_plan の結果
+    """
+    if not user:
+        return {
+            "authenticated": False,
+            "note": "x-user-id ヘッダ無効または INTERNAL_API_SECRET 不一致",
+        }
+
+    subs = db.query(Subscription).filter(Subscription.user_id == user.id).all()
+    effective = get_effective_plan(db, user.id)
+
+    # email で引いた場合に id 違いの残骸がないかもチェック
+    by_email = []
+    if user.email:
+        by_email_users = db.query(User).filter(User.email == user.email).all()
+        for u in by_email_users:
+            u_subs = db.query(Subscription).filter(Subscription.user_id == u.id).all()
+            by_email.append({
+                "user_id": u.id,
+                "subscription_count": len(u_subs),
+                "subscriptions": [
+                    {"id": s.id, "plan_id": s.plan_id, "status": s.status}
+                    for s in u_subs
+                ],
+            })
+
+    return {
+        "authenticated": True,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "stripe_customer_id": user.stripe_customer_id,
+        },
+        "effective_plan": effective,
+        "subscription_count": len(subs),
+        "subscriptions": [
+            {
+                "id": s.id,
+                "plan_id": s.plan_id,
+                "status": s.status,
+                "user_id": s.user_id,
+                "stripe_price_id": s.stripe_price_id,
+                "cancel_at_period_end": s.cancel_at_period_end,
+            }
+            for s in subs
+        ],
+        "users_with_same_email": by_email,
+    }
 
 
 @router.get("/version")
