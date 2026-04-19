@@ -44,6 +44,7 @@ import {
   Hammer,
   Play,
   Plus,
+  ClipboardCheck,
 } from "lucide-react";
 
 /* ── Floating math formulas background ── */
@@ -131,12 +132,30 @@ function AnimatedCounter({ value, suffix = "" }: { value: number; suffix?: strin
   );
 }
 
-/* ── Step card ── */
-function StepCard({ num, icon, title, desc, color }: {
+/* ── Step card ──
+ * `planBadge` で「この手順はどのプランから使えるか」を明示する。
+ * LP 上の整合性を保つためのラベルで、Free で完結するフローは "Freeでも" と書く。
+ */
+type StepPlanBadge = "free" | "starter-plus" | "pro-plus";
+
+function StepCard({ num, icon, title, desc, color, planBadge }: {
   num: string; icon: React.ReactNode; title: string; desc: string; color: string;
+  planBadge?: StepPlanBadge;
 }) {
+  // 各バッジのラベル + 配色。Free = エメラルド、Starter+ = エメラルド濃色、Pro+ = 紫
+  const badgeMeta: Record<StepPlanBadge, { ja: string; en: string; className: string }> = {
+    "free":         { ja: "Freeでも",     en: "Free",        className: "text-emerald-700 bg-emerald-500/12 border-emerald-500/30 dark:text-emerald-300" },
+    "starter-plus": { ja: "Starter〜",    en: "Starter+",    className: "text-emerald-700 bg-emerald-500/15 border-emerald-500/40 dark:text-emerald-300" },
+    "pro-plus":     { ja: "Pro〜",        en: "Pro+",        className: "text-violet-700 bg-gradient-to-r from-blue-500/15 to-violet-500/15 border-violet-500/35 dark:text-violet-300" },
+  };
+
   return (
     <div className="relative flex flex-col items-start gap-3 p-6 rounded-2xl bg-card/50 backdrop-blur-sm border border-foreground/[0.06] hover:border-foreground/[0.12] hover:shadow-xl hover:-translate-y-0.5 transition-all duration-400 group">
+      {planBadge && (
+        <span className={`absolute top-3 right-3 inline-flex items-center gap-1 text-[9px] font-bold tracking-wide px-1.5 py-0.5 rounded-md border ${badgeMeta[planBadge].className}`}>
+          {badgeMeta[planBadge].ja}
+        </span>
+      )}
       <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-md group-hover:scale-110 group-hover:shadow-lg transition-all duration-300 ${color}`}>
         {icon}
       </div>
@@ -147,6 +166,26 @@ function StepCard({ num, icon, title, desc, color }: {
         </div>
         <p className="text-[12px] text-muted-foreground leading-relaxed">{desc}</p>
       </div>
+    </div>
+  );
+}
+
+/* ── Pro 解放フローカード ──
+ * Workflow セクションの「Pro で解放」ブロック内で使う、小さめのカード。
+ * Free の 4 ステップと視覚的に差別化 (紫グラデ枠 + 小さめの装飾)。
+ */
+function ProWorkflowCard({
+  icon, title, desc, color,
+}: {
+  icon: React.ReactNode; title: string; desc: string; color: string;
+}) {
+  return (
+    <div className="relative flex flex-col items-start gap-2.5 p-4 rounded-xl bg-card/70 backdrop-blur-sm border border-foreground/[0.05] hover:border-violet-500/25 hover:shadow-lg hover:shadow-violet-500/[0.08] transition-all duration-300 group">
+      <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform duration-300 ${color}`}>
+        {icon}
+      </div>
+      <h4 className="text-[13px] font-bold tracking-tight">{title}</h4>
+      <p className="text-[11.5px] text-muted-foreground leading-relaxed">{desc}</p>
     </div>
   );
 }
@@ -927,11 +966,19 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
           <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
             {isJa ? "古い教材が、3ステップで新品に。" : "Old worksheet → polished printout in 3 steps."}
           </h2>
-          <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
+          <p className="text-muted-foreground text-[15px] max-w-md mx-auto mb-4">
             {isJa
               ? "過去問・スキャン・古いPDF。何からでも始められます。"
               : "Start from any old worksheet, scan, or PDF — Eddivom handles the rest."}
           </p>
+          {/* 整合性: PDF/画像取り込みは Pro+ 機能のため、LP 上で明示する。
+              Free ユーザーは AI プロンプト or テンプレートから始める動線を利用する。 */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-blue-500/10 to-violet-500/10 border border-violet-500/25 text-[11px] font-semibold text-violet-700 dark:text-violet-300">
+            <Crown className="h-3 w-3" />
+            {isJa
+              ? "このPDF取り込みフローは Pro プラン以上でご利用いただけます"
+              : "PDF ingestion flow available on Pro plan and above"}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-8 md:gap-6 items-center">
@@ -1532,48 +1579,87 @@ export function TemplateGallery() {
 
       <BeforeAfterSection isJa={isJa} />
 
-      {/* ━━ Workflow ━━ */}
+      {/* ━━ Workflow ━━
+        Free で完結する 4 ステップをメインに置き、
+        その下に「Pro で解放される拡張機能」を別ブロックで見せる構成。
+        (以前は 5 ステップで PDF 取り込み=OCR を最初に置いていたが、
+        OCR は Pro+ 機能なので Free ユーザーが実行できず LP の整合性を損ねていた) */}
       <section className="relative py-28 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_100%,hsl(var(--primary)/0.03),transparent_70%)]" />
         <div
           ref={workflowFade.ref}
           className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${workflowFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <div className="text-center mb-16">
+          <div className="text-center mb-14">
             <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
               {isJa ? "Eddivom のワークフロー" : "How Eddivom works"}
             </p>
             <h2 className="text-[clamp(1.5rem,4vw,2.6rem)] font-bold tracking-tight mb-4">
-              {isJa ? "入力から配布まで、5ステップ。" : "PDF to printable worksheet in 5 steps."}
+              {isJa ? "Free でも 4 ステップで 1 枚完成。" : "A worksheet in 4 steps — even on Free."}
             </h2>
-            <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
+            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
               {isJa
-                ? "PDF・画像・テキスト、何からでも始められます。"
-                : "Start from an old worksheet, a photo, or just a description."}
+                ? "AIに指示してから PDF 印刷まで、ブラウザだけで完結。Pro にアップグレードすれば PDF 取り込み・採点・バッチ量産が解放されます。"
+                : "From AI prompt to print-ready PDF, entirely in the browser. Upgrade to Pro to unlock PDF ingestion, grading, and batch generation."}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-3">
-            <StepCard num="01" icon={<Upload className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "素材を入力" : "Bring your source"}
-              desc={isJa ? "PDFをアップロード、画像を貼る、またはテキストで指示。何からでもOK" : "Upload an old worksheet PDF, snap a photo, or just describe what you need"}
-              color="bg-gradient-to-br from-blue-500 to-cyan-500" />
-            <StepCard num="02" icon={<Layers className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "問題を抽出" : "Extract problems"}
-              desc={isJa ? "PDFや画像から問題を自動で認識し、編集可能な形式に変換" : "AI pulls out each problem — equations, diagrams, choices — and makes them editable"}
-              color="bg-gradient-to-br from-violet-500 to-fuchsia-500" />
-            <StepCard num="03" icon={<PenLine className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "問題ごとに編集" : "Edit per problem"}
-              desc={isJa ? "数式・選択肢・配点をWord感覚で自由に修正。1問ずつ微調整" : "Change numbers, reword prompts, adjust points. No LaTeX — just click and type"}
-              color="bg-gradient-to-br from-emerald-500 to-teal-500" />
-            <StepCard num="04" icon={<Copy className="h-5 w-5" strokeWidth={1.5} />}
-              title={isJa ? "類題を増やす" : "Generate variants"}
-              desc={isJa ? "「類題を5問」で数値・難易度を変えたバリエーションを即生成" : "\"5 more like this\" — fresh problems with different numbers and difficulty levels"}
-              color="bg-gradient-to-br from-amber-500 to-orange-500" />
-            <StepCard num="05" icon={<FileDown className="h-5 w-5" strokeWidth={1.5} />}
+          {/* ── Free で完結する 4 ステップ (主動線) ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-3">
+            <StepCard num="01" icon={<Sparkles className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "AIにお願い" : "Ask the AI"}
+              desc={isJa ? "「二次方程式のプリントを10問」など自然言語で指示。テンプレ選択でもOK。" : "Describe what you need (e.g. \"10 quadratic problems\") or pick a template."}
+              color="bg-gradient-to-br from-blue-500 to-violet-500"
+              planBadge="free" />
+            <StepCard num="02" icon={<PenLine className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "紙面で直接編集" : "Edit on the page"}
+              desc={isJa ? "数式・配点・設問を紙面でクリック編集。LaTeX の知識は不要。" : "Click and edit equations, points, prompts — no LaTeX knowledge required."}
+              color="bg-gradient-to-br from-emerald-500 to-teal-500"
+              planBadge="free" />
+            <StepCard num="03" icon={<Copy className="h-5 w-5" strokeWidth={1.5} />}
+              title={isJa ? "AIで類題を追加" : "AI adds variants"}
+              desc={isJa ? "「もう5問」で数値・難易度を変えた類題が即追加。AI回数はプラン別。" : "\"5 more like this\" spawns fresh variants. AI call count depends on plan."}
+              color="bg-gradient-to-br from-amber-500 to-orange-500"
+              planBadge="free" />
+            <StepCard num="04" icon={<FileDown className="h-5 w-5" strokeWidth={1.5} />}
               title={isJa ? "PDF出力・印刷" : "Export & print"}
-              desc={isJa ? "生徒用と解答付きの2種類のPDFを出力。A4/B5で即印刷" : "One click for the student version, one click for the answer key. Print-ready PDF"}
-              color="bg-gradient-to-br from-slate-500 to-gray-600" />
+              desc={isJa ? "生徒用・解答付きの2種類を PDF で書き出し。A4/B5 で即印刷。" : "Export student sheet + answer key. Print-ready A4/B5 PDF."}
+              color="bg-gradient-to-br from-slate-500 to-gray-600"
+              planBadge="free" />
+          </div>
+
+          {/* ── Pro で解放される拡張フロー (副動線) ── */}
+          <div className="mt-10 relative rounded-[24px] p-7 bg-gradient-to-br from-blue-500/[0.04] via-violet-500/[0.05] to-fuchsia-500/[0.04] border border-violet-500/[0.18] overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-violet-500/[0.08] blur-3xl pointer-events-none" />
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[10.5px] font-bold tracking-wide shadow-md">
+                <Crown className="h-3 w-3" />
+                {isJa ? "Pro で解放" : "Unlocked on Pro"}
+              </span>
+              <h3 className="text-[15px] font-bold tracking-tight">
+                {isJa ? "Pro にアップグレードで、さらに以下のフローが追加されます。" : "Upgrading to Pro unlocks these extra workflows."}
+              </h3>
+            </div>
+            <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <ProWorkflowCard
+                icon={<Upload className="h-4 w-4" strokeWidth={1.6} />}
+                color="bg-gradient-to-br from-blue-500 to-cyan-500"
+                title={isJa ? "PDF・画像から取り込み" : "PDF / image ingest"}
+                desc={isJa ? "過去問スキャンや古い PDF を AI が自動で問題に変換 (OCR)。" : "Scanned exams or old PDFs → editable problems via OCR."}
+              />
+              <ProWorkflowCard
+                icon={<ClipboardCheck className="h-4 w-4" strokeWidth={1.6} />}
+                color="bg-gradient-to-br from-rose-500 to-pink-600"
+                title={isJa ? "採点・自動赤入れ" : "AI grading & markup"}
+                desc={isJa ? "答案画像 → AI採点 → TikZ オーバーレイ赤入れ PDF を生成。" : "Answer images → AI grading → marked-up PDF with TikZ overlay."}
+              />
+              <ProWorkflowCard
+                icon={<Layers className="h-4 w-4" strokeWidth={1.6} />}
+                color="bg-gradient-to-br from-violet-500 to-fuchsia-600"
+                title={isJa ? "バッチ量産 100〜300 行" : "Batch generate 100–300 rows"}
+                desc={isJa ? "CSV の変数データからクラス別・生徒別 PDF を一括出力。" : "Generate per-student or per-class PDFs from CSV variables."}
+              />
+            </div>
           </div>
 
           {/* Workflow 下の主要 CTA — ユーザー状態に応じてラベル/動作が切り替わる */}
@@ -1616,7 +1702,7 @@ export function TemplateGallery() {
             </p>
           </div>
 
-          {/* Big 3 cards */}
+          {/* Big 3 cards — プラン整合性のため各カードに利用可能プランを明示 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             {[
               {
@@ -1627,6 +1713,8 @@ export function TemplateGallery() {
                 desc: isJa
                   ? "既存の教材PDF・過去問・画像をアップロードするだけ。問題を自動で認識・抽出し、そのまま編集できます。"
                   : "Upload a PDF you already made or a past exam photo. Problems are auto-extracted — equations intact — and ready to edit.",
+                // OCR は Pro+ なので明示
+                planBadge: "pro" as const,
               },
               {
                 icon: <PenLine className="h-6 w-6" strokeWidth={1.5} />,
@@ -1636,6 +1724,7 @@ export function TemplateGallery() {
                 desc: isJa
                   ? "数式・選択肢・配点・解説をクリックして直接編集。問題の入れ替え・並べ替えも自在です。"
                   : "Click any equation, answer choice, or point value and just type. Reorder and rearrange problems freely.",
+                planBadge: "free" as const,
               },
               {
                 icon: <Copy className="h-6 w-6" strokeWidth={1.5} />,
@@ -1645,12 +1734,24 @@ export function TemplateGallery() {
                 desc: isJa
                   ? "1問から数値・条件・難易度を変えたバリエーションを一括生成。演習量を一気に増やせます。"
                   : "One problem becomes five — or fifty. Different numbers, different difficulty, same skill.",
+                planBadge: "free" as const,
               },
             ].map((f) => (
               <div
                 key={f.title}
                 className="group relative p-7 rounded-[20px] bg-card/70 backdrop-blur-xl border border-foreground/[0.05] hover:border-foreground/[0.1] hover:shadow-2xl hover:-translate-y-1 transition-all duration-500"
               >
+                {/* 利用プランバッジ */}
+                {f.planBadge === "pro" ? (
+                  <span className="absolute top-4 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-500/12 to-violet-500/12 border border-violet-500/30 text-[10px] font-bold text-violet-700 dark:text-violet-300">
+                    <Crown className="h-2.5 w-2.5" />
+                    {isJa ? "Pro〜" : "Pro+"}
+                  </span>
+                ) : (
+                  <span className="absolute top-4 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/12 border border-emerald-500/30 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                    {isJa ? "Freeでも" : "Free"}
+                  </span>
+                )}
                 <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-6 text-white shadow-lg ${f.shadow} group-hover:scale-110 group-hover:shadow-xl transition-all duration-500`}>
                   {f.icon}
                 </div>
@@ -2166,18 +2267,60 @@ export function TemplateGallery() {
 
       {/* ━━ Footer ━━ */}
       <footer className="border-t border-foreground/[0.05] py-12">
-        <div className="max-w-5xl mx-auto px-6 text-center">
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-sm">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
-                <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-                <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
-              </svg>
+        <div className="max-w-5xl mx-auto px-6">
+          {/* ブランドロゴ + タグライン */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-sm">
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
+                  <path d="M5 6h10M5 12h7M5 18h10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="18" cy="12" r="3" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.3" />
+                </svg>
+              </div>
+              <span className="text-[14px] font-bold tracking-tight opacity-60">Eddivom</span>
             </div>
-            <span className="text-[14px] font-bold tracking-tight opacity-50">Eddivom</span>
+            <p className="text-[11px] text-muted-foreground/40 tracking-wide">
+              {isJa ? "AI教材作成IDE · Powered by LuaLaTeX" : "AI worksheet IDE · Powered by LuaLaTeX"}
+            </p>
           </div>
-          <p className="text-[11px] text-muted-foreground/25 tracking-wide">
-            AI教材作成IDE · Powered by LuaLaTeX
+
+          {/* 法的リンク行 — 日本向け順序: 料金 | お問い合わせ | 利用規約 | プライバシーポリシー | 特商法 | 返金ポリシー */}
+          <nav
+            className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mb-6 text-[12px] text-muted-foreground/70"
+            aria-label={isJa ? "フッターナビゲーション" : "Footer navigation"}
+          >
+            <button
+              type="button"
+              onClick={scrollToPricing}
+              className="hover:text-foreground transition-colors"
+            >
+              {isJa ? "料金" : "Pricing"}
+            </button>
+            <span className="text-muted-foreground/20">·</span>
+            <a href="/contact" className="hover:text-foreground transition-colors">
+              {isJa ? "お問い合わせ" : "Contact"}
+            </a>
+            <span className="text-muted-foreground/20">·</span>
+            <a href="/terms" className="hover:text-foreground transition-colors">
+              {isJa ? "利用規約" : "Terms"}
+            </a>
+            <span className="text-muted-foreground/20">·</span>
+            <a href="/privacy" className="hover:text-foreground transition-colors">
+              {isJa ? "プライバシーポリシー" : "Privacy"}
+            </a>
+            <span className="text-muted-foreground/20">·</span>
+            <a href="/commerce" className="hover:text-foreground transition-colors">
+              {isJa ? "特定商取引法に基づく表記" : "Commerce"}
+            </a>
+            <span className="text-muted-foreground/20">·</span>
+            <a href="/refunds" className="hover:text-foreground transition-colors">
+              {isJa ? "返金ポリシー" : "Refunds"}
+            </a>
+          </nav>
+
+          {/* コピーライト */}
+          <p className="text-center text-[10.5px] text-muted-foreground/30 tracking-wide">
+            © {new Date().getFullYear()} Eddivom. All rights reserved.
           </p>
         </div>
       </footer>
