@@ -476,10 +476,12 @@ async def compile_raw(
         })
     from urllib.parse import quote
     safe_filename = quote((req.filename or "document").replace(" ", "_") + ".pdf", safe="")
+    # compile-raw はライブプレビュー用途が主なので inline をデフォルトにする。
+    # 明示的にダウンロードさせたい generate-pdf 側は attachment のまま。
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"},
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}"},
     )
 
 

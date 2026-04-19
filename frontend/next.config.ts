@@ -29,7 +29,9 @@ const securityHeaders = [
       // PDF / PNG プレビューなどの media / object 系でも blob: を許可
       "media-src 'self' blob: data:",
       "frame-ancestors 'none'",
-      "object-src 'none'",
+      // object-src: Safari は PDF の iframe 描画を内部的に <object>/<embed> で扱うため、
+      // 'none' のままだと blob: PDF のプレビューが白紙になる。同一オリジンと blob のみ許可。
+      "object-src 'self' blob:",
       "base-uri 'self'",
       "form-action 'self' https://checkout.stripe.com",
     ].join("; "),

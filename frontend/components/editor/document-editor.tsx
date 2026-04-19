@@ -303,18 +303,29 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
         )}
         {previewUrl ? (
           <>
-            <iframe
-              src={previewUrl}
-              title="Preview"
-              className="h-full w-full border-0"
-            />
-            {/* 万一ブラウザ/拡張機能が blob: iframe を表示できない環境でも
-                PDF を取り出せるよう、右下にダウンロードリンクを常設 */}
+            {/* Safari は <iframe src="blob:...pdf"> を白紙にすることがある。
+                <object> なら Safari 独自の PDF ビューアが発動しやすく、
+                未対応ブラウザでは内側の <iframe> フォールバックが描画される。 */}
+            <object
+              data={previewUrl}
+              type="application/pdf"
+              className="h-full w-full"
+              aria-label="PDF preview"
+            >
+              <iframe
+                src={previewUrl}
+                title="Preview"
+                className="h-full w-full border-0"
+              />
+            </object>
+            {/* どうしても inline 表示できない環境用のダウンロードリンクを右下に常設 */}
             <a
               href={previewUrl}
               download="preview.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
               className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-md bg-foreground/80 text-background px-2 py-1 text-[10px] font-medium shadow-md hover:bg-foreground"
-              title="PDFをダウンロード"
+              title="PDFをダウンロード / 新しいタブで開く"
             >
               PDF
             </a>

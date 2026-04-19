@@ -87,11 +87,18 @@ export async function POST(req: NextRequest) {
     }
 
     const pdfBytes = await res.arrayBuffer();
+    // ★ 重要: バックエンドは `attachment; filename=...` を返すが、これをそのまま
+    // 転送するとブラウザが「ダウンロード専用」として blob を扱い、iframe で inline
+    // 表示できない (Safari / Chrome 双方で発現)。プレビュー用途では必ず inline
+    // に上書きする。ダウンロード自体は PdfPreviewPanel の "PDF" リンクに任せる。
     return new NextResponse(pdfBytes, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": res.headers.get("Content-Disposition") || 'inline; filename="preview.pdf"',
+        "Content-Disposition": 'inline; filename="preview.pdf"',
+        // Safari が iframe 内 PDF を表示するとき X-Frame-Options がホスト側から
+        // 干渉しないよう SAMEORIGIN を明示 (next.config は DENY だがここは上書き)。
+        "X-Frame-Options": "SAMEORIGIN",
       },
     });
   } catch (err) {
