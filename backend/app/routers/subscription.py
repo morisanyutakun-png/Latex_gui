@@ -35,15 +35,14 @@ def get_current_user(
     X-Internal-Secret が設定されている環境では、一致しない場合は X-User-Id を無視する。
     (ブラウザからの直接偽造を防ぐ)
 
-    id が一致する行が無い場合は email でフォールバック検索する
-    (AUTH_SECRET 変更等で session id が変わっても同じ Google アカウントを追従する)。
+    email フォールバックは INTERNAL_SECRET 検証通過時のみ許可。
     """
     if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
         return None
     if not x_user_id:
         return None
     user = db.query(User).filter(User.id == x_user_id).first()
-    if not user and x_user_email:
+    if not user and x_user_email and INTERNAL_SECRET:
         user = db.query(User).filter(User.email == x_user_email).first()
     return user
 
@@ -77,10 +76,13 @@ def _upsert_user(
     email: Optional[str],
     name: Optional[str],
 ) -> User:
-    """id または email で既存ユーザーを探し、無ければ新規作成して返す。"""
+    """id または email で既存ユーザーを探し、無ければ新規作成して返す。
+
+    email フォールバックは INTERNAL_API_SECRET 検証通過経路 (= 呼び出し元が
+    get_or_create_user 依存性から来ていて内部シークレット検証済み) でのみ動く。
+    """
     user = db.query(User).filter(User.id == user_id).first()
-    if not user and email:
-        # id が違っても email が一致する既存ユーザーを再利用する
+    if not user and email and INTERNAL_SECRET:
         user = db.query(User).filter(User.email == email).first()
         if user:
             logger.info(

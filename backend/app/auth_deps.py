@@ -38,6 +38,19 @@ _FEATURE_LABEL_JA: dict[str, str] = {
 
 INTERNAL_SECRET = os.environ.get("INTERNAL_API_SECRET", "")
 
+# ★ 本番環境 (FRONTEND_URL が localhost 以外) では INTERNAL_API_SECRET 未設定を
+# 起動時に明示的に警告する。未設定だと x-user-id 詐称でバックエンドを直叩きされる。
+if not INTERNAL_SECRET:
+    _frontend = os.environ.get("FRONTEND_URL", "").lower()
+    _is_prod = _frontend and "localhost" not in _frontend and "127.0.0.1" not in _frontend
+    if _is_prod:
+        import logging as _logging
+        _logging.getLogger(__name__).error(
+            "SECURITY: INTERNAL_API_SECRET is not set in a production-like environment. "
+            "Requests to this backend can be forged with arbitrary x-user-id headers. "
+            "Set this env var to match the Next.js layer's INTERNAL_API_SECRET."
+        )
+
 
 def _resolve_user(
     db: Session,
@@ -50,6 +63,7 @@ def _resolve_user(
 
     id が違っても email が一致する既存行があれば再利用する
     (unique(email) 制約衝突で 500 にならないようにする)。
+    ただし email フォールバックは内部シークレット検証を通過した時のみ許可。
     """
     if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
         return None
@@ -59,7 +73,9 @@ def _resolve_user(
     decoded_name = unquote(x_user_name) if x_user_name else x_user_name
 
     user = db.query(User).filter(User.id == x_user_id).first()
-    if not user and x_user_email:
+    # email フォールバックは INTERNAL_SECRET 検証済みの経路のみ
+    # (未設定環境では id 完全一致のみ受け付け、なりすまし耐性を底上げ)
+    if not user and x_user_email and INTERNAL_SECRET:
         user = db.query(User).filter(User.email == x_user_email).first()
 
     if not user:

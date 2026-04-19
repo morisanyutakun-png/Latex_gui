@@ -24,6 +24,41 @@ with contextlib.suppress(Exception):
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 
+def _warn_on_prod_test_keys() -> None:
+    """本番環境で sk_test_ / STRIPE_SECRET_KEY_<PLAN>=sk_test_ が残っていたら警告。
+
+    残したまま本番リリースすると、そのプランだけ test mode で決済が通って
+    DB に Pro を書き込める "無料 Pro" バックドアになる。
+    """
+    _frontend = FRONTEND_URL.lower()
+    is_prod = (
+        _frontend
+        and "localhost" not in _frontend
+        and "127.0.0.1" not in _frontend
+        and "0.0.0.0" not in _frontend
+    )
+    if not is_prod:
+        return
+    main_key = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+    if main_key.startswith("sk_test_"):
+        logger.error(
+            "SECURITY: STRIPE_SECRET_KEY looks like a test key (sk_test_*) in a "
+            "production-like environment. Real payments will not go through, and "
+            "test charges will be mistaken for real ones."
+        )
+    for p in ("starter", "pro", "premium"):
+        override = os.environ.get(f"STRIPE_SECRET_KEY_{p.upper()}", "").strip()
+        if override.startswith("sk_test_"):
+            logger.error(
+                "SECURITY: STRIPE_SECRET_KEY_%s is a test key in production. "
+                "Users can activate %s for free by paying with 4242 test card.",
+                p.upper(), p,
+            )
+
+
+_warn_on_prod_test_keys()
+
+
 def _sg(obj, key, default=None):
     """Stripe object / ListObject / dict / None から安全に値を取り出すヘルパー。
 
@@ -80,9 +115,12 @@ def _cancel_stripe_subscription_best_effort(sub_id: str) -> bool:
 
     pseudo id (`free_<user>`) はスキップ。
     複数のキーで順に試し、どれかで成功すれば OK。
+    全キーで失敗した場合は **ERROR ログ** で記録 (= double-billing リスクなので
+    監視側でアラート化する想定)。
     """
     if not sub_id or sub_id.startswith("free_"):
         return False
+    last_err: Optional[Exception] = None
     prev = stripe.api_key
     try:
         for key in _all_candidate_keys():
@@ -91,12 +129,18 @@ def _cancel_stripe_subscription_best_effort(sub_id: str) -> bool:
                 stripe.Subscription.cancel(sub_id)
                 logger.info("Canceled old Stripe subscription %s", sub_id)
                 return True
-            except stripe.error.InvalidRequestError:
+            except stripe.error.InvalidRequestError as e:
+                last_err = e
                 continue
             except Exception as e:
-                logger.warning("Stripe cancel %s unexpected error: %s", sub_id, e)
+                last_err = e
                 continue
-        logger.warning("Could not cancel Stripe subscription %s with any key", sub_id)
+        # 全滅: double-billing の可能性を明示的に ERROR で残す
+        logger.error(
+            "BILLING: Failed to cancel Stripe subscription %s with any key — "
+            "user may be double-billed. Manual cancellation required. Last error: %s",
+            sub_id, last_err,
+        )
         return False
     finally:
         stripe.api_key = prev
@@ -523,10 +567,14 @@ def verify_checkout_session(db: Session, session_id: str, user: User) -> dict:
     """
     session, matched_key = _retrieve_session_any_mode(session_id)
 
-    # セッションが当該ユーザーのものかを確認
+    # ★ Critical: セッションが当該ユーザーのものかを厳格確認。
+    # metadata.user_id 空の session は我々が作ったものではない (Dashboard 手作業等) ので
+    # 絶対に DB upsert / purchase 発火に使わせない。空値 = 詐称の可能性として一律拒否。
     metadata = _sg(session, "metadata")
     meta_user_id = _sg(metadata, "user_id")
-    if meta_user_id and meta_user_id != user.id:
+    if not meta_user_id:
+        raise PermissionError("Session has no user_id in metadata — refuse to verify")
+    if meta_user_id != user.id:
         raise PermissionError("Session does not belong to the authenticated user")
 
     payment_status = _sg(session, "payment_status")
@@ -729,8 +777,19 @@ def _ts_to_dt(ts: Optional[int]) -> Optional[datetime.datetime]:
 
 
 def handle_webhook_event(payload: bytes, sig_header: str, db: Session) -> None:
-    """Stripe Webhook イベントを検証して処理する。"""
-    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    """Stripe Webhook イベントを検証して処理する。
+
+    Webhook secret が未設定だと署名検証を素通りさせる実装は絶対に避ける。
+    未設定時は全ての webhook を拒否する。
+    """
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+    if not webhook_secret:
+        logger.error(
+            "SECURITY: STRIPE_WEBHOOK_SECRET is not set. All webhook requests will be rejected."
+        )
+        raise stripe.error.SignatureVerificationError(
+            "Webhook secret not configured", sig_header, payload,
+        )
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
     except stripe.error.SignatureVerificationError as e:
@@ -760,8 +819,53 @@ def handle_webhook_event(payload: bytes, sig_header: str, db: Session) -> None:
     elif event_type == "invoice.payment_failed":
         _handle_invoice_failed(data, db)
 
+    elif event_type in ("charge.refunded", "charge.dispute.created"):
+        # 返金 / チャージバックは即座に関連サブスクを canceled 扱いにする。
+        # これらは決済プラットフォーム起点の強制失効なのでユーザー権限に関係なく適用。
+        _handle_charge_revoked(data, db, event_type)
+
     else:
         logger.debug("Unhandled Stripe event type: %s", event_type)
+
+
+def _handle_charge_revoked(obj, db: Session, reason: str) -> None:
+    """charge.refunded / charge.dispute.created: 該当サブスクを canceled にする。
+
+    Charge の `invoice` → `subscription` を逆引きして DB を demote。
+    Stripe 側のキャンセルは別途 webhook (customer.subscription.deleted) が来るはずだが、
+    届くまでの間に有料機能を使われないようここで即座に Free 降格させる。
+    """
+    invoice_id = _sg(obj, "invoice")
+    if not invoice_id:
+        logger.info("%s without invoice, skipping", reason)
+        return
+    # invoice → subscription
+    sub_id: Optional[str] = None
+    prev = stripe.api_key
+    try:
+        for key in _all_candidate_keys():
+            stripe.api_key = key
+            try:
+                invoice = stripe.Invoice.retrieve(invoice_id)
+                sub_id = _sg(invoice, "subscription")
+                if sub_id:
+                    break
+            except stripe.error.InvalidRequestError:
+                continue
+    finally:
+        stripe.api_key = prev
+
+    if not sub_id:
+        logger.warning("%s: could not resolve subscription from invoice %s", reason, invoice_id)
+        return
+    sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
+    if sub and sub.status != "canceled":
+        sub.status = "canceled"
+        db.commit()
+        logger.warning(
+            "Demoted subscription %s to canceled due to %s (invoice %s)",
+            sub_id, reason, invoice_id,
+        )
 
 
 # ── 個別イベントハンドラ ─────────────────────────────────────────────────────
