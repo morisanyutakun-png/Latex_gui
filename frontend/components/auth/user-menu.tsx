@@ -1,9 +1,31 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
-import { LogIn, LogOut, User, CreditCard } from "lucide-react";
+import { LogIn, LogOut, User, CreditCard, Crown } from "lucide-react";
 import { usePlanStore } from "@/store/plan-store";
+import { PLANS, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n";
+
+// プラン別のバッジ配色。アバターの左に表示する。
+const PLAN_BADGE_STYLE: Record<PlanId, { cls: string; icon: boolean }> = {
+  free:    { cls: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700", icon: false },
+  starter: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60", icon: false },
+  pro:     { cls: "bg-gradient-to-r from-blue-50 to-violet-50 text-violet-700 border-violet-200 dark:from-blue-950/40 dark:to-violet-950/40 dark:text-violet-300 dark:border-violet-800/60", icon: true },
+  premium: { cls: "bg-gradient-to-r from-amber-50 to-orange-50 text-amber-700 border-amber-200 dark:from-amber-950/40 dark:to-orange-950/40 dark:text-amber-300 dark:border-amber-800/60", icon: true },
+};
+
+function PlanBadge({ plan }: { plan: PlanId }) {
+  const style = PLAN_BADGE_STYLE[plan];
+  return (
+    <span
+      className={`hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] font-bold tracking-wide uppercase ${style.cls}`}
+      title={`Current plan: ${PLANS[plan].name}`}
+    >
+      {style.icon && <Crown className="h-3 w-3" />}
+      {PLANS[plan].name}
+    </span>
+  );
+}
 
 export function UserMenu() {
   const { t } = useI18n();
@@ -33,7 +55,8 @@ export function UserMenu() {
   }
 
   return (
-    <div className="relative group">
+    <div className="relative group flex items-center gap-2">
+      <PlanBadge plan={currentPlan} />
       <button className="flex items-center gap-2 h-8 px-1.5 rounded-lg hover:bg-foreground/[0.04] transition-all duration-200">
         {session.user?.image ? (
           <img

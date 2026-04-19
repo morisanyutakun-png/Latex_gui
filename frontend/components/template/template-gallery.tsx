@@ -11,6 +11,8 @@ import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { UserMenu } from "@/components/auth/user-menu";
 import { toast } from "sonner";
+import { usePlanStore } from "@/store/plan-store";
+import { PLANS, type PlanId } from "@/lib/plans";
 import "katex/dist/katex.min.css";
 import { renderMathHTML } from "@/lib/katex-render";
 import {
@@ -1082,10 +1084,19 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
   );
 }
 
+// プラン別の UI 状態。サーバ判定が最終権限なので、ここは UX だけに使う。
+const PLAN_RANK_UI: Record<PlanId, number> = { free: 0, starter: 1, pro: 2, premium: 3 };
+function planButtonState(current: PlanId, target: PlanId): "upgrade" | "current" | "lower" {
+  if (current === target) return "current";
+  if (PLAN_RANK_UI[target] > PLAN_RANK_UI[current]) return "upgrade";
+  return "lower";
+}
+
 export function TemplateGallery() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setDocument = useDocumentStore((s) => s.setDocument);
+  const currentPlan = usePlanStore((s) => s.currentPlan);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [powerOpen, setPowerOpen] = useState(false);
 
@@ -1133,8 +1144,21 @@ export function TemplateGallery() {
   const redirectToCheckout = async (planId: string) => {
     try {
       const { createCheckoutSession } = await import("@/lib/subscription-api");
-      const url = await createCheckoutSession(planId as "starter" | "pro" | "premium");
-      window.location.href = url;
+      const result = await createCheckoutSession(planId as "starter" | "pro" | "premium");
+      if (result.action === "already_on_plan") {
+        // サーバ判定で「既に同じ or 上位プラン契約中」。Stripe は挟まない。
+        toast.success(
+          isJa
+            ? `すでに${PLANS[(result.currentPlan || "free") as keyof typeof PLANS]?.name ?? ""}プランをご契約中です。エディタに移動します。`
+            : `You already have the ${PLANS[(result.currentPlan || "free") as keyof typeof PLANS]?.name ?? ""} plan. Taking you to the editor.`,
+        );
+        // 自前ドキュメントを確実に用意してからエディタへ
+        const doc = loadFromLocalStorage() || createDefaultDocument("blank", getTemplateLatex("blank"));
+        setDocument(doc);
+        router.push("/editor");
+        return;
+      }
+      window.location.href = result.url;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[redirectToCheckout] error:", msg);
@@ -1736,12 +1760,25 @@ export function TemplateGallery() {
               <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mb-5">
                 {isJa ? "1日あたり約¥66 — コーヒー1杯以下" : "~¥66/day — less than a coffee"}
               </p>
-              <button
-                onClick={() => handlePlanSelect("starter")}
-                className="w-full py-2.5 rounded-xl bg-emerald-500/95 text-white font-bold text-[13px] shadow hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
-              >
-                {isJa ? "Starterにアップグレード" : "Upgrade to Starter"}
-              </button>
+              {(() => {
+                const s = planButtonState(currentPlan, "starter");
+                const disabled = s !== "upgrade";
+                return (
+                  <button
+                    onClick={() => handlePlanSelect("starter")}
+                    disabled={disabled}
+                    className={`w-full py-2.5 rounded-xl font-bold text-[13px] shadow transition-all duration-300 mb-5 ${
+                      disabled
+                        ? "bg-foreground/[0.06] text-foreground/40 cursor-not-allowed"
+                        : "bg-emerald-500/95 text-white hover:bg-emerald-600 hover:scale-[1.02] active:scale-[0.98]"
+                    }`}
+                  >
+                    {s === "current" ? (isJa ? "現在のプラン" : "Current plan")
+                      : s === "lower" ? (isJa ? "より上位のプランをご契約中" : "On a higher plan")
+                      : (isJa ? "Starterにアップグレード" : "Upgrade to Starter")}
+                  </button>
+                );
+              })()}
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月150回" : "High-performance AI: 150/month",
@@ -1777,12 +1814,25 @@ export function TemplateGallery() {
               <p className="text-[11px] bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent font-medium mb-5">
                 {isJa ? "Starterの3倍以上 — 1日あたり約¥166" : "3× more than Starter — ~¥166/day"}
               </p>
-              <button
-                onClick={() => handlePlanSelect("pro")}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[13px] shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
-              >
-                {isJa ? "Proにアップグレード" : "Upgrade to Pro"}
-              </button>
+              {(() => {
+                const s = planButtonState(currentPlan, "pro");
+                const disabled = s !== "upgrade";
+                return (
+                  <button
+                    onClick={() => handlePlanSelect("pro")}
+                    disabled={disabled}
+                    className={`w-full py-2.5 rounded-xl font-bold text-[13px] shadow-lg transition-all duration-300 mb-5 ${
+                      disabled
+                        ? "bg-foreground/[0.06] text-foreground/40 cursor-not-allowed shadow-none"
+                        : "bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98]"
+                    }`}
+                  >
+                    {s === "current" ? (isJa ? "現在のプラン" : "Current plan")
+                      : s === "lower" ? (isJa ? "より上位のプランをご契約中" : "On a higher plan")
+                      : (isJa ? "Proにアップグレード" : "Upgrade to Pro")}
+                  </button>
+                );
+              })()}
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月500回" : "High-performance AI: 500/month",
@@ -1819,12 +1869,24 @@ export function TemplateGallery() {
               <p className="text-[11px] bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent font-medium mb-5">
                 {isJa ? "Proの4倍 — 講師1人分の人件費以下" : "4× more than Pro — less than hiring one tutor"}
               </p>
-              <button
-                onClick={() => handlePlanSelect("premium")}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-[13px] shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mb-5"
-              >
-                {isJa ? "Premiumにアップグレード" : "Upgrade to Premium"}
-              </button>
+              {(() => {
+                const s = planButtonState(currentPlan, "premium");
+                const disabled = s !== "upgrade";
+                return (
+                  <button
+                    onClick={() => handlePlanSelect("premium")}
+                    disabled={disabled}
+                    className={`w-full py-2.5 rounded-xl font-bold text-[13px] shadow-lg transition-all duration-300 mb-5 ${
+                      disabled
+                        ? "bg-foreground/[0.06] text-foreground/40 cursor-not-allowed shadow-none"
+                        : "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98]"
+                    }`}
+                  >
+                    {s === "current" ? (isJa ? "現在のプラン" : "Current plan")
+                      : (isJa ? "Premiumにアップグレード" : "Upgrade to Premium")}
+                  </button>
+                );
+              })()}
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月2,000回" : "High-performance AI: 2,000/month",

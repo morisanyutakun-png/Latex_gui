@@ -99,10 +99,26 @@ export default function EditorPage() {
     //    GA4 の purchase event を発火する。URL だけでは誤発火しない。
     //    Google Ads へは GA4 のコンバージョンインポートで連携する想定。
     if (planParam !== "free" && sessionId) {
+      console.info("[checkout-return] verifying session", { sessionId, planParam });
       verifyCheckoutSession(sessionId).then((v) => {
-        if (!v || !v.paid) return;
+        console.info("[checkout-return] verify response", v);
+        if (!v) {
+          console.warn("[checkout-return] verify returned null (backend error or 401/403)");
+          return;
+        }
+        // payment_status は "paid" / "no_payment_required" どちらも「購入成立」として扱う。
+        // (100% クーポン適用時や 0 円トライアル初回は no_payment_required になる)
+        const acceptable = v.paid || v.payment_status === "no_payment_required";
+        if (!acceptable) {
+          console.warn("[checkout-return] not paid, skip purchase event", v);
+          return;
+        }
+        if (!v.currency || !v.transaction_id) {
+          console.warn("[checkout-return] missing currency/transaction_id", v);
+          return;
+        }
         const planDef = PLANS[v.plan_id as PlanId];
-        sendPurchaseEvent({
+        void sendPurchaseEvent({
           transactionId: v.transaction_id,  // Stripe Checkout Session ID (cs_xxx)
           value: v.value,
           currency: v.currency,
@@ -117,6 +133,8 @@ export default function EditorPage() {
           ],
         });
       });
+    } else if (planParam !== "free") {
+      console.warn("[checkout-return] planParam is not free but sessionId is empty — cannot fire purchase", { planParam, sessionId });
     }
 
     // 4. サブスクリプション状態を非同期で取得

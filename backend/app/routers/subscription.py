@@ -175,6 +175,15 @@ class CheckoutRequest(BaseModel):
 
 class CheckoutResponse(BaseModel):
     checkout_url: str
+    # "already_on_plan" = 既に当該プラン以上を契約済みなので、クライアントは
+    # Stripe を挟まずそのまま checkout_url (=/editor) へ遷移すれば良い。
+    action: str = "checkout"
+    current_plan: Optional[str] = None
+
+
+# プランのランク (アップグレード判定のためサーバ側でも持つ)。
+# フロント `frontend/lib/plans.ts` の PLAN_RANK と一致させること。
+_PLAN_RANK: dict[str, int] = {"free": 0, "starter": 1, "pro": 2, "premium": 3}
 
 
 @router.post("/checkout", response_model=CheckoutResponse)
@@ -183,14 +192,35 @@ async def create_checkout(
     user: Optional[User] = Depends(get_or_create_user),
     db: Session = Depends(get_db),
 ):
-    """Stripe Checkout Session を作成して URL を返す。"""
+    """Stripe Checkout Session を作成して URL を返す。
+
+    サーバサイドで "これは本当にアップグレードか" を最終判定する。
+    クライアントの現プラン表示は改ざん可能なので信用しない。
+    """
     if not user:
         raise HTTPException(status_code=401, detail="認証が必要です")
 
-    if body.plan_id not in ("free", "starter", "pro", "premium"):
+    if body.plan_id not in _PLAN_RANK:
         raise HTTPException(status_code=400, detail="無効なプランIDです")
 
+    # ── サーバ側アップグレード判定 ─────────────────────────────────────────
+    # DB の有効サブスクから「いまの実効プラン」を取得し、要求プラン以下なら
+    # Stripe を経由せずエディタへ戻す。
+    current_plan = get_effective_plan(db, user.id)
+    if _PLAN_RANK.get(body.plan_id, -1) <= _PLAN_RANK.get(current_plan, 0):
+        frontend_url = stripe_service.FRONTEND_URL
+        logger.info(
+            "Skip checkout: user=%s already on %s (requested %s)",
+            user.id, current_plan, body.plan_id,
+        )
+        return CheckoutResponse(
+            checkout_url=f"{frontend_url}/editor",
+            action="already_on_plan",
+            current_plan=current_plan,
+        )
+
     # ── Free プラン: Stripe Checkout 不要。DB に直接登録してリダイレクト先を返す ──
+    # (ここに到達するのは実効プランが "free" 未満 = ありえないが、保険として残す)
     if body.plan_id == "free":
         try:
             stripe_service.activate_free_plan(db, user)
@@ -198,7 +228,11 @@ async def create_checkout(
             logger.error("Free plan activation error: %s", e)
             raise HTTPException(status_code=500, detail=f"Free プランの有効化に失敗: {e}")
         frontend_url = stripe_service.FRONTEND_URL
-        return CheckoutResponse(checkout_url=f"{frontend_url}/editor?checkout=success&plan=free")
+        return CheckoutResponse(
+            checkout_url=f"{frontend_url}/editor?checkout=success&plan=free",
+            action="free_activated",
+            current_plan=current_plan,
+        )
 
     # ── 有料プラン: Stripe Checkout ──
     try:
@@ -224,7 +258,11 @@ async def create_checkout(
     if not checkout_url:
         raise HTTPException(status_code=502, detail="Stripe から checkout URL が返りませんでした")
 
-    return CheckoutResponse(checkout_url=checkout_url)
+    return CheckoutResponse(
+        checkout_url=checkout_url,
+        action="checkout",
+        current_plan=current_plan,
+    )
 
 
 class UsageStatus(BaseModel):

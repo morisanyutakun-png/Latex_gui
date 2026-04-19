@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Check, Crown, Zap, Sparkles } from "lucide-react";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS, PLAN_ORDER, PlanId } from "@/lib/plans";
+
+const PLAN_RANK_UI: Record<PlanId, number> = { free: 0, starter: 1, pro: 2, premium: 3 };
 import { useI18n } from "@/lib/i18n";
 
 const PLAN_ICONS: Record<PlanId, React.ReactNode> = {
@@ -73,9 +75,21 @@ export function PricingModal() {
     setIsRedirecting(true);
     try {
       const { createCheckoutSession } = await import("@/lib/subscription-api");
-      const url = await createCheckoutSession(planId);
-      if (url) {
-        window.location.href = url;
+      const result = await createCheckoutSession(planId);
+      if (result.action === "already_on_plan") {
+        // サーバ判定で既に同 or 上位プラン → Stripe を挟まずエディタへ
+        const { toast: toastFn } = await import("sonner");
+        const planName = PLANS[(result.currentPlan || "free") as PlanId]?.name ?? "";
+        toastFn.success(
+          isJa
+            ? `すでに${planName}プランをご契約中です。エディタに移動します。`
+            : `You already have the ${planName} plan. Taking you to the editor.`,
+        );
+        window.location.href = "/editor";
+        return;
+      }
+      if (result.url) {
+        window.location.href = result.url;
       }
     } catch {
       setIsRedirecting(false);
@@ -101,6 +115,7 @@ export function PricingModal() {
             const plan = PLANS[planId];
             const colors = PLAN_COLORS[planId];
             const isActive = currentPlan === planId;
+            const isLower = PLAN_RANK_UI[planId] < PLAN_RANK_UI[currentPlan];
             const features = isJa ? plan.features : plan.featuresEn;
             const isPremium = planId === "premium";
 
@@ -167,12 +182,14 @@ export function PricingModal() {
 
                 {/* ボタン */}
                 <Button
-                  className={`w-full ${colors.btn} ${isActive ? "opacity-60 cursor-default" : ""} ${isPremium ? "font-bold" : ""}`}
+                  className={`w-full ${colors.btn} ${(isActive || isLower) ? "opacity-60 cursor-default" : ""} ${isPremium ? "font-bold" : ""}`}
                   onClick={() => handleSelect(planId)}
-                  disabled={isActive || isRedirecting}
+                  disabled={isActive || isLower || isRedirecting}
                 >
                   {isActive
                     ? (isJa ? "現在のプラン" : "Current Plan")
+                    : isLower
+                    ? (isJa ? "より上位のプラン契約中" : "On a higher plan")
                     : isRedirecting
                     ? (isJa ? "処理中..." : "Redirecting...")
                     : planId === "free"

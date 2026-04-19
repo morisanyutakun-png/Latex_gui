@@ -122,6 +122,25 @@ export interface GA4PurchasePayload {
   coupon?: string;
   tax?: number;
   shipping?: number;
+  /** GA4 DebugView に流す場合は true。未指定時は transaction_id に "test" が
+   *  含まれるなら自動で true に昇格する。 */
+  debug?: boolean;
+}
+
+/** gtag が使える状態になるまで短時間だけ待つ (external gtag script が
+ *  afterInteractive で遅延ロードされる間に呼ばれてしまうケースを吸収)。 */
+async function waitForGtag(timeoutMs = 3000): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (typeof window.gtag === "function") return true;
+  const start = Date.now();
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (typeof window.gtag === "function") return resolve(true);
+      if (Date.now() - start >= timeoutMs) return resolve(false);
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
 }
 
 /**
@@ -130,26 +149,47 @@ export interface GA4PurchasePayload {
  * 二重発火防止:
  *  1. `ga4-purchase:<transaction_id>` が localStorage にあればスキップ
  *  2. 同一ランタイム中の重複呼び出しも in-memory Set でガード
- *  3. gtag 未定義 / transactionId・currency 空 / items 空 なら no-op
+ *  3. gtag は最大 3 秒待ってから、それでも未ロードなら諦める
+ *  4. transactionId・currency 空 / items 空 なら no-op
  *
  * 返り値: 実際に発火したら true、スキップ/失敗は false。
  */
-export function sendPurchaseEvent(payload: GA4PurchasePayload): boolean {
+export async function sendPurchaseEvent(payload: GA4PurchasePayload): Promise<boolean> {
   if (typeof window === "undefined") return false;
 
   const { transactionId, value, currency, items, coupon, tax, shipping } = payload;
-  if (!transactionId || !currency || !items || items.length === 0) return false;
 
-  const gtag = window.gtag;
-  if (typeof gtag !== "function") {
-    // ベースの GA4 tag (NEXT_PUBLIC_GA4_ID) が読み込まれていない環境。
+  // 入力検査 — ログを出して原因を切り分けやすくする
+  if (!transactionId) {
+    console.warn("[sendPurchaseEvent] abort: transactionId is empty");
     return false;
   }
+  if (!currency) {
+    console.warn("[sendPurchaseEvent] abort: currency is empty", { transactionId });
+    return false;
+  }
+  if (!items || items.length === 0) {
+    console.warn("[sendPurchaseEvent] abort: items is empty", { transactionId });
+    return false;
+  }
+
+  const ready = await waitForGtag(3000);
+  if (!ready) {
+    console.warn(
+      "[sendPurchaseEvent] abort: window.gtag is not available after 3s. " +
+      "Check NEXT_PUBLIC_GA4_ID and ad-blockers.",
+    );
+    return false;
+  }
+  const gtag = window.gtag as GtagFn;
 
   const dedupeKey = GA4_PURCHASE_SENT_PREFIX + transactionId;
 
   try {
-    if (window.localStorage.getItem(dedupeKey)) return false;
+    if (window.localStorage.getItem(dedupeKey)) {
+      console.info("[sendPurchaseEvent] skip: already sent for", transactionId);
+      return false;
+    }
   } catch {
     // localStorage 無効環境: in-memory ガードのみで続行。
   }
@@ -157,8 +197,12 @@ export function sendPurchaseEvent(payload: GA4PurchasePayload): boolean {
   if (ga4InFlight.has(transactionId)) return false;
   ga4InFlight.add(transactionId);
 
+  // debug_mode: GA4 DebugView は `debug_mode: true` が付いた event のみ表示する。
+  // Stripe test session (cs_test_...) の場合は自動で debug に昇格。
+  const debug = payload.debug === true || transactionId.startsWith("cs_test_");
+
   try {
-    gtag("event", "purchase", {
+    const eventParams = {
       transaction_id: transactionId,
       value,
       currency,
@@ -166,14 +210,18 @@ export function sendPurchaseEvent(payload: GA4PurchasePayload): boolean {
       ...(coupon !== undefined ? { coupon } : {}),
       ...(tax !== undefined ? { tax } : {}),
       ...(shipping !== undefined ? { shipping } : {}),
-    });
+      ...(debug ? { debug_mode: true } : {}),
+    };
+    console.info("[sendPurchaseEvent] gtag('event', 'purchase', ...)", eventParams);
+    gtag("event", "purchase", eventParams);
     try {
       window.localStorage.setItem(dedupeKey, String(Date.now()));
     } catch {
       // 書き込み失敗は致命ではない。
     }
     return true;
-  } catch {
+  } catch (e) {
+    console.error("[sendPurchaseEvent] gtag call threw", e);
     ga4InFlight.delete(transactionId);
     return false;
   }

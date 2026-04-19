@@ -40,13 +40,23 @@ export interface CheckoutVerification {
  * Google Ads の Purchase conversion を URL パラメータだけで判定させないための関門。
  */
 export async function verifyCheckoutSession(sessionId: string): Promise<CheckoutVerification | null> {
-  if (!sessionId) return null;
+  if (!sessionId) {
+    console.warn("[verifyCheckoutSession] empty sessionId");
+    return null;
+  }
   try {
     const res = await fetch(
       `/api/subscription/verify-checkout?session_id=${encodeURIComponent(sessionId)}`,
       { cache: "no-store" },
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(
+        `[verifyCheckoutSession] backend returned ${res.status}`,
+        body.slice(0, 300),
+      );
+      return null;
+    }
     const data = await res.json();
     return {
       paid: !!data.paid,
@@ -56,7 +66,8 @@ export async function verifyCheckoutSession(sessionId: string): Promise<Checkout
       transaction_id: String(data.transaction_id ?? sessionId),
       plan_id: String(data.plan_id ?? ""),
     };
-  } catch {
+  } catch (e) {
+    console.error("[verifyCheckoutSession] fetch threw", e);
     return null;
   }
 }
@@ -82,8 +93,17 @@ export async function fetchMyUsage(): Promise<UsageStatus> {
 /**
  * Stripe Checkout Session を作成してリダイレクト先URLを返す。
  * エラー時は理由付きで例外を投げる。
+ *
+ * サーバが「要求プラン ≤ 現プラン」と判定した場合は Stripe を経由せず
+ * `action: "already_on_plan"` を返すので、呼び出し側で分岐できる。
  */
-export async function createCheckoutSession(planId: PlanId): Promise<string> {
+export interface CheckoutResult {
+  url: string;
+  action: "checkout" | "already_on_plan" | "free_activated";
+  currentPlan?: PlanId;
+}
+
+export async function createCheckoutSession(planId: PlanId): Promise<CheckoutResult> {
   const res = await fetch("/api/subscription/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -98,7 +118,11 @@ export async function createCheckoutSession(planId: PlanId): Promise<string> {
   if (!data.checkout_url) {
     throw new Error("Checkout URL was empty");
   }
-  return data.checkout_url;
+  return {
+    url: String(data.checkout_url),
+    action: (data.action as CheckoutResult["action"]) || "checkout",
+    currentPlan: (data.current_plan as PlanId | undefined) ?? undefined,
+  };
 }
 
 /**
