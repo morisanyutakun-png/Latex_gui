@@ -168,8 +168,11 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   refreshUsage: async () => {
     try {
       const u = await fetchMyUsage();
-      set({
-        currentPlan: u.plan_id,
+      // サーバが明示的にプラン情報を返したときだけ currentPlan を更新する。
+      // 空レスポンス / 未認証時 / ネットワーク失敗時は既存値を維持する
+      // (途中で Free に戻って UI が点滅する race を防ぐ)。
+      const serverPlan = u.plan_id as PlanId | undefined;
+      const next: Partial<PlanState> = {
         aiUsedDay: u.ai_used_day,
         aiUsedMonth: u.ai_used_month,
         aiLimitDay: u.ai_limit_day,
@@ -178,9 +181,13 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         pdfLimitMonth: u.pdf_limit_month,
         batchMaxRows: u.batch_max_rows,
         usageFetched: true,
-      });
+      };
+      if (serverPlan && (serverPlan === "free" || serverPlan === "starter" || serverPlan === "pro" || serverPlan === "premium")) {
+        next.currentPlan = serverPlan;
+      }
+      set(next);
     } catch {
-      // サーバ取得失敗時は現状維持
+      // サーバ取得失敗時は現状維持 (プランもそのまま)
       set({ usageFetched: true });
     }
   },
@@ -190,7 +197,12 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   initFromStorage: () => {
     // 未ログイン / サーバ未到達時の安全な既定として Free プランの上限を設定する。
     // 旧バージョンで残った localStorage のプランキャッシュは破棄する。
+    // ★ subscription が既にサーバから取得済みなら何もしない (race 対策)。
+    //   以前は AIChatPanel 側が無条件で呼び、fetchSubscription で設定済みの
+    //   "pro" を "free" で上書きして「決済したのに Free に見える」バグが起きた。
     cleanupLegacyPlanCache();
+    const { subscriptionFetched, usageFetched, currentPlan } = get();
+    if (subscriptionFetched || usageFetched || currentPlan !== "free") return;
     const plan = defaultPlan();
     const def = PLANS[plan];
     set({
@@ -204,13 +216,32 @@ export const usePlanStore = create<PlanState>((set, get) => ({
 
   fetchSubscription: async () => {
     set({ isLoadingSubscription: true });
+    // リトライ付き: ネットワーク一時失敗 / Koyeb コールドスタート等で
+    // 一度失敗しただけで Free に誤判定されないよう、合計 3 回試行する。
+    const attempt = async (): Promise<PlanId | null> => {
+      try {
+        const status = await fetchMySubscription();
+        return (status.plan_id as PlanId) || null;
+      } catch {
+        return null;
+      }
+    };
+    let planId: PlanId | null = null;
+    for (let i = 0; i < 3; i++) {
+      planId = await attempt();
+      if (planId !== null) break;
+      await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+    }
+    // Usage は別トライで並列に。失敗してもプラン判定には影響させない。
+    void get().refreshUsage();
     try {
-      const [status] = await Promise.all([fetchMySubscription(), get().refreshUsage()]);
-      const planId = status.plan_id as PlanId;
-      set({ currentPlan: planId, subscriptionFetched: true });
-    } catch {
-      // サーバ取得失敗時は Free として扱う (上位プランを勝手に仮定しない)
-      set({ currentPlan: defaultPlan(), subscriptionFetched: true });
+      if (planId !== null) {
+        set({ currentPlan: planId, subscriptionFetched: true });
+      } else {
+        // 最後まで取れなかった: 既存 currentPlan を尊重し、fetched フラグだけ立てる。
+        // (Free に強制降格すると、既に "pro" が楽観的に入っているケースを壊す)
+        set({ subscriptionFetched: true });
+      }
     } finally {
       set({ isLoadingSubscription: false });
     }

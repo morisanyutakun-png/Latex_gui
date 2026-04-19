@@ -94,6 +94,28 @@ PLAN_PRICE_IDS: dict[str, str] = {
 # Stripe Price ID → plan_id の逆引き (webhook 処理で使用)
 PRICE_TO_PLAN: dict[str, str] = {v: k for k, v in PLAN_PRICE_IDS.items() if v}
 
+# 本番環境で有料プラン用の Price ID が 1 つも登録されていなければ、webhook が
+# 来ても `_get_plan_from_subscription` は全て "unknown" → Free 降格となり、
+# 「購入したのにプランが反映されない」問題を確実に引き起こす。
+# 起動時に明示的な ERROR ログを出して監視で気づけるようにする。
+def _warn_if_price_ids_missing_in_prod() -> None:
+    _frontend = os.environ.get("FRONTEND_URL", "").lower()
+    _is_prod = _frontend and "localhost" not in _frontend and "127.0.0.1" not in _frontend
+    if not _is_prod:
+        return
+    missing = [p for p in ("starter", "pro", "premium") if not PLAN_PRICE_IDS.get(p, "").strip()]
+    if missing:
+        logger.error(
+            "SECURITY/CONFIG: STRIPE_PRICE_ID_%s not set. Webhook-driven plan assignment "
+            "will fall back to metadata.plan_id, and any webhook without that metadata "
+            "will leave the subscription as 'unknown' (= Free). Users who upgrade via "
+            "Stripe may see Free in the UI. Fix env vars on the backend host.",
+            ", ".join(p.upper() for p in missing),
+        )
+
+
+_warn_if_price_ids_missing_in_prod()
+
 
 def _all_candidate_keys() -> list[str]:
     """default + 各プラン override の Stripe API キーを重複排除で順に返す。"""
@@ -938,9 +960,19 @@ def _handle_checkout_completed(session_obj, db: Session) -> None:
 
 
 def _get_plan_from_subscription(sub_obj) -> str:
-    """Stripe Subscription オブジェクトから plan_id を解決する。"""
+    """Stripe Subscription オブジェクトから plan_id を解決する。
+
+    解決順:
+      1. items[0].price.id → `PRICE_TO_PLAN` で逆引き (STRIPE_PRICE_ID_* env が鍵)
+      2. metadata.plan_id (checkout 作成時に埋めた値)
+      3. 最終的に 'unknown' (この値は `get_effective_plan` で Free 扱いになる)
+
+    "unknown" に落ちる主な原因は `STRIPE_PRICE_ID_PRO` 等の env 未設定・誤設定。
+    ログに price_id と PRICE_TO_PLAN の登録状況を残し、後から原因特定できるようにする。
+    """
     items_obj = _sg(sub_obj, "items")
     items_data = _sg(items_obj, "data", []) or []
+    price_id = ""
     if items_data:
         first_price = _sg(items_data[0], "price")
         price_id = _sg(first_price, "id", "") or ""
@@ -951,6 +983,14 @@ def _get_plan_from_subscription(sub_obj) -> str:
     meta_plan = _sg(meta, "plan_id")
     if meta_plan:
         return meta_plan
+    logger.error(
+        "Could not resolve plan_id for subscription %s: price_id=%s, "
+        "PRICE_TO_PLAN known prices=%s. "
+        "Check STRIPE_PRICE_ID_STARTER/PRO/PREMIUM env vars match the actual Stripe price IDs.",
+        _sg(sub_obj, "id", "?"),
+        price_id or "<missing>",
+        list(PRICE_TO_PLAN.keys()) or "<empty>",
+    )
     return "unknown"
 
 

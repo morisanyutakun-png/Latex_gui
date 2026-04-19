@@ -19,10 +19,17 @@ export interface UsageStatus {
   batch_max_rows: number;
 }
 
-/** 現在のサブスクリプション状態をバックエンドから取得する。 */
+/**
+ * 現在のサブスクリプション状態をバックエンドから取得する。
+ * 以前は !res.ok の時に黙って `free` を返していたため、ネットワーク一時失敗が
+ * 「プランが Free に降格した」と誤認される致命的な UX バグを生んでいた。
+ * 今はステータスコードと共に throw し、呼び出し側 (store のリトライ) に判断を委ねる。
+ */
 export async function fetchMySubscription(): Promise<SubscriptionStatus> {
   const res = await fetch("/api/subscription/me", { cache: "no-store" });
-  if (!res.ok) return { plan_id: "free", status: "free", current_period_end: null, cancel_at_period_end: false, stripe_customer_id: null };
+  if (!res.ok) {
+    throw new Error(`subscription/me returned ${res.status}`);
+  }
   return res.json();
 }
 
@@ -91,20 +98,15 @@ export async function verifyCheckoutSession(sessionId: string): Promise<Checkout
   }
 }
 
-/** サーバサイドで記録された今月/今日の利用状況を取得する。 */
+/**
+ * サーバサイドで記録された今月/今日の利用状況を取得する。
+ * ネットワーク失敗を Free フォールバックで隠すと、プラン判定がそこに伝播して
+ * 「決済したのに Free に戻る」バグの原因になるため throw する。
+ */
 export async function fetchMyUsage(): Promise<UsageStatus> {
   const res = await fetch("/api/subscription/usage", { cache: "no-store" });
   if (!res.ok) {
-    return {
-      plan_id: "free",
-      ai_used_day: 0,
-      ai_used_month: 0,
-      ai_limit_day: 3,
-      ai_limit_month: 3,
-      pdf_used_month: 0,
-      pdf_limit_month: 1,
-      batch_max_rows: 0,
-    };
+    throw new Error(`subscription/usage returned ${res.status}`);
   }
   return res.json();
 }

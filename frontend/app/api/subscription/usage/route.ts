@@ -30,15 +30,26 @@ export async function GET() {
         ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!res.ok) {
-      return NextResponse.json(FREE_FALLBACK);
+      // 認証済みユーザーに対する upstream エラーを Free へ降格させると
+      // store のリトライ判断を潰す。エラーコードをそのまま透過する。
+      const body = await res.text().catch(() => "");
+      return new NextResponse(body || JSON.stringify({ detail: "usage proxy upstream error" }), {
+        status: res.status,
+        headers: { "Content-Type": res.headers.get("Content-Type") || "application/json" },
+      });
     }
 
     const data = await res.json();
     return NextResponse.json(data);
-  } catch {
-    return NextResponse.json(FREE_FALLBACK);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "network error";
+    return NextResponse.json(
+      { detail: `usage proxy failed: ${msg}` },
+      { status: 502 },
+    );
   }
 }

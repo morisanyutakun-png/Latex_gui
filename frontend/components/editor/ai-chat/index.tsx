@@ -35,7 +35,7 @@ export function AIChatPanel() {
   } = useUIStore();
 
   const {
-    canMakeRequest, incrementUsage, setShowPricing, initFromStorage,
+    canMakeRequest, incrementUsage, setShowPricing,
     todayUsage, dailyLimit, monthUsage, monthlyLimit, currentPlan, usagePercent,
   } = usePlanStore();
 
@@ -49,7 +49,9 @@ export function AIChatPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  useEffect(() => { initFromStorage(); }, [initFromStorage]);
+  // プランとクオータの取得は <SubscriptionInitializer> (layout.tsx) に一元化。
+  // ここで initFromStorage() を呼ぶと、先に解決した fetchSubscription() の
+  // "pro" 状態を "free" で上書きしてしまう race があった (Stripe 成功直後に顕著)。
 
   // OMRトリガー
   useEffect(() => {
