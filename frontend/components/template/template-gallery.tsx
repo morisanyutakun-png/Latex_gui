@@ -43,6 +43,7 @@ import {
   Wrench,
   Hammer,
   Play,
+  Plus,
 } from "lucide-react";
 
 /* ── Floating math formulas background ── */
@@ -1789,20 +1790,28 @@ export function TemplateGallery() {
                   </button>
                 );
               })()}
+              {/* Free の全機能 + 追加 */}
+              <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg bg-foreground/[0.04] border border-foreground/[0.06] text-[11.5px] font-semibold">
+                <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" strokeWidth={3} />
+                <span>{isJa ? "Freeの全機能 を含む" : "Everything in Free"}</span>
+              </div>
+              <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] mb-2.5 text-emerald-600 dark:text-emerald-400">
+                {isJa ? "＋ さらに追加で解放:" : "＋ Plus, unlocks:"}
+              </div>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "高性能AI 月150回 (1日15回まで)" : "Premium AI: 150 / month (15 / day)",
-                  isJa ? "教材PDF出力 無制限" : "Worksheet PDF: unlimited",
-                  isJa ? "基本テンプレート 6種類" : "6 basic templates",
+                  isJa ? "高性能AI 月150回に拡張 (Freeの50倍・1日15回)" : "Premium AI boosted to 150 / month (50× Free, 15 / day)",
+                  isJa ? "教材PDF出力 無制限 (Freeは月1回まで)" : "Unlimited Worksheet PDF (Free is 1 / month)",
                   isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
-                  isJa ? "TikZ図の作成・保存 無制限" : "Unlimited TikZ figures",
                 ].map((f) => (
                   <li
                     key={f}
                     className="flex items-start gap-2 text-[12.5px] leading-relaxed text-foreground/85 font-medium"
                     style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}
                   >
-                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span className="shrink-0 mt-0.5 h-4 w-4 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                      <Plus className="h-3 w-3" strokeWidth={3} />
+                    </span>
                     <span>{f}</span>
                   </li>
                 ))}
@@ -1846,22 +1855,31 @@ export function TemplateGallery() {
                   </button>
                 );
               })()}
+              {/* Starter の全機能 + 追加 */}
+              <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg bg-foreground/[0.04] border border-foreground/[0.06] text-[11.5px] font-semibold">
+                <Check className="h-3.5 w-3.5 text-violet-500 shrink-0" strokeWidth={3} />
+                <span>{isJa ? "Starterの全機能 を含む" : "Everything in Starter"}</span>
+              </div>
+              <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] mb-2.5 bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
+                {isJa ? "＋ さらに追加で解放:" : "＋ Plus, unlocks:"}
+              </div>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "高性能AI 月500回 (1日40回まで)" : "Premium AI: 500 / month (40 / day)",
-                  isJa ? "教材PDF出力 無制限 (優先処理)" : "Worksheet PDF: unlimited (priority)",
-                  isJa ? "全テンプレート 12種類 (入試・発表含む)" : "All 12 templates (exams, slides, etc.)",
+                  isJa ? "高性能AI 月500回に拡張 (Starterの3.3倍・1日40回)" : "Premium AI boosted to 500 / month (3.3× Starter, 40 / day)",
+                  isJa ? "全テンプレート 12種類に解放 (入試・発表・長文レポート +6種)" : "Unlocks all 12 templates (+6 exams/slides/reports)",
                   isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
-                  isJa ? "バッチ処理 (最大100行)" : "Batch (up to 100 rows)",
-                  isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
+                  isJa ? "バッチ処理 (最大100行)" : "Batch processing (up to 100 rows)",
+                  isJa ? "PDF出力 優先処理" : "Priority PDF rendering",
                 ].map((f) => (
                   <li
                     key={f}
                     className="flex items-start gap-2 text-[12.5px] leading-relaxed text-foreground/85 font-medium"
                     style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}
                   >
-                    <Check className="h-3.5 w-3.5 text-violet-500 shrink-0 mt-0.5" />
+                    <span className="shrink-0 mt-0.5 h-4 w-4 rounded-full bg-violet-500/10 text-violet-500 flex items-center justify-center">
+                      <Plus className="h-3 w-3" strokeWidth={3} />
+                    </span>
                     <span>{f}</span>
                   </li>
                 ))}
@@ -1904,22 +1922,28 @@ export function TemplateGallery() {
                   </button>
                 );
               })()}
+              {/* Pro の全機能 + 追加 */}
+              <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg bg-foreground/[0.04] border border-foreground/[0.06] text-[11.5px] font-semibold">
+                <Check className="h-3.5 w-3.5 text-amber-500 shrink-0" strokeWidth={3} />
+                <span>{isJa ? "Proの全機能 を含む" : "Everything in Pro"}</span>
+              </div>
+              <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] mb-2.5 bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">
+                {isJa ? "＋ さらに追加で解放:" : "＋ Plus, unlocks:"}
+              </div>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "高性能AI 月2,000回 (1日150回まで)" : "Premium AI: 2,000 / month (150 / day)",
-                  isJa ? "教材PDF出力 無制限 (最優先処理)" : "Worksheet PDF: unlimited (highest priority)",
-                  isJa ? "全テンプレート 12種類 (入試・発表含む)" : "All 12 templates (exams, slides, etc.)",
-                  isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
-                  isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
-                  isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",
-                  isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
+                  isJa ? "高性能AI 月2,000回に拡張 (Proの4倍・1日150回)" : "Premium AI boosted to 2,000 / month (4× Pro, 150 / day)",
+                  isJa ? "バッチ処理 最大300行に拡張 (Proの3倍)" : "Batch processing boosted to 300 rows (3× Pro)",
+                  isJa ? "PDF出力 最優先処理" : "Highest-priority PDF rendering",
                 ].map((f) => (
                   <li
                     key={f}
                     className="flex items-start gap-2 text-[12.5px] leading-relaxed text-foreground/85 font-medium"
                     style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}
                   >
-                    <Check className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <span className="shrink-0 mt-0.5 h-4 w-4 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                      <Plus className="h-3 w-3" strokeWidth={3} />
+                    </span>
                     <span>{f}</span>
                   </li>
                 ))}

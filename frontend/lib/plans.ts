@@ -83,8 +83,21 @@ export interface PlanDef {
   batchMaxRows: number;     // バッチ処理の最大行数 (0 = 利用不可)
   tagline: string;
   taglineEn: string;
+  /** 単独で見たときの全機能リスト (下位プランの機能も含む)。 */
   features: string[];
   featuresEn: string[];
+  /**
+   * このプランが "積み上げる" 下位プラン。
+   * Free は undefined。Starter は "free"、Pro は "starter"、Premium は "pro"。
+   * UI では「`builtOn` のすべて + 以下を追加」表示に使う。
+   */
+  builtOn?: PlanId;
+  /**
+   * 下位プラン (`builtOn`) に対して、このプランで "新たに解放/強化される" 項目のみ。
+   * 料金カードで「追加で以下も解放」セクションに列挙する。
+   */
+  addedFeatures?: string[];
+  addedFeaturesEn?: string[];
   highlight?: boolean;
   badge?: string;
 }
@@ -147,6 +160,17 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "LaTeX source export",
       "Unlimited TikZ figures",
     ],
+    builtOn: "free",
+    addedFeatures: [
+      "高性能AI 月150回に拡張 (Freeの50倍・1日15回)",
+      "教材PDF出力 無制限 (Freeは月1回まで)",
+      "LaTeXソースエクスポート",
+    ],
+    addedFeaturesEn: [
+      "Premium AI boosted to 150 / month (50× Free, 15 / day)",
+      "Unlimited Worksheet PDF (Free is 1 / month)",
+      "LaTeX source export",
+    ],
     badge: "手軽に始める",
   },
   pro: {
@@ -179,6 +203,23 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "PDF & image import (OCR)",
       "Batch processing (up to 100 rows)",
       "LaTeX source export",
+    ],
+    builtOn: "starter",
+    addedFeatures: [
+      "高性能AI 月500回に拡張 (Starterの3.3倍・1日40回)",
+      "全テンプレート 12種類に解放 (入試・発表・長文レポート +6種)",
+      "採点・自動採点 (OMR)",
+      "PDF・画像取り込み (OCR)",
+      "バッチ処理 (最大100行)",
+      "PDF出力 優先処理",
+    ],
+    addedFeaturesEn: [
+      "Premium AI boosted to 500 / month (3.3× Starter, 40 / day)",
+      "Unlocks all 12 templates (+6 for exams, slides, reports)",
+      "Grading & auto-scoring (OMR)",
+      "PDF & image import (OCR)",
+      "Batch processing (up to 100 rows)",
+      "Priority PDF rendering",
     ],
     highlight: true,
     badge: "人気 No.1",
@@ -213,6 +254,17 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "PDF & image import (OCR)",
       "Batch processing (up to 300 rows)",
       "LaTeX source export",
+    ],
+    builtOn: "pro",
+    addedFeatures: [
+      "高性能AI 月2,000回に拡張 (Proの4倍・1日150回)",
+      "バッチ処理 最大300行に拡張 (Proの3倍)",
+      "PDF出力 最優先処理",
+    ],
+    addedFeaturesEn: [
+      "Premium AI boosted to 2,000 / month (4× Pro, 150 / day)",
+      "Batch processing boosted to 300 rows (3× Pro)",
+      "Highest-priority PDF rendering",
     ],
     badge: "最上位プラン",
   },

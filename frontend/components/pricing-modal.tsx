@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Crown, Zap, Sparkles, ShieldCheck } from "lucide-react";
+import { Check, Crown, Zap, Sparkles, ShieldCheck, Plus } from "lucide-react";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS, PLAN_ORDER, PlanId } from "@/lib/plans";
 
@@ -159,11 +159,15 @@ export function PricingModal() {
             const theme = PLAN_THEMES[planId];
             const isActive = currentPlan === planId;
             const isLower = PLAN_RANK_UI[planId] < PLAN_RANK_UI[currentPlan];
-            const features = isJa ? plan.features : plan.featuresEn;
             const isPremium = planId === "premium";
             const isPro = planId === "pro";
             // 1日あたり換算 (おおよそ30日で割る)
             const perDay = plan.price > 0 ? Math.round(plan.price / 30) : 0;
+            // 積み上げ表示: Free は全機能を列挙、有料プランは「下位 +」表示
+            const parentPlan = plan.builtOn ? PLANS[plan.builtOn] : null;
+            const bullets = parentPlan
+              ? (isJa ? (plan.addedFeatures ?? []) : (plan.addedFeaturesEn ?? []))
+              : (isJa ? plan.features : plan.featuresEn);
 
             return (
               <div
@@ -236,21 +240,40 @@ export function PricingModal() {
                     </div>
                   </div>
 
-                  {/* ── 機能一覧 ── */}
-                  <ul
-                    className="space-y-2.5 mb-6 flex-1"
-                    // Japanese の1文字ずつ折返しを抑制 (カード幅が狭いときでも単語境界を尊重)
-                    style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}
-                  >
-                    {features.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[12.5px] leading-relaxed text-foreground/85">
-                        <span className={`shrink-0 mt-0.5 h-4 w-4 rounded-full bg-current/10 flex items-center justify-center ${theme.check}`}>
-                          <Check className="h-3 w-3" strokeWidth={3} />
-                        </span>
-                        <span className="flex-1">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {/* ── 機能一覧: "builtOn のすべて + 追加解放" スタイル ── */}
+                  <div className="flex-1 mb-6" style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}>
+                    {parentPlan && (
+                      <>
+                        {/* 下位プラン全部入りの示唆 */}
+                        <div className={`flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg bg-foreground/[0.04] dark:bg-white/[0.04] border border-foreground/[0.06] text-[11.5px] font-semibold`}>
+                          <Check className={`h-3.5 w-3.5 shrink-0 ${theme.check}`} strokeWidth={3} />
+                          <span>
+                            {isJa
+                              ? `${parentPlan.name} の全機能 を含む`
+                              : `Everything in ${parentPlan.nameEn}`}
+                          </span>
+                        </div>
+                        {/* 追加で解放される機能の見出し */}
+                        <div className={`text-[10.5px] font-bold uppercase tracking-[0.1em] mb-2.5 ${theme.accentText}`}>
+                          {isJa ? "＋ さらに追加で解放:" : "＋ Plus, unlocks:"}
+                        </div>
+                      </>
+                    )}
+                    <ul className="space-y-2.5">
+                      {bullets.map((f, i) => (
+                        <li key={i} className="flex items-start gap-2 text-[12.5px] leading-relaxed text-foreground/85">
+                          <span className={`shrink-0 mt-0.5 h-4 w-4 rounded-full bg-current/10 flex items-center justify-center ${theme.check}`}>
+                            {parentPlan ? (
+                              <Plus className="h-3 w-3" strokeWidth={3} />
+                            ) : (
+                              <Check className="h-3 w-3" strokeWidth={3} />
+                            )}
+                          </span>
+                          <span className="flex-1">{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
                   {/* ── ボタン ── */}
                   <Button
