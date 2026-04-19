@@ -1467,6 +1467,15 @@ const ONE_ARG_HIDDEN_CMDS = new Set([
   "label", "ref", "pageref", "eqref", "cite",
   "input", "include", "thispagestyle", "pagestyle",
   "phantom", "vphantom", "hphantom",
+  // キャプション/表関連のローカルスコープ命令 (ビジュアル側では意味なし)
+  // `\caption{...}` は本来キャプションだが、現状は本文ノイズになるので簡略的に非表示。
+  "caption", "captionsetup",
+  "rowcolor", "columncolor", "cellcolor",
+  "multirow",
+  // フォント切替 (PDFサイズ情報なのでビジュアルでは無視)
+  "selectfont",
+  // LaTeX デバッグ/暗黙命令
+  "protect", "unskip", "ignorespaces",
 ]);
 
 /** 2 つの引数 {…}{…} を取って表示上は無視する命令。
@@ -1476,6 +1485,12 @@ const ONE_ARG_HIDDEN_CMDS = new Set([
  *    ここには **入れない**。段落として読み取られ、extractInlines で rule inline になる。 */
 const TWO_ARG_HIDDEN_CMDS = new Set([
   "setcounter", "addtocounter",
+  // ユーザー定義・再定義 (ビジュアル側ではコマンド自体を見せずスルー)
+  "renewcommand", "newcommand", "providecommand", "DeclareRobustCommand",
+  // フォントサイズ指定 (例: \fontsize{10pt}{12pt})
+  "fontsize",
+  // \setlength{...}{...} / \addtolength{...}{...} — 本来 1arg + dim だが ONE_ARG 経路だと dim が漏れる
+  "setlength", "addtolength",
 ]);
 
 function parseBody(src: string, start: number, end: number): Segment[] {

@@ -521,7 +521,13 @@ function SegmentRenderer({ segment, latex, applyRangeEdit }: SegmentRendererProp
       );
 
     case "displayMath":
-      return <EditableDisplayMath initialBody={segment.body} onCommit={onDisplayMathCommit} />;
+      return (
+        <EditableDisplayMath
+          initialBody={segment.body}
+          envName={segment.meta?.envName}
+          onCommit={onDisplayMathCommit}
+        />
+      );
 
     case "paragraph":
       return <EditableParagraph segment={segment} latex={latex} onCommit={onParagraphCommit} />;
@@ -901,10 +907,25 @@ function ContentEditableBlock({ segment, latex, onCommit, tag: Tag, className }:
 
 interface EditableDisplayMathProps {
   initialBody: string;
+  /**
+   * 元の LaTeX 環境名 (align / gather / equation …)。
+   * 環境 body は `&` `\\` を含むため、KaTeX 互換の環境ラッパを復元しないと
+   * レンダリング失敗する。環境なしの `\[...\]` や `$$...$$` の場合は undefined。
+   */
+  envName?: string;
   onCommit: (newBody: string) => void;
 }
 
-function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps) {
+/** KaTeX が理解できる env 名に正規化する (eqnarray は KaTeX 非対応 → align* に差し替え)。 */
+function normalizeMathEnvForKatex(envName: string | undefined): string | undefined {
+  if (!envName) return undefined;
+  if (envName === "eqnarray") return "align";
+  if (envName === "eqnarray*") return "align*";
+  if (envName === "displaymath") return undefined; // \[...\] 相当 — body をそのまま displayMode で渡す
+  return envName;
+}
+
+function EditableDisplayMath({ initialBody, envName, onCommit }: EditableDisplayMathProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const openMathEditor = useMathEditor();
 
@@ -915,8 +936,15 @@ function EditableDisplayMath({ initialBody, onCommit }: EditableDisplayMathProps
       node.innerHTML = '<span class="display-math-placeholder" contenteditable="false">&nbsp;</span>';
       return;
     }
-    node.innerHTML = renderDisplayMathOrPlaceholder(source);
-  }, []);
+    // align / gather / equation ... は `&` や `\\` を含むため、KaTeX に渡す前に
+    // `\begin{env}...\end{env}` の環境ラッパを復元する。さもないと KaTeX は body を
+    // 単なる列として解釈できず「プレビュー不可」フォールバックに落ちる。
+    const katexEnv = normalizeMathEnvForKatex(envName);
+    const forKatex = katexEnv
+      ? `\\begin{${katexEnv}}${source}\\end{${katexEnv}}`
+      : source;
+    node.innerHTML = renderDisplayMathOrPlaceholder(forKatex);
+  }, [envName]);
 
   // 外部更新 (テンプレ切替 / ストア反映) の同期
   useEffect(() => {
