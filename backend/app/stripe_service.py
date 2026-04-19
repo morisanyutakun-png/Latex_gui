@@ -23,6 +23,31 @@ with contextlib.suppress(Exception):
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
+
+def _sg(obj, key, default=None):
+    """Stripe object / ListObject / dict / None から安全に値を取り出すヘルパー。
+
+    Stripe SDK v8+ では ListObject (及び一部の StripeObject) が dict の `.get()` を
+    継承していない。`.get` への attribute access は __getattr__ 経由でキー "get" を
+    探しに行き AttributeError を投げるため、verify/sync が silent に 502 に落ちる
+    バグの原因になっていた。必ずこの関数経由で取り出すこと。
+    """
+    if obj is None:
+        return default
+    # StripeObject/ListObject は __getattr__ が _data[key] を返してくれる。
+    # getattr の 3 引数形式を使えば AttributeError を default に潰してくれる。
+    try:
+        val = getattr(obj, key, None)
+        if val is not None:
+            return val
+    except Exception:
+        pass
+    # 素の dict、または __getitem__ だけ実装されているオブジェクトのフォールバック
+    try:
+        return obj[key]
+    except (KeyError, TypeError, AttributeError):
+        return default
+
 # plan_id → Stripe Price ID のマッピング
 PLAN_PRICE_IDS: dict[str, str] = {
     "free": os.environ.get("STRIPE_PRICE_ID_FREE", ""),
@@ -292,9 +317,10 @@ def _upsert_subscription_from_session(
     Returns: 診断 dict — フロントに upsert の結果を返すために使う。
     """
     report: dict = {"attempted": True, "success": False, "error": None}
-    sub_id = session.get("subscription")  # type: ignore[attr-defined]
-    plan_id = (session.get("metadata") or {}).get("plan_id", "")  # type: ignore[attr-defined]
-    customer_id = session.get("customer")  # type: ignore[attr-defined]
+    sub_id = _sg(session, "subscription")
+    metadata = _sg(session, "metadata")
+    plan_id = _sg(metadata, "plan_id", "") or ""
+    customer_id = _sg(session, "customer")
     is_test_session = bool(customer_id and isinstance(customer_id, str) and "test" in (matched_key or ""))
     report.update({
         "sub_id": sub_id,
@@ -333,12 +359,14 @@ def _upsert_subscription_from_session(
     try:
         stripe.api_key = matched_key
         sub_obj = stripe.Subscription.retrieve(sub_id)
-        status = sub_obj.get("status", "active") or "active"
-        period_start = _ts_to_dt(sub_obj.get("current_period_start"))
-        period_end = _ts_to_dt(sub_obj.get("current_period_end"))
-        items = sub_obj.get("items", {}).get("data", [])
-        if items:
-            price_id = items[0].get("price", {}).get("id", "") or price_id
+        status = _sg(sub_obj, "status", "active") or "active"
+        period_start = _ts_to_dt(_sg(sub_obj, "current_period_start"))
+        period_end = _ts_to_dt(_sg(sub_obj, "current_period_end"))
+        items_obj = _sg(sub_obj, "items")
+        items_data = _sg(items_obj, "data", []) or []
+        if items_data:
+            first_price = _sg(items_data[0], "price")
+            price_id = _sg(first_price, "id", "") or price_id
         report["stripe_status"] = status
     except Exception as e:
         logger.warning("Subscription.retrieve(%s) failed: %s", sub_id, e)
@@ -409,19 +437,20 @@ def verify_checkout_session(db: Session, session_id: str, user: User) -> dict:
     session, matched_key = _retrieve_session_any_mode(session_id)
 
     # セッションが当該ユーザーのものかを確認
-    meta_user_id = (session.get("metadata") or {}).get("user_id")  # type: ignore[attr-defined]
+    metadata = _sg(session, "metadata")
+    meta_user_id = _sg(metadata, "user_id")
     if meta_user_id and meta_user_id != user.id:
         raise PermissionError("Session does not belong to the authenticated user")
 
-    payment_status = session.get("payment_status")  # type: ignore[attr-defined]
+    payment_status = _sg(session, "payment_status")
     # subscription の初回支払いが完了している状態は "paid"、
     # 100%クーポン / ¥0 トライアル初回は "no_payment_required" で成立扱いになる。
     paid = payment_status in ("paid", "no_payment_required")
 
-    currency = (session.get("currency") or "").lower()  # type: ignore[attr-defined]
-    amount_total = session.get("amount_total")  # type: ignore[attr-defined]
+    currency = (_sg(session, "currency", "") or "").lower()
+    amount_total = _sg(session, "amount_total")
     value = _to_decimal_amount(amount_total, currency)
-    plan_id = (session.get("metadata") or {}).get("plan_id", "")  # type: ignore[attr-defined]
+    plan_id = _sg(metadata, "plan_id", "") or ""
 
     # ★ DB upsert — webhook 未着でもここで反映させる
     upsert_report: dict = {"attempted": False}
@@ -495,23 +524,31 @@ def sync_subscriptions_for_customer(db: Session, user: User) -> str:
     best_rank: int = -1
     _rank = {"free": 0, "starter": 1, "pro": 2, "premium": 3}
 
-    for sub_obj in subs_list.get("data", []):
-        sub_id = sub_obj.get("id")
+    subs_data = _sg(subs_list, "data", []) or []
+    for sub_obj in subs_data:
+        sub_id = _sg(sub_obj, "id")
         if not sub_id:
             continue
-        status = sub_obj.get("status", "canceled") or "canceled"
-        items = sub_obj.get("items", {}).get("data", [])
-        price_id = items[0].get("price", {}).get("id", "") if items else ""
-        plan_id = PRICE_TO_PLAN.get(price_id) or (
-            sub_obj.get("metadata") or {}
-        ).get("plan_id") or "unknown"
+        status = _sg(sub_obj, "status", "canceled") or "canceled"
+        items_obj = _sg(sub_obj, "items")
+        items_data = _sg(items_obj, "data", []) or []
+        price_id = ""
+        if items_data:
+            price_obj = _sg(items_data[0], "price")
+            price_id = _sg(price_obj, "id", "") or ""
+        meta = _sg(sub_obj, "metadata")
+        plan_id = (
+            PRICE_TO_PLAN.get(price_id)
+            or _sg(meta, "plan_id")
+            or "unknown"
+        )
         if plan_id not in _rank:
             plan_id = "unknown"
 
         existing = db.query(Subscription).filter(Subscription.id == sub_id).first()
-        period_start = _ts_to_dt(sub_obj.get("current_period_start"))
-        period_end = _ts_to_dt(sub_obj.get("current_period_end"))
-        cancel_at_period_end = bool(sub_obj.get("cancel_at_period_end", False))
+        period_start = _ts_to_dt(_sg(sub_obj, "current_period_start"))
+        period_end = _ts_to_dt(_sg(sub_obj, "current_period_end"))
+        cancel_at_period_end = bool(_sg(sub_obj, "cancel_at_period_end", False))
 
         if existing:
             existing.user_id = user.id
@@ -548,7 +585,7 @@ def sync_subscriptions_for_customer(db: Session, user: User) -> str:
 
     logger.info(
         "Synced %d subscriptions for user %s (best_plan=%s)",
-        len(subs_list.get("data", [])), user.id, best_plan,
+        len(subs_data), user.id, best_plan,
     )
     return best_plan
 
@@ -625,16 +662,15 @@ def handle_webhook_event(payload: bytes, sig_header: str, db: Session) -> None:
 
 # ── 個別イベントハンドラ ─────────────────────────────────────────────────────
 
-def _handle_checkout_completed(session_obj: dict, db: Session) -> None:
+def _handle_checkout_completed(session_obj, db: Session) -> None:
     """checkout.session.completed: stripe_customer_id をユーザーに紐付ける。"""
-    customer_id = session_obj.get("customer")
+    customer_id = _sg(session_obj, "customer")
     if not customer_id:
         return
 
-    # metadata.user_id でユーザーを特定
-    meta_user_id = (session_obj.get("metadata") or {}).get("user_id")
+    meta = _sg(session_obj, "metadata")
+    meta_user_id = _sg(meta, "user_id")
     if not meta_user_id:
-        # customer_id からユーザーを引く (フォールバック)
         user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
         if user:
             logger.info("checkout.completed: user %s already linked to customer %s", user.id, customer_id)
@@ -652,10 +688,9 @@ def _handle_checkout_completed(session_obj: dict, db: Session) -> None:
         db.commit()
         logger.info("Linked Stripe customer %s to user %s", customer_id, meta_user_id)
 
-    plan_id = (session_obj.get("metadata") or {}).get("plan_id", "unknown")
+    plan_id = _sg(meta, "plan_id", "unknown") or "unknown"
 
-    # ── 有料プラン: subscription ID を使って即座に subscription を作成 ──
-    sub_id = session_obj.get("subscription")
+    sub_id = _sg(session_obj, "subscription")
     if sub_id:
         existing = db.query(Subscription).filter(Subscription.id == sub_id).first()
         if not existing:
@@ -672,17 +707,18 @@ def _handle_checkout_completed(session_obj: dict, db: Session) -> None:
             logger.info("Created subscription %s from checkout for user %s plan=%s", sub_id, meta_user_id, plan_id)
 
 
-def _get_plan_from_subscription(sub_obj: dict) -> str:
+def _get_plan_from_subscription(sub_obj) -> str:
     """Stripe Subscription オブジェクトから plan_id を解決する。"""
-    # 1. Price ID から逆引き
-    items = sub_obj.get("items", {}).get("data", [])
-    if items:
-        price_id = items[0].get("price", {}).get("id", "")
+    items_obj = _sg(sub_obj, "items")
+    items_data = _sg(items_obj, "data", []) or []
+    if items_data:
+        first_price = _sg(items_data[0], "price")
+        price_id = _sg(first_price, "id", "") or ""
         plan = PRICE_TO_PLAN.get(price_id)
         if plan:
             return plan
-    # 2. metadata.plan_id フォールバック (subscription_data で設定した値)
-    meta_plan = (sub_obj.get("metadata") or {}).get("plan_id")
+    meta = _sg(sub_obj, "metadata")
+    meta_plan = _sg(meta, "plan_id")
     if meta_plan:
         return meta_plan
     return "unknown"
@@ -693,19 +729,20 @@ def _get_user_id_from_customer(customer_id: str, db: Session) -> Optional[str]:
     return user.id if user else None
 
 
-def _handle_subscription_created(sub_obj: dict, db: Session) -> None:
+def _handle_subscription_created(sub_obj, db: Session) -> None:
     """customer.subscription.created: subscriptions テーブルに新規追加。"""
-    sub_id = sub_obj["id"]
-    customer_id = sub_obj.get("customer")
-    user_id = _get_user_id_from_customer(customer_id, db)
-    # subscription metadata からのフォールバック
+    sub_id = _sg(sub_obj, "id")
+    if not sub_id:
+        return
+    customer_id = _sg(sub_obj, "customer")
+    user_id = _get_user_id_from_customer(customer_id, db) if customer_id else None
     if not user_id:
-        meta_user_id = (sub_obj.get("metadata") or {}).get("user_id")
+        meta = _sg(sub_obj, "metadata")
+        meta_user_id = _sg(meta, "user_id")
         if meta_user_id:
             user = db.query(User).filter(User.id == meta_user_id).first()
             if user:
                 user_id = user.id
-                # customer_id も紐付け
                 if not user.stripe_customer_id and customer_id:
                     user.stripe_customer_id = customer_id
                     db.commit()
@@ -714,54 +751,66 @@ def _handle_subscription_created(sub_obj: dict, db: Session) -> None:
         return
 
     plan_id = _get_plan_from_subscription(sub_obj)
-    items = sub_obj.get("items", {}).get("data", [])
-    price_id = items[0].get("price", {}).get("id", "") if items else ""
+    items_obj = _sg(sub_obj, "items")
+    items_data = _sg(items_obj, "data", []) or []
+    price_id = ""
+    if items_data:
+        first_price = _sg(items_data[0], "price")
+        price_id = _sg(first_price, "id", "") or ""
 
     existing = db.query(Subscription).filter(Subscription.id == sub_id).first()
     if existing:
-        return  # 冪等性: 既に存在する場合はスキップ
+        return
 
     sub = Subscription(
         id=sub_id,
         user_id=user_id,
         stripe_price_id=price_id,
         plan_id=plan_id,
-        status=sub_obj.get("status", "active"),
-        current_period_start=_ts_to_dt(sub_obj.get("current_period_start")),
-        current_period_end=_ts_to_dt(sub_obj.get("current_period_end")),
-        cancel_at_period_end=sub_obj.get("cancel_at_period_end", False),
+        status=_sg(sub_obj, "status", "active") or "active",
+        current_period_start=_ts_to_dt(_sg(sub_obj, "current_period_start")),
+        current_period_end=_ts_to_dt(_sg(sub_obj, "current_period_end")),
+        cancel_at_period_end=bool(_sg(sub_obj, "cancel_at_period_end", False)),
     )
     db.add(sub)
     db.commit()
     logger.info("Created subscription %s for user %s plan=%s", sub_id, user_id, plan_id)
 
 
-def _handle_subscription_updated(sub_obj: dict, db: Session) -> None:
+def _handle_subscription_updated(sub_obj, db: Session) -> None:
     """customer.subscription.updated: ステータス/プランを更新。"""
-    sub_id = sub_obj["id"]
+    sub_id = _sg(sub_obj, "id")
+    if not sub_id:
+        return
     sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
     if not sub:
-        # 存在しない場合は created と同様に作成
         _handle_subscription_created(sub_obj, db)
         return
 
     plan_id = _get_plan_from_subscription(sub_obj)
-    items = sub_obj.get("items", {}).get("data", [])
-    price_id = items[0].get("price", {}).get("id", "") if items else sub.stripe_price_id
+    items_obj = _sg(sub_obj, "items")
+    items_data = _sg(items_obj, "data", []) or []
+    if items_data:
+        first_price = _sg(items_data[0], "price")
+        price_id = _sg(first_price, "id", "") or sub.stripe_price_id
+    else:
+        price_id = sub.stripe_price_id
 
     sub.stripe_price_id = price_id
     sub.plan_id = plan_id
-    sub.status = sub_obj.get("status", sub.status)
-    sub.current_period_start = _ts_to_dt(sub_obj.get("current_period_start"))
-    sub.current_period_end = _ts_to_dt(sub_obj.get("current_period_end"))
-    sub.cancel_at_period_end = sub_obj.get("cancel_at_period_end", False)
+    sub.status = _sg(sub_obj, "status", sub.status) or sub.status
+    sub.current_period_start = _ts_to_dt(_sg(sub_obj, "current_period_start"))
+    sub.current_period_end = _ts_to_dt(_sg(sub_obj, "current_period_end"))
+    sub.cancel_at_period_end = bool(_sg(sub_obj, "cancel_at_period_end", False))
     db.commit()
     logger.info("Updated subscription %s plan=%s status=%s", sub_id, plan_id, sub.status)
 
 
-def _handle_subscription_deleted(sub_obj: dict, db: Session) -> None:
+def _handle_subscription_deleted(sub_obj, db: Session) -> None:
     """customer.subscription.deleted: ステータスを canceled に更新。"""
-    sub_id = sub_obj["id"]
+    sub_id = _sg(sub_obj, "id")
+    if not sub_id:
+        return
     sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
     if sub:
         sub.status = "canceled"
@@ -769,22 +818,22 @@ def _handle_subscription_deleted(sub_obj: dict, db: Session) -> None:
         logger.info("Canceled subscription %s", sub_id)
 
 
-def _handle_invoice_succeeded(invoice_obj: dict, db: Session) -> None:
+def _handle_invoice_succeeded(invoice_obj, db: Session) -> None:
     """invoice.payment_succeeded: past_due を active にリセット。"""
-    sub_id = invoice_obj.get("subscription")
+    sub_id = _sg(invoice_obj, "subscription")
     if not sub_id:
         return
     sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
     if sub and sub.status == "past_due":
         sub.status = "active"
-        sub.current_period_end = _ts_to_dt(invoice_obj.get("period_end"))
+        sub.current_period_end = _ts_to_dt(_sg(invoice_obj, "period_end"))
         db.commit()
         logger.info("Reset subscription %s to active after payment", sub_id)
 
 
-def _handle_invoice_failed(invoice_obj: dict, db: Session) -> None:
+def _handle_invoice_failed(invoice_obj, db: Session) -> None:
     """invoice.payment_failed: ステータスを past_due に更新。"""
-    sub_id = invoice_obj.get("subscription")
+    sub_id = _sg(invoice_obj, "subscription")
     if not sub_id:
         return
     sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
