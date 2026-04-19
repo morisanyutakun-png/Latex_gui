@@ -1172,10 +1172,16 @@ export function TemplateGallery() {
     // checkout 完了ハンドリング (旧 success_url が / を向いていた場合のフォールバック)
     if (searchParams.get("checkout") === "success") {
       const plan = searchParams.get("plan") || "";
+      // ★ session_id は絶対に落とさない。verify → DB upsert → GA4 purchase の
+      //   全フローがこの値に依存する。ここで消すと「購入しても反映されない」に直結する。
+      const sid = searchParams.get("session_id") || "";
       window.history.replaceState({}, "", "/");
       const doc = loadFromLocalStorage() || createDefaultDocument("blank", getTemplateLatex("blank"));
       setDocument(doc);
-      router.push(`/editor?checkout=success${plan ? `&plan=${plan}` : ""}`);
+      const qs = new URLSearchParams({ checkout: "success" });
+      if (plan) qs.set("plan", plan);
+      if (sid) qs.set("session_id", sid);
+      router.push(`/editor?${qs.toString()}`);
       return;
     }
 

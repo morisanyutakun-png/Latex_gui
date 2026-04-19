@@ -411,6 +411,18 @@ def _classify_secret_key(v: str) -> str:
     return "invalid"
 
 
+@router.get("/version")
+async def subscription_version():
+    """このエンドポイントが存在するなら、verify-checkout が DB upsert する
+    コード (2026-04 以降) が Koyeb に反映済みの目印。存在しない = 要再デプロイ。"""
+    return {
+        "verify_upserts_db": True,
+        "sync_endpoint": True,
+        "per_plan_key_override": True,
+        "debug_mode_on_test_sessions": True,
+    }
+
+
 @router.get("/stripe-config-check")
 async def stripe_config_check():
     """Stripe 関連の環境変数の種別を返す (値そのものは返さない)。
