@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LegalLayout, LegalKeyValueTable } from "@/components/layout/legal-layout";
+import { SUPPORT_EMAIL, OPERATOR_NAME, SITE_URL } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "特定商取引法に基づく表記",
@@ -14,16 +15,16 @@ export const metadata: Metadata = {
  * - 販売価格、支払時期・方法
  * - 役務提供時期、返品特約 等
  *
- * 実運用では下記 `BUSINESS_INFO` をユーザー(個人事業主 or 法人)の
- * 情報に置き換えてデプロイする。住所・電話番号は請求時開示でも可。
+ * 事業者識別情報は `lib/contact.ts` から取得。住所・電話は個人事業主のため
+ * 「請求時開示」で運用中 (消費者庁ガイドライン許容)。
  */
 const BUSINESS_INFO = {
-  operatorName: "森 祐太 (個人事業主)",
+  operatorName: OPERATOR_NAME,
   operatorTitle: "運営統括責任者",
   addressNote: "ご請求があれば遅滞なく開示いたします。",
   phoneNote: "ご請求があれば遅滞なく開示いたします。",
-  email: "support@eddivom.yuta-eng.com",
-  siteUrl: "https://eddivom.yuta-eng.com",
+  email: SUPPORT_EMAIL,
+  siteUrl: SITE_URL,
 };
 
 export default function CommercePage() {

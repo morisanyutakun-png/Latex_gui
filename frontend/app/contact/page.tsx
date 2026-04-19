@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { LegalLayout } from "@/components/layout/legal-layout";
 import { Mail, MessageCircle, Clock, AlertCircle } from "lucide-react";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "お問い合わせ",
   description: "Eddivom へのお問い合わせ窓口",
 };
-
-const SUPPORT_EMAIL = "support@eddivom.yuta-eng.com";
 
 export default function ContactPage() {
   return (

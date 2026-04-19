@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LegalLayout, LegalSection } from "@/components/layout/legal-layout";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "返金ポリシー",
@@ -104,10 +105,10 @@ export default function RefundsPage() {
         </p>
         <p>
           <a
-            href="mailto:support@eddivom.yuta-eng.com"
+            href={`mailto:${SUPPORT_EMAIL}`}
             className="text-violet-600 dark:text-violet-400 hover:underline"
           >
-            support@eddivom.yuta-eng.com
+            {SUPPORT_EMAIL}
           </a>
         </p>
       </LegalSection>
