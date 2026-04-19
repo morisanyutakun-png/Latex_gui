@@ -98,8 +98,12 @@ export function PricingModal() {
 
   return (
     <Dialog open={showPricing} onOpenChange={setShowPricing}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-        <DialogHeader className="px-6 pt-6 pb-2">
+      {/*
+        横幅を 6xl に広げ、overflow は縦のみ。Premium の `scale-[1.03]` が
+        はみ出さないようにグリッドのパディングを多めに取る。
+      */}
+      <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden p-0">
+        <DialogHeader className="px-6 pt-6 pb-3">
           <DialogTitle className="text-xl font-bold text-center">
             {isJa ? "料金プラン" : "Pricing Plans"}
           </DialogTitle>
@@ -110,7 +114,7 @@ export function PricingModal() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 px-6 pb-6 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-6 pt-4 pb-6">
           {PLAN_ORDER.map((planId) => {
             const plan = PLANS[planId];
             const colors = PLAN_COLORS[planId];
@@ -122,19 +126,19 @@ export function PricingModal() {
             return (
               <div
                 key={planId}
-                className={`relative rounded-xl border p-4 flex flex-col ${colors.bg} ${colors.border} ${
-                  isPremium ? "scale-[1.03] shadow-xl z-10" : plan.highlight ? "scale-[1.01] shadow-lg" : "shadow-sm"
+                className={`relative rounded-2xl border p-5 flex flex-col min-w-0 ${colors.bg} ${colors.border} ${
+                  isPremium ? "shadow-xl z-10" : plan.highlight ? "shadow-lg" : "shadow-sm"
                 } transition-all`}
               >
                 {/* バッジ */}
                 {plan.badge && (
-                  <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold ${colors.badge}`}>
+                  <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${colors.badge}`}>
                     {plan.badge}
                   </span>
                 )}
 
                 {/* ヘッダー */}
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-3">
                   <div className={`p-1.5 rounded-lg ${colors.badge}`}>
                     {PLAN_ICONS[planId]}
                   </div>
@@ -142,59 +146,65 @@ export function PricingModal() {
                 </div>
 
                 {/* 価格 */}
-                <div className="mb-3">
+                <div className="mb-4 flex items-baseline gap-1 flex-wrap">
                   <span className={`font-extrabold tracking-tight ${isPremium ? "text-3xl" : "text-2xl"}`}>
                     {plan.priceLabel}
                   </span>
-                  <span className="text-sm text-slate-500 ml-1">
-                    {plan.price > 0 ? (isJa ? "/月" : "/mo") : ""}
-                  </span>
+                  {plan.price > 0 && (
+                    <span className="text-sm text-slate-500">
+                      {isJa ? "/月" : "/mo"}
+                    </span>
+                  )}
                 </div>
 
-                {/* リクエスト制限ハイライト */}
-                <div className={`rounded-lg border px-3 py-2 mb-3 ${
+                {/* リクエスト制限ハイライト — "高性能AI" を縦に積んでカラム幅で潰れないようにする */}
+                <div className={`rounded-lg border px-3 py-2.5 mb-4 ${
                   isPremium
                     ? "bg-amber-50/80 dark:bg-amber-900/20 border-amber-200/60 dark:border-amber-700/50"
                     : "bg-white/60 dark:bg-black/20 border-slate-200/50 dark:border-slate-700/50"
                 }`}>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-sm font-semibold ${isPremium ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 dark:text-indigo-400"}`}>
-                      {isJa ? "高性能AI" : "AI"}
-                    </span>
-                    <span className={`text-lg font-bold ${isPremium ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 dark:text-indigo-400"}`}>
+                  <div className={`text-[10px] font-semibold uppercase tracking-wider mb-0.5 ${
+                    isPremium ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 dark:text-indigo-400"
+                  }`}>
+                    {isJa ? "高性能AI" : "Premium AI"}
+                  </div>
+                  <div className="flex items-baseline gap-1 whitespace-nowrap">
+                    <span className={`text-2xl font-extrabold leading-none tracking-tight ${
+                      isPremium ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 dark:text-indigo-400"
+                    }`}>
                       {plan.requestsPerMonth.toLocaleString()}
                     </span>
-                    <span className="text-xs text-slate-500">
-                      {isJa ? "回/月" : "/mo"}
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {isJa ? "回 / 月" : "req/mo"}
                     </span>
                   </div>
                 </div>
 
                 {/* 機能一覧 */}
-                <ul className="space-y-1.5 mb-4 flex-1">
+                <ul className="space-y-2 mb-5 flex-1">
                   {features.map((f, i) => (
-                    <li key={i} className="flex items-start gap-1.5 text-[12px]">
-                      <Check className={`h-3 w-3 shrink-0 mt-0.5 ${isPremium ? "text-amber-500" : "text-emerald-500"}`} />
-                      <span>{f}</span>
+                    <li key={i} className="flex items-start gap-1.5 text-[12px] leading-snug">
+                      <Check className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${isPremium ? "text-amber-500" : "text-emerald-500"}`} />
+                      <span className="break-words">{f}</span>
                     </li>
                   ))}
                 </ul>
 
                 {/* ボタン */}
                 <Button
-                  className={`w-full ${colors.btn} ${(isActive || isLower) ? "opacity-60 cursor-default" : ""} ${isPremium ? "font-bold" : ""}`}
+                  className={`w-full whitespace-nowrap ${colors.btn} ${(isActive || isLower) ? "opacity-60 cursor-default" : ""} ${isPremium ? "font-bold" : ""}`}
                   onClick={() => handleSelect(planId)}
                   disabled={isActive || isLower || isRedirecting}
                 >
                   {isActive
                     ? (isJa ? "現在のプラン" : "Current Plan")
                     : isLower
-                    ? (isJa ? "より上位のプラン契約中" : "On a higher plan")
+                    ? (isJa ? "上位プラン契約中" : "On higher plan")
                     : isRedirecting
                     ? (isJa ? "処理中..." : "Redirecting...")
                     : planId === "free"
                     ? (isJa ? "Freeで始める" : "Start Free")
-                    : (isJa ? "このプランを選択" : "Select Plan")}
+                    : (isJa ? "このプランにする" : "Select Plan")}
                 </Button>
               </div>
             );
