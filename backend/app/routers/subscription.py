@@ -321,11 +321,14 @@ class VerifyCheckoutResponse(BaseModel):
 async def verify_checkout_endpoint(
     session_id: str,
     user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Stripe Checkout Session が実際に支払い済みかサーバサイドで検証する。
+    """Stripe Checkout Session が実際に支払い済みかサーバサイドで検証し、
+    paid ならその場で DB の Subscription を upsert する。
 
-    Google Ads の Purchase conversion を、URL パラメータだけではなく
-    サーバ確認済みの成功データに基づいて発火させるため。
+    Webhook が届かない/遅い環境 (test mode 別エンドポイント、Koyeb への到達失敗 等)
+    でも redirect 直後にプランが即反映される。冪等なので webhook が後から来ても OK。
+    Google Ads / GA4 の purchase event もここで paid を確認した後に発火される。
     """
     if not user:
         raise HTTPException(status_code=401, detail="認証が必要です")
@@ -333,7 +336,7 @@ async def verify_checkout_endpoint(
         raise HTTPException(status_code=400, detail="session_id が空です")
 
     try:
-        result = stripe_service.verify_checkout_session(session_id, user.id)
+        result = stripe_service.verify_checkout_session(db, session_id, user)
     except PermissionError:
         raise HTTPException(status_code=403, detail="このセッションを検証する権限がありません")
     except Exception as e:
@@ -341,6 +344,49 @@ async def verify_checkout_endpoint(
         raise HTTPException(status_code=502, detail=f"Stripe検証に失敗しました: {type(e).__name__}")
 
     return VerifyCheckoutResponse(**result)
+
+
+@router.post("/sync", response_model=SubscriptionStatus)
+async def sync_subscription(
+    user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """現ユーザーの `stripe_customer_id` に紐づくサブスクを Stripe から引いて DB を同期する。
+
+    用途: webhook 取りこぼし時の self-heal、「反映されていない気がする」のワンクリック修復。
+    Stripe が単一の真実で、DB はそのリプリカ。
+    """
+    if not user:
+        raise HTTPException(status_code=401, detail="認証が必要です")
+    if not user.stripe_customer_id:
+        # Stripe に customer がないなら Free として同期完了
+        return SubscriptionStatus(plan_id="free", status="free")
+
+    try:
+        synced_plan = stripe_service.sync_subscriptions_for_customer(db, user)
+    except Exception as e:
+        logger.error("sync_subscriptions error: %s", e, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Stripeとの同期に失敗しました: {type(e).__name__}")
+
+    # 最新の DB 状態を返す
+    sub = (
+        db.query(Subscription)
+        .filter(
+            Subscription.user_id == user.id,
+            Subscription.status.in_(["active", "trialing", "past_due"]),
+        )
+        .order_by(Subscription.updated_at.desc())
+        .first()
+    )
+    if not sub:
+        return SubscriptionStatus(plan_id=synced_plan or "free", status="free")
+    return SubscriptionStatus(
+        plan_id=sub.plan_id,
+        status=sub.status,
+        current_period_end=sub.current_period_end.isoformat() if sub.current_period_end else None,
+        cancel_at_period_end=sub.cancel_at_period_end or False,
+        stripe_customer_id=user.stripe_customer_id,
+    )
 
 
 def _classify_price_value(v: str) -> str:

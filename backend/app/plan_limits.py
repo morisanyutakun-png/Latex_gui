@@ -15,6 +15,36 @@ from .db_models import Subscription
 PlanId = Literal["free", "starter", "pro", "premium"]
 Action = Literal["ai_request", "pdf_export"]
 
+# プランでゲートする機能。frontend/lib/plans.ts `GatedFeature` と同期させること。
+Feature = Literal[
+    "grading",          # 採点・自動採点
+    "ocr",              # OMR / PDF・画像から問題抽出
+    "latexExport",      # LaTeXソースエクスポート
+    "allTemplates",     # 全テンプレート利用
+    "batch",            # バッチ処理
+    "customTemplates",  # カスタムテンプレート作成
+]
+
+# 機能 → 使えるようになる最低プラン。frontend/lib/plans.ts の FEATURE_MIN_PLAN と同期。
+FEATURE_MIN_PLAN: dict[Feature, PlanId] = {
+    "grading":         "starter",
+    "ocr":             "starter",
+    "latexExport":     "starter",
+    "allTemplates":    "pro",
+    "batch":           "pro",
+    "customTemplates": "premium",
+}
+
+_PLAN_RANK: dict[PlanId, int] = {"free": 0, "starter": 1, "pro": 2, "premium": 3}
+
+
+def can_use_feature(plan_id: PlanId, feature: Feature) -> bool:
+    """指定プランが当該機能を使えるか。"""
+    required = FEATURE_MIN_PLAN.get(feature)
+    if not required:
+        return False
+    return _PLAN_RANK.get(plan_id, 0) >= _PLAN_RANK[required]
+
 
 class PlanLimits(TypedDict):
     ai_per_day: int       # 1日のAIリクエスト上限

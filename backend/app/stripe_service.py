@@ -222,19 +222,18 @@ def _to_decimal_amount(amount: Optional[int], currency: str) -> float:
     return amount / 100.0
 
 
-def _retrieve_session_any_mode(session_id: str):
+def _retrieve_session_any_mode(session_id: str) -> tuple[object, str]:
     """Checkout Session を取得する。デフォルトキーで失敗したら、
     `STRIPE_SECRET_KEY_<PLAN>` オーバーライドを順に試す。
 
-    Pro だけ test モードで作られた session を live キーで retrieve して 404 になる
-    (=verify 失敗で purchase event が発火しない) 問題への対処。
+    Returns: (session, matched_api_key) — 見つけた key を呼び出し側に返して、
+    同じ key で `stripe.Subscription.retrieve` 等の追撃 API 呼び出しができるようにする。
     """
     _ensure_api_key()
 
     # `cs_test_` で始まる session は必ず test キーが必要 (Stripe の命名規約)。
     prefer_test = session_id.startswith("cs_test_")
 
-    # 試すキーを順に集める (重複除去しつつ順序維持)
     candidates: list[str] = []
     seen: set[str] = set()
 
@@ -248,7 +247,6 @@ def _retrieve_session_any_mode(session_id: str):
         os.environ.get(f"STRIPE_SECRET_KEY_{p.upper()}", "")
         for p in ("starter", "pro", "premium")
     ]
-    # test モードの session id なら sk_test_ を先に試す
     if prefer_test:
         for k in override_keys:
             if k.startswith("sk_test_"):
@@ -267,43 +265,149 @@ def _retrieve_session_any_mode(session_id: str):
         for key in candidates:
             stripe.api_key = key
             try:
-                return stripe.checkout.Session.retrieve(session_id)
+                sess = stripe.checkout.Session.retrieve(session_id)
+                return sess, key
             except stripe.error.InvalidRequestError as e:
                 last_err = e
                 continue
     finally:
         stripe.api_key = prev
 
-    # 全キーで見つからなかった: 最後の InvalidRequestError を再送
     raise last_err or stripe.error.InvalidRequestError(
         f"No such checkout session: {session_id}", param="session_id"
     )
 
 
-def verify_checkout_session(session_id: str, user_id: str) -> dict:
+def _upsert_subscription_from_session(
+    db: Session,
+    user: User,
+    session: object,
+    matched_key: str,
+) -> None:
+    """Checkout Session の内容から DB の Subscription 行を冪等に upsert する。
+
+    Webhook (checkout.session.completed / subscription.updated) に頼らず、
+    redirect 直後の verify でも DB に反映させるため。
+    webhook が後から来ても `_handle_*` 側が `existing` ガードで重複を防ぐ。
+    """
+    sub_id = session.get("subscription")  # type: ignore[attr-defined]
+    plan_id = (session.get("metadata") or {}).get("plan_id", "")  # type: ignore[attr-defined]
+    customer_id = session.get("customer")  # type: ignore[attr-defined]
+    is_test_session = bool(customer_id and isinstance(customer_id, str) and "test" in (matched_key or ""))
+
+    if not sub_id or not plan_id:
+        logger.warning(
+            "Cannot upsert subscription: sub_id=%s plan_id=%s", sub_id, plan_id,
+        )
+        return
+
+    # customer_id を User に紐付ける (test session の場合は live の既存値を壊さないようスキップ)
+    if customer_id and not user.stripe_customer_id and not is_test_session:
+        user.stripe_customer_id = customer_id
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    # Stripe から最新のサブスク情報を引いて期間情報を取得 (マッチした key 下で実施)
+    period_start = None
+    period_end = None
+    status = "active"
+    price_id = PLAN_PRICE_IDS.get(plan_id, "") or os.environ.get(
+        f"STRIPE_PRICE_ID_{plan_id.upper()}", ""
+    )
+    prev = stripe.api_key
+    try:
+        stripe.api_key = matched_key
+        sub_obj = stripe.Subscription.retrieve(sub_id)
+        status = sub_obj.get("status", "active") or "active"
+        period_start = _ts_to_dt(sub_obj.get("current_period_start"))
+        period_end = _ts_to_dt(sub_obj.get("current_period_end"))
+        items = sub_obj.get("items", {}).get("data", [])
+        if items:
+            price_id = items[0].get("price", {}).get("id", "") or price_id
+    except Exception as e:
+        # Subscription.retrieve に失敗しても、session から分かる最低限の情報は書く
+        logger.warning("Subscription.retrieve(%s) failed: %s", sub_id, e)
+    finally:
+        stripe.api_key = prev
+
+    existing = db.query(Subscription).filter(Subscription.id == sub_id).first()
+    if existing:
+        existing.user_id = user.id
+        existing.stripe_price_id = price_id or existing.stripe_price_id
+        existing.plan_id = plan_id
+        existing.status = status
+        if period_start is not None:
+            existing.current_period_start = period_start
+        if period_end is not None:
+            existing.current_period_end = period_end
+        existing.cancel_at_period_end = False
+        try:
+            db.commit()
+            logger.info(
+                "Updated subscription %s for user %s plan=%s status=%s",
+                sub_id, user.id, plan_id, status,
+            )
+        except Exception:
+            db.rollback()
+    else:
+        try:
+            db.add(Subscription(
+                id=sub_id,
+                user_id=user.id,
+                stripe_price_id=price_id,
+                plan_id=plan_id,
+                status=status,
+                current_period_start=period_start,
+                current_period_end=period_end,
+                cancel_at_period_end=False,
+            ))
+            db.commit()
+            logger.info(
+                "Created subscription %s for user %s plan=%s status=%s (from verify)",
+                sub_id, user.id, plan_id, status,
+            )
+        except Exception as e:
+            # 並行リクエスト / webhook との競合で重複挿入した場合は rollback して取り直す
+            db.rollback()
+            logger.warning("Insert race on subscription %s: %s", sub_id, e)
+
+
+def verify_checkout_session(db: Session, session_id: str, user: User) -> dict:
     """Stripe Checkout Session の支払い状況をサーバサイドで検証する。
 
     URL パラメータだけでは成功扱いしないための要。
     ほかのユーザーのセッションで発火されないよう metadata.user_id と照合する。
 
-    プラン別の `STRIPE_SECRET_KEY_<PLAN>` オーバーライドを使っている環境でも、
-    test/live 両モードの session を自動で見分けて retrieve する。
+    重要: paid と判定した場合、**この関数内で DB の Subscription を upsert する**。
+    webhook 未着/遅延/mode 違いで取りこぼしても、redirect 時に必ず DB に反映される。
+    冪等なので webhook が後から来ても二重にはならない。
     """
-    session = _retrieve_session_any_mode(session_id)
+    session, matched_key = _retrieve_session_any_mode(session_id)
 
     # セッションが当該ユーザーのものかを確認
-    meta_user_id = (session.get("metadata") or {}).get("user_id")
-    if meta_user_id and meta_user_id != user_id:
+    meta_user_id = (session.get("metadata") or {}).get("user_id")  # type: ignore[attr-defined]
+    if meta_user_id and meta_user_id != user.id:
         raise PermissionError("Session does not belong to the authenticated user")
 
-    payment_status = session.get("payment_status")  # "paid" / "unpaid" / "no_payment_required"
-    # subscription の初回支払いが完了している状態は "paid" で表現される。
-    paid = payment_status == "paid"
+    payment_status = session.get("payment_status")  # type: ignore[attr-defined]
+    # subscription の初回支払いが完了している状態は "paid"、
+    # 100%クーポン / ¥0 トライアル初回は "no_payment_required" で成立扱いになる。
+    paid = payment_status in ("paid", "no_payment_required")
 
-    currency = (session.get("currency") or "").lower()
-    amount_total = session.get("amount_total")
+    currency = (session.get("currency") or "").lower()  # type: ignore[attr-defined]
+    amount_total = session.get("amount_total")  # type: ignore[attr-defined]
     value = _to_decimal_amount(amount_total, currency)
-    plan_id = (session.get("metadata") or {}).get("plan_id", "")
+    plan_id = (session.get("metadata") or {}).get("plan_id", "")  # type: ignore[attr-defined]
+
+    # ★ DB upsert — webhook 未着でもここで反映させる
+    if paid:
+        try:
+            _upsert_subscription_from_session(db, user, session, matched_key)
+        except Exception as e:
+            # DB 書き込み失敗は purchase event を止めるほどではないので warning で続行
+            logger.error("Failed to upsert subscription from verify: %s", e, exc_info=True)
 
     return {
         "paid": paid,
@@ -313,6 +417,116 @@ def verify_checkout_session(session_id: str, user_id: str) -> dict:
         "transaction_id": session_id,
         "plan_id": plan_id,
     }
+
+
+def sync_subscriptions_for_customer(db: Session, user: User) -> str:
+    """Stripe から現ユーザーの全サブスクを引き、DB を Stripe 側に寄せて同期する。
+
+    Stripe が single source of truth。DB はそのミラー。
+    - active/trialing/past_due を DB に upsert
+    - canceled は DB 側も "canceled" に更新
+    - 返り値は同期後の最有力プラン (active/trialing の最新)
+    """
+    _ensure_api_key()
+    if not user.stripe_customer_id:
+        return "free"
+
+    # 複数のキーで customer を試す (test/live 両対応)
+    candidate_keys: list[str] = []
+    seen: set[str] = set()
+    def _add(k: str) -> None:
+        k = (k or "").strip()
+        if k and k not in seen:
+            seen.add(k)
+            candidate_keys.append(k)
+    _add(stripe.api_key)
+    for p in ("starter", "pro", "premium"):
+        _add(os.environ.get(f"STRIPE_SECRET_KEY_{p.upper()}", ""))
+
+    subs_list = None
+    prev = stripe.api_key
+    last_err: Optional[Exception] = None
+    try:
+        for key in candidate_keys:
+            stripe.api_key = key
+            try:
+                subs_list = stripe.Subscription.list(
+                    customer=user.stripe_customer_id,
+                    status="all",
+                    limit=20,
+                )
+                break
+            except stripe.error.InvalidRequestError as e:
+                last_err = e
+                continue
+    finally:
+        stripe.api_key = prev
+
+    if subs_list is None:
+        raise last_err or stripe.error.InvalidRequestError(
+            "Could not list subscriptions", param="customer"
+        )
+
+    best_plan: str = "free"
+    best_rank: int = -1
+    _rank = {"free": 0, "starter": 1, "pro": 2, "premium": 3}
+
+    for sub_obj in subs_list.get("data", []):
+        sub_id = sub_obj.get("id")
+        if not sub_id:
+            continue
+        status = sub_obj.get("status", "canceled") or "canceled"
+        items = sub_obj.get("items", {}).get("data", [])
+        price_id = items[0].get("price", {}).get("id", "") if items else ""
+        plan_id = PRICE_TO_PLAN.get(price_id) or (
+            sub_obj.get("metadata") or {}
+        ).get("plan_id") or "unknown"
+        if plan_id not in _rank:
+            plan_id = "unknown"
+
+        existing = db.query(Subscription).filter(Subscription.id == sub_id).first()
+        period_start = _ts_to_dt(sub_obj.get("current_period_start"))
+        period_end = _ts_to_dt(sub_obj.get("current_period_end"))
+        cancel_at_period_end = bool(sub_obj.get("cancel_at_period_end", False))
+
+        if existing:
+            existing.user_id = user.id
+            existing.stripe_price_id = price_id or existing.stripe_price_id
+            if plan_id != "unknown":
+                existing.plan_id = plan_id
+            existing.status = status
+            existing.current_period_start = period_start
+            existing.current_period_end = period_end
+            existing.cancel_at_period_end = cancel_at_period_end
+        else:
+            db.add(Subscription(
+                id=sub_id,
+                user_id=user.id,
+                stripe_price_id=price_id,
+                plan_id=plan_id if plan_id != "unknown" else "free",
+                status=status,
+                current_period_start=period_start,
+                current_period_end=period_end,
+                cancel_at_period_end=cancel_at_period_end,
+            ))
+
+        if status in ("active", "trialing") and plan_id in _rank:
+            if _rank[plan_id] > best_rank:
+                best_rank = _rank[plan_id]
+                best_plan = plan_id
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("DB commit in sync failed: %s", e)
+        raise
+
+    logger.info(
+        "Synced %d subscriptions for user %s (best_plan=%s)",
+        len(subs_list.get("data", [])), user.id, best_plan,
+    )
+    return best_plan
 
 
 def activate_free_plan(db: Session, user: User) -> None:

@@ -18,8 +18,22 @@ from sqlalchemy.orm import Session
 
 from .database import get_db
 from .db_models import User
-from .plan_limits import get_effective_plan
+from .plan_limits import Feature, FEATURE_MIN_PLAN, can_use_feature, get_effective_plan
 from .usage_service import check_ai_quota, check_pdf_quota
+
+
+# プラン表示用 (日本語)
+_PLAN_LABEL_JA = {
+    "free": "Free", "starter": "Starter", "pro": "Pro", "premium": "Premium",
+}
+_FEATURE_LABEL_JA: dict[str, str] = {
+    "grading":         "採点・自動採点",
+    "ocr":             "PDF・画像取り込み (OCR)",
+    "latexExport":     "LaTeXソースエクスポート",
+    "allTemplates":    "全テンプレート利用",
+    "batch":           "バッチ処理",
+    "customTemplates": "カスタムテンプレート作成",
+}
 
 
 INTERNAL_SECRET = os.environ.get("INTERNAL_API_SECRET", "")
@@ -141,3 +155,63 @@ def enforce_pdf_quota(
             },
         )
     return user
+
+
+def require_feature(feature: Feature):
+    """プラン別 feature gate の依存性ファクトリ。
+
+    当該機能を使えるプラン未満のユーザーは 403 FEATURE_NOT_AVAILABLE を返す。
+    認証は `require_user` に委ねるので、未認証は 401 になる。
+    サーバ側が最終権限 (LP の Free プラン表示との整合を保つ)。
+    """
+    def _dep(
+        user: User = Depends(require_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        plan_id = get_effective_plan(db, user.id)
+        if not can_use_feature(plan_id, feature):
+            required = FEATURE_MIN_PLAN[feature]
+            label = _FEATURE_LABEL_JA.get(feature, feature)
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "FEATURE_NOT_AVAILABLE",
+                    "feature": feature,
+                    "plan_id": plan_id,
+                    "required_plan": required,
+                    "message": (
+                        f"「{label}」は {_PLAN_LABEL_JA[required]} プラン以上でご利用いただけます。"
+                    ),
+                },
+            )
+        return user
+    return _dep
+
+
+def enforce_ai_quota_with_feature(feature: Feature):
+    """`require_feature` と `enforce_ai_quota` を同時に適用する依存性。
+
+    AI を消費する機能 (OMR / Grading) ではプラン + quota の両方を見る必要があるので、
+    ルータ側での `Depends` 2 段重ねを 1 箇所にまとめる。
+    """
+    def _dep(
+        user: User = Depends(require_feature(feature)),
+        db: Session = Depends(get_db),
+    ) -> User:
+        plan_id = get_effective_plan(db, user.id)
+        check = check_ai_quota(db, user.id, plan_id)
+        if not check["allowed"]:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": check["code"],
+                    "message": check["reason"],
+                    "plan_id": check["plan_id"],
+                    "used_day": check["used_day"],
+                    "used_month": check["used_month"],
+                    "limit_day": check["limit_day"],
+                    "limit_month": check["limit_month"],
+                },
+            )
+        return user
+    return _dep

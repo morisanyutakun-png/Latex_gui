@@ -41,7 +41,7 @@ from .routers.subscription import router as subscription_router
 from .routers.grading import router as grading_router
 from .database import get_db
 from .db_models import User
-from .auth_deps import enforce_ai_quota, enforce_pdf_quota
+from .auth_deps import enforce_ai_quota, enforce_ai_quota_with_feature, enforce_pdf_quota
 from .usage_service import log_usage
 
 logging.basicConfig(level=logging.INFO)
@@ -656,10 +656,13 @@ async def omr_analyze_endpoint(
     document: str = Form("{}"),
     hint: str = Form(""),
     locale: str = Form("ja"),
-    user: User = Depends(enforce_ai_quota),
+    user: User = Depends(enforce_ai_quota_with_feature("ocr")),
     db: Session = Depends(get_db),
 ):
-    """OMR解析 — 画像から raw LaTeX を抽出。AI quota に含める。"""
+    """OMR解析 — 画像から raw LaTeX を抽出。AI quota に含める。
+
+    `ocr` feature は Starter+ 限定。LP の「Free は OMR 非対応」表記との整合のため。
+    """
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -728,10 +731,10 @@ async def omr_analyze_stream_endpoint(
     document: str = Form("{}"),
     hint: str = Form(""),
     locale: str = Form("ja"),
-    user: User = Depends(enforce_ai_quota),
+    user: User = Depends(enforce_ai_quota_with_feature("ocr")),
     db: Session = Depends(get_db),
 ):
-    """OMR解析 SSEストリーミング。AI quota に含める。"""
+    """OMR解析 SSEストリーミング。AI quota に含める。Starter+ のみ。"""
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,

@@ -97,60 +97,68 @@ export default function EditorPage() {
 
     // 3. 有料プランは Stripe に問い合わせて実際に支払い済みか確認してから
     //    GA4 の purchase event を発火する。URL だけでは誤発火しない。
-    //    Google Ads へは GA4 のコンバージョンインポートで連携する想定。
-    if (planParam !== "free" && sessionId) {
-      console.info("[checkout-return] verifying session", { sessionId, planParam });
-      verifyCheckoutSession(sessionId).then((v) => {
-        console.info("[checkout-return] verify response", v);
-        if (!v) {
-          console.warn("[checkout-return] verify returned null (backend error or 401/403)");
-          return;
-        }
-        // payment_status は "paid" / "no_payment_required" どちらも「購入成立」として扱う。
-        // (100% クーポン適用時や 0 円トライアル初回は no_payment_required になる)
-        const acceptable = v.paid || v.payment_status === "no_payment_required";
-        if (!acceptable) {
-          console.warn("[checkout-return] not paid, skip purchase event", v);
-          return;
-        }
-        if (!v.currency || !v.transaction_id) {
-          console.warn("[checkout-return] missing currency/transaction_id", v);
-          return;
-        }
-        const planDef = PLANS[v.plan_id as PlanId];
-        void sendPurchaseEvent({
-          transactionId: v.transaction_id,  // Stripe Checkout Session ID (cs_xxx)
-          value: v.value,
-          currency: v.currency,
-          items: [
-            {
-              item_id: v.plan_id || "subscription",
-              item_name: planDef?.name || v.plan_id || "Subscription",
-              item_category: "subscription",
-              price: v.value,
-              quantity: 1,
-            },
-          ],
-        });
-      });
-    } else if (planParam !== "free") {
+    //    ★ backend 側で verify と同時に DB の Subscription も upsert される (冪等)。
+    //    その後 fetchSubscription でストアに反映 → ヘッダーバッジ等が更新される。
+    const verifyPromise: Promise<void> = (planParam !== "free" && sessionId)
+      ? (async () => {
+          console.info("[checkout-return] verifying session", { sessionId, planParam });
+          const v = await verifyCheckoutSession(sessionId);
+          console.info("[checkout-return] verify response", v);
+          if (!v) {
+            console.warn("[checkout-return] verify returned null (backend error or 401/403)");
+            return;
+          }
+          const acceptable = v.paid || v.payment_status === "no_payment_required";
+          if (!acceptable) {
+            console.warn("[checkout-return] not paid, skip purchase event", v);
+            return;
+          }
+          if (!v.currency || !v.transaction_id) {
+            console.warn("[checkout-return] missing currency/transaction_id", v);
+            return;
+          }
+          const planDef = PLANS[v.plan_id as PlanId];
+          void sendPurchaseEvent({
+            transactionId: v.transaction_id,
+            value: v.value,
+            currency: v.currency,
+            items: [
+              {
+                item_id: v.plan_id || "subscription",
+                item_name: planDef?.name || v.plan_id || "Subscription",
+                item_category: "subscription",
+                price: v.value,
+                quantity: 1,
+              },
+            ],
+          });
+        })()
+      : Promise.resolve();
+
+    if (planParam !== "free" && !sessionId) {
       console.warn("[checkout-return] planParam is not free but sessionId is empty — cannot fire purchase", { planParam, sessionId });
     }
 
-    // 4. サブスクリプション状態を非同期で取得
+    // 4. verify で DB 反映後、サブスクリプション状態を取得。
+    //    取れていなかったら /sync を叩いて Stripe から強制同期 → 再 fetch する。
     const fetchWithRetry = async (retries: number): Promise<string> => {
       const { fetchSubscription } = usePlanStore.getState();
       await fetchSubscription();
       const { currentPlan } = usePlanStore.getState();
       if (planParam === "free") return currentPlan;
       if (currentPlan === "free" && retries > 0) {
-        await new Promise((r) => setTimeout(r, 2000));
+        // DB にまだ反映されていない → /sync で Stripe に聞き直す
+        try {
+          await fetch("/api/subscription/sync", { method: "POST", cache: "no-store" });
+        } catch { /* sync 失敗でも次の retry に委ねる */ }
+        await new Promise((r) => setTimeout(r, 1500));
         return fetchWithRetry(retries - 1);
       }
       return currentPlan;
     };
 
-    fetchWithRetry(5).then((plan) => {
+    // verify (→ DB upsert) が完了してから plan 取得を始めることで最初の fetch で大体ヒットする
+    verifyPromise.then(() => fetchWithRetry(5)).then((plan) => {
       const planDef = PLANS[plan as keyof typeof PLANS];
       const planName = plan !== "free" ? planDef?.name || plan : "Free";
       toast.success(
@@ -334,12 +342,25 @@ export default function EditorPage() {
               );
             })()}
 
-            {/* Scan / OMR */}
+            {/* Scan / OMR — Starter+ のみ。Free はアップグレード促進。 */}
             <ActivityBtn
               accent="emerald"
               icon={<ScanLine className="h-[17px] w-[17px]" />}
               label={t("side.label.scan")}
-              onClick={triggerOMR}
+              onClick={() => {
+                const check = usePlanStore.getState().checkFeature("ocr");
+                if (!check.allowed) {
+                  toast.error(check.reason, {
+                    duration: 5000,
+                    action: {
+                      label: locale === "en" ? "Upgrade" : "アップグレード",
+                      onClick: () => usePlanStore.getState().setShowPricing(true),
+                    },
+                  });
+                  return;
+                }
+                triggerOMR();
+              }}
               title={t("side.tooltip.scan")}
               disabled={gradingMode}
             />
@@ -355,7 +376,7 @@ export default function EditorPage() {
               disabled={gradingMode}
             />
 
-            {/* Grading — 採点モード時は光る */}
+            {/* Grading — 採点モード時は光る。Starter+ のみ。 */}
             <ActivityBtn
               accent="rose"
               active={gradingMode}
@@ -363,8 +384,22 @@ export default function EditorPage() {
               label={t("side.label.grading")}
               onClick={() => {
                 // Toggle: if already grading → cancel; otherwise open
-                if (gradingMode) closeGrading();
-                else openGrading(doc.latex, doc.metadata.title || "");
+                if (gradingMode) {
+                  closeGrading();
+                  return;
+                }
+                const check = usePlanStore.getState().checkFeature("grading");
+                if (!check.allowed) {
+                  toast.error(check.reason, {
+                    duration: 5000,
+                    action: {
+                      label: locale === "en" ? "Upgrade" : "アップグレード",
+                      onClick: () => usePlanStore.getState().setShowPricing(true),
+                    },
+                  });
+                  return;
+                }
+                openGrading(doc.latex, doc.metadata.title || "");
               }}
               title={t("side.tooltip.grading")}
               pulse={gradingMode}

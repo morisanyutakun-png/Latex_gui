@@ -31,7 +31,7 @@ from ..grading_renderer import (
 from ..pdf_service import compile_raw_latex, PDFGenerationError
 from ..database import get_db
 from ..db_models import User
-from ..auth_deps import enforce_ai_quota
+from ..auth_deps import enforce_ai_quota_with_feature
 from ..usage_service import log_usage
 
 
@@ -90,7 +90,7 @@ class ExtractRubricRequest(BaseModel):
 @router.post("/extract-rubric/stream")
 async def extract_rubric_stream_endpoint(
     req: ExtractRubricRequest,
-    user: User = Depends(enforce_ai_quota),
+    user: User = Depends(enforce_ai_quota_with_feature("grading")),
     db: Session = Depends(get_db),
 ):
     """問題LaTeX に AI が `%@rubric` コメントを追加した更新版 LaTeX を返す (SSE)。
@@ -143,7 +143,7 @@ _MAX_ANSWER_SIZE = 20 * 1024 * 1024  # 1 ファイルあたり 20MB
 async def grade_stream_endpoint(
     request_json: str = Form(...),
     answers: list[UploadFile] = File(...),
-    user: User = Depends(enforce_ai_quota),
+    user: User = Depends(enforce_ai_quota_with_feature("grading")),
     db: Session = Depends(get_db),
 ):
     """AI 採点 SSE エンドポイント。
