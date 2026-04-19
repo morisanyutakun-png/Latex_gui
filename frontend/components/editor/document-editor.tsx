@@ -172,6 +172,15 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
   const compileSeqRef = useRef(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // runCompile は毎 render の依存 (title/t) で再生成されていた。
+  // これを debounce useEffect の deps に入れると、親の再描画で毎回タイマ
+  // がリセットされて 600ms が永遠にリセットされ「コンパイルが始まらない」
+  // 症状を引き起こす。ref を介して最新値を参照することで deps から外す。
+  const titleRef = useRef(title);
+  titleRef.current = title;
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const runCompile = useCallback(async (source: string) => {
     if (!source.trim()) {
       setPreviewUrl(null);
@@ -183,7 +192,7 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
     setCompiling(true);
     setCompileError(null);
     try {
-      const blob = await compileRawLatex(source, title);
+      const blob = await compileRawLatex(source, titleRef.current);
       if (seq !== compileSeqRef.current) return;
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {
@@ -193,18 +202,19 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
       setCompileError(null);
     } catch (e) {
       if (seq !== compileSeqRef.current) return;
+      const tt = tRef.current;
       // Phase 2: 構造化された CompileError を i18n でローカライズ
       if (e instanceof CompileError) {
-        setCompileError(formatCompileError(e, t));
+        setCompileError(formatCompileError(e, tt));
       } else if (e instanceof Error) {
-        setCompileError({ title: t("error.compile"), lines: [e.message] });
+        setCompileError({ title: tt("error.compile"), lines: [e.message] });
       } else {
-        setCompileError({ title: t("error.compile"), lines: [t("doc.editor.compile_error")] });
+        setCompileError({ title: tt("error.compile"), lines: [tt("doc.editor.compile_error")] });
       }
     } finally {
       if (seq === compileSeqRef.current) setCompiling(false);
     }
-  }, [title, t]);
+  }, []);
 
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);

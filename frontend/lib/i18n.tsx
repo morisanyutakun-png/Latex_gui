@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 export type Locale = "ja" | "en";
 
@@ -33,18 +33,24 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     setLocaleState(detectLocale());
   }, []);
 
-  const setLocale = (l: Locale) => {
+  // setLocale / t は毎 render で新しい関数を返していたため、
+  // 下流コンポーネント (PdfPreviewPanel 等) の useCallback([t]) が毎 render で
+  // 再生成 → debounce タイマがリセットされ続けて compile が永遠に発火しない
+  // バグを誘発していた。locale 変更時のみ新しい関数になるよう安定化する。
+  const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
     try { localStorage.setItem("lx-locale", l); } catch { /* ignore */ }
-  };
+  }, []);
 
-  const t = (key: string): string => {
+  const t = useCallback((key: string): string => {
     const dict = locale === "en" ? en : ja;
     return (dict as Record<string, string>)[key] ?? key;
-  };
+  }, [locale]);
+
+  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
 
   return (
-    <I18nContext.Provider value={{ locale, setLocale, t }}>
+    <I18nContext.Provider value={value}>
       {children}
     </I18nContext.Provider>
   );

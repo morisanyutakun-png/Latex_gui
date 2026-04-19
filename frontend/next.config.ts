@@ -21,10 +21,13 @@ const securityHeaders = [
       // Google profile 画像、Stripe logo、base64 data URL (KaTeX SVG)、blob URL (PDF preview)
       "img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.stripe.com https://www.googletagmanager.com https://www.google-analytics.com",
       "font-src 'self' data:",
-      // 自身の API + Stripe API + Google OAuth + Analytics
-      "connect-src 'self' https://api.stripe.com https://accounts.google.com https://www.google-analytics.com https://www.googletagmanager.com",
-      // Stripe Checkout と Google OAuth は redirect だが念のため Stripe の iframe 系を許可
-      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://accounts.google.com",
+      // 自身の API + Stripe API + Google OAuth + Analytics + blob (URL.createObjectURL 由来)
+      "connect-src 'self' blob: https://api.stripe.com https://accounts.google.com https://www.google-analytics.com https://www.googletagmanager.com",
+      // blob: は PdfPreviewPanel が生成する <iframe src="blob:..."> のため必須。
+      // 抜けていると同一オリジンでも CSP violation でプレビューが真っ白になる。
+      "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://accounts.google.com",
+      // PDF / PNG プレビューなどの media / object 系でも blob: を許可
+      "media-src 'self' blob: data:",
       "frame-ancestors 'none'",
       "object-src 'none'",
       "base-uri 'self'",

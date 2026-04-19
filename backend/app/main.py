@@ -453,7 +453,10 @@ async def compile_raw(
     認証必須 (プレビュー用途のため quota は消費しないが、匿名からの LuaLaTeX
     資源消費を防ぐため require_user でガードする)。
     """
-    enforce_rate_limit(request, "compile-raw", limit=60, window_seconds=60)
+    # ライブプレビューは 600ms debounce で走るため、ユーザーが連続編集する際に
+    # 分間 60 程度は普通に到達しうる。UX 上 180/min (平均 3 リクエスト/秒) まで
+    # 許容し、悪意ある濫用だけを弾く閾値にする。
+    enforce_rate_limit(request, "compile-raw", limit=180, window_seconds=60)
     try:
         pdf_bytes = await compile_raw_latex(req.latex)
     except PDFGenerationError as e:

@@ -395,12 +395,39 @@ export function AIChatPanel() {
       }
     } catch (e) {
       let msg = e instanceof Error ? e.message : t("error.generic");
+      const rawMsg = msg;
       if (msg.includes("Failed to fetch") || msg.includes("fetch")) {
         msg = t("error.fetch");
       } else if (msg.includes("AbortError") || msg.includes("abort")) {
         msg = t("error.aborted");
       } else if (msg.includes("タイムアウト") || msg.includes("timeout") || msg.includes("Timeout")) {
         msg = t("error.timeout");
+      }
+      if (rawMsg.includes("401") || rawMsg.toUpperCase().includes("UNAUTHORIZED")) {
+        // セッションが切れた場合: 再ログインを促す toast を出す。
+        msg = locale === "en"
+          ? "Session expired. Please sign in again."
+          : "セッションが切れました。再度サインインしてください。";
+        toast.error(msg, {
+          duration: 8000,
+          action: {
+            label: locale === "en" ? "Sign in" : "サインイン",
+            onClick: () => { window.location.href = "/login?next=/editor"; },
+          },
+        });
+      } else if (rawMsg.includes("429") || rawMsg.includes("RATE_LIMITED") || rawMsg.toUpperCase().includes("QUOTA")) {
+        // 429 は quota / rate limit どちらかの可能性。toast で明示 + upgrade 誘導。
+        const isQuota = rawMsg.toUpperCase().includes("QUOTA") || rawMsg.includes("上限");
+        msg = isQuota
+          ? (locale === "en" ? "Plan limit reached." : "プラン上限に達しました。")
+          : (locale === "en" ? "Too many requests. Please slow down." : "リクエストが集中しています。少し待ってください。");
+        toast.error(msg, {
+          duration: 6000,
+          action: isQuota ? {
+            label: locale === "en" ? "Upgrade" : "アップグレード",
+            onClick: () => setShowPricing(true),
+          } : undefined,
+        });
       }
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
       chatLog.error(requestId, msg);
