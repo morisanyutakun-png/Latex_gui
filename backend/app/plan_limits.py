@@ -17,17 +17,19 @@ Action = Literal["ai_request", "pdf_export"]
 
 # プランでゲートする機能。frontend/lib/plans.ts `GatedFeature` と同期させること。
 Feature = Literal[
-    "grading",          # 採点・自動採点 (Starter+)
-    "ocr",              # OMR / PDF・画像から問題抽出 (Starter+)
+    "grading",          # 採点・自動採点 (Pro+)
+    "ocr",              # OMR / PDF・画像から問題抽出 (Pro+)
     "latexExport",      # LaTeXソースエクスポート (Starter+)
     "allTemplates",     # 全テンプレート利用 (Pro+)
     "batch",            # バッチ処理 (Pro+)
 ]
 
 # 機能 → 使えるようになる最低プラン。frontend/lib/plans.ts の FEATURE_MIN_PLAN と同期。
+# Starter は「AI回数UP + PDF無制限 + LaTeXエクスポート」まで。
+# 採点/OMR/全テンプレ/バッチ は教師向け本格機能として Pro+ に集約する。
 FEATURE_MIN_PLAN: dict[Feature, PlanId] = {
-    "grading":         "starter",
-    "ocr":             "starter",
+    "grading":         "pro",
+    "ocr":             "pro",
     "latexExport":     "starter",
     "allTemplates":    "pro",
     "batch":           "pro",

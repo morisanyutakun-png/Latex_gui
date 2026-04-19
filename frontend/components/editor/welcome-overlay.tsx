@@ -19,7 +19,7 @@ import { useI18n } from "@/lib/i18n";
 import { TemplatePicker } from "./template-picker";
 import { createFromTemplate, TEMPLATES } from "@/lib/templates";
 import { usePlanStore } from "@/store/plan-store";
-import { canUseFeature, PLANS } from "@/lib/plans";
+import { canUseFeature, requiredPlanLabel } from "@/lib/plans";
 import { toast } from "sonner";
 
 const DISMISS_KEY = "lx-welcome-dismissed-v1";
@@ -120,14 +120,13 @@ export function WelcomeOverlay() {
     setDismissedSession(true);
   };
 
-  // Starter+ 限定機能の視覚的ロック判定。判定根拠は canUseFeature に寄せて
+  // Pro+ 限定機能 (OMR / 採点) の視覚的ロック判定。判定根拠は canUseFeature に寄せて
   // プラン変更で即時再レンダリングされるよう、currentPlan を購読する。
   const currentPlan = usePlanStore((s) => s.currentPlan);
   const ocrLocked = !canUseFeature(currentPlan, "ocr");
   const gradingLocked = !canUseFeature(currentPlan, "grading");
-  const lockedBadge = locale === "en"
-    ? `${PLANS.starter.name} plan+`
-    : `${PLANS.starter.name}プラン〜`;
+  const ocrBadge = requiredPlanLabel("ocr", locale === "en" ? "en" : "ja");
+  const gradingBadge = requiredPlanLabel("grading", locale === "en" ? "en" : "ja");
 
   return (
     <div
@@ -189,7 +188,7 @@ export function WelcomeOverlay() {
               onSelect={startWithTemplate}
             />
 
-            {/* 3. Scan PDF — Starter+ */}
+            {/* 3. Scan PDF — Pro+ */}
             <ModeCard
               accent="emerald"
               icon={<ScanLine className="h-5 w-5" />}
@@ -199,10 +198,10 @@ export function WelcomeOverlay() {
               cta={t("welcome.card.scan.cta")}
               onClick={startWithScan}
               locked={ocrLocked}
-              lockedBadge={lockedBadge}
+              lockedBadge={ocrBadge}
             />
 
-            {/* 4. Grading — Starter+ */}
+            {/* 4. Grading — Pro+ */}
             <ModeCard
               accent="rose"
               icon={<ClipboardCheck className="h-5 w-5" />}
@@ -212,7 +211,7 @@ export function WelcomeOverlay() {
               cta={t("welcome.card.grading.cta")}
               onClick={startWithGrading}
               locked={gradingLocked}
-              lockedBadge={lockedBadge}
+              lockedBadge={gradingBadge}
             />
           </div>
         </div>

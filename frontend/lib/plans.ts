@@ -3,10 +3,13 @@
  *
  * 差別化軸:
  *   1. 高性能AI 回数 (主軸 — コストに直結)
- *   2. 教材PDF出力 回数 (Free のみ制限)
+ *   2. 教材PDF出力 回数 (Free のみ 1回/月、Starter 以上は無制限)
  *   3. 機能解放:
- *        - 採点 / OMR(OCR) / LaTeXソースエクスポート は Starter+
- *        - 全テンプレート利用 / バッチ処理 は Pro+
+ *        - Starter+: LaTeXソースエクスポート (+ 上記の数量UP)
+ *        - Pro+:     採点 / OMR(OCR) / 全テンプレート / バッチ処理
+ *   4. テンプレート数:
+ *        - Free / Starter: 基本 6 種類 (blank / article / letter / worksheet / school-test / kaisetsu-note)
+ *        - Pro / Premium:  全 12 種類 (+ 共通テスト / 国公立二次 / 塾プリント / 英語 / 報告書 / 発表スライド)
  *
  * TikZ図の作成・保存、リアルタイムプレビュー、思考ログは全プラン共通 (無制限)。
  * 月額払い (Stripe) のみ。内部コスト: $0.01/リクエスト ≈ ¥1.5 (実測値)
@@ -22,16 +25,16 @@ export type PlanId = "free" | "starter" | "pro" | "premium";
  * customTemplates はエディタに実装が無いため LP からも除外してある。
  */
 export type GatedFeature =
-  | "grading"          // 採点・自動採点 (Starter+)
-  | "ocr"              // PDF・画像から問題抽出 (Starter+)
+  | "grading"          // 採点・自動採点 (Pro+)
+  | "ocr"              // PDF・画像から問題抽出 (Pro+)
   | "latexExport"      // LaTeXソースエクスポート (Starter+)
   | "allTemplates"     // 全テンプレート利用 (Pro+)
   | "batch";           // バッチ処理 (Pro+)
 
-/** 機能 → 使えるようになる最低プラン */
+/** 機能 → 使えるようになる最低プラン (バックエンド plan_limits.py と同期必須) */
 const FEATURE_MIN_PLAN: Record<GatedFeature, PlanId> = {
-  grading:         "starter",
-  ocr:             "starter",
+  grading:         "pro",
+  ocr:             "pro",
   latexExport:     "starter",
   allTemplates:    "pro",
   batch:           "pro",
@@ -56,6 +59,15 @@ export function canUseFeature(currentPlan: PlanId, feature: GatedFeature): boole
 /** 機能を使うのに必要な最低プラン名を返す */
 export function requiredPlanFor(feature: GatedFeature): PlanId {
   return FEATURE_MIN_PLAN[feature];
+}
+
+/**
+ * 機能が使えない状態で表示する短い「必要プラン」ラベル。
+ * 例: `requiredPlanLabel("ocr", "ja")` → `"Proプラン〜"`
+ */
+export function requiredPlanLabel(feature: GatedFeature, locale: "ja" | "en" = "ja"): string {
+  const name = PLANS[requiredPlanFor(feature)].name;
+  return locale === "en" ? `${name}+` : `${name}プラン〜`;
 }
 
 export interface PlanDef {
@@ -94,16 +106,16 @@ export const PLANS: Record<PlanId, PlanDef> = {
     features: [
       "高性能AI 月3回",
       "教材PDF出力 月1回",
+      "基本テンプレート 6種類",
       "TikZ図の作成・保存 無制限",
-      "基本テンプレート",
       "リアルタイムプレビュー",
       "思考ログ表示",
     ],
     featuresEn: [
-      "High-performance AI: 3/month",
-      "Worksheet PDF: 1/month",
-      "TikZ figures: unlimited",
-      "Basic templates",
+      "Premium AI: 3 / month",
+      "Worksheet PDF: 1 / month",
+      "6 basic templates",
+      "Unlimited TikZ figures",
       "Real-time preview",
       "Thinking log display",
     ],
@@ -122,20 +134,18 @@ export const PLANS: Record<PlanId, PlanDef> = {
     tagline: "個人塾・家庭教師の方に",
     taglineEn: "For individual tutors",
     features: [
-      "高性能AI 月150回",
+      "高性能AI 月150回 (1日15回まで)",
       "教材PDF出力 無制限",
-      "TikZ図の作成・保存 無制限",
-      "採点・自動採点 (OMR)",
-      "PDF・画像取り込み (OCR)",
+      "基本テンプレート 6種類",
       "LaTeXソースエクスポート",
+      "TikZ図の作成・保存 無制限",
     ],
     featuresEn: [
-      "High-performance AI: 150/month",
+      "Premium AI: 150 / month (15 / day)",
       "Worksheet PDF: unlimited",
-      "TikZ figures: unlimited",
-      "Grading & auto-scoring (OMR)",
-      "PDF & image import (OCR)",
+      "6 basic templates",
       "LaTeX source export",
+      "Unlimited TikZ figures",
     ],
     badge: "手軽に始める",
   },
@@ -153,22 +163,22 @@ export const PLANS: Record<PlanId, PlanDef> = {
     tagline: "毎日使うならこのプラン",
     taglineEn: "Best for daily use",
     features: [
-      "高性能AI 月500回",
+      "高性能AI 月500回 (1日40回まで)",
       "教材PDF出力 無制限 (優先処理)",
-      "TikZ図の作成・保存 無制限",
-      "全テンプレート利用可",
+      "全テンプレート 12種類 (入試・発表含む)",
       "採点・自動採点 (OMR)",
       "PDF・画像取り込み (OCR)",
       "バッチ処理 (最大100行)",
+      "LaTeXソースエクスポート",
     ],
     featuresEn: [
-      "High-performance AI: 500/month",
+      "Premium AI: 500 / month (40 / day)",
       "Worksheet PDF: unlimited (priority)",
-      "TikZ figures: unlimited",
-      "All templates",
+      "All 12 templates (exams, slides, etc.)",
       "Grading & auto-scoring (OMR)",
       "PDF & image import (OCR)",
       "Batch processing (up to 100 rows)",
+      "LaTeX source export",
     ],
     highlight: true,
     badge: "人気 No.1",
@@ -187,22 +197,22 @@ export const PLANS: Record<PlanId, PlanDef> = {
     tagline: "教育機関・大量利用に",
     taglineEn: "For schools & heavy use",
     features: [
-      "高性能AI 月2,000回",
+      "高性能AI 月2,000回 (1日150回まで)",
       "教材PDF出力 無制限 (最優先処理)",
-      "TikZ図の作成・保存 無制限",
-      "全テンプレート利用可",
+      "全テンプレート 12種類 (入試・発表含む)",
       "採点・自動採点 (OMR)",
       "PDF・画像取り込み (OCR)",
       "バッチ処理 (最大300行)",
+      "LaTeXソースエクスポート",
     ],
     featuresEn: [
-      "High-performance AI: 2,000/month",
+      "Premium AI: 2,000 / month (150 / day)",
       "Worksheet PDF: unlimited (highest priority)",
-      "TikZ figures: unlimited",
-      "All templates",
+      "All 12 templates (exams, slides, etc.)",
       "Grading & auto-scoring (OMR)",
       "PDF & image import (OCR)",
       "Batch processing (up to 300 rows)",
+      "LaTeX source export",
     ],
     badge: "最上位プラン",
   },

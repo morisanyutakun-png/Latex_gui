@@ -1734,10 +1734,10 @@ export function TemplateGallery() {
               </button>
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "高性能AI 月3回" : "High-performance AI: 3/month",
-                  isJa ? "教材PDF出力 月1回" : "Worksheet PDF: 1/month",
-                  isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
-                  isJa ? "基本テンプレート" : "Basic templates",
+                  isJa ? "高性能AI 月3回" : "Premium AI: 3 / month",
+                  isJa ? "教材PDF出力 月1回" : "Worksheet PDF: 1 / month",
+                  isJa ? "基本テンプレート 6種類" : "6 basic templates",
+                  isJa ? "TikZ図の作成・保存 無制限" : "Unlimited TikZ figures",
                   isJa ? "リアルタイムプレビュー" : "Real-time preview",
                   isJa ? "思考ログ表示" : "Thinking log display",
                 ].map((f) => (
@@ -1791,12 +1791,11 @@ export function TemplateGallery() {
               })()}
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "高性能AI 月150回" : "High-performance AI: 150/month",
+                  isJa ? "高性能AI 月150回 (1日15回まで)" : "Premium AI: 150 / month (15 / day)",
                   isJa ? "教材PDF出力 無制限" : "Worksheet PDF: unlimited",
-                  isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
-                  isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
-                  isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
+                  isJa ? "基本テンプレート 6種類" : "6 basic templates",
                   isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
+                  isJa ? "TikZ図の作成・保存 無制限" : "Unlimited TikZ figures",
                 ].map((f) => (
                   <li
                     key={f}
@@ -1849,13 +1848,13 @@ export function TemplateGallery() {
               })()}
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "高性能AI 月500回" : "High-performance AI: 500/month",
+                  isJa ? "高性能AI 月500回 (1日40回まで)" : "Premium AI: 500 / month (40 / day)",
                   isJa ? "教材PDF出力 無制限 (優先処理)" : "Worksheet PDF: unlimited (priority)",
-                  isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
-                  isJa ? "全テンプレート利用可" : "All templates",
+                  isJa ? "全テンプレート 12種類 (入試・発表含む)" : "All 12 templates (exams, slides, etc.)",
                   isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大100行)" : "Batch (up to 100 rows)",
+                  isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
                 ].map((f) => (
                   <li
                     key={f}
@@ -1907,13 +1906,13 @@ export function TemplateGallery() {
               })()}
               <ul className="space-y-2.5">
                 {[
-                  isJa ? "高性能AI 月2,000回" : "High-performance AI: 2,000/month",
+                  isJa ? "高性能AI 月2,000回 (1日150回まで)" : "Premium AI: 2,000 / month (150 / day)",
                   isJa ? "教材PDF出力 無制限 (最優先処理)" : "Worksheet PDF: unlimited (highest priority)",
-                  isJa ? "TikZ図の作成・保存 無制限" : "TikZ figures: unlimited",
-                  isJa ? "全テンプレート利用可" : "All templates",
+                  isJa ? "全テンプレート 12種類 (入試・発表含む)" : "All 12 templates (exams, slides, etc.)",
                   isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",
+                  isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
                 ].map((f) => (
                   <li
                     key={f}

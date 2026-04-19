@@ -16,7 +16,7 @@ import {
 import { TemplatePicker } from "./template-picker";
 import { createFromTemplate, TEMPLATES } from "@/lib/templates";
 import { usePlanStore } from "@/store/plan-store";
-import { canUseFeature, PLANS } from "@/lib/plans";
+import { canUseFeature, requiredPlanLabel, requiredPlanFor, PLANS } from "@/lib/plans";
 import { toast } from "sonner";
 
 const DISMISS_KEY = "lx-quickstart-dismissed-v1";
@@ -47,6 +47,10 @@ export function QuickStartBar() {
   const currentPlan = usePlanStore((s) => s.currentPlan);
   const ocrLocked = !canUseFeature(currentPlan, "ocr");
   const gradingLocked = !canUseFeature(currentPlan, "grading");
+  const ocrBadge = requiredPlanLabel("ocr", isJa ? "ja" : "en");
+  const gradingBadge = requiredPlanLabel("grading", isJa ? "ja" : "en");
+  const ocrRequiredName = PLANS[requiredPlanFor("ocr")].name;
+  const gradingRequiredName = PLANS[requiredPlanFor("grading")].name;
 
   const [dismissed, setDismissed] = useState(false);
   const [persistDismissed, setPersistDismissed] = useState<boolean | null>(null);
@@ -167,7 +171,7 @@ export function QuickStartBar() {
               }
               triggerOMR(); dismiss();
             }}
-            title={ocrLocked ? (isJa ? `${PLANS.starter.name}プラン以上で利用可能` : `${PLANS.starter.name} plan or higher required`) : undefined}
+            title={ocrLocked ? (isJa ? `${ocrRequiredName}プラン以上で利用可能` : `${ocrRequiredName} plan or higher required`) : undefined}
             className={`group relative flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border transition-all shrink-0 ${
               ocrLocked
                 ? "border-foreground/[0.06] bg-foreground/[0.015] hover:border-violet-400/30 hover:bg-violet-500/[0.04]"
@@ -184,12 +188,12 @@ export function QuickStartBar() {
             {ocrLocked && (
               <span className="absolute -top-1.5 -right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[8.5px] font-bold shadow">
                 <Lock className="h-2.5 w-2.5" />
-                {isJa ? `${PLANS.starter.name}〜` : `${PLANS.starter.name}+`}
+                {ocrBadge}
               </span>
             )}
           </button>
 
-          {/* 採点 (Starter+) */}
+          {/* 採点 (Pro+) */}
           <button
             type="button"
             onClick={() => {
@@ -200,7 +204,7 @@ export function QuickStartBar() {
               }
               openGrading(doc?.latex || "", doc?.metadata.title || ""); dismiss();
             }}
-            title={gradingLocked ? (isJa ? `${PLANS.starter.name}プラン以上で利用可能` : `${PLANS.starter.name} plan or higher required`) : undefined}
+            title={gradingLocked ? (isJa ? `${gradingRequiredName}プラン以上で利用可能` : `${gradingRequiredName} plan or higher required`) : undefined}
             className={`group relative flex items-center gap-2.5 min-w-[150px] px-3 py-2 rounded-lg border transition-all shrink-0 ${
               gradingLocked
                 ? "border-foreground/[0.06] bg-foreground/[0.015] hover:border-violet-400/30 hover:bg-violet-500/[0.04]"
@@ -217,7 +221,7 @@ export function QuickStartBar() {
             {gradingLocked && (
               <span className="absolute -top-1.5 -right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[8.5px] font-bold shadow">
                 <Lock className="h-2.5 w-2.5" />
-                {isJa ? `${PLANS.starter.name}〜` : `${PLANS.starter.name}+`}
+                {gradingBadge}
               </span>
             )}
           </button>

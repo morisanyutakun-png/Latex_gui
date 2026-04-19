@@ -22,7 +22,7 @@ import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
 import { FigureEditor } from "@/components/figure-editor/figure-editor";
 import { usePlanStore } from "@/store/plan-store";
-import { PLANS, canUseFeature } from "@/lib/plans";
+import { PLANS, canUseFeature, requiredPlanFor } from "@/lib/plans";
 import { toast } from "sonner";
 import { verifyCheckoutSession } from "@/lib/subscription-api";
 import { sendPurchaseEvent } from "@/lib/gtag";
@@ -59,6 +59,10 @@ export default function EditorPage() {
   const ocrLocked = !canUseFeature(currentPlan, "ocr");
   const gradingLocked = !canUseFeature(currentPlan, "grading");
   const latexExportLocked = !canUseFeature(currentPlan, "latexExport");
+  // 必要プラン名を動的に (OMR/採点は Pro に昇格したので、tooltip も Pro を指すようにする)
+  const ocrRequired = PLANS[requiredPlanFor("ocr")].name;
+  const gradingRequired = PLANS[requiredPlanFor("grading")].name;
+  const latexExportRequired = PLANS[requiredPlanFor("latexExport")].name;
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
@@ -380,7 +384,7 @@ export default function EditorPage() {
                 }
                 triggerOMR();
               }}
-              title={ocrLocked ? (locale === "en" ? "Starter plan or higher required" : "Starterプラン以上で利用可能") : t("side.tooltip.scan")}
+              title={ocrLocked ? (locale === "en" ? `${ocrRequired} plan or higher required` : `${ocrRequired}プラン以上で利用可能`) : t("side.tooltip.scan")}
               disabled={gradingMode}
               locked={ocrLocked}
             />
@@ -421,7 +425,7 @@ export default function EditorPage() {
                 }
                 openGrading(doc.latex, doc.metadata.title || "");
               }}
-              title={gradingLocked ? (locale === "en" ? "Starter plan or higher required" : "Starterプラン以上で利用可能") : t("side.tooltip.grading")}
+              title={gradingLocked ? (locale === "en" ? `${gradingRequired} plan or higher required` : `${gradingRequired}プラン以上で利用可能`) : t("side.tooltip.grading")}
               pulse={gradingMode}
               locked={gradingLocked}
             />
@@ -464,7 +468,7 @@ export default function EditorPage() {
                 }
                 toggleSourcePanel();
               }}
-              title={latexExportLocked ? (locale === "en" ? "Starter plan or higher required" : "Starterプラン以上で利用可能") : t("side.tooltip.source")}
+              title={latexExportLocked ? (locale === "en" ? `${latexExportRequired} plan or higher required` : `${latexExportRequired}プラン以上で利用可能`) : t("side.tooltip.source")}
               locked={latexExportLocked}
             />
 
