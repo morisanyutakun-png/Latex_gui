@@ -10,8 +10,8 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..db_models import User, Subscription
+from ..database import get_db, get_db_info
+from ..db_models import User, Subscription, UsageLog
 from .. import stripe_service
 from ..plan_limits import get_effective_plan, get_limits
 from ..usage_service import count_day, count_month
@@ -545,6 +545,62 @@ async def subscription_version():
         "sync_endpoint": True,
         "per_plan_key_override": True,
         "debug_mode_on_test_sessions": True,
+    }
+
+
+@router.get("/db-health")
+async def db_health(db: Session = Depends(get_db)):
+    """DB 永続化の健康診断。
+
+    「AI使用量がDBに保存されていないのでは?」を即座に切り分けるため:
+    - DB エンジン種別 (sqlite は本番 NG)
+    - 全体の件数 (users / subscriptions / usage_logs)
+    - 直近 24h の AI/PDF 使用ログの件数
+
+    を返す。Koyeb のコンテナが再起動した直後にも叩いて、
+    件数が激減していれば永続化できていない証拠になる。
+    """
+    import datetime as _dt
+    now = _dt.datetime.now(_dt.timezone.utc)
+    since_24h = now - _dt.timedelta(hours=24)
+
+    info = get_db_info()
+    users_count = db.query(User).count()
+    subs_count = db.query(Subscription).count()
+    usage_total = db.query(UsageLog).count()
+    ai_last_24h = (
+        db.query(UsageLog)
+        .filter(UsageLog.action == "ai_request", UsageLog.created_at >= since_24h)
+        .count()
+    )
+    pdf_last_24h = (
+        db.query(UsageLog)
+        .filter(UsageLog.action == "pdf_export", UsageLog.created_at >= since_24h)
+        .count()
+    )
+    # 最も古いUsageLogを見ることで "このDBは何日前から生きているか" を判定できる。
+    oldest_usage = (
+        db.query(UsageLog.created_at)
+        .order_by(UsageLog.created_at.asc())
+        .first()
+    )
+    oldest_iso = oldest_usage[0].isoformat() if oldest_usage else None
+
+    return {
+        "db": info,
+        "counts": {
+            "users": users_count,
+            "subscriptions": subs_count,
+            "usage_logs_total": usage_total,
+            "ai_requests_last_24h": ai_last_24h,
+            "pdf_exports_last_24h": pdf_last_24h,
+        },
+        "oldest_usage_log_at": oldest_iso,
+        "now": now.isoformat(),
+        "hint": (
+            "If db.is_sqlite is true in production, usage is being wiped on every "
+            "container restart. Set DATABASE_URL to a persistent PostgreSQL URL."
+        ) if info["is_sqlite"] and info["is_production_env"] else None,
     }
 
 

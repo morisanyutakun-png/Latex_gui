@@ -1692,10 +1692,10 @@ export function TemplateGallery() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_30%,hsl(var(--primary)/0.04),transparent_70%)]" />
         <div
           ref={pricingFade.ref}
-          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${pricingFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+          className={`relative max-w-[1400px] mx-auto px-6 transition-all duration-1000 ${pricingFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          {/* Section header */}
-          <div className="text-center mb-14">
+          {/* Section header — 見出しは読みやすさ優先で max-w を絞る */}
+          <div className="text-center mb-14 max-w-3xl mx-auto">
             <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
               {isJa ? "料金プラン" : "Pricing"}
             </p>
@@ -1716,8 +1716,8 @@ export function TemplateGallery() {
             </div>
           </div>
 
-          {/* Plans grid — monthly only */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
+          {/* Plans grid — monthly only。モーダルと同じ 1400px 級の広さにして日本語が潰れないようにする */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-[1340px] mx-auto">
             {/* Free */}
             <div className="relative p-6 rounded-[20px] bg-card/70 backdrop-blur-xl border border-foreground/[0.06] hover:border-foreground/[0.1] transition-all duration-300">
               <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground/50 mb-1">Free</p>
@@ -1741,9 +1741,13 @@ export function TemplateGallery() {
                   isJa ? "リアルタイムプレビュー" : "Real-time preview",
                   isJa ? "思考ログ表示" : "Thinking log display",
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    {f}
+                  <li
+                    key={f}
+                    className="flex items-start gap-2 text-[12.5px] leading-relaxed text-muted-foreground"
+                    style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}
+                  >
+                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>{f}</span>
                   </li>
                 ))}
               </ul>
@@ -1794,9 +1798,13 @@ export function TemplateGallery() {
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "LaTeXソースエクスポート" : "LaTeX source export",
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
-                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    {f}
+                  <li
+                    key={f}
+                    className="flex items-start gap-2 text-[12.5px] leading-relaxed text-foreground/85 font-medium"
+                    style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}
+                  >
+                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>{f}</span>
                   </li>
                 ))}
               </ul>
@@ -1849,9 +1857,13 @@ export function TemplateGallery() {
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大100行)" : "Batch (up to 100 rows)",
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
-                    <Check className="h-3.5 w-3.5 text-violet-500 shrink-0" />
-                    {f}
+                  <li
+                    key={f}
+                    className="flex items-start gap-2 text-[12.5px] leading-relaxed text-foreground/85 font-medium"
+                    style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}
+                  >
+                    <Check className="h-3.5 w-3.5 text-violet-500 shrink-0 mt-0.5" />
+                    <span>{f}</span>
                   </li>
                 ))}
               </ul>
@@ -1903,9 +1915,13 @@ export function TemplateGallery() {
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大300行)" : "Batch (up to 300 rows)",
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-[12px] text-foreground/80 font-medium">
-                    <Check className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                    {f}
+                  <li
+                    key={f}
+                    className="flex items-start gap-2 text-[12.5px] leading-relaxed text-foreground/85 font-medium"
+                    style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}
+                  >
+                    <Check className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <span>{f}</span>
                   </li>
                 ))}
               </ul>

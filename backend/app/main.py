@@ -192,11 +192,14 @@ async def root_health():
 
 @app.get("/api/health")
 async def health_check():
+    from .database import get_db_info
     mem_info = _get_memory_info()
+    db_info = get_db_info()
     return {
         "status": "ok",
         "message": "PDF生成サーバーは正常に動作しています",
         "memory": mem_info,
+        "db": db_info,
     }
 
 

@@ -63,13 +63,28 @@ def count_day(db: Session, user_id: str, action: Action) -> int:
 
 
 def log_usage(db: Session, user_id: str, action: Action) -> None:
-    """アクションを記録する。失敗してもエンドポイントは落とさない。"""
+    """アクションを記録する。失敗してもエンドポイントは落とさない。
+
+    成功/失敗の両方を `logger.info` / `logger.error` で出力する。
+    「DBに保存されていないのでは?」という疑いが出たとき、Koyeb のログを
+    この出力で grep すれば事実を確認できる。
+    """
     try:
         row = UsageLog(user_id=user_id, action=action)
         db.add(row)
         db.commit()
-    except Exception as e:  # pragma: no cover (best-effort)
-        logger.warning("Failed to log usage (%s/%s): %s", user_id, action, e)
+        # info レベルで積む (個人情報ではないので本番でもログ出力して OK)
+        logger.info(
+            "[usage] logged user=%s action=%s row_id=%s",
+            user_id, action, row.id,
+        )
+    except Exception as e:
+        # ERROR レベル: サイレントに吞まない。書き込み失敗 = 課金上の重大事故。
+        logger.error(
+            "[usage] FAILED to log usage user=%s action=%s err=%s",
+            user_id, action, e,
+            exc_info=True,
+        )
         db.rollback()
 
 
