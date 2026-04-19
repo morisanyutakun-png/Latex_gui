@@ -87,17 +87,12 @@ export default function EditorPage() {
     // Stripe が success_url に埋め込んだ session ID (cs_xxx)。Free プランは無い。
     const sessionId = params.get("session_id") || "";
 
-    // ── 可視化された診断トースト ───────────────────────────────────────
-    // 画面で「どこまで進んだか」を直接見えるようにする (DevTools 閉じていても分かる)
-    const diag = (msg: string, kind: "info" | "success" | "error" | "warning" = "info") => {
-      console.info(`[checkout-flow] ${msg}`);
-      if (kind === "success") toast.success(`✅ ${msg}`, { duration: 8000 });
-      else if (kind === "error") toast.error(`❌ ${msg}`, { duration: 10000 });
-      else if (kind === "warning") toast.warning(`⚠ ${msg}`, { duration: 8000 });
-      else toast.info(`… ${msg}`, { duration: 6000 });
+    // 診断は console のみ (ユーザーには見せない)。問題発生時は DevTools で追える。
+    const log = (msg: string, data?: unknown) => {
+      if (data !== undefined) console.info(`[checkout-flow] ${msg}`, data);
+      else console.info(`[checkout-flow] ${msg}`);
     };
-
-    diag(`[1/5] /editor reached. plan=${planParam} sessionId=${sessionId ? sessionId.slice(0, 20) + "…" : "(none)"}`);
+    log("reached /editor", { plan: planParam, sessionId: sessionId.slice(0, 20) });
 
     // 1. ドキュメントを即座に作成
     if (!useDocumentStore.getState().document) {
@@ -107,49 +102,30 @@ export default function EditorPage() {
     // 2. URL をクリーン (session_id を露出させない)
     window.history.replaceState({}, "", "/editor");
 
-    // 3. 有料プランは Stripe に問い合わせて実際に支払い済みか確認してから
-    //    GA4 の purchase event を発火する。URL だけでは誤発火しない。
-    //    ★ backend 側で verify と同時に DB の Subscription も upsert される (冪等)。
+    // 3. verify → backend で DB upsert → GA4 purchase。upsert 成功が分かった時点で
+    //    楽観的にストアを更新して UI を即反映させる (fetchSubscription の確認は後追い)。
     const verifyPromise: Promise<void> = (planParam !== "free" && sessionId)
       ? (async () => {
-          diag("[2/5] calling verify-checkout…");
           const v = await verifyCheckoutSession(sessionId);
           if (!v) {
-            diag("verify returned null — backend error or 401/403. Check DevTools Network.", "error");
+            console.error("[checkout-flow] verify returned null");
             return;
           }
-          diag(`[3/5] verify: paid=${v.paid} payment_status=${v.payment_status} value=${v.value} ${v.currency}`);
+          log("verify response", v);
 
-          // ★ backend の upsert 結果を可視化 — これが success=false なら DB は更新されていない
-          if (v.upsert) {
-            const u = v.upsert;
-            if (u.success) {
-              diag(
-                `upsert OK: ${u.db_action} sub=${u.sub_id?.slice(0, 20)}… plan=${u.verified_plan_id} user_id=${u.verified_user_id}`,
-                "success",
-              );
-            } else if (u.attempted) {
-              diag(
-                `upsert FAILED: ${u.error || "unknown"} ${u.subscription_retrieve_error ? "| stripe.Subscription.retrieve: " + u.subscription_retrieve_error : ""}`,
-                "error",
-              );
-              console.error("[checkout-flow] full upsert report:", u);
-            }
-          } else {
-            diag("backend did NOT attempt upsert — /version 未反映の疑い", "warning");
+          // upsert が成功した = DB に行ができた → ストアを即更新
+          if (v.upsert?.success && v.plan_id) {
+            usePlanStore.getState().setPlan(v.plan_id as PlanId);
+            log("optimistic plan set from verify upsert", { plan: v.plan_id });
+          } else if (v.upsert && !v.upsert.success) {
+            console.error("[checkout-flow] upsert failed", v.upsert);
           }
 
           const acceptable = v.paid || v.payment_status === "no_payment_required";
-          if (!acceptable) {
-            diag(`not paid (payment_status=${v.payment_status}). Skip purchase & upgrade.`, "error");
-            return;
-          }
-          if (!v.currency || !v.transaction_id) {
-            diag("currency or transaction_id is empty on verify response.", "error");
-            return;
-          }
+          if (!acceptable || !v.currency || !v.transaction_id) return;
+
           const planDef = PLANS[v.plan_id as PlanId];
-          const fired = await sendPurchaseEvent({
+          await sendPurchaseEvent({
             transactionId: v.transaction_id,
             value: v.value,
             currency: v.currency,
@@ -163,36 +139,22 @@ export default function EditorPage() {
               },
             ],
           });
-          if (fired) diag("[4/5] GA4 purchase fired (with debug_mode for cs_test_*).", "success");
-          else diag("purchase event NOT fired (gtag missing / dedup / ad-blocker)", "warning");
         })()
       : Promise.resolve();
 
-    if (planParam !== "free" && !sessionId) {
-      diag(
-        "session_id がありません。Stripe からの redirect で LP 経由で落ちた可能性。FRONTEND_URL を確認してください。",
-        "error",
-      );
-    }
-
-    // 4. verify で DB 反映後、サブスクリプション状態を取得。
-    //    取れていなかったら /sync を叩いて Stripe から強制同期 → 再 fetch する。
-    const fetchWithRetry = async (retries: number, attempt = 1): Promise<string> => {
+    // 4. 確認のため fetchSubscription。まだ Free なら /sync → 再 fetch。
+    //    楽観更新済みなので UI はすでに正しく出ているはず。これは authoritative 確認。
+    const fetchWithRetry = async (retries: number): Promise<string> => {
       const { fetchSubscription } = usePlanStore.getState();
       await fetchSubscription();
       const { currentPlan } = usePlanStore.getState();
       if (planParam === "free") return currentPlan;
       if (currentPlan === "free" && retries > 0) {
-        diag(`[5/5] DB reflect attempt ${attempt}: still Free. Calling /sync and retrying…`, "warning");
         try {
-          const r = await fetch("/api/subscription/sync", { method: "POST", cache: "no-store" });
-          const syncBody = await r.text();
-          console.info("[checkout-flow] /sync →", r.status, syncBody.slice(0, 200));
-        } catch (e) {
-          console.error("[checkout-flow] /sync threw", e);
-        }
-        await new Promise((r) => setTimeout(r, 1500));
-        return fetchWithRetry(retries - 1, attempt + 1);
+          await fetch("/api/subscription/sync", { method: "POST", cache: "no-store" });
+        } catch { /* next retry handles it */ }
+        await new Promise((r) => setTimeout(r, 1000));
+        return fetchWithRetry(retries - 1);
       }
       return currentPlan;
     };
@@ -201,16 +163,19 @@ export default function EditorPage() {
       const planDef = PLANS[plan as keyof typeof PLANS];
       const planName = plan !== "free" ? planDef?.name || plan : "Free";
       if (planParam !== "free" && plan === "free") {
-        diag(
-          "DB に反映されませんでした。Koyeb backend が新コードに再デプロイ済みか確認してください。",
-          "error",
+        // ユーザーには障害として通知 (これは本当の問題なので toast を出す)
+        toast.error(
+          locale === "en"
+            ? "Purchase was processed but plan activation is delayed. Please reload in a moment."
+            : "購入は完了しましたがプラン反映が遅延しています。数秒後にリロードしてください。",
+          { duration: 8000 },
         );
       } else {
         toast.success(
           locale === "en"
             ? `${planName} plan activated!`
             : `${planName} プランが有効になりました！`,
-          { duration: 6000 },
+          { duration: 5000 },
         );
       }
     });

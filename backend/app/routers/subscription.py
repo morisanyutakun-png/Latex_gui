@@ -203,15 +203,41 @@ async def create_checkout(
     if body.plan_id not in _PLAN_RANK:
         raise HTTPException(status_code=400, detail="無効なプランIDです")
 
-    # ── サーバ側アップグレード判定 ─────────────────────────────────────────
-    # DB の有効サブスクから「いまの実効プラン」を取得し、要求プラン以下なら
-    # Stripe を経由せずエディタへ戻す。
-    current_plan = get_effective_plan(db, user.id)
-    if _PLAN_RANK.get(body.plan_id, -1) <= _PLAN_RANK.get(current_plan, 0):
-        frontend_url = stripe_service.FRONTEND_URL
+    frontend_url = stripe_service.FRONTEND_URL
+
+    # DB を直接見て active/trialing 行があるかを確認 (毎回クエリ、キャッシュなし)
+    active_row = (
+        db.query(Subscription)
+        .filter(
+            Subscription.user_id == user.id,
+            Subscription.status.in_(["active", "trialing"]),
+        )
+        .order_by(Subscription.updated_at.desc())
+        .first()
+    )
+    current_plan = active_row.plan_id if active_row else "free"
+
+    # ── Free プラン要求 ────────────────────────────────────────────────────
+    # DB に active 行が「無ければ必ず作る」 (Free の pseudo 行を挿入)。
+    # 既に何らかの active 行があれば (Free 含む) 何も書かずに already_on_plan。
+    # 有料契約中に Free を押した場合も同様 (ダウングレードは Stripe portal 経由で)。
+    if body.plan_id == "free":
+        if active_row is None:
+            try:
+                stripe_service.activate_free_plan(db, user)
+            except Exception as e:
+                logger.error("Free plan activation error: %s", e)
+                raise HTTPException(status_code=500, detail=f"Free プランの有効化に失敗: {e}")
+            logger.info("Activated Free plan for user %s (no prior active row)", user.id)
+            return CheckoutResponse(
+                checkout_url=f"{frontend_url}/editor?checkout=success&plan=free",
+                action="free_activated",
+                current_plan="free",
+            )
+        # 既に何か active 行がある → 書き込み不要、editor へ戻す
         logger.info(
-            "Skip checkout: user=%s already on %s (requested %s)",
-            user.id, current_plan, body.plan_id,
+            "Skip Free activation: user=%s already has active row (plan=%s)",
+            user.id, current_plan,
         )
         return CheckoutResponse(
             checkout_url=f"{frontend_url}/editor",
@@ -219,18 +245,15 @@ async def create_checkout(
             current_plan=current_plan,
         )
 
-    # ── Free プラン: Stripe Checkout 不要。DB に直接登録してリダイレクト先を返す ──
-    # (ここに到達するのは実効プランが "free" 未満 = ありえないが、保険として残す)
-    if body.plan_id == "free":
-        try:
-            stripe_service.activate_free_plan(db, user)
-        except Exception as e:
-            logger.error("Free plan activation error: %s", e)
-            raise HTTPException(status_code=500, detail=f"Free プランの有効化に失敗: {e}")
-        frontend_url = stripe_service.FRONTEND_URL
+    # ── 有料プラン要求: アップグレードでなければブロック ──────────────────
+    if _PLAN_RANK[body.plan_id] <= _PLAN_RANK.get(current_plan, 0):
+        logger.info(
+            "Skip checkout: user=%s already on %s (requested %s)",
+            user.id, current_plan, body.plan_id,
+        )
         return CheckoutResponse(
-            checkout_url=f"{frontend_url}/editor?checkout=success&plan=free",
-            action="free_activated",
+            checkout_url=f"{frontend_url}/editor",
+            action="already_on_plan",
             current_plan=current_plan,
         )
 
@@ -411,6 +434,43 @@ def _classify_secret_key(v: str) -> str:
     if v.startswith("sk_test_"):
         return "test"
     return "invalid"
+
+
+@router.post("/dedupe")
+async def dedupe_subscriptions(
+    user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """現ユーザーの subscriptions 行を「1ユーザ=1レコード」に整理する。
+
+    既存のユーザが複数行を抱えている場合の self-heal 用 (今回の仕様変更前に
+    積み重なった重複を掃除するため)。
+    - active/trialing のうち最上位プランを残す
+    - 他 (pseudo free 含む) を削除
+    - 有料の stale 行については Stripe 側も best-effort で cancel
+    """
+    if not user:
+        raise HTTPException(status_code=401, detail="認証が必要です")
+
+    rows = db.query(Subscription).filter(Subscription.user_id == user.id).all()
+    if len(rows) <= 1:
+        return {"removed": 0, "kept": rows[0].id if rows else None, "note": "no dedupe needed"}
+
+    rank = {"free": 0, "starter": 1, "pro": 2, "premium": 3}
+    # 優先順位: status in (active, trialing) > plan rank > updated_at desc
+    def _score(r: Subscription) -> tuple[int, int]:
+        s = 1 if r.status in ("active", "trialing") else 0
+        p = rank.get(r.plan_id, -1)
+        return (s, p)
+
+    best = max(rows, key=_score)
+    removed = stripe_service._ensure_single_subscription_per_user(db, user.id, best.id)
+    return {
+        "removed": removed,
+        "kept": best.id,
+        "kept_plan": best.plan_id,
+        "kept_status": best.status,
+    }
 
 
 @router.get("/whoami")

@@ -60,6 +60,87 @@ PLAN_PRICE_IDS: dict[str, str] = {
 PRICE_TO_PLAN: dict[str, str] = {v: k for k, v in PLAN_PRICE_IDS.items() if v}
 
 
+def _all_candidate_keys() -> list[str]:
+    """default + 各プラン override の Stripe API キーを重複排除で順に返す。"""
+    keys: list[str] = []
+    seen: set[str] = set()
+    def _add(k: str) -> None:
+        k = (k or "").strip()
+        if k and k not in seen:
+            seen.add(k)
+            keys.append(k)
+    _add(stripe.api_key or os.environ.get("STRIPE_SECRET_KEY", ""))
+    for p in ("starter", "pro", "premium"):
+        _add(os.environ.get(f"STRIPE_SECRET_KEY_{p.upper()}", ""))
+    return keys
+
+
+def _cancel_stripe_subscription_best_effort(sub_id: str) -> bool:
+    """古い Stripe サブスクを安全にキャンセルする。失敗しても続行。
+
+    pseudo id (`free_<user>`) はスキップ。
+    複数のキーで順に試し、どれかで成功すれば OK。
+    """
+    if not sub_id or sub_id.startswith("free_"):
+        return False
+    prev = stripe.api_key
+    try:
+        for key in _all_candidate_keys():
+            stripe.api_key = key
+            try:
+                stripe.Subscription.cancel(sub_id)
+                logger.info("Canceled old Stripe subscription %s", sub_id)
+                return True
+            except stripe.error.InvalidRequestError:
+                continue
+            except Exception as e:
+                logger.warning("Stripe cancel %s unexpected error: %s", sub_id, e)
+                continue
+        logger.warning("Could not cancel Stripe subscription %s with any key", sub_id)
+        return False
+    finally:
+        stripe.api_key = prev
+
+
+def _ensure_single_subscription_per_user(
+    db: Session,
+    user_id: str,
+    keep_sub_id: str,
+    cancel_in_stripe: bool = True,
+) -> int:
+    """「1ユーザ=1レコード」不変条件を強制。keep_sub_id 以外の行を削除する。
+
+    削除した行に対応する Stripe subscription もオプションで cancel する
+    (double-billing 防止)。pseudo id (`free_<user>`) は Stripe には無いのでスキップ。
+
+    Returns: 削除した行数。
+    """
+    stale_rows = db.query(Subscription).filter(
+        Subscription.user_id == user_id,
+        Subscription.id != keep_sub_id,
+    ).all()
+
+    removed = 0
+    for row in stale_rows:
+        old_id = row.id
+        if cancel_in_stripe and old_id and not old_id.startswith("free_"):
+            _cancel_stripe_subscription_best_effort(old_id)
+        db.delete(row)
+        removed += 1
+
+    if removed > 0:
+        try:
+            db.commit()
+            logger.info(
+                "Enforced one-sub-per-user: removed %d stale rows for user %s (kept=%s)",
+                removed, user_id, keep_sub_id,
+            )
+        except Exception as e:
+            db.rollback()
+            logger.error("Failed to delete stale subscription rows for user %s: %s", user_id, e)
+    return removed
+
+
 def _ensure_api_key() -> None:
     if not stripe.api_key:
         stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
@@ -415,6 +496,12 @@ def _upsert_subscription_from_session(
             "Upserted subscription %s user=%s plan=%s status=%s action=%s",
             sub_id, user.id, plan_id, status, report.get("db_action"),
         )
+
+        # ★ 1ユーザ=1レコード不変条件を強制。Free から上げた場合は pseudo "free_<uid>" 行が、
+        #   有料→有料の場合は旧サブスク行が削除される (Stripe 側も best-effort で cancel)。
+        if report["success"]:
+            removed = _ensure_single_subscription_per_user(db, user.id, sub_id)
+            report["stale_rows_removed"] = removed
     except Exception as e:
         db.rollback()
         msg = f"{type(e).__name__}: {str(e)[:300]}"
@@ -522,6 +609,7 @@ def sync_subscriptions_for_customer(db: Session, user: User) -> str:
 
     best_plan: str = "free"
     best_rank: int = -1
+    best_sub_id: Optional[str] = None
     _rank = {"free": 0, "starter": 1, "pro": 2, "premium": 3}
 
     subs_data = _sg(subs_list, "data", []) or []
@@ -575,6 +663,7 @@ def sync_subscriptions_for_customer(db: Session, user: User) -> str:
             if _rank[plan_id] > best_rank:
                 best_rank = _rank[plan_id]
                 best_plan = plan_id
+                best_sub_id = sub_id
 
     try:
         db.commit()
@@ -583,15 +672,28 @@ def sync_subscriptions_for_customer(db: Session, user: User) -> str:
         logger.error("DB commit in sync failed: %s", e)
         raise
 
+    # 1ユーザ=1レコード不変条件: 最上位の active subscription だけ残し、他は削除。
+    # (Stripe 側の cancel はしない — sync は認知の修復が目的で、実サブスク状態を変えない)
+    if best_sub_id:
+        _ensure_single_subscription_per_user(db, user.id, best_sub_id, cancel_in_stripe=False)
+    else:
+        # active/trialing が一つも無ければ、全行削除して Free 扱いにする
+        db.query(Subscription).filter(Subscription.user_id == user.id).delete(synchronize_session=False)
+        db.commit()
+
     logger.info(
-        "Synced %d subscriptions for user %s (best_plan=%s)",
-        len(subs_data), user.id, best_plan,
+        "Synced %d subscriptions for user %s (best_plan=%s, kept=%s)",
+        len(subs_data), user.id, best_plan, best_sub_id,
     )
     return best_plan
 
 
 def activate_free_plan(db: Session, user: User) -> None:
-    """Free プランを DB に直接登録する（Stripe Checkout 不要）。"""
+    """Free プランを DB に直接登録する（Stripe Checkout 不要）。
+
+    1ユーザ=1レコード不変条件。既に有料プランがあった場合は
+    それを Stripe 上で cancel し、DB 行も削除して Free の pseudo 行だけ残す。
+    """
     customer_id = create_or_get_customer(db, user)
     fake_sub_id = f"free_{user.id}"
     existing = db.query(Subscription).filter(Subscription.id == fake_sub_id).first()
@@ -607,6 +709,8 @@ def activate_free_plan(db: Session, user: User) -> None:
         db.add(sub)
         db.commit()
         logger.info("Activated free plan for user %s (customer %s)", user.id, customer_id)
+    # Free に戻す場合も旧有料サブスク行 / Stripe 側をクリーンアップ
+    _ensure_single_subscription_per_user(db, user.id, fake_sub_id)
 
 
 def create_portal_session(customer_id: str) -> str:
@@ -705,6 +809,8 @@ def _handle_checkout_completed(session_obj, db: Session) -> None:
             db.add(sub)
             db.commit()
             logger.info("Created subscription %s from checkout for user %s plan=%s", sub_id, meta_user_id, plan_id)
+        # 1ユーザ=1レコード不変条件: 旧サブスク行 (pseudo free 行含む) を掃除
+        _ensure_single_subscription_per_user(db, meta_user_id, sub_id)
 
 
 def _get_plan_from_subscription(sub_obj) -> str:
@@ -775,6 +881,8 @@ def _handle_subscription_created(sub_obj, db: Session) -> None:
     db.add(sub)
     db.commit()
     logger.info("Created subscription %s for user %s plan=%s", sub_id, user_id, plan_id)
+    # 1ユーザ=1レコード不変条件
+    _ensure_single_subscription_per_user(db, user_id, sub_id)
 
 
 def _handle_subscription_updated(sub_obj, db: Session) -> None:
