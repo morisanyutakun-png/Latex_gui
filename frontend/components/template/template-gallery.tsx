@@ -2310,7 +2310,7 @@ export function TemplateGallery() {
             </a>
             <span className="text-muted-foreground/20">·</span>
             <a href="/commerce" className="hover:text-foreground transition-colors">
-              {isJa ? "特定商取引法に基づく表記" : "Commerce"}
+              {isJa ? "特定商取引法に基づく表記" : "Commerce Disclosure"}
             </a>
             <span className="text-muted-foreground/20">·</span>
             <a href="/refunds" className="hover:text-foreground transition-colors">
