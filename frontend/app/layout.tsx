@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
@@ -38,6 +38,15 @@ export const metadata: Metadata = {
     type: "website",
     images: [{ url: "/apple-icon.png", width: 180, height: 180 }],
   },
+};
+
+// スマホ・タブレットで レイアウトが崩れないよう viewport を明示する。
+// エディタ UI はデスクトップ前提 (README でも PWA/モバイルは TODO) だが、
+// 最低限ランディング・法務ページが読める状態にする。
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({

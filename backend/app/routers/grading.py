@@ -196,7 +196,8 @@ async def grade_stream_endpoint(
             locale, "No answer files were provided.", "答案ファイルが指定されていません",
         )})
 
-    # ファイル読み込み + 検証
+    # ファイル読み込み + 検証 (magic number で実形式を確認)
+    from ..security import validate_uploaded_file
     file_tuples: list[tuple[bytes, str, str]] = []
     for f in answers:
         data = await f.read()
@@ -209,14 +210,15 @@ async def grade_stream_endpoint(
                     f"{f.filename} は 20MB を超えています",
                 )},
             )
-        mime = f.content_type or "application/octet-stream"
-        if mime not in _ALLOWED_ANSWER_MIME:
+        declared_mime = f.content_type or "application/octet-stream"
+        ok, err, mime = validate_uploaded_file(data, declared_mime, _ALLOWED_ANSWER_MIME)
+        if not ok:
             raise HTTPException(
                 status_code=400,
                 detail={"message": _loc(
                     locale,
-                    f"{f.filename}: supported formats are JPEG/PNG/GIF/WEBP/PDF ({mime}).",
-                    f"{f.filename}: 対応形式は JPEG/PNG/GIF/WEBP/PDF です ({mime})",
+                    f"{f.filename}: supported formats are JPEG/PNG/GIF/WEBP/PDF.",
+                    f"{f.filename}: {err or '対応形式は JPEG/PNG/GIF/WEBP/PDF です'}",
                 )},
             )
         file_tuples.append((data, mime, f.filename or "answer"))

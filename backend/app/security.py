@@ -546,3 +546,54 @@ def validate_latex_size(latex_source: str, max_chars: int = 1_000_000) -> Option
     if len(latex_source) > max_chars:
         return f"LaTeXソースが上限({max_chars:,}文字)を超えています: {len(latex_source):,}"
     return None
+
+
+# ─── アップロード画像 / PDF のマジックナンバー検証 ─────────────────────────
+# content-type ヘッダだけでは偽装可能。先頭バイトで実ファイル形式を判定する。
+# 不正形式のまま下流 (Vision API / PyMuPDF / Pillow) に渡すとパニック・OOM の
+# 原因になるため、ここで早期に弾く。
+
+def detect_file_kind(data: bytes) -> Optional[str]:
+    """data の先頭バイトからファイル種別の MIME を判定して返す。未判定は None。
+    JPEG / PNG / GIF / WEBP / PDF のみサポート。"""
+    if not data or len(data) < 12:
+        return None
+    # JPEG: FF D8 FF
+    if data[0] == 0xFF and data[1] == 0xD8 and data[2] == 0xFF:
+        return "image/jpeg"
+    # PNG: 89 50 4E 47 0D 0A 1A 0A
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    # GIF: "GIF87a" or "GIF89a"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    # WEBP: "RIFF" .... "WEBP"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    # PDF: "%PDF-"  (BOM / 空白の混入に多少寛容にする)
+    head = data[:1024].lstrip(b"\x00\x09\x0a\x0b\x0c\x0d\x20\xef\xbb\xbf")
+    if head.startswith(b"%PDF-"):
+        return "application/pdf"
+    return None
+
+
+def validate_uploaded_file(
+    data: bytes,
+    declared_mime: str,
+    allowed: set[str],
+) -> tuple[bool, Optional[str], str]:
+    """アップロード内容を magic number で検証する。
+
+    Returns: (ok, error_message, effective_mime)
+      - ok=True なら data は allowed に含まれるサポート形式。
+        effective_mime は magic number から判定した正しい MIME。
+      - ok=False なら error_message に日本語/英語ペアの理由が入る。
+    """
+    detected = detect_file_kind(data)
+    if detected is None:
+        return (False, "ファイル形式を判別できませんでした (JPEG/PNG/GIF/WEBP/PDF のみ対応)", declared_mime)
+    if detected not in allowed:
+        return (False, f"このファイル形式は対応していません ({detected})", detected)
+    # content-type ヘッダと実ファイルの食い違いは警告レベルで許容 (一部ブラウザが誤った
+    # type を送るため)。ただし実際の処理には detected を使う。
+    return (True, None, detected)

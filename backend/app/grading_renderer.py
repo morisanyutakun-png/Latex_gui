@@ -461,6 +461,7 @@ def _compile_with_images_sync(
         tex_path.write_text(latex_source, encoding="utf-8")
 
         cmd_args = get_compile_args(LUALATEX_CMD, str(tmpdir), str(tex_path))
+        from .pdf_service import _make_subprocess_limits
         try:
             result = subprocess.run(
                 cmd_args,
@@ -469,6 +470,7 @@ def _compile_with_images_sync(
                 timeout=timeout,
                 cwd=tmpdir,
                 env=TEX_ENV,
+                preexec_fn=_make_subprocess_limits(),
             )
         except FileNotFoundError:
             raise PDFGenerationError(

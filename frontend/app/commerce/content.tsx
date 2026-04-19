@@ -36,7 +36,7 @@ export function CommerceContent() {
           },
           {
             key: isJa ? "運営統括責任者" : "Representative",
-            value: isJa ? "運営統括責任者" : "Operator-in-charge (same as merchant)",
+            value: isJa ? `${OPERATOR_NAME} (販売業者と同一)` : `${operatorName} (same as merchant)`,
           },
           {
             key: isJa ? "所在地" : "Address",

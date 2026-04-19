@@ -55,3 +55,15 @@ class UsageLog(Base):
     __table_args__ = (
         Index("ix_usage_logs_user_action_created", "user_id", "action", "created_at"),
     )
+
+
+class StripeWebhookEvent(Base):
+    """処理済みの Stripe Webhook イベント ID を記録する。
+    Stripe は配信失敗時に同じ event を再送する可能性があるため、event_id で
+    冪等性を担保する (PK が UNIQUE 制約)。"""
+    __tablename__ = "stripe_webhook_events"
+
+    # Stripe が発行する evt_ で始まる ID
+    id = Column(String, primary_key=True, index=True)
+    event_type = Column(String, nullable=False)
+    processed_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False, index=True)

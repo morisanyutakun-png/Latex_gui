@@ -4,17 +4,21 @@ import { create } from "zustand";
 import { PlanId, PLANS, GatedFeature, canUseFeature, requiredPlanFor, FEATURE_LABELS } from "@/lib/plans";
 import { fetchMySubscription, fetchMyUsage } from "@/lib/subscription-api";
 
-// プラン名だけは localStorage に残しておき、初回レンダリングで UI が崩れないようにする。
-// 使用量は完全にサーバサイドで管理（localStorage 改変でバイパス不可）。
-const LS_PLAN_KEY = "eddivom-plan";
-
-function loadPlan(): PlanId {
-  if (typeof window === "undefined") return "free";
-  try {
-    const raw = localStorage.getItem(LS_PLAN_KEY);
-    if (raw && (raw === "free" || raw === "starter" || raw === "pro" || raw === "premium")) return raw as PlanId;
-  } catch { /* ignore */ }
+// セキュリティ: 以前は `eddivom-plan` を localStorage にキャッシュしていたが、
+// DevTools から書き換えると UI が有料プラン相当に見えてしまい、実リクエストは
+// サーバで拒否される = 「UI は使えるのに API だけ失敗する」という紛らわしい
+// UX 不整合を生んだ。プランの真実のソースはバックエンドのみとする。
+// 初回レンダリング時は全員 "free" として扱い、fetchSubscription の結果を待つ。
+function defaultPlan(): PlanId {
   return "free";
+}
+
+// 旧バージョンでブラウザに残ったプランキャッシュを破棄する (起動時に一度だけ呼ぶ)。
+function cleanupLegacyPlanCache(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("eddivom-plan");
+  } catch { /* ignore */ }
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -60,7 +64,7 @@ export interface PlanState {
 }
 
 export const usePlanStore = create<PlanState>((set, get) => ({
-  currentPlan: "free",
+  currentPlan: defaultPlan(),
   aiUsedDay: 0,
   aiUsedMonth: 0,
   aiLimitDay: PLANS.free.requestsPerDay,
@@ -132,7 +136,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   },
 
   setPlan: (plan) => {
-    if (typeof window !== "undefined") localStorage.setItem(LS_PLAN_KEY, plan);
+    // プラン更新は store のみに保持 (localStorage には書かない — XSS / DevTools 改変対策)
     set({ currentPlan: plan });
     // プランが変わったら上限もプラン定義に合わせて即時反映（サーバ再同期まで）
     const def = PLANS[plan];
@@ -175,7 +179,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         batchMaxRows: u.batch_max_rows,
         usageFetched: true,
       });
-      if (typeof window !== "undefined") localStorage.setItem(LS_PLAN_KEY, u.plan_id);
     } catch {
       // サーバ取得失敗時は現状維持
       set({ usageFetched: true });
@@ -185,7 +188,10 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   setShowPricing: (v) => set({ showPricing: v }),
 
   initFromStorage: () => {
-    const plan = loadPlan();
+    // 未ログイン / サーバ未到達時の安全な既定として Free プランの上限を設定する。
+    // 旧バージョンで残った localStorage のプランキャッシュは破棄する。
+    cleanupLegacyPlanCache();
+    const plan = defaultPlan();
     const def = PLANS[plan];
     set({
       currentPlan: plan,
@@ -201,10 +207,10 @@ export const usePlanStore = create<PlanState>((set, get) => ({
     try {
       const [status] = await Promise.all([fetchMySubscription(), get().refreshUsage()]);
       const planId = status.plan_id as PlanId;
-      if (typeof window !== "undefined") localStorage.setItem(LS_PLAN_KEY, planId);
       set({ currentPlan: planId, subscriptionFetched: true });
     } catch {
-      set({ currentPlan: loadPlan(), subscriptionFetched: true });
+      // サーバ取得失敗時は Free として扱う (上位プランを勝手に仮定しない)
+      set({ currentPlan: defaultPlan(), subscriptionFetched: true });
     } finally {
       set({ isLoadingSubscription: false });
     }

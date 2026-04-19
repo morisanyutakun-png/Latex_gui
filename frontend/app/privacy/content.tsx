@@ -110,7 +110,7 @@ export function PrivacyContent() {
             <strong>Stripe, Inc.</strong> — {isJa ? "クレジットカード決済、サブスクリプション管理" : "payment processing and subscription management"}
           </li>
           <li>
-            <strong>Anthropic PBC</strong> — {isJa ? "AI 機能 (プロンプト・ドキュメント内容の一部を解析目的で送信)" : "AI features (prompts and selected document content are sent for inference)"}
+            <strong>OpenAI, L.L.C.</strong> — {isJa ? "AI 機能および画像解析 (プロンプト・ドキュメント内容・アップロード画像の一部を推論目的で送信。OpenAI API 経由のため、送信データは OpenAI のモデル学習には使用されません)" : "AI features and image analysis (prompts, selected document content, and uploaded images are sent for inference. Data sent via the OpenAI API is not used to train OpenAI models)"}
           </li>
           <li>
             <strong>Vercel Inc.</strong> — {isJa ? "フロントエンドホスティング、CDN、アクセスログ" : "frontend hosting, CDN, access logs"}

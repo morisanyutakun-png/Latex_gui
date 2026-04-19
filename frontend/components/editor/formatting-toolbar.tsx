@@ -382,6 +382,8 @@ function ToolBtn({ onClick, title, desc, active, children }: ToolBtnProps) {
         onClick={onClick}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        aria-label={title}
+        aria-pressed={active ? true : undefined}
         className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors ${
           active ? "bg-foreground/[0.08] text-foreground" : ""
         }`}
@@ -421,10 +423,13 @@ const ColorButton = forwardRef<
         onClick={onToggle}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        aria-label={title}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
       >
-        <Palette className="h-3.5 w-3.5" />
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+        <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
       <PortalTooltip anchorRef={innerRef} show={hover && !open} title={title} desc={desc} />
     </>
@@ -456,10 +461,13 @@ const BoxButton = forwardRef<
         onClick={onToggle}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        aria-label={title}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
       >
-        <Box className="h-3.5 w-3.5" />
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+        <Box className="h-3.5 w-3.5" aria-hidden="true" />
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
       <PortalTooltip anchorRef={innerRef} show={hover && !open} title={title} desc={desc} />
     </>

@@ -111,11 +111,23 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
       {/* Undo / Redo */}
       <div className="flex items-center gap-0.5 shrink-0">
-        <button onClick={undo} disabled={past.length === 0} className="btn-icon h-8 w-8" title={t("header.undo")}>
-          <Undo2 className="h-4 w-4" />
+        <button
+          onClick={undo}
+          disabled={past.length === 0}
+          className="btn-icon h-8 w-8"
+          title={t("header.undo")}
+          aria-label={t("header.undo")}
+        >
+          <Undo2 className="h-4 w-4" aria-hidden="true" />
         </button>
-        <button onClick={redo} disabled={future.length === 0} className="btn-icon h-8 w-8" title={t("header.redo")}>
-          <Redo2 className="h-4 w-4" />
+        <button
+          onClick={redo}
+          disabled={future.length === 0}
+          className="btn-icon h-8 w-8"
+          title={t("header.redo")}
+          aria-label={t("header.redo")}
+        >
+          <Redo2 className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
@@ -136,11 +148,21 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
 
       {/* Save / Export */}
       <div className="flex items-center gap-0.5 shrink-0">
-        <button onClick={handleSave} className="btn-icon h-8 w-8" title={t("header.save.short")}>
-          <Save className="h-4 w-4" />
+        <button
+          onClick={handleSave}
+          className="btn-icon h-8 w-8"
+          title={t("header.save.short")}
+          aria-label={t("header.save.short")}
+        >
+          <Save className="h-4 w-4" aria-hidden="true" />
         </button>
-        <button onClick={handleExportJSON} className="btn-icon h-8 w-8" title={t("header.export.json.short")}>
-          <FileDown className="h-4 w-4" />
+        <button
+          onClick={handleExportJSON}
+          className="btn-icon h-8 w-8"
+          title={t("header.export.json.short")}
+          aria-label={t("header.export.json.short")}
+        >
+          <FileDown className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 

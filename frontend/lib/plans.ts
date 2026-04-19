@@ -272,6 +272,26 @@ export const PLANS: Record<PlanId, PlanDef> = {
 
 export const PLAN_ORDER: PlanId[] = ["free", "starter", "pro", "premium"];
 
+/**
+ * 表示用の価格ラベルを返す。
+ * ja: `¥1,980` (priceLabel そのまま)
+ * en: `¥1,980 (~$13)` — 請求は常に JPY のため JPY を主表示、USD は概算補助。
+ * レートは定数で近似。厳密な変換はレシート側 (Stripe) に任せる。
+ */
+const JPY_TO_USD_APPROX = 1 / 150; // 概算レート (2026 年時点の目安)
+
+export function getDisplayPrice(planId: PlanId, locale: "ja" | "en" = "ja"): string {
+  const plan = PLANS[planId];
+  if (plan.price === 0) {
+    return locale === "en" ? "$0" : plan.priceLabel;
+  }
+  if (locale === "en") {
+    const usd = Math.max(1, Math.round(plan.price * JPY_TO_USD_APPROX));
+    return `${plan.priceLabel} (≈ $${usd})`;
+  }
+  return plan.priceLabel;
+}
+
 /** 利益試算ヘルパー (内部用) */
 export function estimateMargin(planId: PlanId): {
   standardCost: number;

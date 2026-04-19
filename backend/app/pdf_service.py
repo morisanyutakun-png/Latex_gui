@@ -38,7 +38,60 @@ logger = logging.getLogger(__name__)
 
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_COMPILES", "1"))
 _compile_semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "300"))
+# コンパイル timeout の既定は 90 秒 (fork bomb / 無限ループ耐性を上げる)。
+# 巨大な教材で必要なら環境変数で 300 まで伸ばせる。
+COMPILE_TIMEOUT = int(os.environ.get("COMPILE_TIMEOUT_SECONDS", "90"))
+# subprocess のメモリ上限 (bytes)。既定 512 MiB は Koyeb 1GB 筐体で他処理と共存する想定。
+COMPILE_MEMORY_LIMIT_BYTES = int(os.environ.get("COMPILE_MEMORY_LIMIT_BYTES", str(512 * 1024 * 1024)))
+# subprocess が書ける最大ファイルサイズ (bytes)。巨大 PDF 生成を防ぐ。
+COMPILE_FILE_SIZE_LIMIT_BYTES = int(os.environ.get("COMPILE_FILE_SIZE_LIMIT_BYTES", str(50 * 1024 * 1024)))
+
+
+def _make_subprocess_limits():
+    """lualatex subprocess に POSIX リソース上限を適用する preexec_fn を返す。
+
+    - RLIMIT_CPU: wallclock timeout と同等の CPU 時間上限 (fork bomb 対策)
+    - RLIMIT_AS: 仮想メモリ上限 (malloc bomb 対策)
+    - RLIMIT_FSIZE: 書き込みファイルサイズ上限 (出力 PDF 肥大化対策)
+    - RLIMIT_CORE: コアダンプ無効化
+    - RLIMIT_NPROC: fork 可能プロセス数 (lualatex は通常子プロセスを起こさないので低めで良い)
+    Windows (resource モジュール非対応) では None を返してスキップする。
+    """
+    try:
+        import resource
+    except ImportError:
+        return None
+
+    # CPU は timeout + 数秒の余裕。短すぎると合法的なコンパイルも落ちる。
+    cpu_limit = max(COMPILE_TIMEOUT + 10, 30)
+    mem_limit = COMPILE_MEMORY_LIMIT_BYTES
+    fsize_limit = COMPILE_FILE_SIZE_LIMIT_BYTES
+
+    def _preexec():
+        # 各 setrlimit は (soft, hard) のタプル。
+        try:
+            resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit))
+        except (ValueError, OSError):
+            pass
+        try:
+            resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
+        except (ValueError, OSError):
+            pass
+        try:
+            resource.setrlimit(resource.RLIMIT_FSIZE, (fsize_limit, fsize_limit))
+        except (ValueError, OSError):
+            pass
+        try:
+            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        except (ValueError, OSError):
+            pass
+        # NPROC は実装差があり過剰に縛ると TeX ヘルパが落ちるので緩め (128)。
+        try:
+            resource.setrlimit(resource.RLIMIT_NPROC, (128, 128))
+        except (ValueError, OSError, AttributeError):
+            pass
+
+    return _preexec
 
 
 def _log_memory(label: str) -> None:
@@ -273,6 +326,7 @@ def _try_compile_once(
                 timeout=timeout,
                 cwd=tmpdir,
                 env=TEX_ENV,
+                preexec_fn=_make_subprocess_limits(),
             )
         except FileNotFoundError:
             raise PDFGenerationError(

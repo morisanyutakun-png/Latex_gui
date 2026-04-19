@@ -34,6 +34,19 @@ interface DocumentState {
 
 const MAX_HISTORY = 50;
 
+// DocumentModel を構造クローンする。
+// 以前は JSON.parse(JSON.stringify(doc)) を使っていたが、latex フィールドが
+// 数十 KB になるとシリアライズ往復で UI スレッドが 100ms 近くブロックされた。
+// string は JS で immutable なので参照共有で OK。オブジェクト階層だけ浅く複製する。
+function cloneDocument(doc: DocumentModel): DocumentModel {
+  return {
+    template: doc.template,
+    metadata: { ...doc.metadata },
+    settings: { ...doc.settings, margins: { ...doc.settings.margins } },
+    latex: doc.latex,
+  };
+}
+
 export const useDocumentStore = create<DocumentState>((set, get) => ({
   document: null,
   past: [],
@@ -62,7 +75,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   _pushHistory: () => {
     const { document, past } = get();
     if (!document) return;
-    const snap = JSON.parse(JSON.stringify(document));
+    const snap = cloneDocument(document);
     set({ past: [...past.slice(-(MAX_HISTORY - 1)), snap], future: [] });
   },
 
@@ -89,7 +102,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     set({
       document: prev,
       past: past.slice(0, -1),
-      future: document ? [JSON.parse(JSON.stringify(document)), ...future.slice(0, MAX_HISTORY - 1)] : future,
+      future: document ? [cloneDocument(document), ...future.slice(0, MAX_HISTORY - 1)] : future,
     });
   },
 
@@ -100,7 +113,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     set({
       document: next,
       future: future.slice(1),
-      past: document ? [...past.slice(-(MAX_HISTORY - 1)), JSON.parse(JSON.stringify(document))] : past,
+      past: document ? [...past.slice(-(MAX_HISTORY - 1)), cloneDocument(document)] : past,
     });
   },
 }));

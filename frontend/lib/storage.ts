@@ -1,10 +1,20 @@
 import { DocumentModel } from "./types";
 
 const STORAGE_KEY = "latex-gui-document";
+// 別タブが同じドキュメントを上書きしたことを検知するためのタイムスタンプ。
+// StorageEvent で別タブの保存が観測できるよう、別キーで書き出す。
+export const STORAGE_TS_KEY = "latex-gui-document-ts";
+// このタブを一意に識別する ID。自タブが書いた storage event を無視するのに使う。
+export const TAB_ID = (typeof crypto !== "undefined" && "randomUUID" in crypto)
+  ? crypto.randomUUID()
+  : String(Math.random()).slice(2);
+export const STORAGE_TAB_KEY = "latex-gui-document-tab";
 
 export function saveToLocalStorage(doc: DocumentModel): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+    localStorage.setItem(STORAGE_TAB_KEY, TAB_ID);
+    localStorage.setItem(STORAGE_TS_KEY, String(Date.now()));
   } catch { /* storage full */ }
 }
 

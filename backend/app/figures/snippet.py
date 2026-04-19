@@ -195,6 +195,8 @@ def _build_standalone(body: str, pkgs: list[str], libs: list[str]) -> str:
 
 
 def _run(cmd: list[str], cwd: str) -> subprocess.CompletedProcess:
+    # ユーザー由来の tikz/circuitikz snippet を描画するため、fork bomb 等から保護する
+    from ..pdf_service import _make_subprocess_limits
     return subprocess.run(
         cmd,
         capture_output=True,
@@ -202,6 +204,7 @@ def _run(cmd: list[str], cwd: str) -> subprocess.CompletedProcess:
         timeout=_PREVIEW_TIMEOUT_SEC,
         cwd=cwd,
         env=TEX_ENV,
+        preexec_fn=_make_subprocess_limits(),
     )
 
 

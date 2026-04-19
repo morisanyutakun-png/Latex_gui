@@ -800,6 +800,7 @@ def _compile_latex_snapshot(
                 tex_path.write_text(source, encoding="utf-8")
 
                 cmd_args = get_compile_args(LUALATEX_CMD, str(tmpdir), str(tex_path))
+                from .pdf_service import _make_subprocess_limits
                 result = subprocess.run(
                     cmd_args,
                     capture_output=True,
@@ -807,6 +808,7 @@ def _compile_latex_snapshot(
                     timeout=timeout,
                     cwd=tmpdir,
                     env=TEX_ENV,
+                    preexec_fn=_make_subprocess_limits(),
                 )
 
                 pdf_path = Path(tmpdir) / "check.pdf"

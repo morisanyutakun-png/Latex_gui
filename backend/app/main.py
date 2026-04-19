@@ -25,6 +25,7 @@ from .pdf_service import compile_pdf, compile_raw_latex, generate_latex, PDFGene
 from .security import (
     validate_latex_security, validate_latex_size,
     SecurityViolation, ALLOWED_PACKAGES, ALLOWED_TIKZ_LIBRARIES,
+    validate_uploaded_file,
 )
 from .cache_service import get_cache_stats, clear_all_caches
 from .audit import (
@@ -41,7 +42,8 @@ from .routers.subscription import router as subscription_router
 from .routers.grading import router as grading_router
 from .database import get_db
 from .db_models import User
-from .auth_deps import enforce_ai_quota, enforce_ai_quota_with_feature, enforce_pdf_quota
+from .auth_deps import enforce_ai_quota, enforce_ai_quota_with_feature, enforce_pdf_quota, require_user, require_admin
+from .rate_limit import enforce_rate_limit
 from .usage_service import log_usage
 
 logging.basicConfig(level=logging.INFO)
@@ -80,9 +82,25 @@ app.include_router(grading_router)
 # BaseHTTPMiddleware を経由した未捕捉例外は Starlette の ServerErrorMiddleware が
 # "Internal Server Error" というプレーンテキストで返してしまい、フロントで原因不明になる。
 # JSON で詳細を返すグローバルハンドラを登録する。
+#
+# セキュリティ: 本番環境では例外クラス名・内部パス・例外メッセージをクライアントへ
+# 返さない。内部ルーティングやバックエンド構成の推測に使われるため。詳細はログにのみ出す。
+def _is_production_like() -> bool:
+    _frontend = os.environ.get("FRONTEND_URL", "").strip().lower()
+    return bool(_frontend) and "localhost" not in _frontend and "127.0.0.1" not in _frontend
+
+
 @app.exception_handler(Exception)
 async def _global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    if _is_production_like():
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "サーバーエラーが発生しました。時間をおいて再度お試しください。",
+            },
+        )
+    # 開発環境のみ詳細を返す (デバッグ利便性)
     return JSONResponse(
         status_code=500,
         content={
@@ -151,11 +169,18 @@ class _SnippetRequest(pydantic.BaseModel):
 
 
 @app.post("/api/figures/snippet/compile")
-async def figure_snippet_compile_endpoint(req: _SnippetRequest):
+async def figure_snippet_compile_endpoint(
+    req: _SnippetRequest,
+    request: Request,
+    user: User = Depends(require_user),
+):
     """Compile an arbitrary user-supplied tikz/circuitikz/pgfplots snippet
     to a cached PNG. Returns { key } — the PNG can then be fetched from
     GET /api/figures/snippet/{key}.png. Used by the Visual Editor to show
-    an image for freestyle figures (no library id marker)."""
+    an image for freestyle figures (no library id marker).
+
+    認証必須 (匿名からの LuaLaTeX 資源消費を防ぐため)。"""
+    enforce_rate_limit(request, "figures-snippet-compile", limit=30, window_seconds=60)
     from .figures.snippet import SnippetError, compile_snippet
 
     try:
@@ -190,16 +215,83 @@ async def root_health():
     return {"status": "ok"}
 
 
+def _get_config_health() -> dict:
+    """本番デプロイでの設定漏れを検出する診断情報を返す。
+
+    `issues` が空でなければ、商用運用前に対処すべき設定ミスがある。
+    機密値そのものは返さず、true/false / 概要のみ開示する。
+    """
+    frontend_url = os.environ.get("FRONTEND_URL", "").strip().lower()
+    is_prod_env = bool(frontend_url) and "localhost" not in frontend_url and "127.0.0.1" not in frontend_url
+
+    internal_secret_set = bool(os.environ.get("INTERNAL_API_SECRET", "").strip())
+    unsigned_auth_allowed = os.environ.get("ALLOW_UNSIGNED_INTERNAL_AUTH", "").lower() in ("1", "true", "yes")
+    allowed_origins_raw = os.environ.get("ALLOWED_ORIGINS", "").strip()
+    origins_wildcard = "*" in [o.strip() for o in allowed_origins_raw.split(",") if o.strip()]
+    allowed_origins_configured = bool(allowed_origins_raw)
+
+    stripe_secret = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+    stripe_key_kind: str
+    if not stripe_secret:
+        stripe_key_kind = "missing"
+    elif stripe_secret.startswith("sk_live_"):
+        stripe_key_kind = "live"
+    elif stripe_secret.startswith("sk_test_"):
+        stripe_key_kind = "test"
+    else:
+        stripe_key_kind = "unknown"
+    stripe_webhook_set = bool(os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip())
+
+    openai_key_set = bool(os.environ.get("OPENAI_API_KEY", "").strip())
+    anthropic_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+
+    issues: list[str] = []
+    if is_prod_env:
+        if not internal_secret_set and not unsigned_auth_allowed:
+            # 通常は起動時 RuntimeError で到達しないが、明示的に報告する
+            issues.append("INTERNAL_API_SECRET is not set")
+        if unsigned_auth_allowed:
+            issues.append("ALLOW_UNSIGNED_INTERNAL_AUTH=1 — x-user-id is unverified")
+        if origins_wildcard:
+            issues.append("ALLOWED_ORIGINS contains wildcard '*' with credentials enabled")
+        if not allowed_origins_configured:
+            issues.append("ALLOWED_ORIGINS is not configured (falls back to localhost only)")
+        if stripe_key_kind == "test":
+            issues.append("STRIPE_SECRET_KEY is a test key (sk_test_) in production")
+        if stripe_key_kind == "missing":
+            issues.append("STRIPE_SECRET_KEY is not set")
+        if not stripe_webhook_set:
+            issues.append("STRIPE_WEBHOOK_SECRET is not set")
+        if not openai_key_set and not anthropic_key_set:
+            issues.append("Neither OPENAI_API_KEY nor ANTHROPIC_API_KEY is set")
+
+    return {
+        "is_production_env": is_prod_env,
+        "internal_secret_set": internal_secret_set,
+        "unsigned_auth_allowed": unsigned_auth_allowed,
+        "allowed_origins_configured": allowed_origins_configured,
+        "allowed_origins_wildcard": origins_wildcard,
+        "stripe_secret_kind": stripe_key_kind,
+        "stripe_webhook_configured": stripe_webhook_set,
+        "openai_api_key_set": openai_key_set,
+        "anthropic_api_key_set": anthropic_key_set,
+        "issues": issues,
+    }
+
+
 @app.get("/api/health")
 async def health_check():
     from .database import get_db_info
     mem_info = _get_memory_info()
     db_info = get_db_info()
+    config_info = _get_config_health()
+    has_config_issue = bool(config_info["issues"]) or bool(db_info.get("persistence_at_risk"))
     return {
-        "status": "ok",
+        "status": "warn" if has_config_issue else "ok",
         "message": "PDF生成サーバーは正常に動作しています",
         "memory": mem_info,
         "db": db_info,
+        "config": config_info,
     }
 
 
@@ -250,7 +342,7 @@ def _get_memory_info() -> dict:
 
 
 @app.get("/api/debug/warmup-status")
-async def warmup_status():
+async def warmup_status(_admin: User = Depends(require_admin)):
     from .tex_env import (
         LUALATEX_JA_OK, LUALATEX_AVAILABLE,
         DEFAULT_ENGINE, is_warmup_done, is_lualatex_cache_warm,
@@ -269,7 +361,10 @@ async def warmup_status():
 
 
 @app.post("/api/preview-latex")
-async def preview_latex(doc: DocumentModel):
+async def preview_latex(
+    doc: DocumentModel,
+    user: User = Depends(require_user),
+):
     """LaTeXソースのプレビュー（生成済みLaTeXをそのまま返す）"""
     try:
         latex_source = generate_latex(doc)
@@ -290,6 +385,7 @@ async def preview_latex(doc: DocumentModel):
 @app.post("/api/generate-pdf")
 async def generate_pdf(
     doc: DocumentModel,
+    request: Request,
     user: User = Depends(enforce_pdf_quota),
     db: Session = Depends(get_db),
 ):
@@ -298,6 +394,7 @@ async def generate_pdf(
     認証必須。プランの月間PDF出力上限を超えている場合は 429。
     コンパイル成功後に `pdf_export` を UsageLog に記録する。
     """
+    enforce_rate_limit(request, "generate-pdf", limit=30, window_seconds=60)
     if not (doc.latex or "").strip():
         raise HTTPException(status_code=400, detail={
             "success": False,
@@ -346,8 +443,17 @@ class RawLatexRequest(pydantic.BaseModel):
 
 
 @app.post("/api/compile-raw")
-async def compile_raw(req: RawLatexRequest):
-    """生のLaTeXソースを直接コンパイルしてPDFを返す"""
+async def compile_raw(
+    req: RawLatexRequest,
+    request: Request,
+    user: User = Depends(require_user),
+):
+    """生のLaTeXソースを直接コンパイルしてPDFを返す
+
+    認証必須 (プレビュー用途のため quota は消費しないが、匿名からの LuaLaTeX
+    資源消費を防ぐため require_user でガードする)。
+    """
+    enforce_rate_limit(request, "compile-raw", limit=60, window_seconds=60)
     try:
         pdf_bytes = await compile_raw_latex(req.latex)
     except PDFGenerationError as e:
@@ -377,7 +483,10 @@ async def compile_raw(req: RawLatexRequest):
 # ═══ バッチ生成 (教材工場) エンドポイント ═══
 
 @app.post("/api/batch/detect-variables")
-async def detect_variables(doc: DocumentModel):
+async def detect_variables(
+    doc: DocumentModel,
+    user: User = Depends(require_user),
+):
     """テンプレート内の {{variables}} プレースホルダーを検出"""
     try:
         placeholders = detect_placeholders(doc)
@@ -392,6 +501,7 @@ async def detect_variables(doc: DocumentModel):
 @app.post("/api/batch/generate")
 async def batch_generate_pdfs(
     req: BatchRequest,
+    request: Request,
     user: User = Depends(enforce_pdf_quota),
     db: Session = Depends(get_db),
 ):
@@ -400,6 +510,8 @@ async def batch_generate_pdfs(
     プランの batch_max_rows を超える指定はサーバサイドで切り詰める (クライアント値は信用しない)。
     batch 機能が利用不可プラン (batch_max_rows=0) は 403。
     """
+    # 並行タブでの多重 batch 投入を抑制する (TOCTOU も緩和)
+    enforce_rate_limit(request, "batch-generate", limit=3, window_seconds=60)
     from .plan_limits import get_effective_plan, get_limits
     plan_id = get_effective_plan(db, user.id)
     plan_limits = get_limits(plan_id)
@@ -485,7 +597,10 @@ async def batch_generate_pdfs(
 
 
 @app.post("/api/batch/preview")
-async def batch_preview(req: BatchRequest):
+async def batch_preview(
+    req: BatchRequest,
+    user: User = Depends(require_user),
+):
     """バッチ生成のプレビュー（最初の1行だけLaTeXソースを返す）"""
     variable_rows = []
     try:
@@ -514,12 +629,12 @@ async def batch_preview(req: BatchRequest):
 # ═══ キャッシュ管理 ═══
 
 @app.get("/api/cache/stats")
-async def cache_stats():
+async def cache_stats(_admin: User = Depends(require_admin)):
     return {"success": True, "stats": get_cache_stats()}
 
 
 @app.post("/api/cache/clear")
-async def cache_clear():
+async def cache_clear(_admin: User = Depends(require_admin)):
     clear_all_caches()
     log_audit(AuditEvent.CACHE_CLEAR)
     return {"success": True, "message": "キャッシュをクリアしました"}
@@ -539,7 +654,10 @@ async def get_allowed_packages():
 # ═══ 監査ログ ═══
 
 @app.get("/api/audit/logs")
-async def audit_logs(limit: int = 100):
+async def audit_logs(
+    limit: int = 100,
+    _admin: User = Depends(require_admin),
+):
     logs = get_recent_audit_logs(limit=min(limit, 500))
     return {"success": True, "logs": logs, "count": len(logs)}
 
@@ -563,6 +681,7 @@ class ChatRequest(pydantic.BaseModel):
 @app.post("/api/ai/chat")
 async def ai_chat_endpoint(
     request: ChatRequest,
+    http_request: Request,
     user: User = Depends(enforce_ai_quota),
     db: Session = Depends(get_db),
 ):
@@ -571,6 +690,8 @@ async def ai_chat_endpoint(
     認証必須。プランの日次/月間AIリクエスト上限を超えている場合は 429。
     Claude 呼び出しに成功した時点で `ai_request` を UsageLog に記録する。
     """
+    # バーストからコスト保護する (プランの月次 quota と別に短期 burst を抑制)
+    enforce_rate_limit(http_request, "ai-chat", limit=15, window_seconds=60)
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -612,10 +733,12 @@ async def ai_chat_endpoint(
 @app.post("/api/ai/chat/stream")
 async def ai_chat_stream_endpoint(
     request: ChatRequest,
+    http_request: Request,
     user: User = Depends(enforce_ai_quota),
     db: Session = Depends(get_db),
 ):
     """AIチャット (SSEストリーミング)。認証 + quota チェック付き。"""
+    enforce_rate_limit(http_request, "ai-chat-stream", limit=15, window_seconds=60)
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(
@@ -655,6 +778,7 @@ async def ai_chat_stream_endpoint(
 
 @app.post("/api/omr/analyze")
 async def omr_analyze_endpoint(
+    http_request: Request,
     image: UploadFile = File(...),
     document: str = Form("{}"),
     hint: str = Form(""),
@@ -666,6 +790,7 @@ async def omr_analyze_endpoint(
 
     `ocr` feature は Starter+ 限定。LP の「Free は OMR 非対応」表記との整合のため。
     """
+    enforce_rate_limit(http_request, "omr-analyze", limit=10, window_seconds=60)
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -691,15 +816,17 @@ async def omr_analyze_endpoint(
             )},
         )
 
-    media_type = image.content_type or "image/jpeg"
+    # 宣言された content-type は信頼せず、先頭バイトで実形式を判定する
+    declared_type = image.content_type or "application/octet-stream"
     allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"}
-    if media_type not in allowed_types:
+    ok, err, media_type = validate_uploaded_file(image_bytes, declared_type, allowed_types)
+    if not ok:
         raise HTTPException(
             status_code=400,
             detail={"message": _localized(
                 locale,
                 "Supported formats: JPEG, PNG, GIF, WEBP, PDF.",
-                "JPEG, PNG, GIF, WEBP, PDF に対応しています",
+                err or "JPEG, PNG, GIF, WEBP, PDF に対応しています",
             )},
         )
 
@@ -730,6 +857,7 @@ async def omr_analyze_endpoint(
 
 @app.post("/api/omr/analyze/stream")
 async def omr_analyze_stream_endpoint(
+    http_request: Request,
     image: UploadFile = File(...),
     document: str = Form("{}"),
     hint: str = Form(""),
@@ -738,6 +866,7 @@ async def omr_analyze_stream_endpoint(
     db: Session = Depends(get_db),
 ):
     """OMR解析 SSEストリーミング。AI quota に含める。Starter+ のみ。"""
+    enforce_rate_limit(http_request, "omr-analyze-stream", limit=10, window_seconds=60)
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(
             status_code=503,
@@ -763,15 +892,16 @@ async def omr_analyze_stream_endpoint(
             )},
         )
 
-    media_type = image.content_type or "image/jpeg"
+    declared_type = image.content_type or "application/octet-stream"
     allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"}
-    if media_type not in allowed_types:
+    ok, err, media_type = validate_uploaded_file(image_bytes, declared_type, allowed_types)
+    if not ok:
         raise HTTPException(
             status_code=400,
             detail={"message": _localized(
                 locale,
                 "Supported formats: JPEG, PNG, GIF, WEBP, PDF.",
-                "JPEG, PNG, GIF, WEBP, PDF に対応しています",
+                err or "JPEG, PNG, GIF, WEBP, PDF に対応しています",
             )},
         )
 

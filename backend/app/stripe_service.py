@@ -796,10 +796,30 @@ def handle_webhook_event(payload: bytes, sig_header: str, db: Session) -> None:
         logger.warning("Stripe webhook signature verification failed: %s", e)
         raise
 
+    event_id = event.get("id") or ""
     event_type = event["type"]
     data = event["data"]["object"]
 
-    logger.info("Stripe webhook received: %s", event_type)
+    logger.info("Stripe webhook received: %s (%s)", event_type, event_id)
+
+    # 冪等性: 既に処理済みの event_id はスキップする。
+    # Stripe はネットワーク遅延・retry で同じ event を複数回送信することがあるため、
+    # 同じイベントで DB を 2 回 upsert しないよう PK 制約に頼って記録する。
+    if event_id:
+        from .db_models import StripeWebhookEvent
+        from sqlalchemy.exc import IntegrityError as _IntegrityError
+        existing = db.query(StripeWebhookEvent).filter(StripeWebhookEvent.id == event_id).first()
+        if existing:
+            logger.info("Stripe webhook event %s already processed, skipping", event_id)
+            return
+        # 先に記録を試みて UNIQUE 制約違反なら並行処理中とみなしスキップする
+        db.add(StripeWebhookEvent(id=event_id, event_type=event_type))
+        try:
+            db.commit()
+        except _IntegrityError:
+            db.rollback()
+            logger.info("Stripe webhook event %s recorded concurrently, skipping", event_id)
+            return
 
     if event_type == "checkout.session.completed":
         _handle_checkout_completed(data, db)

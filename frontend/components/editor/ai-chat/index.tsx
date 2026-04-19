@@ -161,17 +161,19 @@ export function AIChatPanel() {
     chatLog.send(requestId, text);
     const startTime = Date.now();
 
-    const feedbackCtx = buildFeedbackContext();
-    const docContext = document ? buildDocumentContext(document, locale) : "";
-    const enhancedContent = docContext
-      ? `${docContext}\n\n${userMsg.content}${feedbackCtx}`
-      : `${userMsg.content}${feedbackCtx}`;
-    const enhancedUserMsg: ChatMessage = { ...userMsg, content: enhancedContent };
-    const history = compressHistory(chatMessages, enhancedUserMsg);
-
     const assistantMsgId = crypto.randomUUID();
 
+    // buildDocumentContext / compressHistory で万一例外が起きても isChatLoading が
+    // 永久 true で残らないよう、前処理も含めて 1 つの try/finally に包む。
     try {
+      const feedbackCtx = buildFeedbackContext();
+      const docContext = document ? buildDocumentContext(document, locale) : "";
+      const enhancedContent = docContext
+        ? `${docContext}\n\n${userMsg.content}${feedbackCtx}`
+        : `${userMsg.content}${feedbackCtx}`;
+      const enhancedUserMsg: ChatMessage = { ...userMsg, content: enhancedContent };
+      const history = compressHistory(chatMessages, enhancedUserMsg);
+
       addChatMessage({
         id: assistantMsgId,
         role: "assistant",

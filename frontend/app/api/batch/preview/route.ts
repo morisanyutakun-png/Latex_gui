@@ -1,5 +1,6 @@
 /**
- * LaTeX プレビュープロキシ
+ * /api/batch/preview — バッチ生成の 1 行目プレビュープロキシ
+ * 認証必須: バックエンドへ x-user-id / x-internal-secret を転送する。
  */
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
@@ -13,32 +14,27 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json(
-      {
-        detail: {
-          code: "UNAUTHORIZED",
-          message: "プレビューにはログインが必要です。サインインしてからもう一度お試しください。",
-        },
-      },
+      { detail: { code: "UNAUTHORIZED", message: "ログインが必要です。" } },
       { status: 401 },
     );
   }
-  const authHeaders: Record<string, string> = {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
     "x-user-id": session.user.id,
     "x-user-email": session.user.email ?? "",
     "x-user-name": encodeURIComponent(session.user.name ?? ""),
     ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
   };
-
   try {
     const body = await req.text();
-    const res = await fetch(`${BACKEND}/api/preview-latex`, {
+    const res = await fetch(`${BACKEND}/api/batch/preview`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers,
       body,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(28000),
     });
-    const data = await res.text();
-    return new NextResponse(data, {
+    const text = await res.text();
+    return new NextResponse(text, {
       status: res.status,
       headers: { "Content-Type": "application/json" },
     });

@@ -35,19 +35,31 @@ _FEATURE_LABEL_JA: dict[str, str] = {
 }
 
 
-INTERNAL_SECRET = os.environ.get("INTERNAL_API_SECRET", "")
+INTERNAL_SECRET = os.environ.get("INTERNAL_API_SECRET", "").strip()
 
 # ★ 本番環境 (FRONTEND_URL が localhost 以外) では INTERNAL_API_SECRET 未設定を
-# 起動時に明示的に警告する。未設定だと x-user-id 詐称でバックエンドを直叩きされる。
+# 起動時に失敗させる。未設定だと x-user-id 詐称でバックエンドを直叩きされ、
+# 任意ユーザーなりすまし・プラン制限バイパスが可能になる。
+# 明示的にバイパスしたい場合のみ ALLOW_UNSIGNED_INTERNAL_AUTH=1 を設定する
+# (開発や検証でのみ使うこと)。
 if not INTERNAL_SECRET:
     _frontend = os.environ.get("FRONTEND_URL", "").lower()
     _is_prod = _frontend and "localhost" not in _frontend and "127.0.0.1" not in _frontend
-    if _is_prod:
+    _allow_unsigned = os.environ.get("ALLOW_UNSIGNED_INTERNAL_AUTH", "").lower() in ("1", "true", "yes")
+    if _is_prod and not _allow_unsigned:
+        raise RuntimeError(
+            "SECURITY: INTERNAL_API_SECRET is not set in a production-like environment "
+            f"(FRONTEND_URL={os.environ.get('FRONTEND_URL', '')}). "
+            "Without this secret, any client can forge x-user-id headers and impersonate "
+            "other users. Generate a random string and set INTERNAL_API_SECRET on both "
+            "the FastAPI backend and the Next.js frontend. "
+            "To bypass this check (NOT RECOMMENDED), set ALLOW_UNSIGNED_INTERNAL_AUTH=1."
+        )
+    if _is_prod and _allow_unsigned:
         import logging as _logging
         _logging.getLogger(__name__).error(
-            "SECURITY: INTERNAL_API_SECRET is not set in a production-like environment. "
-            "Requests to this backend can be forged with arbitrary x-user-id headers. "
-            "Set this env var to match the Next.js layer's INTERNAL_API_SECRET."
+            "SECURITY: Running in production-like environment with ALLOW_UNSIGNED_INTERNAL_AUTH=1. "
+            "x-user-id headers are NOT verified. This is insecure."
         )
 
 
@@ -124,6 +136,30 @@ def require_user(
         raise HTTPException(
             status_code=401,
             detail={"code": "UNAUTHORIZED", "message": "ログインが必要です。サインインしてからもう一度お試しください。"},
+        )
+    return user
+
+
+def _admin_emails() -> set[str]:
+    """`ADMIN_EMAILS` 環境変数 (カンマ区切り) を set に変換して返す。
+    未設定 or 空なら空 set を返し、require_admin は誰も通さない (安全な既定)。"""
+    raw = os.environ.get("ADMIN_EMAILS", "").strip()
+    if not raw:
+        return set()
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def require_admin(user: User = Depends(require_user)) -> User:
+    """管理者専用エンドポイントのガード。`ADMIN_EMAILS` に
+    (カンマ区切りで) 含まれるメールアドレスのユーザーのみ通す。
+    未設定時は誰も通さない (監査ログ・キャッシュ・セキュリティ情報エンドポイントを
+    匿名から守るための既定拒否)。"""
+    admins = _admin_emails()
+    email = (user.email or "").strip().lower()
+    if not admins or email not in admins:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "このエンドポイントは管理者専用です。"},
         )
     return user
 

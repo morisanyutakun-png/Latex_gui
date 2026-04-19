@@ -6,18 +6,31 @@
  * generate-pdf と同じく Vercel → バックエンド (FastAPI) を中継する。
  */
 import { NextRequest, NextResponse } from "next/server";
+import type { Session } from "next-auth";
+import { auth } from "@/auth";
 
 // Vercel Hobby は最大 60 秒
 export const maxDuration = 60;
 
 const BACKEND = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || "";
 
 const BACKEND_TIMEOUT_MS = 55000;
 
-async function callBackend(body: string): Promise<Response> {
+function authHeaders(session: Session | null): Record<string, string> {
+  if (!session?.user?.id) return {};
+  return {
+    "x-user-id": session.user.id,
+    "x-user-email": session.user.email ?? "",
+    "x-user-name": encodeURIComponent(session.user.name ?? ""),
+    ...(INTERNAL_SECRET ? { "x-internal-secret": INTERNAL_SECRET } : {}),
+  };
+}
+
+async function callBackend(body: string, extra: Record<string, string>): Promise<Response> {
   return fetch(`${BACKEND}/api/compile-raw`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extra },
     body,
     signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
   });
@@ -26,12 +39,26 @@ async function callBackend(body: string): Promise<Response> {
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
 
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      {
+        detail: {
+          code: "UNAUTHORIZED",
+          message: "プレビュー生成にはログインが必要です。サインインしてからもう一度お試しください。",
+        },
+      },
+      { status: 401 },
+    );
+  }
+  const headers = authHeaders(session);
+
   try {
     const body = await req.text();
 
     let res: Response;
     try {
-      res = await callBackend(body);
+      res = await callBackend(body, headers);
     } catch (firstErr) {
       // 初回失敗時: コールドスタート想定で 1 回だけリトライ
       const elapsed1 = Date.now() - t0;
@@ -42,7 +69,7 @@ export async function POST(req: NextRequest) {
         const retryTimeout = Math.min(BACKEND_TIMEOUT_MS, Math.max(57000 - elapsed1, 8000));
         res = await fetch(`${BACKEND}/api/compile-raw`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...headers },
           body,
           signal: AbortSignal.timeout(retryTimeout),
         });

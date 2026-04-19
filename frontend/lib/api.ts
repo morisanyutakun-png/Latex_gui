@@ -215,7 +215,8 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
 }
 
 export async function previewLatex(doc: DocumentModel): Promise<string> {
-  const res = await fetch(`${API_BASE}/api/preview-latex`, {
+  // 認証必須のため Next.js プロキシ経由で呼ぶ
+  const res = await fetch(`/api/preview-latex`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(doc),
@@ -230,7 +231,8 @@ export async function previewLatex(doc: DocumentModel): Promise<string> {
 }
 
 export async function compileRawLatex(latex: string, filename?: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/api/compile-raw`, {
+  // 認証必須のため Next.js プロキシ経由で呼ぶ (バックエンドの require_user を通す)
+  const res = await fetch(`/api/compile-raw`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ latex, filename: filename ?? "document" }),
@@ -253,7 +255,8 @@ export async function healthCheck(): Promise<boolean> {
 // ═══ バッチ生成 (教材工場) API ═══
 
 export async function detectVariables(doc: DocumentModel): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/api/batch/detect-variables`, {
+  // 認証必須のため Next.js プロキシ経由 (同一オリジン) で呼ぶ
+  const res = await fetch(`/api/batch/detect-variables`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(doc),
@@ -286,7 +289,8 @@ export async function batchPreview(req: BatchRequest): Promise<{
   variables: Record<string, string>;
   totalRows: number;
 }> {
-  const res = await fetch(`${API_BASE}/api/batch/preview`, {
+  // 認証必須のため Next.js プロキシ経由 (同一オリジン) で呼ぶ
+  const res = await fetch(`/api/batch/preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

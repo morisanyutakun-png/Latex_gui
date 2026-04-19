@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check, Crown, Zap, Sparkles, ShieldCheck, Plus } from "lucide-react";
 import { usePlanStore } from "@/store/plan-store";
-import { PLANS, PLAN_ORDER, PlanId } from "@/lib/plans";
+import { PLANS, PLAN_ORDER, PlanId, getDisplayPrice } from "@/lib/plans";
 
 const PLAN_RANK_UI: Record<PlanId, number> = { free: 0, starter: 1, pro: 2, premium: 3 };
 import { useI18n } from "@/lib/i18n";
@@ -201,7 +201,7 @@ export function PricingModal() {
                   <div className="mb-1">
                     <div className="flex items-baseline gap-1 flex-wrap">
                       <span className="font-black tracking-tight text-4xl">
-                        {plan.priceLabel}
+                        {getDisplayPrice(plan.id, isJa ? "ja" : "en")}
                       </span>
                       {plan.price > 0 && (
                         <span className="text-sm text-muted-foreground font-medium">

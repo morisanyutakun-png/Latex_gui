@@ -81,19 +81,48 @@ def apply_variables(doc: DocumentModel, variables: dict[str, str]) -> DocumentMo
 # CSV / JSON パース
 # ═══════════════════════════════════════════════════════════════
 
+# ユーザー入力の CSV / JSON 本体サイズの上限。メモリ逼迫による DoS を防ぐため
+# 事前にバイト数で弾く。10MB あれば数万行の実務的なバッチは十分に収まる。
+_MAX_VARIABLES_TEXT_BYTES = 10 * 1024 * 1024  # 10 MiB
+# 配列の上限件数。plan_limits["batch_max_rows"] は実 PDF 生成時の絞り込みだが、
+# パース段階でも絶対上限をかけて O(N) 以上の処理が走らないようにする。
+_MAX_VARIABLES_ROW_COUNT = 10_000
+
+
+def _enforce_variables_text_size(text: str, *, kind: str) -> None:
+    if text is None:
+        return
+    size = len(text.encode("utf-8", errors="ignore"))
+    if size > _MAX_VARIABLES_TEXT_BYTES:
+        raise ValueError(
+            f"{kind} のサイズが上限 ({_MAX_VARIABLES_TEXT_BYTES // (1024 * 1024)}MB) を超えています。"
+            "データを分割してアップロードしてください。"
+        )
+
+
 def parse_csv_variables(csv_text: str) -> list[dict[str, str]]:
+    _enforce_variables_text_size(csv_text, kind="CSV")
     reader = csv.DictReader(io.StringIO(csv_text))
-    rows = []
+    rows: list[dict[str, str]] = []
     for row in reader:
         if any(v.strip() for v in row.values()):
             rows.append({k.strip(): v.strip() for k, v in row.items()})
+        if len(rows) >= _MAX_VARIABLES_ROW_COUNT:
+            raise ValueError(
+                f"CSV の行数が絶対上限 ({_MAX_VARIABLES_ROW_COUNT} 行) を超えています。"
+            )
     return rows
 
 
 def parse_json_variables(json_text: str) -> list[dict[str, str]]:
+    _enforce_variables_text_size(json_text, kind="JSON")
     data = json.loads(json_text)
     if not isinstance(data, list):
         raise ValueError("JSON は配列形式 [{...}, ...] である必要があります")
+    if len(data) > _MAX_VARIABLES_ROW_COUNT:
+        raise ValueError(
+            f"JSON の要素数が絶対上限 ({_MAX_VARIABLES_ROW_COUNT} 件) を超えています。"
+        )
     rows = []
     for item in data:
         if isinstance(item, dict):
