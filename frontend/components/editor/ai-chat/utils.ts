@@ -20,17 +20,18 @@ export function cleanAIContent(content: string): string {
 /**
  * edit / mix モードで強制している「実施サマリー」ブロックを本文から切り出す。
  *
- * 検出ヘッダ (ja/en 両対応):
- *   **✅ 実施サマリー**
- *   **✅ What was done**
+ * プロンプトで要求している 4 見出しのどれか (最初に現れるもの) を起点とする。
+ * AI が ✅ 実施サマリー を省略して ⚠️ 注意点 から始めても検出できるようにする。
  *
- * 見つかったらヘッダ以降をサマリーとして返し、本文からは取り除く。
- * AI が誤って ``` でサマリーを囲んだ場合のフェンスも除去する。
+ *   **✅ 実施サマリー**      / **✅ What was done**
+ *   **📝 変更箇所**          / **📝 Changes**
+ *   **🔧 検証**              / **🔧 Verification**
+ *   **⚠️ 注意点**            / **⚠️ Caveats**
  *
  * 見つからなければ content をそのまま body に返し、summary は null。
  * ストリーミング途中でヘッダがまだ出現していない段階でも壊れないようにする。
  */
-const SUMMARY_HEAD_RE = /\*\*✅\s*(?:実施サマリー|What was done)\*\*/;
+const SUMMARY_HEAD_RE = /\*\*\s*(?:✅|📝|🔧|⚠\uFE0F?)\s*(?:実施サマリー|変更箇所|検証|注意点|What\s+was\s+done|Changes|Verification|Caveats)\s*\*\*/;
 
 export function splitSummary(content: string): { body: string; summary: string | null } {
   if (!content) return { body: "", summary: null };
