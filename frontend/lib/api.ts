@@ -500,7 +500,10 @@ export interface OMRAnalyzeResponse {
 
 export type OMRStreamEvent =
   | { type: "progress"; phase: string; message: string }
-  | { type: "done"; description: string; latex: string | null }
+  // warnings: バックエンドの security 検証で残った許可外要素 (通常は空配列)。
+  //   例: ["package:authblk", "tikz:shapes.arrows"]
+  //   現状はログ・UI 警告用途のみで、compile は試みる。
+  | { type: "done"; description: string; latex: string | null; warnings?: string[] }
   | { type: "error"; message: string };
 
 export async function analyzeImageOMR(

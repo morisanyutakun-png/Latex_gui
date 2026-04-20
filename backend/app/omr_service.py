@@ -17,96 +17,402 @@ from .ai_service import get_client, MODEL_VISION, max_tokens_param
 logger = logging.getLogger(__name__)
 
 
+# ─── Post-processing constants ──────────────────────────────────────────────
+#
+# security.py の ALLOWED_PACKAGES にない、かつ AI が「うっかり書きがち」なもの。
+# Vision 応答の LaTeX から `\usepackage{...}` 行を削って `autofix_latex` を通すこと
+# で、compile 前に「セキュリティポリシー違反」で弾かれるのを防ぐ。
+_FORBIDDEN_AI_PACKAGES = frozenset({
+    # 疑似コード (tcolorbox で代替)
+    "algorithm", "algpseudocode", "algorithmicx", "algorithmic",
+    # 著者ブロック (手書きで代替)
+    "authblk",
+    # 参考文献の拡張 (native \cite で十分)
+    "cite", "natbib", "biblatex",
+    # 段組バランス (不要)
+    "balance",
+    # 目次拡張 (手動 \addcontentsline で代替)
+    "tocbibind",
+    # ポスター系 (article+multicol で代替)
+    "beamerposter", "beamer",
+    # CJK 系 (luatexja-preset に統一)
+    "CJK", "CJKutf8", "cjk",
+    # 日本語クラス関連
+    "ujarticle", "jsclasses",
+})
+
+
+def _strip_forbidden_packages(latex: str) -> tuple[str, list[str]]:
+    """\\usepackage{...} 行から許可リスト外のパッケージを抜く。
+
+    - `\\usepackage{a, b}` のように複数書かれている場合は、該当パッケージだけ外し
+      他を残す (例: `a` が禁止で `b` が許可なら `\\usepackage{b}` に縮める)。
+    - すべて禁止なら行ごと削除。
+    - オプション `\\usepackage[opt]{...}` も同様に処理する。
+    """
+    import re
+    stripped: list[str] = []
+
+    pattern = re.compile(r'\\usepackage(\[[^\]]*\])?\{([^}]+)\}')
+
+    def _repl(m: re.Match) -> str:
+        opts = m.group(1) or ""
+        pkgs = [p.strip() for p in m.group(2).split(",") if p.strip()]
+        kept = [p for p in pkgs if p not in _FORBIDDEN_AI_PACKAGES]
+        dropped = [p for p in pkgs if p in _FORBIDDEN_AI_PACKAGES]
+        if dropped:
+            stripped.extend(dropped)
+        if not kept:
+            return ""
+        return "\\usepackage" + opts + "{" + ", ".join(kept) + "}"
+
+    fixed = pattern.sub(_repl, latex)
+    # 空の usepackage 行が残ると空行が連続するので掃除
+    fixed = re.sub(r'\n{3,}', "\n\n", fixed)
+    return fixed, stripped
+
+
+def _postprocess_latex(latex: str | None) -> str | None:
+    """OMR 応答の LaTeX を compile 前に堅牢化する:
+    1. 許可リスト外パッケージの除去
+    2. 末尾の改行・バッククォートの trim
+    3. `autofix_latex` (文書ラッピング + パッケージ自動補完)
+    """
+    if not latex or not latex.strip():
+        return latex
+
+    latex = latex.strip()
+    # AI が Markdown コードフェンスで包むことがあるので剥がす
+    if latex.startswith("```"):
+        lines = latex.split("\n")
+        # 先頭の ```latex 等を削除
+        lines = lines[1:]
+        # 末尾の ``` を削除
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        latex = "\n".join(lines).strip()
+
+    cleaned, dropped = _strip_forbidden_packages(latex)
+    if dropped:
+        logger.info("OMR post-process: stripped forbidden packages: %s", dropped)
+
+    # autofix_latex は「裸テキストの wrapping + 不足パッケージの自動注入 + 文字正規化」を行う
+    try:
+        from . import latex_autofix
+        cleaned = latex_autofix.autofix_latex(cleaned)
+    except Exception as e:
+        logger.warning("OMR post-process: autofix_latex failed (non-fatal): %s", e)
+
+    return cleaned
+
+
+def _validate_against_security(latex: str | None) -> list[str]:
+    """security.validate_latex_security を呼び、違反コードのリストを返す。
+    エラーがなければ空リスト。compile 前の最後の関門。"""
+    if not latex:
+        return []
+    try:
+        from . import security
+        violations = security.validate_latex_security(latex)
+        # ユーザに分かりやすいラベルに整形
+        labels: list[str] = []
+        for v in violations:
+            code = v.get("code")
+            if code == "package_not_allowed":
+                labels.append(f"package:{v.get('package', '?')}")
+            elif code == "tikz_library_not_allowed":
+                labels.append(f"tikz:{v.get('library', '?')}")
+            elif code == "forbidden_command":
+                labels.append(f"forbidden_cmd:{v.get('command', '?')}")
+            elif code == "dangerous_command":
+                labels.append(f"dangerous_cmd:{v.get('command', '?')}")
+            else:
+                labels.append(str(code))
+        return labels
+    except Exception as e:
+        logger.warning("OMR post-process: security validation failed (non-fatal): %s", e)
+        return []
+
+
+# ─── OMR prompt allow-list ──────────────────────────────────────────────────
+#
+# 許可パッケージは backend/app/security.py の ALLOWED_PACKAGES と 1:1 で同期すること。
+# ここに挙げないパッケージを AI が生成すると security 検証で弾かれる。
+_ALLOWED_PKG_JA = (
+    "amsmath, amssymb, amsthm, mathtools, bm, siunitx, physics, cancel, "
+    "booktabs, tabularx, array, longtable, multirow, colortbl, makecell, "
+    "enumitem, tcolorbox, mdframed, framed, graphicx, xcolor, hyperref, "
+    "geometry, fancyhdr, titlesec, listings, verbatim, fancyvrb, multicol, "
+    "tikz, pgfplots, circuitikz, mhchem, chemfig, float, wrapfig, subcaption, "
+    "caption, setspace, comment, url, lastpage, qrcode"
+)
+_FORBIDDEN_PKG = (
+    "algorithm, algpseudocode, algorithmicx, authblk, cite, balance, "
+    "tocbibind, beamerposter, biblatex, natbib, CJK, CJKutf8"
+)
+
+
 _OMR_SYSTEM_PROMPT_JA = r"""\
-You are an OMR (Optical Mark Recognition) assistant inside a Japanese LaTeX
-editor (Eddivom). The editor uses a *raw LaTeX* document model — you must
-output a complete, compilable LaTeX document.
+You are the OMR (image/PDF → LaTeX) extraction engine inside a Japanese LaTeX editor.
+Your only job: read the uploaded image/PDF and emit ONE complete, compilable LaTeX document
+via the `set_latex` tool call. Produce nothing else.
 
-## What to extract
-- Text headings → \section / \subsection / \subsubsection
-- Body text → ordinary paragraphs
-- Math → use $...$ for inline math and \[ ... \] (or $$...$$) for display math
-- Lists → itemize / enumerate
-- Tables → tabular / booktabs
-- Chemical formulas → \ce{...} (mhchem)
-- Diagrams / figures → \begin{figure} ... \end{figure} placeholder
-- Multi-choice answer sheets → list with \item entries
+══════════════════════════════════════════════
+# PART 1: OUTPUT CONTRACT (必ず守る)
+══════════════════════════════════════════════
+1. Call `set_latex` exactly once with the FULL source (preamble → `\begin{document}` → body → `\end{document}`).
+2. Do NOT write the LaTeX in the chat content; the `content` field should be empty or a one-line status.
+3. The document MUST compile under LuaLaTeX with the allow-listed packages only.
 
-## How to respond
-You MUST call the `set_latex` tool with a single argument `latex` containing
-the FULL LaTeX source. The source MUST be a complete document that compiles
-under LuaLaTeX with luatexja-preset for Japanese.
-
-### Required preamble
+══════════════════════════════════════════════
+# PART 2: REQUIRED PREAMBLE (日本語ドキュメント向け)
+══════════════════════════════════════════════
 \documentclass[11pt,a4paper]{article}
 \usepackage[haranoaji]{luatexja-preset}
-\usepackage{amsmath, amssymb, amsthm, mathtools}
 \usepackage{geometry}
 \geometry{margin=20mm}
-\usepackage{booktabs}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx, array}
 \usepackage{enumitem}
 \usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
 
-You may add other allowed packages (tikz, mhchem, hyperref, xcolor, tcolorbox,
-multicol, etc.) when needed.
+必要に応じて以下からのみ追加可:
+""" + _ALLOWED_PKG_JA + r"""
 
-### CRITICAL rules
-- Always call set_latex once. Do NOT print the LaTeX in the chat reply.
-- Always wrap math correctly:
-  * inline: $x^2 + 1$
-  * display: \[ \int_0^1 f(x)\,dx \]
-- Preserve paragraph breaks visible in the source.
-- If something is unclear, transcribe what you can read and add "(要確認)".
-- Respond in Japanese for any chat reply (but the LaTeX itself can mix as needed).
-- Do NOT use forbidden commands: \input, \include, \write18, \directlua, etc.
+**禁止パッケージ (絶対に読み込まない):** """ + _FORBIDDEN_PKG + r"""
+→ これらは security 検証で弾かれコンパイル不能になる。疑似コードは `tcolorbox` の箱で代用、
+   参考文献は `thebibliography` 環境、著者ブロックは `\author{...}` 手書きで書くこと。
+
+══════════════════════════════════════════════
+# PART 3: 抽出ルール (DO EXTRACT)
+══════════════════════════════════════════════
+| 原本の要素          | LaTeX での書き方                                   |
+|---------------------|---------------------------------------------------|
+| 大見出し・章         | `\section{...}` (番号付きを保つ)                   |
+| 中見出し             | `\subsection{...}`                                |
+| 小見出し             | `\subsubsection{...}`                             |
+| 本文段落             | 空行で区切るプレーンテキスト                        |
+| インライン数式       | `$ ... $` (例: `$x^2 + 1$`)                       |
+| 独立数式 (センタリング) | `\[ ... \]` (番号なし) or `\begin{equation}`       |
+| 連立・配列           | `\begin{align} ... \end{align}` (番号付き揃え)    |
+| 分数                 | `\dfrac{a}{b}` (本文) / `\frac{a}{b}` (数式内)    |
+| 平方根・根号         | `\sqrt{x}` / `\sqrt[n]{x}`                        |
+| 上下付き             | `x^{2n+1}`, `a_{i,j}` (必ず `{}` で括る)          |
+| 総和・積分           | `\sum_{k=1}^{n}`, `\int_a^b f(x)\,dx`             |
+| ベクトル             | `\vec{v}` or `\bm{v}`                             |
+| 集合・複素・実数     | `\mathbb{R}`, `\mathbb{Z}`, `\mathcal{L}`         |
+| 箇条書き (・, -, ●)  | `\begin{itemize}\item ...\end{itemize}`           |
+| 番号付きリスト       | `\begin{enumerate}\item ...\end{enumerate}`       |
+| (1)(2)…             | `\begin{enumerate}[label=(\arabic*)]\item ...`    |
+| 表 (枠線あり)        | `\begin{tabular}{lcr}\toprule ... \bottomrule\end{tabular}` |
+| 表 (キャプション付き) | `\begin{table}[h]\centering\caption{...} ...`    |
+| 化学式               | `\ce{H2O}`, `\ce{CO2 + H2O -> H2CO3}` (mhchem)    |
+| 太字                 | `\textbf{...}`                                    |
+| 斜体                 | `\emph{...}` or `\textit{...}`                    |
+| 下線                 | `\underline{...}`                                 |
+| 注記・コメント       | `% ...` (LaTeX コメント)                          |
+| 図 (写真・スキャン)  | `\begin{figure}[h]\centering\fbox{\parbox[c][40mm][c]{80mm}{\centering [図: 説明]}}\caption{...}\end{figure}` |
+| 簡単な図形           | `\begin{tikzpicture} ... \end{tikzpicture}` (座標軸・矢印・ノードは TikZ で再現) |
+| 選択肢 (① ② ③ ④)    | `\begin{enumerate}[label=\textcircled{\arabic*}]`  |
+| 穴埋め空欄           | `\underline{\hspace{20mm}}`                        |
+
+══════════════════════════════════════════════
+# PART 4: 避けるべき典型ミス
+══════════════════════════════════════════════
+1. **全角英数字・記号は半角に正規化** (数式内は特に):
+   `ａｂｃ１２３` → `abc 123`、`（）` → `()`、`＋－×÷` → `+ - \times \div`
+2. **ギリシャ文字は LaTeX コマンドで書く**:
+   `α β γ δ ε θ λ μ π σ ω` → `\alpha \beta \gamma \delta \varepsilon \theta \lambda \mu \pi \sigma \omega`
+3. **添字・指数は必ず波括弧**:
+   `x^23` ❌ → `x^{23}` ✓   /   `a_10` ❌ → `a_{10}` ✓
+4. **大きな括弧は `\left( ... \right)`** を使う (高さ自動調整):
+   `( \frac{a}{b} )` → `\left( \dfrac{a}{b} \right)`
+5. **数式とテキストの区切り**: テキスト中の変数は必ず `$` で囲む (例: 「関数$f(x)$は」)。
+6. **数式中に日本語を入れる場合は `\text{...}`** (`\text{ただし } x > 0`)。
+7. **長い LaTeX コマンド名**: `\sqrt` `\frac` `\int` 等は画像から読み取り時に欠落しやすい。
+   文脈 (分数バー・√記号・∫) を必ず LaTeX コマンドに写像する。
+8. **`$` と `\(` `\)` を混在させない**。本書は `$...$` を統一。
+9. **表の区切り文字 `&` を本文で使うときはエスケープ** (`\&`)。`%` `#` `_` も同様 (`\%` `\#` `\_`)。
+10. **手書きで打ち消し線が引かれた部分は出力に含めない**。
+11. **数字 0 と文字 O、1 と l、2 と Z、5 と S の識別**: 文脈で判断。数式中なら通常 0, 1, 2, 5 の可能性が高い。
+12. **段落の先頭インデント**: 段落の視覚的な字下げが見える場合はそのまま `\par` 区切りでよい。
+
+══════════════════════════════════════════════
+# PART 5: FEW-SHOT (数式を含む例)
+══════════════════════════════════════════════
+【原文例 A (試験問題)】
+  第 1 問 次の方程式を解け。
+  2x² - 5x + 3 = 0
+
+【生成すべき LaTeX】
+  \section*{第 1 問}
+  次の方程式を解け。
+  \[ 2x^{2} - 5x + 3 = 0 \]
+
+【原文例 B (表)】
+  | 手法 | 精度 | 時間 |
+  | A    | 85.2 | 120  |
+  | 提案 | 91.8 | 42   |
+
+【生成すべき LaTeX】
+  \begin{table}[h]
+    \centering
+    \begin{tabular}{lcc}
+      \toprule
+      手法   & 精度 [\%] & 時間 [s]\\
+      \midrule
+      A      & 85.2      & 120\\
+      \textbf{提案} & \textbf{91.8} & \textbf{42}\\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+【原文例 C (化学式)】
+  2H₂ + O₂ → 2H₂O
+
+【生成すべき LaTeX】
+  \ce{2H2 + O2 -> 2H2O}
+
+══════════════════════════════════════════════
+# PART 6: 不確実性の扱い
+══════════════════════════════════════════════
+- 読み取り不能な箇所は、見えた部分だけ転写し末尾に `% (要確認)` を付ける。
+- 完全に読めない図やグラフは `\begin{figure}[h]\centering\fbox{\parbox[c][40mm][c]{80mm}{\centering [図: 読み取れず]}}\caption{要確認}\end{figure}` で代替。
+- 推測で内容を補わない。見えるものだけを正確に転写する。
+
+══════════════════════════════════════════════
+# PART 7: 言語
+══════════════════════════════════════════════
+- 原本が日本語なら生成 LaTeX の自然言語部分も日本語で。
+- chat 返信 (content フィールド) は最低限 — 基本は空でよい。
 """
 
 
 _OMR_SYSTEM_PROMPT_EN = r"""\
-You are an OMR (Optical Mark Recognition) assistant inside an English LaTeX
-editor (Eddivom). The editor uses a *raw LaTeX* document model — you must
-output a complete, compilable LaTeX document.
+You are the OMR (image/PDF → LaTeX) extraction engine inside an English-first LaTeX editor.
+Your only job: read the uploaded image/PDF and emit ONE complete, compilable LaTeX document
+via the `set_latex` tool call. Produce nothing else.
 
-## What to extract
-- Text headings → \section / \subsection / \subsubsection
-- Body text → ordinary paragraphs
-- Math → use $...$ for inline math and \[ ... \] (or $$...$$) for display math
-- Lists → itemize / enumerate
-- Tables → tabular / booktabs
-- Chemical formulas → \ce{...} (mhchem)
-- Diagrams / figures → \begin{figure} ... \end{figure} placeholder
-- Multi-choice answer sheets → list with \item entries
+══════════════════════════════════════════════
+# PART 1: OUTPUT CONTRACT
+══════════════════════════════════════════════
+1. Call `set_latex` exactly once with the FULL source (preamble → `\begin{document}` → body → `\end{document}`).
+2. Do NOT write the LaTeX in the chat content; the `content` field should be empty or one-line status.
+3. The document MUST compile under LuaLaTeX with the allow-listed packages only.
 
-## How to respond
-You MUST call the `set_latex` tool with a single argument `latex` containing
-the FULL LaTeX source. The source MUST be a complete document that compiles
-under LuaLaTeX for English.
-
-### Required preamble
+══════════════════════════════════════════════
+# PART 2: REQUIRED PREAMBLE (English document)
+══════════════════════════════════════════════
 \documentclass[11pt,a4paper]{article}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
-\usepackage{amsmath, amssymb, amsthm, mathtools}
 \usepackage{geometry}
 \geometry{margin=20mm}
-\usepackage{booktabs}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx, array}
 \usepackage{enumitem}
 \usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
 
-You may add other allowed packages (tikz, mhchem, hyperref, xcolor, tcolorbox,
-multicol, etc.) when needed. **Do not add `luatexja-preset` — this is an
-English document.**
+You may add ONLY from this allow-list as needed:
+""" + _ALLOWED_PKG_JA + r"""
 
-### CRITICAL rules
-- Always call set_latex once. Do NOT print the LaTeX in the chat reply.
-- Always wrap math correctly:
-  * inline: $x^2 + 1$
-  * display: \[ \int_0^1 f(x)\,dx \]
-- Preserve paragraph breaks visible in the source.
-- If something is unclear, transcribe what you can read and mark it "(unclear)".
-- Respond in English for any chat reply.
-- Do NOT use forbidden commands: \input, \include, \write18, \directlua, etc.
-- Do NOT mix Japanese preamble packages — this is an English-first workflow.
+**Forbidden (will fail security check):** """ + _FORBIDDEN_PKG + r"""
+→ Use `tcolorbox` for pseudo-code boxes, `thebibliography` for references,
+  hand-written `\author{...}` blocks for author lists.
+
+**Do NOT include `luatexja-preset`** — this is an English document.
+
+══════════════════════════════════════════════
+# PART 3: EXTRACTION RULES
+══════════════════════════════════════════════
+| Source element            | LaTeX                                              |
+|---------------------------|----------------------------------------------------|
+| Title / H1                | `\section{...}`                                    |
+| Subtitle / H2             | `\subsection{...}`                                |
+| Body paragraph            | Plain text separated by blank lines               |
+| Inline math               | `$ ... $` (e.g. `$x^2 + 1$`)                      |
+| Display math              | `\[ ... \]`                                       |
+| Aligned equations         | `\begin{align} ... \end{align}`                   |
+| Fraction                  | `\dfrac{a}{b}` (body) / `\frac{a}{b}` (math-only) |
+| Roots                     | `\sqrt{x}` / `\sqrt[n]{x}`                        |
+| Sub/superscripts          | `x^{2n+1}`, `a_{i,j}` (ALWAYS brace multi-char)   |
+| Sums/integrals            | `\sum_{k=1}^{n}`, `\int_a^b f(x)\,dx`              |
+| Vectors                   | `\vec{v}` or `\bm{v}`                             |
+| Blackboard / calligraphic | `\mathbb{R}`, `\mathcal{L}`                       |
+| Bullet list               | `\begin{itemize}\item ...\end{itemize}`           |
+| Numbered list             | `\begin{enumerate}\item ...\end{enumerate}`       |
+| (1)(2) labels             | `\begin{enumerate}[label=(\arabic*)]`             |
+| Table                     | `\begin{tabular}{lcr}\toprule ... \bottomrule\end{tabular}` |
+| Table with caption        | Wrap in `\begin{table}[h]\centering\caption{...}` |
+| Chemistry                 | `\ce{H2O}`, `\ce{CO2 + H2O -> H2CO3}` (mhchem)    |
+| Bold / italic             | `\textbf{...}` / `\emph{...}`                     |
+| Figure (photo / scan)     | `\begin{figure}[h]\centering\fbox{\parbox[c][40mm][c]{80mm}{\centering [Figure: caption]}}\end{figure}` |
+| Line drawing              | `\begin{tikzpicture} ... \end{tikzpicture}`       |
+| Multiple-choice options   | `\begin{enumerate}[label=\textcircled{\arabic*}]` |
+| Fill-in-the-blank         | `\underline{\hspace{20mm}}`                       |
+
+══════════════════════════════════════════════
+# PART 4: COMMON MISTAKES TO AVOID
+══════════════════════════════════════════════
+1. **Full-width chars → half-width** in math: `ａｂｃ` → `abc`, `（）` → `()`, `＋` → `+`.
+2. **Greek letters → LaTeX commands**: α β γ δ ε θ λ μ π σ ω → \alpha \beta \gamma \delta \varepsilon \theta \lambda \mu \pi \sigma \omega.
+3. **ALWAYS brace multi-char super/subscripts**: `x^23` ❌ → `x^{23}` ✓.
+4. **Use `\left( ... \right)`** for auto-sized delimiters around tall expressions.
+5. **Wrap text variables in `$...$`** even in running prose (e.g. "the function $f(x)$ satisfies").
+6. **Text inside math mode**: wrap in `\text{...}`.
+7. **Preserve visual context**: a fraction bar means `\frac`; a √ means `\sqrt`; ∫ means `\int`; Σ means `\sum`. Don't transcribe these as plain characters.
+8. **Do NOT mix `$...$` with `\( ... \)`** — stick to `$...$`.
+9. **Escape `&`, `%`, `#`, `_` in plain text**: `\&`, `\%`, `\#`, `\_`.
+10. **Skip struck-through content**.
+11. **Digits 0/O, 1/l, 2/Z, 5/S**: choose based on math-vs-text context.
+12. **No forbidden commands**: `\input`, `\include`, `\write18`, `\directlua` — never.
+
+══════════════════════════════════════════════
+# PART 5: FEW-SHOT
+══════════════════════════════════════════════
+【Source A (exam problem)】
+  Problem 1. Solve the equation.
+  2x² - 5x + 3 = 0
+
+【Expected LaTeX】
+  \section*{Problem 1}
+  Solve the equation.
+  \[ 2x^{2} - 5x + 3 = 0 \]
+
+【Source B (table)】
+  | Method | Acc. | Time |
+  | A      | 85.2 | 120  |
+  | Ours   | 91.8 | 42   |
+
+【Expected LaTeX】
+  \begin{table}[h]
+    \centering
+    \begin{tabular}{lcc}
+      \toprule
+      Method & Acc. [\%] & Time [s]\\
+      \midrule
+      A      & 85.2      & 120\\
+      \textbf{Ours} & \textbf{91.8} & \textbf{42}\\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+【Source C (chemistry)】
+  2H₂ + O₂ → 2H₂O
+
+【Expected LaTeX】
+  \ce{2H2 + O2 -> 2H2O}
+
+══════════════════════════════════════════════
+# PART 6: UNCERTAINTY
+══════════════════════════════════════════════
+- Unreadable fragments: transcribe what you see and add `% (unclear)` at end of line.
+- Completely unreadable figures: use the figure placeholder with `[Figure: unclear]`.
+- Do NOT invent content — transcribe only what is visible.
 """
 
 
@@ -320,8 +626,11 @@ def _pdf_extract_pymupdf(pdf_bytes: bytes, max_pages: int = 10) -> dict:
         text = page.get_text("text")
         texts.append(text.strip())
 
-        mat = fitz.Matrix(150 / 72, 150 / 72)
-        pix = page.get_pixmap(matrix=mat)
+        # DPI 220 で描画: 150 では細かい添字・分数バー・ギリシャ文字が潰れるため、
+        # OCR の取り違えが増える。220 にすると token コストは約 2 倍になるが、
+        # 数式の認識精度が実測で大幅に向上する。
+        mat = fitz.Matrix(220 / 72, 220 / 72)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
         img_bytes = pix.tobytes("png")
         images.append((img_bytes, "image/png", pix.width, pix.height))
 
@@ -348,13 +657,16 @@ def _pdf_extract_poppler(pdf_bytes: bytes, max_pages: int = 10) -> dict:
 
         pages_to_process = min(page_count, max_pages)
 
+        # 300 DPI (pymupdf フォールバックの poppler パス) — pymupdf より高解像で
+        # 細かい添字・罫線を確実に拾う。画像ファイルサイズは増えるが、
+        # vision API が扱えるサイズには十分収まる。
         subprocess.run(
             [
-                "pdftoppm", "-png", "-r", "200",
+                "pdftoppm", "-png", "-r", "300",
                 "-l", str(pages_to_process),
                 pdf_path, os.path.join(tmpdir, "page"),
             ],
-            capture_output=True, timeout=60,
+            capture_output=True, timeout=90,
             check=True,
         )
 
@@ -593,7 +905,8 @@ async def analyze_image_stream(
 
     tools = _build_omr_tools()
 
-    MAX_RETRIES = 2
+    # 再試行 3 回、低温度で決定的な出力に寄せる。
+    MAX_RETRIES = 3
     latex: str | None = None
     text_parts: list[str] = []
 
@@ -611,13 +924,15 @@ async def analyze_image_stream(
                     messages=messages,
                     tools=tools,
                     tool_choice={"type": "function", "function": {"name": "set_latex"}},
-                    temperature=0.3,
+                    temperature=0.15,
                     **max_tokens_param(MODEL_VISION, 16384),
                 )
             response = await asyncio.to_thread(_call)
         except Exception as e:
             logger.error("OpenAI OMR API error (attempt %d): %s", attempt, e)
             if attempt < MAX_RETRIES:
+                # 指数バックオフ (0.5s, 1.0s) で短時間障害を乗り越える
+                await asyncio.sleep(0.5 * attempt)
                 continue
             yield _sse({"type": "error", "message": status["ai_error"].format(err=str(e)[:200])})
             return
@@ -629,6 +944,14 @@ async def analyze_image_stream(
 
     yield _sse({"type": "progress", "phase": "extracting", "message": status["building_latex"]})
 
+    # ── Post-process: 許可外パッケージ削除 + autofix ──
+    latex = _postprocess_latex(latex)
+
+    # compile 前の最後の関門: security 検証 (情報目的のみ, block しない)
+    warnings = _validate_against_security(latex)
+    if warnings:
+        logger.warning("OMR: security violations remain after post-process: %s", warnings)
+
     description = "\n".join(text_parts).strip()
     if not description and latex:
         description = status["extracted_summary"].format(chars=len(latex))
@@ -637,6 +960,7 @@ async def analyze_image_stream(
         "type": "done",
         "description": description,
         "latex": latex,
+        "warnings": warnings,
     })
 
 
@@ -715,7 +1039,8 @@ async def _analyze_pdf_stream(
 
     messages.insert(0, {"role": "system", "content": system_prompt})
 
-    MAX_RETRIES = 2
+    # 再試行 3 回 + 指数バックオフ + 低温度。
+    MAX_RETRIES = 3
     latex: str | None = None
     resp_text_parts: list[str] = []
 
@@ -731,13 +1056,14 @@ async def _analyze_pdf_stream(
                     messages=messages,
                     tools=tools,
                     tool_choice={"type": "function", "function": {"name": "set_latex"}},
-                    temperature=0.3,
+                    temperature=0.15,
                     **max_tokens_param(MODEL_VISION, 16384),
                 )
             response = await asyncio.to_thread(_call)
         except Exception as e:
             logger.error("OpenAI OMR PDF API error (attempt %d): %s", attempt, e)
             if attempt < MAX_RETRIES:
+                await asyncio.sleep(0.5 * attempt)
                 continue
             yield _sse({"type": "error", "message": status["ai_error"].format(err=str(e)[:200])})
             return
@@ -749,6 +1075,13 @@ async def _analyze_pdf_stream(
 
     yield _sse({"type": "progress", "phase": "extracting", "message": status["building_latex"]})
 
+    # ── Post-process: 許可外パッケージ削除 + autofix ──
+    latex = _postprocess_latex(latex)
+
+    warnings = _validate_against_security(latex)
+    if warnings:
+        logger.warning("OMR (PDF): security violations remain after post-process: %s", warnings)
+
     description = "\n".join(resp_text_parts).strip()
     if not description and latex:
         description = status["extracted_summary_pdf"].format(chars=len(latex), pages=page_count)
@@ -757,6 +1090,7 @@ async def _analyze_pdf_stream(
         "type": "done",
         "description": description,
         "latex": latex,
+        "warnings": warnings,
     })
 
 
