@@ -2371,274 +2371,633 @@ Jane Doe\\
 // ──────────────────────────────────────────
 // P1. 卒論・修論 (thesis)
 // ──────────────────────────────────────────
-const THESIS_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
+const THESIS_LATEX = String.raw`\documentclass[11pt,a4paper,openany,twoside]{report}
 \usepackage[haranoaji]{luatexja-preset}
 \usepackage{geometry}
-\geometry{top=30mm,bottom=28mm,left=30mm,right=25mm}
+\geometry{top=30mm,bottom=30mm,inner=32mm,outer=24mm,headheight=14pt}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs, tabularx, array}
+\usepackage{booktabs, tabularx, array, longtable, multirow}
 \usepackage{graphicx}
 \usepackage{xcolor}
-\usepackage[hidelinks]{hyperref}
+\usepackage[hidelinks,breaklinks]{hyperref}
 \usepackage{tocbibind}
 \usepackage{fancyhdr}
 \usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable,theorems}
+\usepackage{siunitx}
 
 \definecolor{thesisaccent}{HTML}{1f3a68}
+\definecolor{thesissoft}{HTML}{e0e7ff}
 
+% ── 見出しスタイル (大学論文の端正なレイアウト) ──
 \titleformat{\chapter}[display]
   {\normalfont\Huge\bfseries\color{thesisaccent}}
-  {第\thechapter 章}{20pt}{\Huge}
-\titlespacing*{\chapter}{0pt}{-25pt}{20pt}
+  {第 \thechapter 章}{18pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-20pt}{24pt}
 
+\titleformat{\section}[hang]
+  {\normalfont\Large\bfseries\color{thesisaccent}}
+  {\thesection}{0.8em}{}
+
+% ── ヘッダ・フッタ (奇偶異ページ) ──
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\leftmark}
-\fancyhead[R]{\small\thepage}
-\renewcommand{\headrulewidth}{0.2pt}
+\fancyhead[LE]{\small\thepage}
+\fancyhead[CE]{\small\leftmark}
+\fancyhead[RO]{\small\rightmark}
+\fancyhead[LO]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
 
+% ── 定理類 (章番号連動) ──
 \theoremstyle{plain}
 \newtheorem{theorem}{定理}[chapter]
 \newtheorem{proposition}[theorem]{命題}
 \newtheorem{lemma}[theorem]{補題}
+\newtheorem{corollary}[theorem]{系}
 
 \theoremstyle{definition}
 \newtheorem{definition}{定義}[chapter]
 \newtheorem{example}{例}[chapter]
+\newtheorem{assumption}{仮定}[chapter]
+
+\theoremstyle{remark}
+\newtheorem{remark}{注意}[chapter]
+
+% ── algorithm 環境を日本語化 ──
+\renewcommand{\algorithmicrequire}{\textbf{入力:}}
+\renewcommand{\algorithmicensure}{\textbf{出力:}}
+\floatname{algorithm}{アルゴリズム}
+\numberwithin{equation}{chapter}
+
+% 記号表用ボックス
+\newtcolorbox{gloss}{colback=thesissoft!40,colframe=thesisaccent,left=3mm,right=3mm,top=2mm,bottom=2mm,sharp corners,boxrule=0.4pt}
 
 \begin{document}
+
+% ══════════════════════════════════
+% 前付け (front matter) ── ローマ数字ページ番号
+% ══════════════════════════════════
+\pagenumbering{Roman}
+\thispagestyle{empty}
 
 % ── 表紙 ──
 \begin{titlepage}
   \centering
-  \vspace*{30mm}
-  {\LARGE 令和\underline{\hspace{10mm}}年度 卒業論文\par}
-  \vspace{25mm}
+  \vspace*{25mm}
+  \rule{0.8\linewidth}{0.8pt}\par
+  \vspace{5mm}
+  {\large 令和 \underline{\hspace{10mm}} 年度\par}
+  {\Large 卒業論文\par}
+  \vspace{2mm}
+  \rule{0.8\linewidth}{0.8pt}\par
+  \vspace{30mm}
   {\Huge\bfseries\color{thesisaccent} ○○に関する研究\par}
-  \vspace{5mm}
-  {\Large --- サブタイトル ---\par}
-  \vspace{50mm}
-  {\Large\bfseries 氏名：△△ △△\par}
-  \vspace{15mm}
-  {\large 学籍番号：20XX-XXXX\par}
-  \vspace{5mm}
-  {\large 指導教員：○○ 教授\par}
+  \vspace{4mm}
+  {\LARGE --- $\cdots$ を用いたアプローチ ---\par}
+  \vspace{55mm}
+  \begin{tabular}{rl}
+    学籍番号 & : \ 20XX-XXXX\\[4pt]
+    氏\ \ \ \ 名  & : \ △△ △△\\[4pt]
+    指導教員 & : \ ○○ 教授\\
+  \end{tabular}
   \vfill
   {\large ○○大学 ○○学部 ○○学科\par}
-  {\large 令和\underline{\hspace{10mm}}年 \underline{\hspace{10mm}}月\par}
+  \vspace{3mm}
+  {\large 令和 \underline{\hspace{10mm}} 年 \underline{\hspace{6mm}} 月\par}
 \end{titlepage}
 
-\pagenumbering{roman}
+% ── 和文要旨 ──
+\chapter*{要旨}
+\addcontentsline{toc}{chapter}{要旨}
+\noindent
+本論文では、○○ 分野における △△ 問題に対して新しいアプローチを提案する。従来手法は $O(n^2)$ の計算量を要し、大規模データへの適用が困難であった。提案手法では $\cdots$ を導入することにより計算量を $O(n \log n)$ に削減する。さらに、$\mu$-強凸仮定の下で収束率 $O(1/T)$ を理論的に保証し、公開ベンチマーク 3 種での数値実験により、精度で 4.7\%、計算時間で 2.3 倍の改善を確認した。
+
+\bigskip\noindent\textbf{キーワード:} ○○, △△, ××, 最適化, 機械学習
+
+% ── 英文 Abstract ──
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\noindent
+This thesis addresses the problem of $\cdots$ in the field of $\cdots$. Existing methods require $O(n^2)$ computation and are thus infeasible for large-scale data. The proposed method reduces the complexity to $O(n \log n)$ by introducing $\cdots$. Under the $\mu$-strong-convexity assumption we prove an $O(1/T)$ convergence rate, and numerical experiments on three public benchmarks show a 4.7\% accuracy gain and a 2.3$\times$ speed-up.
+
+\bigskip\noindent\textbf{Keywords:} $\cdots$, optimisation, machine learning
+
+% ── 目次 / 図目次 / 表目次 ──
 \tableofcontents
 \clearpage
+\listoffigures
+\clearpage
+\listoftables
+
+% ── 記号表 ──
+\chapter*{記号一覧}
+\addcontentsline{toc}{chapter}{記号一覧}
+\begin{gloss}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}ll@{\hspace{10mm}}l@{}}
+  $\mathcal{X} \subseteq \mathbb{R}^d$ & 入力空間        & 次元 $d$ のユークリッド空間の部分集合\\
+  $\mathcal{Y} \subseteq \mathbb{R}$   & 出力空間        & 回帰問題では実数値\\
+  $\theta \in \mathbb{R}^d$            & パラメータ      & 学習対象\\
+  $\mathcal{L}(\theta)$                & 損失関数        & 平均経験損失 $+$ 正則化\\
+  $\eta_t$                             & 学習率          & $\eta / \sqrt{t+1}$ と設定\\
+  $\mu,\ L$                            & 強凸性・平滑性定数 & $\mathcal{L}$ に対する仮定\\
+  $T$                                  & 反復回数        &\\
+  $O(\cdot)$                           & ランダウ記法    & 漸近的な上界\\
+\end{tabular}
+\end{gloss}
+
+% ══════════════════════════════════
+% 本編 (main matter) ── 算用数字ページ番号
+% ══════════════════════════════════
+\cleardoublepage
 \pagenumbering{arabic}
 
 \chapter{序論}
 \section{研究背景}
-本研究では、○○分野における△△の課題に取り組む。近年、××の発展により新たな可能性が開かれつつあるが、☆☆という観点で未解決の問題が残されている。
+近年、○○ 分野では \cite{ref1, ref2} に端を発する一連の研究により、△△ の実現可能性が示されつつある。しかし、既存手法は計算コストが大きく、実用規模のデータに適用するには現実的でない\cite{ref3}。
 
-\section{研究目的}
-本論文の目的は、○○を実現するための新しい手法を提案し、実験を通じてその有効性を検証することである。
-
-\section{本論文の構成}
-本論文は本章を含め 5 章から構成される。第 2 章では関連研究を概観し、第 3 章で提案手法を示す。第 4 章で実験結果を報告し、第 5 章で結論を述べる。
-
-\chapter{関連研究}
-\section{○○の既存研究}
-\begin{definition}[○○性]
-  集合 $\mathcal{X}$ 上の写像 $f$ が次の条件を満たすとき、$f$ は\emph{○○性}を持つという。
-  \[ \forall x, y \in \mathcal{X}:\ |f(x) - f(y)| \le L\,|x - y|. \]
-\end{definition}
-
-\begin{theorem}[既存結果]
-  上の定義の下で、次の不等式が成り立つ：
-  \[ \int_\mathcal{X} f(x)\,d\mu(x) \le C \cdot \mu(\mathcal{X}). \]
-\end{theorem}
-
-\section{従来手法の限界}
-従来手法 A, B は ○○ の観点では有効であるが、計算量が $O(n^2)$ と大きく大規模データに適用しづらいという課題がある。
-
-\chapter{提案手法}
-提案アルゴリズムは以下の 3 段階からなる。
-\begin{enumerate}
-  \item \textbf{特徴抽出}：入力 $x$ に対して特徴量 $\phi(x)$ を計算する。
-  \item \textbf{学習}：目的関数 $\mathcal{L}$ を最小化するパラメータ $\theta^\ast$ を求める。
-  \item \textbf{推論}：得られた $\theta^\ast$ を用いて新しい入力に対する予測を行う。
+\section{研究目的と貢献}
+本論文の目的は、上記の計算コスト問題を解決する新しいアルゴリズムを設計し、理論と実験の両面からその有効性を示すことである。本研究の貢献を以下にまとめる。
+\begin{enumerate}[label=(\arabic*),leftmargin=*]
+  \item 計算量を $O(n \log n)$ に削減する新アルゴリズムの提案 (第 \ref{chap:method} 章)
+  \item $\mu$-強凸条件下における収束率 $O(1/T)$ の理論保証 (第 \ref{chap:theory} 章)
+  \item 公開ベンチマーク 3 種における定量的評価 (第 \ref{chap:exp} 章)
 \end{enumerate}
 
-学習は次の確率的勾配降下法で行う：
-\[
-  \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t).
-\]
+\section{本論文の構成}
+本論文は本章を含め全 6 章から構成される。第 \ref{chap:related} 章で関連研究を概観、第 \ref{chap:method} 章で提案手法を、第 \ref{chap:theory} 章でその理論解析を示す。第 \ref{chap:exp} 章で数値実験により有効性を検証し、第 \ref{chap:conclusion} 章で結論と今後の課題を述べる。
 
-\chapter{実験}
+\chapter{関連研究}\label{chap:related}
+\section{○○ に関する研究の変遷}
+○○ の研究は大別して (i) 直接最適化アプローチ、(ii) 間接近似アプローチの 2 つに分類できる。
+
+\subsection{直接最適化アプローチ}
+\begin{definition}[○○ 問題]
+  入力空間 $\mathcal{X} \subseteq \mathbb{R}^d$ と出力空間 $\mathcal{Y} \subseteq \mathbb{R}$ に対して、写像 $f:\mathcal{X}\to\mathcal{Y}$ の汎化誤差
+  \[ \mathcal{R}(f) = \mathbb{E}_{(x,y)\sim\mathcal{D}}[\ell(f(x), y)] \]
+  を最小化する問題を \emph{○○ 問題} という。
+\end{definition}
+
+Smith ら \cite{ref1} はこの問題を直接解くアルゴリズムを提案したが、反復あたり $O(n^2)$ の計算量を要する。
+
+\subsection{間接近似アプローチ}
+\begin{theorem}[既存結果, Jones 2021 \cite{ref2}]
+  $\mathcal{L}$ が凸かつ $L$-平滑なとき、近似アルゴリズムの反復は
+  \[ \mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast) \le \frac{2L \|\theta_0 - \theta^\ast\|^2}{T} \]
+  を満たす。
+\end{theorem}
+
+\section{既存研究の限界と本研究の位置づけ}
+従来研究は \textbf{理論} と \textbf{実用} のいずれかを犠牲にしてきた。本研究の立ち位置は、両者を両立する新しいアルゴリズムを設計することにある。
+
+\chapter{提案手法}\label{chap:method}
+\section{問題設定}
+\begin{assumption}[正則性]\label{asm:smooth}
+  損失関数 $\mathcal{L}$ は $\mu$-強凸かつ $L$-平滑であり、$\nabla\mathcal{L}$ は有界な分散を持つ確率的勾配として観測可能であるとする。
+\end{assumption}
+
+\section{アルゴリズム}
+提案アルゴリズムをアルゴリズム \ref{alg:main} に示す。
+
+\begin{algorithm}[h]
+\caption{提案アルゴリズム}
+\label{alg:main}
+\begin{algorithmic}[1]
+\Require 初期値 $\theta_0$, 学習率 $\eta > 0$, 反復回数 $T$
+\Ensure $\theta_T$
+\For{$t = 0, 1, \dots, T-1$}
+  \State 確率的勾配 $g_t \gets \nabla \mathcal{L}(\theta_t;\xi_t)$
+  \State $\eta_t \gets \eta / \sqrt{t + 1}$
+  \State $\theta_{t+1} \gets \theta_t - \eta_t\, g_t$
+\EndFor
+\State \Return $\theta_T$
+\end{algorithmic}
+\end{algorithm}
+
+反復式は次のようにも書ける。
+\begin{equation}\label{eq:sgd}
+  \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \qquad \eta_t = \frac{\eta}{\sqrt{t+1}}.
+\end{equation}
+
+\chapter{理論解析}\label{chap:theory}
+\section{収束率}
+\begin{theorem}[主定理]\label{thm:main}
+  仮定 \ref{asm:smooth} の下で、アルゴリズム \ref{alg:main} の反復 \eqref{eq:sgd} は次を満たす。
+  \[ \mathbb{E}\!\left[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)\right] \le \frac{C}{T}, \]
+  ここで $C$ は $\mu, L, \|\theta_0 - \theta^\ast\|$ にのみ依存する正定数である。
+\end{theorem}
+
+\begin{proof}[証明の概略]
+  標準的な強凸関数に対する確率勾配法の解析に従う。詳細は付録 \ref{appx:proof} を参照。
+\end{proof}
+
+\begin{corollary}[サンプル複雑度]
+  定理 \ref{thm:main} より、$\epsilon$-最適解を得るには $T = O(1/\epsilon)$ 回の反復で十分である。
+\end{corollary}
+
+\begin{remark}
+  強凸性の仮定は実用上は緩和可能であり、第 \ref{chap:exp} 章の数値実験では非凸損失関数に対しても良好な挙動を示した。
+\end{remark}
+
+\chapter{数値実験}\label{chap:exp}
 \section{実験設定}
 \begin{table}[h]
   \centering
-  \caption{実験環境}
-  \label{tab:env}
+  \caption{実験環境}\label{tab:env}
   \begin{tabular}{ll}
     \toprule
     項目 & 値\\
     \midrule
-    CPU  & Intel Xeon (仕様を記載)\\
-    GPU  & NVIDIA (仕様を記載)\\
-    RAM  & 128\,GB\\
-    OS   & Ubuntu 22.04\\
+    CPU  & Intel Xeon Gold 6248R (24 core)\\
+    GPU  & NVIDIA A100 (40\,GB)\\
+    RAM  & 256\,GB\\
+    OS   & Ubuntu 22.04 LTS\\
+    実装 & Python 3.11 + PyTorch 2.1\\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\section{結果と考察}
+\section{データセット}
+公開ベンチマーク X, Y, Z を用いた。各データセットの規模を表 \ref{tab:dataset} に示す。
 \begin{table}[h]
   \centering
-  \caption{精度と計算時間の比較}
-  \begin{tabular}{lcc}
+  \caption{実験に用いたデータセット}\label{tab:dataset}
+  \begin{tabular}{lrrr}
     \toprule
-    手法 & 精度\,[\%] & 時間\,[s]\\
+    & サンプル数 & 特徴数 & クラス数\\
     \midrule
-    既存手法 A          & 85.2 & 120\\
-    既存手法 B          & 87.1 &  95\\
-    \textbf{提案手法}   & \textbf{91.8} & \textbf{42}\\
+    X & \num{50000}     & 128   & 10\\
+    Y & \num{100000}    & 512   & 100\\
+    Z & \num{1000000}   & 1024  & 1000\\
     \bottomrule
   \end{tabular}
 \end{table}
 
-提案手法は既存手法を精度の面で上回り、かつ計算時間も短縮できた。
+\section{結果}
+表 \ref{tab:results} に既存手法 A, B と提案手法の比較を示す。3 試行の平均 $\pm$ 標準偏差を報告する。
+\begin{table}[h]
+  \centering
+  \caption{精度 [\%] と計算時間 [s] の比較}\label{tab:results}
+  \begin{tabular}{lcc}
+    \toprule
+    手法 & 精度 [\%] & 時間 [s]\\
+    \midrule
+    既存手法 A     & $85.2 \pm 0.4$          & $120 \pm 3$\\
+    既存手法 B     & $87.1 \pm 0.3$          & $95 \pm 2$\\
+    \textbf{提案}  & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
-\chapter{結論}
-本論文では ○○ を実現する新しい手法を提案し、数値実験によりその有効性を確認した。今後は △△ への拡張が課題である。
+\section{考察}
+提案手法は既存手法 A, B と比較して精度で 4.6--6.6\%、計算時間で 2.3--2.9 倍の改善を達成した。特に大規模データセット Z での差が顕著であり、理論予測 $O(n \log n)$ と整合する。
 
+\chapter{結論}\label{chap:conclusion}
+\section{本研究の成果}
+本論文では ○○ 問題に対する新しいアルゴリズムを提案し、$\mu$-強凸条件下で $O(1/T)$ の収束率を理論的に保証するとともに、数値実験によりその実用性を確認した。
+
+\section{今後の課題}
+\begin{itemize}[leftmargin=*]
+  \item 非凸損失関数に対する理論解析の拡張
+  \item 分散環境 (Federated Learning) への応用
+  \item 他分野 ($\cdots$) への展開
+\end{itemize}
+
+% ══════════════════════════════════
+% 後付け (back matter)
+% ══════════════════════════════════
+\appendix
+\chapter{定理 \ref{thm:main} の証明詳細}\label{appx:proof}
+\section{補題}
+\begin{lemma}
+  確率的勾配 $g_t$ は $\mathbb{E}[g_t \mid \theta_t] = \nabla\mathcal{L}(\theta_t)$ かつ $\mathbb{E}[\|g_t\|^2 \mid \theta_t] \le \sigma^2$ を満たす。
+\end{lemma}
+
+\section{証明}
+\begin{proof}[定理 \ref{thm:main} の証明]
+  ステップ $t$ での最適値との差を $\Delta_t = \mathcal{L}(\theta_t) - \mathcal{L}(\theta^\ast)$ とおく。強凸性から $\|\theta_t - \theta^\ast\|^2 \le \tfrac{2}{\mu}\Delta_t$。更新式 \eqref{eq:sgd} より
+  \begin{align*}
+    \|\theta_{t+1} - \theta^\ast\|^2 &= \|\theta_t - \theta^\ast - \eta_t g_t\|^2\\
+    &= \|\theta_t - \theta^\ast\|^2 - 2\eta_t \langle g_t, \theta_t - \theta^\ast\rangle + \eta_t^2 \|g_t\|^2.
+  \end{align*}
+  両辺に $\mathbb{E}[\cdot]$ をとり、$\mu$-強凸性と $L$-平滑性を適用、総和を取ることで
+  \[ \mathbb{E}[\Delta_T] \le \frac{C}{T} \]
+  を得る。詳細は Shalev-Shwartz らの教科書 \cite{ref4} を参照。
+\end{proof}
+
+% ── 参考文献 ──
 \begin{thebibliography}{99}
-  \bibitem{ref1} 著者名, “論文タイトル,” 学会名, vol.~X, no.~Y, pp.~ZZ--ZZ, 20XX.
-  \bibitem{ref2} Author A., “Paper Title,” Conference Proceedings, 20XX.
-  \bibitem{ref3} Author B., Author C., “Paper Title,” Journal Name, vol.~X, pp.~ZZ--YY, 20XX.
+  \bibitem{ref1} Smith, J., Lee, S., "An algorithm for $\cdots$," \emph{Proc.\ of NeurIPS}, pp.~1--10, 20XX.
+  \bibitem{ref2} Jones, R., "Approximation methods for $\cdots$," \emph{J. Mach. Learn. Res.}, vol.~22, no.~3, pp.~45--60, 2021.
+  \bibitem{ref3} Tanaka, Y., "○○ のサーベイ," \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
+  \bibitem{ref4} Shalev-Shwartz, S., Ben-David, S., \emph{Understanding Machine Learning: From Theory to Algorithms}, Cambridge Univ.\ Press, 2014.
 \end{thebibliography}
 
+% ── 謝辞 ──
 \chapter*{謝辞}
 \addcontentsline{toc}{chapter}{謝辞}
-本研究を進めるにあたり、終始熱心なご指導を賜りました ○○ 教授に深く感謝いたします。また、日頃より有益な議論をしてくださった研究室の皆様にも感謝申し上げます。
+本研究を進めるにあたり、終始熱心なご指導を賜りました ○○ 教授に深く感謝申し上げます。副指導教員としてご助言を下さった △△ 准教授、日々の議論を通じて多くの示唆をくださった研究室の皆様にも厚く御礼申し上げます。また、本研究は科学研究費補助金 (課題番号 XX-XXXXX) および ○○ 財団の助成を受けて実施されました。ここに記して謝意を表します。
 
 \end{document}
 `;
 
-const THESIS_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report}
+const THESIS_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany,twoside]{report}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
-\geometry{top=30mm,bottom=28mm,left=30mm,right=25mm}
+\geometry{top=30mm,bottom=30mm,inner=32mm,outer=24mm,headheight=14pt}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs, tabularx}
+\usepackage{booktabs, tabularx, array, longtable, multirow}
 \usepackage{graphicx}
 \usepackage{xcolor}
-\usepackage[hidelinks]{hyperref}
+\usepackage[hidelinks,breaklinks]{hyperref}
 \usepackage{tocbibind}
 \usepackage{fancyhdr}
 \usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable,theorems}
+\usepackage{siunitx}
 
 \definecolor{thesisaccent}{HTML}{1f3a68}
+\definecolor{thesissoft}{HTML}{e0e7ff}
 
 \titleformat{\chapter}[display]
   {\normalfont\Huge\bfseries\color{thesisaccent}}
-  {Chapter \thechapter}{20pt}{\Huge}
-\titlespacing*{\chapter}{0pt}{-25pt}{20pt}
+  {Chapter \thechapter}{18pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-20pt}{24pt}
+
+\titleformat{\section}[hang]
+  {\normalfont\Large\bfseries\color{thesisaccent}}
+  {\thesection}{0.8em}{}
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\leftmark}
-\fancyhead[R]{\small\thepage}
-\renewcommand{\headrulewidth}{0.2pt}
+\fancyhead[LE]{\small\thepage}
+\fancyhead[CE]{\small\leftmark}
+\fancyhead[RO]{\small\rightmark}
+\fancyhead[LO]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
 
 \theoremstyle{plain}
 \newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{proposition}[theorem]{Proposition}
 \newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
 
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[chapter]
+\newtheorem{example}{Example}[chapter]
+\newtheorem{assumption}{Assumption}[chapter]
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[chapter]
+
+\numberwithin{equation}{chapter}
+
+\newtcolorbox{gloss}{colback=thesissoft!40,colframe=thesisaccent,left=3mm,right=3mm,top=2mm,bottom=2mm,sharp corners,boxrule=0.4pt}
 
 \begin{document}
 
+% ══════════════════════════════════
+% Front matter
+% ══════════════════════════════════
+\pagenumbering{Roman}
+\thispagestyle{empty}
+
+% ── Title page ──
 \begin{titlepage}
   \centering
-  \vspace*{30mm}
-  {\LARGE Bachelor/Master Thesis --- Academic Year 20XX\par}
-  \vspace{25mm}
-  {\Huge\bfseries\color{thesisaccent} A Study on \dots\par}
+  \vspace*{25mm}
+  \rule{0.8\linewidth}{0.8pt}\par
   \vspace{5mm}
-  {\Large --- Subtitle ---\par}
-  \vspace{50mm}
-  {\Large\bfseries Author: Jane Doe\par}
-  \vspace{15mm}
-  {\large Student ID: 20XX-XXXX\par}
-  \vspace{5mm}
-  {\large Supervisor: Prof. A. Example\par}
+  {\large Academic Year 20XX\par}
+  {\Large Bachelor / Master Thesis\par}
+  \vspace{2mm}
+  \rule{0.8\linewidth}{0.8pt}\par
+  \vspace{30mm}
+  {\Huge\bfseries\color{thesisaccent} A Study on $\cdots$\par}
+  \vspace{4mm}
+  {\LARGE --- An approach based on $\cdots$ ---\par}
+  \vspace{55mm}
+  \begin{tabular}{rl}
+    Student ID & : \ 20XX-XXXX\\[4pt]
+    Author     & : \ Jane Doe\\[4pt]
+    Supervisor & : \ Prof.\ A. Example\\
+  \end{tabular}
   \vfill
   {\large Department of \dots, Example University\par}
+  \vspace{3mm}
   {\large \underline{\hspace{10mm}} 20XX\par}
 \end{titlepage}
 
-\pagenumbering{roman}
+% ── Abstract ──
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\noindent
+This thesis addresses the problem of $\cdots$ in the field of $\cdots$. Existing methods require $O(n^2)$ computation and are thus infeasible for large-scale data. The proposed method reduces the complexity to $O(n \log n)$ by introducing $\cdots$. Under the $\mu$-strong-convexity assumption we prove an $O(1/T)$ convergence rate, and numerical experiments on three public benchmarks show a 4.7\% accuracy gain and a 2.3$\times$ speed-up.
+
+\bigskip\noindent\textbf{Keywords:} $\cdots$, optimisation, machine learning
+
+% ── TOC / List of figures / tables ──
 \tableofcontents
 \clearpage
+\listoffigures
+\clearpage
+\listoftables
+
+% ── Nomenclature ──
+\chapter*{Nomenclature}
+\addcontentsline{toc}{chapter}{Nomenclature}
+\begin{gloss}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}ll@{\hspace{10mm}}l@{}}
+  $\mathcal{X} \subseteq \mathbb{R}^d$ & Input space         & Euclidean subset of dim.\ $d$\\
+  $\mathcal{Y} \subseteq \mathbb{R}$   & Output space        & Real-valued (regression)\\
+  $\theta \in \mathbb{R}^d$            & Parameter           & Learned quantity\\
+  $\mathcal{L}(\theta)$                & Loss                & Empirical mean $+$ regulariser\\
+  $\eta_t$                             & Learning rate       & Set as $\eta/\sqrt{t+1}$\\
+  $\mu,\ L$                            & Strong-convex / smooth constants &\\
+  $T$                                  & Number of iterations &\\
+  $O(\cdot)$                           & Landau notation     & Asymptotic upper bound\\
+\end{tabular}
+\end{gloss}
+
+% ══════════════════════════════════
+% Main matter
+% ══════════════════════════════════
+\cleardoublepage
 \pagenumbering{arabic}
 
 \chapter{Introduction}
 \section{Background}
-This thesis addresses the problem of \dots in the field of \dots. Recent advances in \dots have opened new possibilities, but a fundamental challenge remains unresolved.
+In recent years, the $\cdots$ field has seen considerable activity around the problem of $\cdots$~\cite{ref1, ref2}. However, existing methods are computationally expensive and not applicable at practical scale~\cite{ref3}.
 
-\section{Objectives}
-The goal of this thesis is to propose a new method for \dots and evaluate its effectiveness through numerical experiments.
-
-\section{Structure of This Thesis}
-This thesis is organised in five chapters. Chapter 2 reviews related work; Chapter 3 introduces the proposed method; Chapter 4 reports experimental results; Chapter 5 concludes.
-
-\chapter{Related Work}
-\begin{definition}[Key property]
-  A map $f$ on $\mathcal{X}$ satisfies \emph{property P} if
-  $|f(x) - f(y)| \le L |x - y|$ for all $x, y \in \mathcal{X}$.
-\end{definition}
-
-\begin{theorem}
-  Under the definition above, $\int_\mathcal{X} f\,d\mu \le C\mu(\mathcal{X})$.
-\end{theorem}
-
-\chapter{Proposed Method}
-The proposed algorithm consists of three stages:
-\begin{enumerate}
-  \item \textbf{Feature extraction}: compute $\phi(x)$ for the input $x$.
-  \item \textbf{Training}: minimise $\mathcal{L}$ via SGD.
-  \item \textbf{Inference}: apply the learned model $\theta^\ast$ to new inputs.
+\section{Objectives and Contributions}
+The goal of this thesis is to design a new algorithm that resolves the above computational bottleneck and to evaluate it both theoretically and empirically. The contributions are:
+\begin{enumerate}[label=(\arabic*),leftmargin=*]
+  \item A new algorithm reducing the complexity to $O(n \log n)$ (Ch.~\ref{chap:method}).
+  \item A convergence-rate guarantee of $O(1/T)$ under $\mu$-strong convexity (Ch.~\ref{chap:theory}).
+  \item A quantitative evaluation on three public benchmarks (Ch.~\ref{chap:exp}).
 \end{enumerate}
 
-\[
-  \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t).
-\]
+\section{Structure of This Thesis}
+This thesis is organised in six chapters. Chapter~\ref{chap:related} reviews related work. Chapter~\ref{chap:method} presents the proposed method, and Chapter~\ref{chap:theory} analyses it. Chapter~\ref{chap:exp} reports experimental results, and Chapter~\ref{chap:conclusion} concludes.
 
-\chapter{Experiments}
+\chapter{Related Work}\label{chap:related}
+\section{Evolution of Research on $\cdots$}
+Prior work falls into (i) direct-optimisation and (ii) indirect-approximation approaches.
+
+\subsection{Direct optimisation}
+\begin{definition}[The $\cdots$ problem]
+  Given an input space $\mathcal{X} \subseteq \mathbb{R}^d$ and an output space $\mathcal{Y} \subseteq \mathbb{R}$, the problem of minimising the generalisation risk
+  \[ \mathcal{R}(f) = \mathbb{E}_{(x,y)\sim\mathcal{D}}[\ell(f(x), y)] \]
+  over all measurable maps $f:\mathcal{X}\to\mathcal{Y}$ is called the \emph{$\cdots$ problem}.
+\end{definition}
+
+Smith et al.~\cite{ref1} proposed a direct algorithm but required $O(n^2)$ per iteration.
+
+\subsection{Indirect approximation}
+\begin{theorem}[Existing result, Jones 2021~\cite{ref2}]
+  If $\mathcal{L}$ is convex and $L$-smooth, the iteration satisfies
+  \[ \mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast) \le \frac{2L \|\theta_0 - \theta^\ast\|^2}{T}. \]
+\end{theorem}
+
+\chapter{Proposed Method}\label{chap:method}
+\section{Problem setting}
+\begin{assumption}[Regularity]\label{asm:smooth}
+  $\mathcal{L}$ is $\mu$-strongly convex and $L$-smooth, and $\nabla\mathcal{L}$ is observable as a stochastic gradient with bounded variance.
+\end{assumption}
+
+\section{Algorithm}
+The proposed algorithm is given in Algorithm~\ref{alg:main}.
+\begin{algorithm}[h]
+\caption{Proposed algorithm}
+\label{alg:main}
+\begin{algorithmic}[1]
+\Require Initial value $\theta_0$, learning rate $\eta > 0$, iterations $T$
+\Ensure $\theta_T$
+\For{$t = 0, 1, \dots, T-1$}
+  \State Stochastic gradient $g_t \gets \nabla \mathcal{L}(\theta_t;\xi_t)$
+  \State $\eta_t \gets \eta / \sqrt{t + 1}$
+  \State $\theta_{t+1} \gets \theta_t - \eta_t\, g_t$
+\EndFor
+\State \Return $\theta_T$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{equation}\label{eq:sgd}
+  \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \qquad \eta_t = \frac{\eta}{\sqrt{t+1}}.
+\end{equation}
+
+\chapter{Theoretical Analysis}\label{chap:theory}
+\begin{theorem}[Main result]\label{thm:main}
+  Under Assumption~\ref{asm:smooth}, the iteration \eqref{eq:sgd} of Algorithm~\ref{alg:main} satisfies
+  \[ \mathbb{E}\!\left[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)\right] \le \frac{C}{T}, \]
+  where $C$ depends only on $\mu, L, \|\theta_0 - \theta^\ast\|$.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+  Standard analysis of SGD for $\mu$-strongly convex objectives. See Appendix~\ref{appx:proof} for details.
+\end{proof}
+
+\begin{corollary}[Sample complexity]
+  $T = O(1/\epsilon)$ iterations suffice to obtain an $\epsilon$-optimal solution.
+\end{corollary}
+
+\begin{remark}
+  The strong-convexity assumption can be relaxed in practice; experiments show favourable behaviour even for non-convex losses.
+\end{remark}
+
+\chapter{Experiments}\label{chap:exp}
+\section{Setup}
 \begin{table}[h]
   \centering
-  \caption{Accuracy and wall-clock time.}
-  \begin{tabular}{lcc}
+  \caption{Experimental environment.}\label{tab:env}
+  \begin{tabular}{ll}
     \toprule
-    Method & Acc.\,[\%] & Time\,[s]\\
+    Item & Value\\
     \midrule
-    Baseline A & 85.2 & 120\\
-    Baseline B & 87.1 &  95\\
-    \textbf{Ours} & \textbf{91.8} & \textbf{42}\\
+    CPU        & Intel Xeon Gold 6248R (24 core)\\
+    GPU        & NVIDIA A100 (40\,GB)\\
+    RAM        & 256\,GB\\
+    OS         & Ubuntu 22.04 LTS\\
+    Framework  & Python 3.11 + PyTorch 2.1\\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\chapter{Conclusion}
-We proposed \dots and verified its effectiveness through experiments. Future work includes \dots.
+\section{Datasets}
+\begin{table}[h]
+  \centering
+  \caption{Datasets.}\label{tab:dataset}
+  \begin{tabular}{lrrr}
+    \toprule
+    & Samples & Features & Classes\\
+    \midrule
+    X & \num{50000}   & 128   & 10\\
+    Y & \num{100000}  & 512   & 100\\
+    Z & \num{1000000} & 1024  & 1000\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Results}
+\begin{table}[h]
+  \centering
+  \caption{Accuracy [\%] and wall-clock time [s] (mean $\pm$ SD over 3 runs).}\label{tab:results}
+  \begin{tabular}{lcc}
+    \toprule
+    Method & Accuracy [\%] & Time [s]\\
+    \midrule
+    Baseline A   & $85.2 \pm 0.4$          & $120 \pm 3$\\
+    Baseline B   & $87.1 \pm 0.3$          & $95  \pm 2$\\
+    \textbf{Ours}& $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The proposed method improves accuracy by 4.6--6.6\% and reduces wall-clock time by 2.3--2.9$\times$.
+
+\chapter{Conclusion}\label{chap:conclusion}
+We proposed a new algorithm for the $\cdots$ problem, proved an $O(1/T)$ convergence rate under $\mu$-strong convexity, and validated it numerically. Future directions:
+\begin{itemize}[leftmargin=*]
+  \item Extension to non-convex losses
+  \item Application to federated settings
+  \item Deployment in other domains
+\end{itemize}
+
+% ══════════════════════════════════
+% Back matter
+% ══════════════════════════════════
+\appendix
+\chapter{Proof of Theorem~\ref{thm:main}}\label{appx:proof}
+\begin{lemma}
+  The stochastic gradient satisfies $\mathbb{E}[g_t \mid \theta_t] = \nabla\mathcal{L}(\theta_t)$ and $\mathbb{E}[\|g_t\|^2 \mid \theta_t] \le \sigma^2$.
+\end{lemma}
+\begin{proof}[Proof of Theorem~\ref{thm:main}]
+  Let $\Delta_t = \mathcal{L}(\theta_t) - \mathcal{L}(\theta^\ast)$. By strong convexity, $\|\theta_t - \theta^\ast\|^2 \le \tfrac{2}{\mu}\Delta_t$. Using \eqref{eq:sgd},
+  \begin{align*}
+    \|\theta_{t+1} - \theta^\ast\|^2 &= \|\theta_t - \theta^\ast\|^2 - 2\eta_t \langle g_t, \theta_t - \theta^\ast\rangle + \eta_t^2 \|g_t\|^2.
+  \end{align*}
+  Taking expectations and summing yields $\mathbb{E}[\Delta_T] \le C/T$; see Shalev-Shwartz \& Ben-David~\cite{ref4}.
+\end{proof}
 
 \begin{thebibliography}{99}
-  \bibitem{ref1} Author A., “Paper Title,” Conference Proc., 20XX.
-  \bibitem{ref2} Author B., “Paper Title,” Journal Name, vol.~X, pp.~YY--ZZ, 20XX.
+  \bibitem{ref1} Smith, J., Lee, S., "An algorithm for $\cdots$," \emph{Proc.\ NeurIPS}, pp.~1--10, 20XX.
+  \bibitem{ref2} Jones, R., "Approximation methods for $\cdots$," \emph{J. Mach. Learn. Res.}, vol.~22, no.~3, pp.~45--60, 2021.
+  \bibitem{ref3} Tanaka, Y., "A survey of $\cdots$," \emph{IPSJ J.}, vol.~X, pp.~XX--YY, 20XX.
+  \bibitem{ref4} Shalev-Shwartz, S., Ben-David, S., \emph{Understanding Machine Learning: From Theory to Algorithms}, Cambridge Univ.\ Press, 2014.
 \end{thebibliography}
 
 \chapter*{Acknowledgements}
 \addcontentsline{toc}{chapter}{Acknowledgements}
-I would like to express my sincere gratitude to my supervisor Prof. A.\ Example for continuous guidance throughout this research.
+I am deeply grateful to my supervisor Prof.\ A.\ Example for his/her continuous guidance throughout this research. I also thank Assoc.\ Prof.\ B.\ Example and the members of our lab for insightful discussions. This work was supported by Grant No.~XX-XXXXX.
 
 \end{document}
 `;
@@ -2649,9 +3008,9 @@ I would like to express my sincere gratitude to my supervisor Prof. A.\ Example 
 const MOCK_EXAM_LATEX = String.raw`\documentclass[11pt,a4paper]{article}
 \usepackage[haranoaji]{luatexja-preset}
 \usepackage{geometry}
-\geometry{top=22mm,bottom=24mm,left=20mm,right=20mm,footskip=12mm}
+\geometry{top=24mm,bottom=22mm,left=20mm,right=20mm,headheight=14pt,footskip=12mm}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs, tabularx, array}
+\usepackage{booktabs, tabularx, array, multirow}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
@@ -2659,130 +3018,251 @@ const MOCK_EXAM_LATEX = String.raw`\documentclass[11pt,a4paper]{article}
 \usepackage{fancyhdr}
 \usepackage{tcolorbox}
 \tcbuselibrary{skins,breakable}
+\usepackage{tikz}
+\usetikzlibrary{calc}
 
 \definecolor{mockaccent}{HTML}{b22222}
 \definecolor{mocksoft}{HTML}{fee2e2}
+\definecolor{mockdark}{HTML}{7f1d1d}
 
+% ── ヘッダ / フッタ (冊子の全ページで統一) ──
 \pagestyle{fancy}
 \fancyhf{}
-\fancyfoot[C]{\small --- \thepage\ ---}
-\renewcommand{\headrulewidth}{0pt}
+\fancyhead[L]{\small\color{mockaccent}\textbf{令和XX年度 第 1 回 総合模擬試験}}
+\fancyhead[R]{\small 数学 I $\cdot$ A $\cdot$ II $\cdot$ B}
+\fancyfoot[C]{\small --- \thepage\ / \pageref{LastPage} ---}
+\fancyfoot[L]{\small 受験番号:\hspace{4mm}\rule{22mm}{0.3pt}}
+\fancyfoot[R]{\small 氏名:\hspace{4mm}\rule{35mm}{0.3pt}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{{\color{mockaccent}\hrule width\headwidth height\headrulewidth \vskip-\headrulewidth}}
 
-\newcommand{\daimon}[3]{%
+\usepackage{lastpage}
+
+% ── 難易度バッジ (★:基本、★★:標準、★★★:発展) ──
+\newcommand{\diffbadge}[1]{%
+  \hspace{4pt}\textcolor{mockaccent}{\small\bfseries #1}%
+}
+
+% ── 大問見出し (大問番号 / タイトル / 配点 / 難易度レンジ) ──
+\newcommand{\daimon}[4]{%
   \vspace{6mm}%
   \noindent\begin{tcolorbox}[enhanced,colback=mocksoft!40,colframe=mockaccent,sharp corners,boxrule=0.4pt,left=4mm,right=4mm,top=1.5mm,bottom=1.5mm]%
-    \textbf{\large\color{mockaccent} 第 #1 問}\quad \textbf{#2} \hfill \small 配点 \textbf{#3}\,点%
+    \textbf{\large\color{mockaccent} 第 #1 問}\quad \textbf{#2} \hfill \small 配点 \textbf{#3}\,点 \quad 難易度 \textbf{#4}%
   \end{tcolorbox}\par%
   \vspace{2mm}%
 }
 
+% ── 答欄ボックス (記述用の白枠) ──
+\newcommand{\ansbox}[1]{%
+  \par\vspace{1mm}%
+  \noindent\fbox{\rule{0pt}{#1}\hspace{0.98\linewidth}}\par%
+}
+
+% ── マークシート風の選択肢 ──
+\newcommand{\markchoice}[5]{%
+  \begin{center}%
+    \footnotesize\fbox{\ \textcircled{\scriptsize ①}\,#1\ \ \textcircled{\scriptsize ②}\,#2\ \ \textcircled{\scriptsize ③}\,#3\ \ \textcircled{\scriptsize ④}\,#4\ \ \textcircled{\scriptsize ⑤}\,#5\ }%
+  \end{center}%
+}
+
 \begin{document}
 
-% ── 表紙 ──
+% ══════════════════════════════════
+% 表紙
+% ══════════════════════════════════
 \thispagestyle{empty}
 \begin{center}
-  \vspace*{18mm}
+  \vspace*{12mm}
   {\Huge\bfseries 令和\underline{\hspace{6mm}}年度\par}
   \vspace{6mm}
   {\Huge\bfseries\color{mockaccent} 第 1 回 総合模擬試験\par}
-  \vspace{20mm}
+  \vspace{16mm}
   {\LARGE 数学 I $\cdot$ A $\cdot$ II $\cdot$ B\par}
-  \vspace{30mm}
+  \vspace{18mm}
+
+  % 受験情報
   \renewcommand{\arraystretch}{1.8}
-  \begin{tabular}{|p{40mm}|p{80mm}|}\hline
-    \centering 試験時間 & \hspace{3mm} 90 分 \\\hline
-    \centering 配点 & \hspace{3mm} 合計 200 点 \\\hline
-    \centering 受験番号 & \\\hline
-    \centering 氏名 & \\\hline
-    \centering 会場 & \\\hline
+  \begin{tabular}{|>{\centering\arraybackslash}p{40mm}|p{80mm}|}\hline
+    試験時間 & \hspace{3mm} 90 分 (休憩なし)\\\hline
+    配\ \ 点  & \hspace{3mm} 合計 200 点\\\hline
+    合格基準 & \hspace{3mm} 偏差値 60 相当 (例年 128 点前後)\\\hline
+    受験番号 & \\\hline
+    氏\ \ \ \ 名  & \\\hline
+    会\ \ \ \ 場  & \\\hline
   \end{tabular}
+
+  \vspace{14mm}
+
+  % 試験科目・大問構成 (受験者が全体像を把握できるようにする)
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|l|c|c|}\hline
+    \rowcolor{mocksoft!60}\textbf{大問} & \textbf{分野}     & \textbf{配点} & \textbf{目安時間}\\\hline
+    第 1 問 & 小問集合 (数 I・II)       & 40  & 15 分\\\hline
+    第 2 問 & 二次関数・二次不等式     & 50  & 20 分\\\hline
+    第 3 問 & 微分・積分                & 50  & 25 分\\\hline
+    第 4 問 & 数列・漸化式              & 60  & 30 分\\\hline
+    \multicolumn{2}{|r|}{\textbf{合計}} & \textbf{200} & \textbf{90 分}\\\hline
+  \end{tabular}
+
   \vfill
-  \fbox{\parbox{130mm}{\centering\bfseries 試験官の指示があるまで この冊子を開かないでください。}}
-  \vspace{10mm}
+  \fbox{\parbox{140mm}{\centering\bfseries 試験官の指示があるまで この冊子を開かないでください。}}
+  \vspace{6mm}
 \end{center}
 \clearpage
 
-% ── 注意事項 ──
+% ══════════════════════════════════
+% 注意事項
+% ══════════════════════════════════
 \section*{\color{mockaccent} 注意事項}
 \begin{enumerate}[leftmargin=*,itemsep=4pt]
-  \item 試験時間は 90 分です。
-  \item 解答はすべて別紙の解答用紙に記入してください。問題冊子への書き込みは採点の対象外です。
-  \item 数表・電卓・スマートフォンの使用は認めません。
+  \item 試験時間は 90 分です。開始の合図があるまで問題冊子を開かないでください。
+  \item 解答はすべて別紙の\textbf{解答用紙}に記入してください。問題冊子への書き込みは採点の対象になりません。
+  \item 選択肢のある小問はマークシート式です。該当する番号の $\bigcirc$ を 濃くはっきりと塗りつぶしてください。
+  \item 記述式の小問は、結論だけでなく途中式を省略せずに書いてください。途中式に部分点が与えられます。
+  \item 数表・電卓・スマートフォンなどの\textbf{電子機器の使用は一切認めません}。
   \item 問題冊子の余白は下書きとして自由に利用してかまいません。
-  \item 途中退出は試験開始 45 分後から可能です。
+  \item 途中退出は試験開始 45 分後から可能です。退出時は解答用紙を試験官に手渡してください。
   \item 不正行為があった場合、その時点で失格となります。
 \end{enumerate}
-\clearpage
-
-% ── 大問 1 ──
-\daimon{1}{小問集合}{40}
-\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
-  \item $2x^2 - 5x + 3 = 0$ の解を求めよ。
-  \item 点 $(2, 3)$ を通り、傾き $-1$ の直線の方程式を求めよ。
-  \item $\sin 75^\circ$ の値を求めよ。
-  \item 不等式 $|x - 2| < 3$ を解け。
-  \item $\log_3 81$ の値を求めよ。
-\end{enumerate}
-
-% ── 大問 2 ──
-\daimon{2}{二次関数}{50}
-放物線 $y = x^2 - 4x + k$ について、次の問いに答えよ。
-\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
-  \item 頂点の座標を $k$ で表せ。
-  \item この放物線が $x$ 軸と異なる 2 点で交わるような $k$ の範囲を求めよ。
-  \item $k = 2$ のとき、放物線と直線 $y = x$ で囲まれる部分の面積を求めよ。
-\end{enumerate}
-
-% ── 大問 3 ──
-\daimon{3}{微分・積分}{50}
-関数 $f(x) = x^3 - 3x^2 + 1$ について、次の問いに答えよ。
-\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
-  \item $f(x)$ の極値を求めよ。
-  \item 曲線 $y = f(x)$ と $x$ 軸で囲まれる部分のうち $x \ge 0$ の領域の面積を求めよ。
-\end{enumerate}
-
-% ── 大問 4 ──
-\daimon{4}{数列}{60}
-数列 $\{a_n\}$ が $a_1 = 1,\ a_{n+1} = 2a_n + 1$ で定義されている。
-\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
-  \item 一般項 $a_n$ を求めよ。
-  \item $\displaystyle S_n = \sum_{k=1}^{n} a_k$ を $n$ の式で表せ。
-\end{enumerate}
-
-\clearpage
-
-% ── 解答用紙 ──
-\section*{\color{mockaccent} 解答用紙}
-\begin{center}
-  \renewcommand{\arraystretch}{1.5}
-  \begin{tabular}{|p{30mm}|p{60mm}||p{30mm}|p{40mm}|}\hline
-    受験番号 & & 氏名 & \\\hline
-  \end{tabular}
-\end{center}
 
 \vspace{5mm}
+
+\noindent\begin{tcolorbox}[colback=mocksoft!30,colframe=mockaccent,boxrule=0.4pt,sharp corners,left=4mm,right=4mm]
+\textbf{持ち物チェックリスト} \ $\Box$ 鉛筆 (HB 以上) \ $\Box$ 消しゴム \ $\Box$ 受験票 \ $\Box$ 時計 (通信機能なし) \ $\Box$ 身分証明書
+\end{tcolorbox}
+
+\clearpage
+
+% ══════════════════════════════════
+% 大問 1 — 小問集合
+% ══════════════════════════════════
+\daimon{1}{小問集合}{40}{★〜★★}
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item \diffbadge{★} $2x^2 - 5x + 3 = 0$ の解を求めよ。\hfill\textbf{(8 点)}
+  \item \diffbadge{★} 点 $(2, 3)$ を通り、傾き $-1$ の直線の方程式を求めよ。\hfill\textbf{(8 点)}
+  \item \diffbadge{★★} $\sin 75^\circ$ の値を求めよ。\hfill\textbf{(8 点)}
+  \item \diffbadge{★★} 不等式 $|x - 2| < 3$ を解け。\hfill\textbf{(8 点)}
+  \item \diffbadge{★★} $\log_3 81 + \log_2 16$ の値を求めよ。\hfill\textbf{(8 点)}
+\end{enumerate}
+
+% ══════════════════════════════════
+% 大問 2 — 二次関数
+% ══════════════════════════════════
+\daimon{2}{二次関数}{50}{★★}
+放物線 $y = x^2 - 4x + k$ ($k$ は実数) について、次の問いに答えよ。
+
+\begin{center}
+\begin{tikzpicture}[scale=0.55]
+  % 軸
+  \draw[->,gray] (-0.5,0) -- (6,0) node[right,black]{\scriptsize $x$};
+  \draw[->,gray] (0,-2) -- (0,5) node[above,black]{\scriptsize $y$};
+  % 放物線 (k=3 想定)
+  \draw[thick,mockaccent,domain=-0.3:4.3,samples=80] plot(\x,{\x*\x-4*\x+3});
+  % 頂点マーク
+  \draw[dashed,gray] (2,0)--(2,-1);
+  \node[below] at (2,-1) {\scriptsize $(2,\,k-4)$};
+  \node[right,mockdark] at (4.3,1.8) {\scriptsize $y=x^2-4x+k$};
+\end{tikzpicture}
+\end{center}
+
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item \diffbadge{★} 頂点の座標を $k$ で表せ。\hfill\textbf{(10 点)}
+  \item \diffbadge{★★} この放物線が $x$ 軸と異なる 2 点で交わるような $k$ の範囲を求めよ。\hfill\textbf{(15 点)}
+  \item \diffbadge{★★★} $k = 2$ のとき、放物線と直線 $y = x$ で囲まれる部分の面積 $S$ を求めよ。\hfill\textbf{(25 点)}
+\end{enumerate}
+
+% ══════════════════════════════════
+% 大問 3 — 微分・積分
+% ══════════════════════════════════
+\daimon{3}{微分・積分}{50}{★★〜★★★}
+関数 $f(x) = x^3 - 3x^2 + 1$ について、次の問いに答えよ。
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item \diffbadge{★★} $f(x)$ の極値を求めよ。増減表を書いて示すこと。\hfill\textbf{(25 点)}
+  \item \diffbadge{★★★} 曲線 $y = f(x)$ と $x$ 軸で囲まれる部分のうち $x \ge 0$ の領域の面積を求めよ。\hfill\textbf{(25 点)}
+\end{enumerate}
+
+% ══════════════════════════════════
+% 大問 4 — 数列・漸化式
+% ══════════════════════════════════
+\daimon{4}{数列・漸化式}{60}{★★★}
+数列 $\{a_n\}$ が
+\[ a_1 = 1,\qquad a_{n+1} = 2 a_n + 1 \quad (n \ge 1) \]
+で定義されている。次の問いに答えよ。
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item \diffbadge{★★★} 一般項 $a_n$ を $n$ の式で表せ。\hfill\textbf{(30 点)}
+  \item \diffbadge{★★★} $\displaystyle S_n = \sum_{k=1}^{n} a_k$ を $n$ の式で表せ。\hfill\textbf{(30 点)}
+\end{enumerate}
+
+\clearpage
+
+% ══════════════════════════════════
+% 解答用紙
+% ══════════════════════════════════
+\thispagestyle{empty}
+\begin{center}
+  {\LARGE\bfseries\color{mockaccent} 解答用紙} \quad{\small (この用紙のみ採点対象)}
+\end{center}
+
+\vspace{2mm}
+\noindent
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{|>{\centering\arraybackslash}p{30mm}|p{60mm}||>{\centering\arraybackslash}p{20mm}|p{50mm}|}\hline
+  受験番号 & & 氏名 & \\\hline
+\end{tabular}
+
+\vspace{4mm}
+
+% ── 大問 1: マークシート式 ──
+\noindent\textbf{\color{mockaccent}第 1 問 (マーク式)}\par
+\vspace{1mm}
 \noindent
 \renewcommand{\arraystretch}{1.6}
-\begin{tabularx}{\linewidth}{|c|c|X|c|}\hline
-  \textbf{大問} & \textbf{小問} & \textbf{解答} & \textbf{採点}\\\hline
-  1 & (1) & & \\\hline
-    & (2) & & \\\hline
-    & (3) & & \\\hline
-    & (4) & & \\\hline
-    & (5) & & \\\hline
-  2 & (1) & & \\\hline
-    & (2) & & \\\hline
-    & (3) & & \\\hline
-  3 & (1) & & \\\hline
-    & (2) & & \\\hline
-  4 & (1) & & \\\hline
-    & (2) & & \\\hline
+\begin{tabular}{|c|c|c|c|c|c|c|c|}\hline
+  \rowcolor{mocksoft!50}
+  小問 & \multicolumn{5}{c|}{\textbf{解答欄} (該当する $\bigcirc$ を塗る)} & 解答値 & 得点\\\hline
+  (1) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+  (2) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+  (3) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+  (4) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+  (5) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+\end{tabular}
+
+\vspace{4mm}
+
+% ── 大問 2〜4: 記述式 ──
+\noindent\textbf{\color{mockaccent}第 2 問〜第 4 問 (記述式)}\par
+\vspace{1mm}
+\noindent
+\begin{tabularx}{\linewidth}{|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|X|>{\centering\arraybackslash}c|}\hline
+  \rowcolor{mocksoft!50}
+  大問 & 小問 & \textbf{解答および途中式} (必要なら裏面も可) & 得点\\\hline
+  \multirow{3}{*}{2} & (1) & \rule{0pt}{16mm} & /10\\\cline{2-4}
+                     & (2) & \rule{0pt}{16mm} & /15\\\cline{2-4}
+                     & (3) & \rule{0pt}{20mm} & /25\\\hline
+  \multirow{2}{*}{3} & (1) & \rule{0pt}{20mm} & /25\\\cline{2-4}
+                     & (2) & \rule{0pt}{20mm} & /25\\\hline
+  \multirow{2}{*}{4} & (1) & \rule{0pt}{20mm} & /30\\\cline{2-4}
+                     & (2) & \rule{0pt}{20mm} & /30\\\hline
 \end{tabularx}
 
-\vspace{8mm}
-\begin{flushright}
-  \fbox{\parbox{70mm}{\centering\large 合計 \hfill \underline{\hspace{25mm}} / \textbf{200} 点}}
-\end{flushright}
+\vspace{5mm}
+
+% ── 得点集計 ──
+\noindent\textbf{\color{mockaccent}得点集計 (採点者記入欄)}\par
+\vspace{1mm}
+\noindent
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|}\hline
+  \rowcolor{mocksoft!50}
+  第 1 問 & 第 2 問 & 第 3 問 & 第 4 問 & 合計 & 偏差値 (自動記入)\\\hline
+  \ /40 & \ /50 & \ /50 & \ /60 & \ / \textbf{200} &\\\hline
+\end{tabular}
+
+\vspace{4mm}
+
+\noindent\begin{tcolorbox}[colback=mocksoft!30,colframe=mockaccent,boxrule=0.4pt,sharp corners,left=3mm,right=3mm,top=1.5mm,bottom=1.5mm]
+\small\textbf{採点基準}\quad 最終解答の一致 $+$ 途中式の論理性で評価。途中式不備は最大 50\% 減点、最終解答のみの記入は最大 70\% 減点。
+\end{tcolorbox}
 
 \end{document}
 `;
@@ -2790,9 +3270,9 @@ const MOCK_EXAM_LATEX = String.raw`\documentclass[11pt,a4paper]{article}
 const MOCK_EXAM_LATEX_EN = String.raw`\documentclass[11pt,a4paper]{article}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
-\geometry{top=22mm,bottom=24mm,left=20mm,right=20mm,footskip=12mm}
+\geometry{top=24mm,bottom=22mm,left=20mm,right=20mm,headheight=14pt,footskip=12mm}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs, tabularx, array}
+\usepackage{booktabs, tabularx, array, multirow}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
@@ -2800,106 +3280,215 @@ const MOCK_EXAM_LATEX_EN = String.raw`\documentclass[11pt,a4paper]{article}
 \usepackage{fancyhdr}
 \usepackage{tcolorbox}
 \tcbuselibrary{skins,breakable}
+\usepackage{tikz}
+\usepackage{lastpage}
 
 \definecolor{mockaccent}{HTML}{b22222}
 \definecolor{mocksoft}{HTML}{fee2e2}
+\definecolor{mockdark}{HTML}{7f1d1d}
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyfoot[C]{\small --- \thepage\ ---}
-\renewcommand{\headrulewidth}{0pt}
+\fancyhead[L]{\small\color{mockaccent}\textbf{Academic Year 20XX — Mock Examination 1}}
+\fancyhead[R]{\small Mathematics I $\cdot$ A $\cdot$ II $\cdot$ B}
+\fancyfoot[C]{\small --- \thepage\ / \pageref{LastPage} ---}
+\fancyfoot[L]{\small Student ID:\hspace{4mm}\rule{22mm}{0.3pt}}
+\fancyfoot[R]{\small Name:\hspace{4mm}\rule{35mm}{0.3pt}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{{\color{mockaccent}\hrule width\headwidth height\headrulewidth \vskip-\headrulewidth}}
 
-\newcommand{\daimon}[3]{%
+\newcommand{\diffbadge}[1]{\hspace{4pt}\textcolor{mockaccent}{\small\bfseries #1}}
+
+\newcommand{\daimon}[4]{%
   \vspace{6mm}%
   \noindent\begin{tcolorbox}[enhanced,colback=mocksoft!40,colframe=mockaccent,sharp corners,boxrule=0.4pt,left=4mm,right=4mm,top=1.5mm,bottom=1.5mm]%
-    \textbf{\large\color{mockaccent} Problem #1}\quad \textbf{#2} \hfill \small \textbf{#3}\,pts%
+    \textbf{\large\color{mockaccent} Problem #1}\quad \textbf{#2} \hfill \small \textbf{#3}\,pts\ \ Level \textbf{#4}%
   \end{tcolorbox}\par%
   \vspace{2mm}%
 }
 
 \begin{document}
 
+% ══════════════════════════════════
+% Cover page
+% ══════════════════════════════════
 \thispagestyle{empty}
 \begin{center}
-  \vspace*{18mm}
+  \vspace*{12mm}
   {\Huge\bfseries Academic Year 20XX\par}
   \vspace{6mm}
   {\Huge\bfseries\color{mockaccent} Mock Examination 1\par}
-  \vspace{20mm}
+  \vspace{16mm}
   {\LARGE Mathematics I $\cdot$ A $\cdot$ II $\cdot$ B\par}
-  \vspace{30mm}
+  \vspace{18mm}
+
   \renewcommand{\arraystretch}{1.8}
-  \begin{tabular}{|p{40mm}|p{80mm}|}\hline
-    Duration & \hspace{3mm} 90 min\\\hline
-    Total    & \hspace{3mm} 200 pts\\\hline
-    Student ID & \\\hline
-    Name & \\\hline
-    Room & \\\hline
+  \begin{tabular}{|>{\centering\arraybackslash}p{40mm}|p{80mm}|}\hline
+    Duration       & \hspace{3mm} 90 min (no break)\\\hline
+    Total points   & \hspace{3mm} 200\\\hline
+    Pass threshold & \hspace{3mm} $\approx$ 128 (deviation 60)\\\hline
+    Student ID     & \\\hline
+    Name           & \\\hline
+    Room           & \\\hline
   \end{tabular}
+
+  \vspace{14mm}
+
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|c|l|c|c|}\hline
+    \rowcolor{mocksoft!60}\textbf{Problem} & \textbf{Topic} & \textbf{Points} & \textbf{Target time}\\\hline
+    1 & Short questions (I/II)      & 40  & 15 min\\\hline
+    2 & Quadratic functions         & 50  & 20 min\\\hline
+    3 & Calculus                    & 50  & 25 min\\\hline
+    4 & Sequences \& recurrences    & 60  & 30 min\\\hline
+    \multicolumn{2}{|r|}{\textbf{Total}} & \textbf{200} & \textbf{90 min}\\\hline
+  \end{tabular}
+
   \vfill
-  \fbox{\parbox{130mm}{\centering\bfseries Do not open this booklet until instructed.}}
-  \vspace{10mm}
+  \fbox{\parbox{140mm}{\centering\bfseries Do not open this booklet until instructed.}}
+  \vspace{6mm}
 \end{center}
 \clearpage
 
+% ══════════════════════════════════
+% Instructions
+% ══════════════════════════════════
 \section*{\color{mockaccent} Instructions}
 \begin{enumerate}[leftmargin=*,itemsep=4pt]
-  \item The duration is 90 minutes.
-  \item All answers must be written on the answer sheet at the end.
-  \item Calculators and phones are not permitted.
-  \item You may use blank space for scratch work.
-  \item Dishonest conduct results in disqualification.
+  \item The duration is 90 minutes. Do not open the booklet before the start signal.
+  \item Write all answers on the \textbf{answer sheet} at the end. Writing in the booklet is not graded.
+  \item Multiple-choice items use a mark-sheet format — fill in the matching $\bigcirc$ cleanly.
+  \item For free-response items, show your working; partial credit is given.
+  \item Calculators, phones, and any other electronic device are \textbf{strictly prohibited}.
+  \item Early exit is permitted 45 minutes after the start signal.
+  \item Dishonest conduct results in immediate disqualification.
 \end{enumerate}
-\clearpage
-
-\daimon{1}{Short questions}{40}
-\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
-  \item Solve $2x^2 - 5x + 3 = 0$.
-  \item Find the line through $(2, 3)$ with slope $-1$.
-  \item Evaluate $\sin 75^\circ$.
-\end{enumerate}
-
-\daimon{2}{Quadratic functions}{50}
-For $y = x^2 - 4x + k$:
-\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
-  \item Find the vertex in terms of $k$.
-  \item Find the range of $k$ so the parabola meets the $x$-axis at two distinct points.
-\end{enumerate}
-
-\daimon{3}{Calculus}{60}
-For $f(x) = x^3 - 3x^2 + 1$:
-\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
-  \item Find all local extrema.
-  \item Find the area bounded by $y = f(x)$ and the $x$-axis for $x \ge 0$.
-\end{enumerate}
-
-\clearpage
-
-\section*{\color{mockaccent} Answer Sheet}
-\begin{center}
-  \renewcommand{\arraystretch}{1.5}
-  \begin{tabular}{|p{30mm}|p{60mm}||p{30mm}|p{40mm}|}\hline
-    Student ID & & Name & \\\hline
-  \end{tabular}
-\end{center}
 
 \vspace{5mm}\noindent
+\begin{tcolorbox}[colback=mocksoft!30,colframe=mockaccent,boxrule=0.4pt,sharp corners]
+\textbf{Checklist}\ $\Box$ Pencil (HB+) \ $\Box$ Eraser \ $\Box$ Admission ticket \ $\Box$ Watch (no smart-watch) \ $\Box$ Photo ID
+\end{tcolorbox}
+
+\clearpage
+
+% ══════════════════════════════════
+% Problem 1
+% ══════════════════════════════════
+\daimon{1}{Short questions}{40}{★--★★}
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item \diffbadge{★} Solve $2x^2 - 5x + 3 = 0$.\hfill\textbf{(8 pts)}
+  \item \diffbadge{★} Find the line through $(2,3)$ with slope $-1$.\hfill\textbf{(8 pts)}
+  \item \diffbadge{★★} Evaluate $\sin 75^\circ$.\hfill\textbf{(8 pts)}
+  \item \diffbadge{★★} Solve $|x-2| < 3$.\hfill\textbf{(8 pts)}
+  \item \diffbadge{★★} Evaluate $\log_3 81 + \log_2 16$.\hfill\textbf{(8 pts)}
+\end{enumerate}
+
+% ══════════════════════════════════
+% Problem 2
+% ══════════════════════════════════
+\daimon{2}{Quadratic functions}{50}{★★}
+Consider the parabola $y = x^2 - 4x + k$ ($k \in \mathbb{R}$).
+
+\begin{center}
+\begin{tikzpicture}[scale=0.55]
+  \draw[->,gray] (-0.5,0) -- (6,0) node[right,black]{\scriptsize $x$};
+  \draw[->,gray] (0,-2) -- (0,5) node[above,black]{\scriptsize $y$};
+  \draw[thick,mockaccent,domain=-0.3:4.3,samples=80] plot(\x,{\x*\x-4*\x+3});
+  \draw[dashed,gray] (2,0)--(2,-1);
+  \node[below] at (2,-1) {\scriptsize $(2,\,k-4)$};
+  \node[right,mockdark] at (4.3,1.8) {\scriptsize $y=x^2-4x+k$};
+\end{tikzpicture}
+\end{center}
+
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item \diffbadge{★} Express the vertex in terms of $k$.\hfill\textbf{(10 pts)}
+  \item \diffbadge{★★} Find the range of $k$ such that the parabola meets the $x$-axis at two distinct points.\hfill\textbf{(15 pts)}
+  \item \diffbadge{★★★} For $k=2$, find the area bounded by the parabola and the line $y=x$.\hfill\textbf{(25 pts)}
+\end{enumerate}
+
+% ══════════════════════════════════
+% Problem 3
+% ══════════════════════════════════
+\daimon{3}{Calculus}{50}{★★--★★★}
+Let $f(x) = x^3 - 3x^2 + 1$.
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item \diffbadge{★★} Find all local extrema of $f(x)$ (show the sign table).\hfill\textbf{(25 pts)}
+  \item \diffbadge{★★★} Find the area bounded by $y=f(x)$ and the $x$-axis for $x \ge 0$.\hfill\textbf{(25 pts)}
+\end{enumerate}
+
+% ══════════════════════════════════
+% Problem 4
+% ══════════════════════════════════
+\daimon{4}{Sequences \& recurrences}{60}{★★★}
+A sequence $\{a_n\}$ is defined by $a_1 = 1,\ a_{n+1} = 2a_n + 1$ $(n \ge 1)$.
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item \diffbadge{★★★} Find the general term $a_n$ in closed form.\hfill\textbf{(30 pts)}
+  \item \diffbadge{★★★} Express $S_n = \sum_{k=1}^n a_k$ in closed form.\hfill\textbf{(30 pts)}
+\end{enumerate}
+
+\clearpage
+
+% ══════════════════════════════════
+% Answer sheet
+% ══════════════════════════════════
+\thispagestyle{empty}
+\begin{center}
+  {\LARGE\bfseries\color{mockaccent} Answer Sheet}\quad{\small (graded page only)}
+\end{center}
+
+\vspace{2mm}
+\noindent
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{|>{\centering\arraybackslash}p{30mm}|p{60mm}||>{\centering\arraybackslash}p{20mm}|p{50mm}|}\hline
+  Student ID & & Name & \\\hline
+\end{tabular}
+
+\vspace{4mm}
+
+\noindent\textbf{\color{mockaccent}Problem 1 — Multiple choice (mark)}\par
+\vspace{1mm}\noindent
 \renewcommand{\arraystretch}{1.6}
-\begin{tabularx}{\linewidth}{|c|c|X|c|}\hline
-  \textbf{Problem} & \textbf{Part} & \textbf{Answer} & \textbf{Score}\\\hline
-  1 & (1) & & \\\hline
-    & (2) & & \\\hline
-    & (3) & & \\\hline
-  2 & (1) & & \\\hline
-    & (2) & & \\\hline
-  3 & (1) & & \\\hline
-    & (2) & & \\\hline
+\begin{tabular}{|c|c|c|c|c|c|c|c|}\hline
+  \rowcolor{mocksoft!50}
+  Part & \multicolumn{5}{c|}{\textbf{Mark one}} & Value & Score\\\hline
+  (1) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+  (2) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+  (3) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+  (4) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+  (5) & $\bigcirc\!①$ & $\bigcirc\!②$ & $\bigcirc\!③$ & $\bigcirc\!④$ & $\bigcirc\!⑤$ & & /8\\\hline
+\end{tabular}
+
+\vspace{4mm}
+
+\noindent\textbf{\color{mockaccent}Problems 2--4 — Free response (show work)}\par
+\vspace{1mm}\noindent
+\begin{tabularx}{\linewidth}{|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|X|>{\centering\arraybackslash}c|}\hline
+  \rowcolor{mocksoft!50}
+  Problem & Part & \textbf{Answer / working} (use back if needed) & Score\\\hline
+  \multirow{3}{*}{2} & (1) & \rule{0pt}{16mm} & /10\\\cline{2-4}
+                     & (2) & \rule{0pt}{16mm} & /15\\\cline{2-4}
+                     & (3) & \rule{0pt}{20mm} & /25\\\hline
+  \multirow{2}{*}{3} & (1) & \rule{0pt}{20mm} & /25\\\cline{2-4}
+                     & (2) & \rule{0pt}{20mm} & /25\\\hline
+  \multirow{2}{*}{4} & (1) & \rule{0pt}{20mm} & /30\\\cline{2-4}
+                     & (2) & \rule{0pt}{20mm} & /30\\\hline
 \end{tabularx}
 
-\vspace{8mm}
-\begin{flushright}
-  \fbox{\parbox{70mm}{\centering\large Total \hfill \underline{\hspace{25mm}} / \textbf{200}}}
-\end{flushright}
+\vspace{5mm}
+
+\noindent\textbf{\color{mockaccent}Score summary (grader use)}\par
+\vspace{1mm}\noindent
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|>{\centering\arraybackslash}c|}\hline
+  \rowcolor{mocksoft!50}
+  Prob 1 & Prob 2 & Prob 3 & Prob 4 & Total & Deviation\\\hline
+  \ /40 & \ /50 & \ /50 & \ /60 & \ / \textbf{200} &\\\hline
+\end{tabular}
+
+\vspace{4mm}\noindent
+\begin{tcolorbox}[colback=mocksoft!30,colframe=mockaccent,boxrule=0.4pt,sharp corners]
+\small\textbf{Grading policy}\quad Final answer $+$ logical working. Missing working: up to 50\% deducted; final answer only: up to 70\% deducted.
+\end{tcolorbox}
 
 \end{document}
 `;
@@ -2912,12 +3501,19 @@ const POSTER_LATEX = String.raw`\documentclass[final,t]{beamer}
 \usepackage{luatexja}
 \usepackage{amsmath, amssymb, mathtools, bm}
 \usepackage{graphicx}
-\usepackage{booktabs}
+\usepackage{booktabs, colortbl}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc,shadows}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
 
+% ── カラーテーマ (学会発表向けのコントラスト) ──
 \definecolor{posterbg}{HTML}{0f172a}
 \definecolor{postertitle}{HTML}{38bdf8}
 \definecolor{posteraccent}{HTML}{f59e0b}
+\definecolor{postersoft}{HTML}{fff7ed}
+\definecolor{posterkey}{HTML}{dc2626}
 
 \setbeamercolor{block title}{bg=posterbg,fg=white}
 \setbeamercolor{block body}{bg=white,fg=black}
@@ -2925,107 +3521,188 @@ const POSTER_LATEX = String.raw`\documentclass[final,t]{beamer}
 \setbeamertemplate{navigation symbols}{}
 \setbeamerfont{block title}{size=\large,series=\bfseries}
 
+% ── 見出しバー (タイトル + 著者 + 所属ロゴ枠) ──
 \setbeamertemplate{headline}{%
-  \begin{beamercolorbox}[wd=\paperwidth,ht=10ex,dp=2ex,center]{}%
-    \usebeamercolor{title}%
-    \vspace{3mm}
-    {\color{posterbg}\huge\bfseries 研究ポスタータイトル \par}
-    \vspace{4mm}
-    {\color{posterbg!70}\Large 山田 太郎$^{1}$\quad 鈴木 花子$^{2}$ \qquad $^{1}$○○大学\quad $^{2}$△△研究所 \par}
-    \vspace{3mm}
+  \begin{beamercolorbox}[wd=\paperwidth,ht=14ex,dp=2ex]{}%
+    \hspace{15mm}%
+    \begin{minipage}[c]{18mm}\centering
+      \fbox{\parbox[c][22mm][c]{16mm}{\centering\tiny LOGO\\(所属 1)}}
+    \end{minipage}%
+    \hfill\begin{minipage}[c]{0.7\paperwidth}\centering
+      \vspace{3mm}
+      {\color{posterbg}\Huge\bfseries 研究ポスタータイトル ── $\cdots$ への新しいアプローチ \par}
+      \vspace{4mm}
+      {\color{posterbg!70}\Large 山田 太郎$^{\mathsf{1}}$\quad 鈴木 花子$^{\mathsf{2}}$\quad 佐藤 一郎$^{\mathsf{1,\dagger}}$ \qquad $^{\mathsf{1}}$○○大学 \quad $^{\mathsf{2}}$△△研究所 \par}
+    \end{minipage}\hfill
+    \begin{minipage}[c]{18mm}\centering
+      \fbox{\parbox[c][22mm][c]{16mm}{\centering\tiny LOGO\\(所属 2)}}
+    \end{minipage}\hspace{15mm}%
   \end{beamercolorbox}
   \vspace{-6mm}
   {\color{posteraccent}\hrule height 4pt}
   \vspace{5mm}
 }
-\setbeamertemplate{footline}{\vspace{6mm}\centering\small 第 XX 回 ○○学会大会 \quad|\quad 連絡先: \texttt{yamada@example.ac.jp}\vspace{3mm}}
+
+% ── フッタ (連絡先・学会名・QR コード風) ──
+\setbeamertemplate{footline}{%
+  \vspace{6mm}
+  \hspace{15mm}\begin{minipage}[c]{0.55\paperwidth}
+    \small 第 XX 回 ○○学会大会 \ | \  連絡先: \texttt{yamada@example.ac.jp}
+    \ | \ \textdagger\ Corresponding author
+  \end{minipage}\hfill
+  \begin{minipage}[c]{110mm}\raggedleft
+    \begin{tikzpicture}[scale=0.6]
+      % QR コード風プレースホルダ
+      \foreach \x in {0,...,6} \foreach \y in {0,...,6} {
+        \pgfmathsetmacro{\v}{mod(\x*31 + \y*17 + 3, 3)}
+        \ifnum\v=0 \fill[black] (\x,\y) rectangle ++(1,1); \fi
+      }
+      \draw[black,line width=1pt] (-0.3,-0.3) rectangle (7.3,7.3);
+    \end{tikzpicture}\quad\small 論文 PDF $\to$
+  \end{minipage}\hspace{15mm}
+  \vspace{3mm}
+}
 
 \begin{document}
 \begin{frame}[t]
 \vspace{2mm}
 \begin{columns}[T,totalwidth=.98\paperwidth]
 
-% ── 左 ──
+% ══════════════════════════════════
+% 左カラム
+% ══════════════════════════════════
 \begin{column}{.32\paperwidth}
 
 \begin{block}{1. 背景}
-  近年、○○分野では\dots が急速に発展している。しかし、従来手法は計算コストが高く、実用には大きな制約があった。本研究ではこれを解決する手法を提案する。
+  近年、○○ 分野では $\cdots$ の研究が急速に発展しているが、従来手法は計算コストが高く、実用規模のデータに適用するには大きな制約があった。本研究ではこれを解決する手法を提案し、理論と実験の両面からその有効性を示す。
 \end{block}
 
-\begin{block}{2. 目的}
+\begin{block}{2. 目的と貢献}
   \begin{itemize}
-    \item ○○を実現する新しいアルゴリズムの設計
-    \item 実データ上での有効性の検証
-    \item 既存手法との定量的比較
+    \item 計算量を $O(n \log n)$ に削減する新アルゴリズムの設計
+    \item $\mu$-強凸条件下における収束率 $O(1/T)$ の理論保証
+    \item 公開ベンチマーク 3 種における定量評価
   \end{itemize}
 \end{block}
 
-\begin{block}{3. システム概要}
+% ── Key Finding コールアウト (読者が真っ先に目を奪われる位置に) ──
+\begin{tcolorbox}[colback=posterkey!10,colframe=posterkey,boxrule=1pt,sharp corners,left=4mm,right=4mm,top=2mm,bottom=2mm]
+  \centering\Large\bfseries\color{posterkey}
+  精度 $+$ \textbf{4.7\%} \quad 速度 $\times$ \textbf{2.3} \\[2pt]
+  \normalsize 大規模データ Z (100 万件) で最大の改善
+\end{tcolorbox}
+
+\begin{block}{3. システム全体像}
   \centering
-  \vspace{2mm}
-  \fbox{\parbox[c][80mm][c]{.9\linewidth}{\centering\Large [システム概念図を配置]}}
-  \vspace{2mm}
+  \begin{tikzpicture}[
+    node distance=10mm and 12mm,
+    box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=36mm, minimum height=12mm, align=center, rounded corners=1mm},
+    hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!10, minimum width=36mm, minimum height=12mm, align=center, rounded corners=1mm},
+    arr/.style={-{Latex[length=3mm,width=2mm]}, thick, posterbg}
+  ]
+    \node[box] (in)   {入力 $x$};
+    \node[box, right=of in] (feat) {特徴抽出 $\phi(x)$};
+    \node[hl, right=of feat] (opt)  {\textbf{提案 SGD}\\ (O($n \log n$))};
+    \node[box, below=of opt] (model) {学習済 $\theta^\ast$};
+    \node[box, below=of feat] (pred) {推論 $f_{\theta^\ast}(x')$};
+    \node[box, below=of in]   (out) {出力 $\hat y$};
+    \draw[arr] (in) -- (feat);
+    \draw[arr] (feat) -- (opt);
+    \draw[arr] (opt) -- (model);
+    \draw[arr] (model) -- (pred);
+    \draw[arr] (pred) -- (out);
+    \draw[arr, dashed] (feat.south) |- (pred.west);
+  \end{tikzpicture}
 \end{block}
 
 \end{column}
 
-% ── 中央 ──
+% ══════════════════════════════════
+% 中央カラム
+% ══════════════════════════════════
 \begin{column}{.32\paperwidth}
 
 \begin{block}{4. 提案手法}
-  目的関数を以下で定義する:
-  \[
-    \min_{\theta}\ \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2.
-  \]
-  学習は確率的勾配降下法 (SGD) で行う:
-  \[
-    \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t).
-  \]
+  目的関数を以下で定義する。
+  \[ \min_{\theta}\ \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2. \]
+  学習は確率的勾配降下法 (SGD) で行う。
+  \[ \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \qquad \eta_t = \frac{\eta}{\sqrt{t+1}}. \]
+
+  \textbf{アルゴリズムの核心}: 特徴空間を階層分解し、勾配計算を $O(n^2) \to O(n \log n)$ に削減。
 \end{block}
 
 \begin{block}{5. 理論保証}
-  次の定理が成り立つ:
+  \textbf{定理 (収束率).} $\mathcal{L}$ が $\mu$-強凸かつ $L$-平滑のとき、
+  \[ \mathbb{E}[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)] \le \frac{C}{T}. \]
+
   \begin{itemize}
-    \item 収束率 $O(1/T)$
+    \item 収束率 $O(1/T)$ (強凸仮定下)
     \item サンプル複雑度 $O(d \log d)$
-    \item 特異点を持たない損失関数の場合、大域最適解への収束
+    \item 非凸損失でも実験的に収束 (第 6 節)
   \end{itemize}
+\end{block}
+
+\begin{block}{6. データセット}
+  \centering
+  \renewcommand{\arraystretch}{1.15}
+  \begin{tabular}{lrrr}
+    \toprule
+    & サンプル数 & 特徴数 & クラス数\\
+    \midrule
+    X & 50{,}000  & 128  & 10\\
+    Y & 100{,}000 & 512  & 100\\
+    \rowcolor{posteraccent!20} Z & 1{,}000{,}000 & 1{,}024 & 1{,}000\\
+    \bottomrule
+  \end{tabular}
 \end{block}
 
 \end{column}
 
-% ── 右 ──
+% ══════════════════════════════════
+% 右カラム
+% ══════════════════════════════════
 \begin{column}{.32\paperwidth}
 
-\begin{block}{6. 実験結果}
+\begin{block}{7. 実験結果}
   \centering
   \vspace{2mm}
+  \renewcommand{\arraystretch}{1.3}
   \begin{tabular}{lcc}
     \toprule
     \textbf{手法} & \textbf{精度\,[\%]} & \textbf{時間\,[s]}\\
     \midrule
-    既存 A & 85.2 & 120\\
-    既存 B & 87.1 &  95\\
-    \rowcolor{posteraccent!25} \textbf{提案} & \textbf{91.8} & \textbf{42}\\
+    既存 A                                & $85.2 \pm 0.4$          & $120 \pm 3$\\
+    既存 B                                & $87.1 \pm 0.3$          & $95 \pm 2$\\
+    \rowcolor{posteraccent!25}\textbf{提案} & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
     \bottomrule
   \end{tabular}
-  \vspace{3mm}
 
-  提案手法は精度で \textbf{+4.7\%}、計算時間で \textbf{$\times$2.3 高速化} を達成した。
+  \vspace{3mm}
+  \textbf{$+$4.7 pt} 精度向上、\textbf{$\times$2.3} 高速化を達成。
+
+  \vspace{3mm}
+  \fbox{\parbox[c][50mm][c]{.92\linewidth}{\centering\Large [実験結果のグラフ (精度 vs.\ 反復回数)]}}
 \end{block}
 
-\begin{block}{7. 結論と今後の課題}
+\begin{block}{8. 結論と今後の課題}
   \begin{itemize}
-    \item 提案手法は既存手法を精度・時間の両面で上回ることを確認
-    \item 今後は ○○ への応用、大規模データセットでの検証を進める
+    \item 提案手法は既存手法を精度・時間両面で上回ることを確認
+    \item \textbf{今後}: 非凸損失への理論拡張、Federated 環境への応用
   \end{itemize}
 \end{block}
 
+\begin{block}{9. 著者貢献 \& 謝辞}
+  \scriptsize
+  \textbf{貢献}:\ 山田 (手法設計・実装)、鈴木 (理論解析)、佐藤 (実験・論文統括)。
+
+  \textbf{謝辞}:\ 本研究は JSPS 科研費 JP-XXXX および ○○ 財団の助成を受けて実施した。共有計算基盤として △△ クラスタを利用した。
+\end{block}
+
 \begin{block}{参考文献}
-  \footnotesize
-  [1] Author A., “Paper Title,” Conference, 20XX.\\
-  [2] Author B., “Paper Title,” Journal, 20XX.\\
-  [3] 著者名, “論文タイトル,” 学会誌, 20XX.
+  \scriptsize
+  [1] Smith, J., Lee, S., "An algorithm for $\cdots$," \emph{Proc.\ NeurIPS}, 20XX.\\
+  [2] Jones, R., "Approximation methods for $\cdots$," \emph{JMLR}, vol.~22, 2021.\\
+  [3] 田中, "○○ のサーベイ," \emph{情処論誌}, 20XX.
 \end{block}
 
 \end{column}
@@ -3039,11 +3716,17 @@ const POSTER_LATEX_EN = String.raw`\documentclass[final,t]{beamer}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath, amssymb, mathtools, bm}
 \usepackage{graphicx}
-\usepackage{booktabs}
+\usepackage{booktabs, colortbl}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
 
 \definecolor{posterbg}{HTML}{0f172a}
 \definecolor{posteraccent}{HTML}{f59e0b}
+\definecolor{postersoft}{HTML}{fff7ed}
+\definecolor{posterkey}{HTML}{dc2626}
 
 \setbeamercolor{block title}{bg=posterbg,fg=white}
 \setbeamercolor{block body}{bg=white,fg=black}
@@ -3052,18 +3735,43 @@ const POSTER_LATEX_EN = String.raw`\documentclass[final,t]{beamer}
 \setbeamerfont{block title}{size=\large,series=\bfseries}
 
 \setbeamertemplate{headline}{%
-  \begin{beamercolorbox}[wd=\paperwidth,ht=10ex,dp=2ex,center]{}%
-    \vspace{3mm}
-    {\color{posterbg}\huge\bfseries Research Poster Title \par}
-    \vspace{4mm}
-    {\color{posterbg!70}\Large Jane Doe$^{1}$\quad John Smith$^{2}$ \qquad $^{1}$Example University\quad $^{2}$Example Institute\par}
-    \vspace{3mm}
+  \begin{beamercolorbox}[wd=\paperwidth,ht=14ex,dp=2ex]{}%
+    \hspace{15mm}%
+    \begin{minipage}[c]{18mm}\centering
+      \fbox{\parbox[c][22mm][c]{16mm}{\centering\tiny LOGO\\(Univ.)}}
+    \end{minipage}%
+    \hfill\begin{minipage}[c]{0.7\paperwidth}\centering
+      \vspace{3mm}
+      {\color{posterbg}\Huge\bfseries Research Poster Title --- A Novel Approach to $\cdots$ \par}
+      \vspace{4mm}
+      {\color{posterbg!70}\Large Jane Doe$^{\mathsf{1}}$\quad John Smith$^{\mathsf{2}}$\quad Alice Brown$^{\mathsf{1,\dagger}}$ \qquad $^{\mathsf{1}}$Example University \quad $^{\mathsf{2}}$Example Institute\par}
+    \end{minipage}\hfill
+    \begin{minipage}[c]{18mm}\centering
+      \fbox{\parbox[c][22mm][c]{16mm}{\centering\tiny LOGO\\(Inst.)}}
+    \end{minipage}\hspace{15mm}%
   \end{beamercolorbox}
   \vspace{-6mm}
   {\color{posteraccent}\hrule height 4pt}
   \vspace{5mm}
 }
-\setbeamertemplate{footline}{\vspace{6mm}\centering\small The XXth Conf. on \dots \quad|\quad Contact: \texttt{jane@example.ac.jp}\vspace{3mm}}
+
+\setbeamertemplate{footline}{%
+  \vspace{6mm}
+  \hspace{15mm}\begin{minipage}[c]{0.55\paperwidth}
+    \small The XXth Conference on $\cdots$ \ | \ Contact: \texttt{jane@example.ac.jp}
+    \ | \ \textdagger\ Corresponding author
+  \end{minipage}\hfill
+  \begin{minipage}[c]{110mm}\raggedleft
+    \begin{tikzpicture}[scale=0.6]
+      \foreach \x in {0,...,6} \foreach \y in {0,...,6} {
+        \pgfmathsetmacro{\v}{mod(\x*31 + \y*17 + 3, 3)}
+        \ifnum\v=0 \fill[black] (\x,\y) rectangle ++(1,1); \fi
+      }
+      \draw[black,line width=1pt] (-0.3,-0.3) rectangle (7.3,7.3);
+    \end{tikzpicture}\quad\small Paper PDF $\to$
+  \end{minipage}\hspace{15mm}
+  \vspace{3mm}
+}
 
 \begin{document}
 \begin{frame}[t]
@@ -3072,53 +3780,115 @@ const POSTER_LATEX_EN = String.raw`\documentclass[final,t]{beamer}
 
 \begin{column}{.32\paperwidth}
 \begin{block}{1. Background}
-  Recent advances in \dots have opened new possibilities but existing methods are computationally expensive. We propose a method that resolves this bottleneck.
+  Recent advances in $\cdots$ have opened new possibilities, yet existing methods are prohibitively expensive for real-world scale. We propose a method that resolves this bottleneck and provide both theoretical and empirical evidence.
 \end{block}
-\begin{block}{2. Goals}
+
+\begin{block}{2. Goals \& Contributions}
   \begin{itemize}
-    \item Design an efficient algorithm for \dots
-    \item Validate on real data
-    \item Quantitatively compare against baselines
+    \item An algorithm reducing complexity to $O(n \log n)$
+    \item An $O(1/T)$ convergence-rate guarantee
+    \item Quantitative evaluation on three public benchmarks
   \end{itemize}
 \end{block}
+
+\begin{tcolorbox}[colback=posterkey!10,colframe=posterkey,boxrule=1pt,sharp corners,left=4mm,right=4mm,top=2mm,bottom=2mm]
+  \centering\Large\bfseries\color{posterkey}
+  $+$\textbf{4.7\%} Accuracy \quad $\times$\textbf{2.3} Speed-up \\[2pt]
+  \normalsize Largest gains on the 1M-sample dataset Z
+\end{tcolorbox}
+
 \begin{block}{3. System Overview}
-  \centering\vspace{2mm}
-  \fbox{\parbox[c][80mm][c]{.9\linewidth}{\centering\Large [Diagram here]}}
+  \centering
+  \begin{tikzpicture}[
+    node distance=10mm and 12mm,
+    box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=36mm, minimum height=12mm, align=center, rounded corners=1mm},
+    hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!10, minimum width=36mm, minimum height=12mm, align=center, rounded corners=1mm},
+    arr/.style={-{Latex[length=3mm,width=2mm]}, thick, posterbg}
+  ]
+    \node[box] (in) {Input $x$};
+    \node[box, right=of in] (feat) {Features $\phi(x)$};
+    \node[hl, right=of feat] (opt) {\textbf{Ours SGD}\\ (O($n \log n$))};
+    \node[box, below=of opt] (model) {Trained $\theta^\ast$};
+    \node[box, below=of feat] (pred) {Predict $f_{\theta^\ast}(x')$};
+    \node[box, below=of in] (out) {Output $\hat y$};
+    \draw[arr] (in) -- (feat);
+    \draw[arr] (feat) -- (opt);
+    \draw[arr] (opt) -- (model);
+    \draw[arr] (model) -- (pred);
+    \draw[arr] (pred) -- (out);
+    \draw[arr, dashed] (feat.south) |- (pred.west);
+  \end{tikzpicture}
 \end{block}
 \end{column}
 
 \begin{column}{.32\paperwidth}
 \begin{block}{4. Method}
   \[ \min_{\theta}\ \tfrac{1}{N}\sum_i \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2. \]
-  Trained via SGD: $\theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t).$
+  Trained via SGD
+  \[ \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \qquad \eta_t = \frac{\eta}{\sqrt{t+1}}. \]
+  \textbf{Key idea:} hierarchical feature decomposition reduces gradient cost $O(n^2) \to O(n \log n)$.
 \end{block}
+
 \begin{block}{5. Theory}
+  \textbf{Theorem (Convergence).} For $\mu$-strongly-convex, $L$-smooth $\mathcal{L}$,
+  \[ \mathbb{E}[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)] \le C/T. \]
   \begin{itemize}
-    \item Convergence rate $O(1/T)$
+    \item Convergence rate $O(1/T)$ (strongly-convex regime)
     \item Sample complexity $O(d \log d)$
+    \item Empirically stable even on non-convex losses
   \end{itemize}
+\end{block}
+
+\begin{block}{6. Datasets}
+  \centering
+  \renewcommand{\arraystretch}{1.15}
+  \begin{tabular}{lrrr}
+    \toprule
+    & Samples & Features & Classes\\
+    \midrule
+    X & 50{,}000    & 128  & 10\\
+    Y & 100{,}000   & 512  & 100\\
+    \rowcolor{posteraccent!20} Z & 1{,}000{,}000 & 1{,}024 & 1{,}000\\
+    \bottomrule
+  \end{tabular}
 \end{block}
 \end{column}
 
 \begin{column}{.32\paperwidth}
-\begin{block}{6. Experiments}
-  \centering
+\begin{block}{7. Experiments}
+  \centering\renewcommand{\arraystretch}{1.3}
   \begin{tabular}{lcc}
     \toprule \textbf{Method} & \textbf{Acc.\,[\%]} & \textbf{Time\,[s]}\\\midrule
-    Baseline A & 85.2 & 120\\
-    Baseline B & 87.1 &  95\\
-    \rowcolor{posteraccent!25}\textbf{Ours} & \textbf{91.8} & \textbf{42}\\
+    Baseline A & $85.2 \pm 0.4$ & $120 \pm 3$\\
+    Baseline B & $87.1 \pm 0.3$ & $95 \pm 2$\\
+    \rowcolor{posteraccent!25}\textbf{Ours} & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
     \bottomrule
   \end{tabular}
+
+  \vspace{3mm}
+  \textbf{$+$4.7 pt} accuracy, \textbf{$\times$2.3} speed-up.
+
+  \vspace{3mm}
+  \fbox{\parbox[c][50mm][c]{.92\linewidth}{\centering\Large [Accuracy vs.\ iterations plot]}}
 \end{block}
 \begin{block}{7. Conclusion}
   \begin{itemize}
-    \item Ours beats baselines in accuracy and speed.
-    \item Future work: scale-up and applications to \dots.
+    \item Ours beats baselines in accuracy \emph{and} speed.
+    \item \textbf{Future:} non-convex theory, federated deployment.
   \end{itemize}
 \end{block}
+
+\begin{block}{8. Contributions \& Acknowledgements}
+  \scriptsize
+  \textbf{Contributions:} Doe (method \& code), Smith (theory), Brown (experiments \& writing).
+
+  \textbf{Acknowledgements:} Supported by JSPS Grant JP-XXXX and the $\cdots$ Foundation. Computed on the $\triangle\triangle$ cluster.
+\end{block}
+
 \begin{block}{References}
-  \footnotesize [1] A., Paper, Conf., 20XX.\\ [2] B., Paper, Journal, 20XX.
+  \scriptsize
+  [1] Smith, J., Lee, S., "An algorithm for $\cdots$," \emph{Proc.\ NeurIPS}, 20XX.\\
+  [2] Jones, R., "Approximation methods for $\cdots$," \emph{JMLR}, vol.~22, 2021.
 \end{block}
 \end{column}
 \end{columns}
@@ -3129,222 +3899,419 @@ const POSTER_LATEX_EN = String.raw`\documentclass[final,t]{beamer}
 // ──────────────────────────────────────────
 // P4. 学術論文 (academic-paper, 投稿原稿)
 // ──────────────────────────────────────────
-const ACADEMIC_PAPER_LATEX = String.raw`\documentclass[11pt,a4paper]{article}
+const ACADEMIC_PAPER_LATEX = String.raw`\documentclass[10pt,a4paper,twocolumn]{article}
 \usepackage[haranoaji]{luatexja-preset}
 \usepackage{geometry}
-\geometry{top=25mm,bottom=25mm,left=22mm,right=22mm}
+\geometry{top=22mm,bottom=22mm,left=18mm,right=18mm,columnsep=6mm}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs, tabularx}
+\usepackage{booktabs, tabularx, multirow}
 \usepackage{graphicx}
+\usepackage{subcaption}
 \usepackage{xcolor}
-\usepackage[hidelinks]{hyperref}
+\usepackage[hidelinks,breaklinks]{hyperref}
 \usepackage{enumitem}
 \usepackage{authblk}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{siunitx}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{cite}
+\usepackage{balance}
 
 \definecolor{paperaccent}{HTML}{0b4f8c}
+\definecolor{papersoft}{HTML}{dbeafe}
 
+% ── 定理環境 (IEEE 風に節番号と連動) ──
 \theoremstyle{plain}
-\newtheorem{theorem}{定理}[section]
-\newtheorem{proposition}[theorem]{命題}
-\newtheorem{lemma}[theorem]{補題}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
 
 \theoremstyle{definition}
-\newtheorem{definition}{定義}[section]
-\newtheorem{remark}{注意}[section]
+\newtheorem{definition}{Definition}[section]
+\newtheorem{assumption}{Assumption}[section]
 
-\title{\vspace{-10mm}{\Large\bfseries 論文タイトル: ○○に関する新しいアプローチ}\\[0.4em]\normalsize A Novel Approach to \dots}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[section]
+
+% ── algorithmic は段組の邪魔になるので 2 段にまたがる figure* 内に収める ──
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+% Highlight box for key claims
+\newtcolorbox{keyfinding}{colback=papersoft!50,colframe=paperaccent,left=3mm,right=3mm,top=1.5mm,bottom=1.5mm,sharp corners,boxrule=0.4pt}
+
+\title{\vspace{-10mm}{\LARGE\bfseries 論文タイトル: ○○に関する新しいアプローチ}\\[0.4em]\large A Novel Approach to $\cdots$ via Hierarchical Decomposition}
 
 \author[1]{\normalsize 山田 太郎\thanks{Corresponding author: \texttt{yamada@example.ac.jp}}}
 \author[2]{\normalsize 鈴木 花子}
+\author[1]{\normalsize 佐藤 一郎}
 \affil[1]{\small ○○大学 大学院情報理工学系研究科}
 \affil[2]{\small △△研究所 情報科学部門}
 \date{}
 
 \begin{document}
+
+% ── 要旨は段組を使わず 1 段表示 (\twocolumn[...] にするとタイトル直後に出る) ──
+\twocolumn[
+\begin{@twocolumnfalse}
 \maketitle
-
 \begin{abstract}
-  \noindent
-  本論文では、○○分野における△△問題に対して新しいアプローチを提案する。
-  提案手法はアルゴリズム的な工夫により従来手法と比べ計算量を大幅に削減しつつ、
-  理論保証を維持することに成功している。
-  数値実験により、実データ上でも有効であることを示した。提案手法は精度で 4.7\%、計算時間で 2.3 倍の改善を達成した。
+\noindent
+本論文では、○○分野における△△問題に対して新しいアプローチを提案する。提案手法はアルゴリズム的な工夫により従来手法と比べ計算量を $O(n^2)$ から $O(n \log n)$ に削減しつつ、理論保証 ($O(1/T)$ の収束率) を維持することに成功している。公開ベンチマーク 3 種での数値実験により、実データ上でも有効であることを示した。提案手法は精度で 4.7\%、計算時間で 2.3 倍の改善を達成した。
 
-  \vspace{2mm}
-  \noindent\textbf{キーワード:} ○○, △△, ××, 最適化, 機械学習
+\bigskip\noindent\textbf{キーワード:}\ ○○, △△, ××, 最適化, 機械学習, 確率的勾配降下法
 \end{abstract}
+\vspace{5mm}
+\end{@twocolumnfalse}
+]
 
-\section{序論}
-近年、○○分野では $\cdots$ に関する研究が盛んに行われている~\cite{ref1,ref2}。既存手法には計算コストが大きいという課題がある。
+\section{序論}\label{sec:intro}
+近年、○○分野では $\cdots$ に関する研究が盛んに行われている \cite{ref1,ref2}。実応用が進むにつれ、大規模データに適用可能な高速アルゴリズムの需要が増大している。しかし、既存手法には計算コストが大きいという課題があり、サンプル数 $n$ に対して $O(n^2)$ の時間を要する \cite{ref3}。
 
-本論文の貢献は以下の通りである。
-\begin{itemize}[leftmargin=*]
-  \item 新しいアルゴリズムの提案 (\S\ref{sec:method})
-  \item 理論的な収束保証 (\S\ref{sec:theory})
-  \item 実データでの実証評価 (\S\ref{sec:exp})
+\smallskip
+\noindent\textbf{貢献.}\quad 本論文の貢献を以下にまとめる:
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item 計算量を $O(n \log n)$ に削減する新アルゴリズムの提案 (\S\ref{sec:method})
+  \item $\mu$-強凸条件下における収束率 $O(1/T)$ の理論保証 (\S\ref{sec:theory})
+  \item 公開ベンチマーク 3 種における定量的評価 (\S\ref{sec:exp})
 \end{itemize}
 
-\section{関連研究}
+\begin{keyfinding}
+\textbf{Key finding.}\quad 大規模データ Z (1M 件) において、提案手法は既存手法と比較して精度を \textbf{4.7\%} 改善し、計算時間を \textbf{2.3 倍} 高速化した。
+\end{keyfinding}
+
+\section{関連研究}\label{sec:related}
 ○○ に関する従来研究は大きく 2 つのアプローチに分類できる。
 
-\paragraph{アプローチ A.}
-○○ を直接最適化する方針。Smith ら~\cite{ref1} は $\cdots$ を提案したが、$n$ の増加に対して $O(n^2)$ の計算量を要する。
+\paragraph{アプローチ A: 直接最適化.}
+Smith ら \cite{ref1} は $\cdots$ を直接最適化する手法を提案したが、各反復で $O(n^2)$ の計算量を要する。
 
-\paragraph{アプローチ B.}
-間接的な近似を用いる方針。Jones ら~\cite{ref2} は線形緩和に基づく手法を導入した。
+\paragraph{アプローチ B: 間接近似.}
+Jones ら \cite{ref2} は線形緩和に基づく近似手法を導入した。計算量は $O(n)$ となるが、理論保証が弱い。
 
 \section{提案手法}\label{sec:method}
-\begin{definition}[問題設定]
-  入力空間 $\mathcal{X} \subseteq \mathbb{R}^d$ と出力空間 $\mathcal{Y} \subseteq \mathbb{R}$ に対して、データ $\{(x_i, y_i)\}_{i=1}^N$ が与えられたとき、
-  次の汎化誤差を最小化する写像 $f: \mathcal{X} \to \mathcal{Y}$ を求めることを問題とする:
-  \[ \mathcal{R}(f) = \mathbb{E}_{(x,y) \sim \mathcal{D}} [\ell(f(x), y)]. \]
+\begin{definition}[問題設定]\label{def:problem}
+  入力空間 $\mathcal{X} \subseteq \mathbb{R}^d$ と出力空間 $\mathcal{Y} \subseteq \mathbb{R}$ に対して、データ $\{(x_i, y_i)\}_{i=1}^N$ が与えられたとき、次の汎化誤差を最小化する写像 $f:\mathcal{X}\to\mathcal{Y}$ を求める問題を考える:
+  \[ \mathcal{R}(f) = \mathbb{E}_{(x,y)\sim\mathcal{D}}[\ell(f(x), y)]. \]
 \end{definition}
 
-提案アルゴリズムは次のように表される:
+\begin{assumption}[正則性]\label{asm:smooth}
+  損失関数 $\mathcal{L}$ は $\mu$-強凸かつ $L$-平滑であり、$\nabla\mathcal{L}$ は有界な分散 $\sigma^2$ を持つ確率的勾配として観測可能である。
+\end{assumption}
+
+提案アルゴリズム (Algorithm~\ref{alg:main}) は、特徴空間を階層分解することで勾配計算を高速化する。
+
+\begin{algorithm}[t]
+\caption{Proposed SGD with hierarchical decomposition}
+\label{alg:main}
+\begin{algorithmic}[1]
+\Require Initial $\theta_0$, learning rate $\eta > 0$, iterations $T$
+\Ensure $\theta_T$
+\For{$t = 0, 1, \dots, T-1$}
+  \State $g_t \gets \nabla \mathcal{L}(\theta_t;\xi_t)$ \Comment{$O(n \log n)$}
+  \State $\eta_t \gets \eta / \sqrt{t+1}$
+  \State $\theta_{t+1} \gets \theta_t - \eta_t\, g_t$
+\EndFor
+\State \Return $\theta_T$
+\end{algorithmic}
+\end{algorithm}
+
+具体的な更新式は
 \begin{align}
   \theta_{t+1} &= \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \label{eq:sgd}\\
   \mathcal{L}(\theta) &= \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2. \label{eq:loss}
 \end{align}
 
 \section{理論解析}\label{sec:theory}
-\begin{theorem}[収束率]\label{thm:convergence}
-  学習率 $\eta_t = \eta / \sqrt{t}$ を用い、$\mathcal{L}$ が $\mu$-強凸かつ $L$-平滑であるとき、式 \eqref{eq:sgd} の反復は次を満たす:
-  \[ \mathbb{E}\!\left[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)\right] \le \frac{C}{T}. \]
+\begin{theorem}[主定理]\label{thm:main}
+  仮定~\ref{asm:smooth} の下で、式 \eqref{eq:sgd} の反復は次を満たす:
+  \[ \mathbb{E}\!\left[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)\right] \le \frac{C}{T}, \]
+  ここで $C$ は $\mu, L, \sigma, \|\theta_0 - \theta^\ast\|$ にのみ依存する正定数である。
 \end{theorem}
 \begin{proof}[証明 (概略)]
-  標準的な解析に従う。詳細は補遺 A を参照のこと。
+  標準的な解析 \cite{ref4} に従う。詳細は付録~\ref{appx:proof} を参照。
 \end{proof}
 
+\begin{corollary}[サンプル複雑度]
+  $\epsilon$-最適解を得るには $T = O(1/\epsilon)$ 回の反復で十分である。
+\end{corollary}
+
 \begin{remark}
-  強凸性の仮定は実用上は緩和可能であり、実験では凸でない損失関数でも良好な結果が得られた。
+  強凸性の仮定は実用上は緩和可能であり、実験では凸でない損失関数でも良好な結果が得られた (\S\ref{sec:exp})。
 \end{remark}
 
 \section{数値実験}\label{sec:exp}
 \subsection{実験設定}
-公開ベンチマーク X, Y, Z を用いて、既存手法 A, B と比較した。
+公開ベンチマーク X, Y, Z を用いて、既存手法 A \cite{ref1}, B \cite{ref2} と比較した。すべての実験は 3 試行の平均 $\pm$ 標準偏差で報告する。ハイパーパラメータは検証セットで選択した。
 
-\subsection{結果}
-\begin{table}[h]
-  \centering
-  \caption{提案手法と既存手法の比較 (3 試行の平均 $\pm$ 標準偏差)}
-  \label{tab:results}
-  \begin{tabular}{lcc}
+\begin{table}[t]
+  \centering\small
+  \caption{データセットの規模.}\label{tab:dataset}
+  \begin{tabular}{lrrr}
     \toprule
-    手法          & 精度\,[\%]       & 時間\,[s]\\
+    & サンプル数 & 特徴数 & クラス数\\
     \midrule
-    既存 A       & $85.2 \pm 0.4$   & $120 \pm 3$\\
-    既存 B       & $87.1 \pm 0.3$   & $95 \pm 2$\\
-    \textbf{提案}& $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
+    X & \num{50000}     & 128   & 10\\
+    Y & \num{100000}    & 512   & 100\\
+    Z & \num{1000000}   & 1024  & 1000\\
     \bottomrule
   \end{tabular}
 \end{table}
 
-提案手法は Table~\ref{tab:results} に示すように、精度・計算時間の両面で既存手法を上回った。
+\subsection{結果}
+\begin{table}[t]
+  \centering\small
+  \caption{精度 [\%] と計算時間 [s] の比較 (3 試行).}\label{tab:results}
+  \begin{tabular}{lcc}
+    \toprule
+    手法           & 精度 [\%]              & 時間 [s]\\
+    \midrule
+    既存 A \cite{ref1} & $85.2 \pm 0.4$           & $120 \pm 3$\\
+    既存 B \cite{ref2} & $87.1 \pm 0.3$           & $95 \pm 2$\\
+    \textbf{提案}  & $\mathbf{91.8 \pm 0.2}$  & $\mathbf{42 \pm 1}$\\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
-\section{結論}
-本論文では ○○ を実現する新しい手法を提案し、理論解析と数値実験の両面からその有効性を示した。今後は $\cdots$ への拡張が課題である。
+Table~\ref{tab:results} に示すとおり、提案手法は精度で 4.6--6.6\%、計算時間で 2.3--2.9 倍の改善を達成した。特に大規模データセット Z での差が顕著である。
+
+\subsection{考察}
+計算量解析の理論予測 $O(n \log n)$ と一致する挙動を確認できた。非凸損失 (ResNet-50) でも 1.8\% の精度改善が見られ、理論解析の前提を超えて実用上有効であることが示唆される。
+
+\section{結論}\label{sec:conclusion}
+本論文では ○○ を実現する新しい手法を提案し、理論解析と数値実験の両面からその有効性を示した。今後は (i) 非凸損失の理論拡張、(ii) 分散環境への応用、(iii) $\cdots$ への展開、の 3 方向を探索したい。
 
 \section*{謝辞}
-本研究は科学研究費補助金 (課題番号 XXXXXXX) の助成を受けたものである。
+本研究は科学研究費補助金 (課題番号 JP-XXXXXXX) および ○○ 財団の助成を受けたものである。査読者から有益なコメントをいただいた。
 
+% ── 付録 ──
+\appendix
+\section{定理~\ref{thm:main} の証明詳細}\label{appx:proof}
+\begin{lemma}
+  確率的勾配 $g_t$ は $\mathbb{E}[g_t \mid \theta_t] = \nabla\mathcal{L}(\theta_t)$ かつ $\mathbb{E}[\|g_t\|^2 \mid \theta_t] \le \sigma^2$ を満たす。
+\end{lemma}
+
+$\Delta_t = \mathcal{L}(\theta_t) - \mathcal{L}(\theta^\ast)$ とおくと、強凸性から $\|\theta_t - \theta^\ast\|^2 \le \tfrac{2}{\mu}\Delta_t$。更新式 \eqref{eq:sgd} より
+\begin{align*}
+  \|\theta_{t+1} - \theta^\ast\|^2
+    &= \|\theta_t - \theta^\ast\|^2\\
+    &\ \ - 2\eta_t \langle g_t, \theta_t - \theta^\ast\rangle + \eta_t^2 \|g_t\|^2.
+\end{align*}
+両辺に $\mathbb{E}[\cdot]$ をとり、総和を取ることで定理の結果を得る \cite{ref4}。
+
+\section*{著者略歴}
+\noindent\textbf{山田 太郎} ── 20XX 年 ○○大学 学士課程修了。同大学院博士後期課程修了、博士 (工学)。20XX 年より同大助教。機械学習・最適化理論に関する研究に従事。情報処理学会、IEEE 各会員。
+
+\smallskip\noindent\textbf{鈴木 花子} ── 20XX 年 ○○大学博士 (理学)。△△研究所 情報科学部門 主任研究員。確率最適化、ベイズ統計を専門とする。
+
+\balance
 \begin{thebibliography}{99}
-  \small
-  \bibitem{ref1} Smith~J. and Lee~S., “Paper Title,” \emph{Proc.\ of Conf.}, pp.~1--10, 20XX.
-  \bibitem{ref2} Jones~R., “Another Paper,” \emph{Journal Name}, vol.~12, no.~3, pp.~45--60, 20XX.
-  \bibitem{ref3} 山田~太郎, “論文タイトル,” \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
+\small
+\bibitem{ref1} J.~Smith and S.~Lee, "An algorithm for $\cdots$," in \emph{Proc.\ NeurIPS}, pp.~1--10, 20XX.
+\bibitem{ref2} R.~Jones, "Approximation methods for $\cdots$," \emph{J. Mach. Learn. Res.}, vol.~22, no.~3, pp.~45--60, 2021.
+\bibitem{ref3} Y.~Tanaka, "○○ のサーベイ," \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
+\bibitem{ref4} S.~Shalev-Shwartz and S.~Ben-David, \emph{Understanding Machine Learning: From Theory to Algorithms}. Cambridge Univ.\ Press, 2014.
 \end{thebibliography}
 
 \end{document}
 `;
 
-const ACADEMIC_PAPER_LATEX_EN = String.raw`\documentclass[11pt,a4paper]{article}
+const ACADEMIC_PAPER_LATEX_EN = String.raw`\documentclass[10pt,a4paper,twocolumn]{article}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
-\geometry{top=25mm,bottom=25mm,left=22mm,right=22mm}
+\geometry{top=22mm,bottom=22mm,left=18mm,right=18mm,columnsep=6mm}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs, tabularx}
+\usepackage{booktabs, tabularx, multirow}
 \usepackage{graphicx}
+\usepackage{subcaption}
 \usepackage{xcolor}
-\usepackage[hidelinks]{hyperref}
+\usepackage[hidelinks,breaklinks]{hyperref}
 \usepackage{enumitem}
 \usepackage{authblk}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{siunitx}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{cite}
+\usepackage{balance}
 
 \definecolor{paperaccent}{HTML}{0b4f8c}
+\definecolor{papersoft}{HTML}{dbeafe}
 
 \theoremstyle{plain}
 \newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
 \newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[section]
+\newtheorem{assumption}{Assumption}[section]
 
-\title{\vspace{-10mm}{\Large\bfseries A Novel Approach to \dots}}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}[section]
+
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+\newtcolorbox{keyfinding}{colback=papersoft!50,colframe=paperaccent,left=3mm,right=3mm,top=1.5mm,bottom=1.5mm,sharp corners,boxrule=0.4pt}
+
+\title{\vspace{-10mm}{\LARGE\bfseries A Novel Approach to $\cdots$ via Hierarchical Decomposition}}
 \author[1]{\normalsize Jane Doe\thanks{Corresponding author: \texttt{jane@example.ac.jp}}}
 \author[2]{\normalsize John Smith}
+\author[1]{\normalsize Alice Brown}
 \affil[1]{\small Graduate School of \dots, Example University}
 \affil[2]{\small Example Research Institute}
 \date{}
 
 \begin{document}
+
+\twocolumn[
+\begin{@twocolumnfalse}
 \maketitle
-
 \begin{abstract}
-  \noindent
-  We propose a novel approach to the problem of \dots in the field of \dots. Our algorithmic refinements substantially reduce the computational cost of prior work while preserving theoretical guarantees. Experiments show a 4.7\% improvement in accuracy and a 2.3$\times$ speed-up on real-world data.
+\noindent
+We propose a novel approach to the problem of $\cdots$ in the field of $\cdots$. Our hierarchical decomposition reduces the per-iteration complexity from $O(n^2)$ to $O(n \log n)$ while preserving the $O(1/T)$ convergence rate. Experiments on three public benchmarks show a 4.7\% accuracy improvement and a 2.3$\times$ speed-up, with the largest gains on the 1M-sample dataset.
 
-  \vspace{2mm}\noindent\textbf{Keywords:} \dots, optimisation, machine learning.
+\bigskip\noindent\textbf{Keywords:}\ $\cdots$, optimisation, stochastic gradient descent, machine learning.
 \end{abstract}
+\vspace{5mm}
+\end{@twocolumnfalse}
+]
 
-\section{Introduction}
-Recent studies~\cite{ref1,ref2} in the field of \dots have drawn considerable attention. However, existing methods are computationally expensive.
+\section{Introduction}\label{sec:intro}
+Recent studies \cite{ref1,ref2} in the field of $\cdots$ have drawn considerable attention. However, existing methods are computationally expensive, with a cost of $O(n^2)$ per iteration in the number of samples $n$ \cite{ref3}.
 
-Our contributions are:
-\begin{itemize}[leftmargin=*]
-  \item A new algorithm (\S\ref{sec:method}).
-  \item A convergence-rate guarantee (\S\ref{sec:theory}).
-  \item An empirical evaluation (\S\ref{sec:exp}).
+\smallskip
+\noindent\textbf{Contributions.}
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item A new algorithm reducing the complexity to $O(n \log n)$ (\S\ref{sec:method}).
+  \item An $O(1/T)$ convergence-rate guarantee under $\mu$-strong convexity (\S\ref{sec:theory}).
+  \item A quantitative evaluation on three benchmarks (\S\ref{sec:exp}).
 \end{itemize}
 
-\section{Related Work}
-Prior work falls into two categories. Approach A by Smith et al.~\cite{ref1} optimises \dots but requires $O(n^2)$ time. Approach B by Jones~\cite{ref2} uses a linear relaxation.
+\begin{keyfinding}
+\textbf{Key finding.}\quad On the 1M-sample dataset, our method achieves a \textbf{4.7\%} accuracy gain and a \textbf{2.3$\times$} speed-up over strong baselines.
+\end{keyfinding}
+
+\section{Related Work}\label{sec:related}
+Prior work falls into two categories.
+\paragraph{Approach A: direct optimisation.} Smith et al.~\cite{ref1} solve $\cdots$ directly but require $O(n^2)$ time per iteration.
+\paragraph{Approach B: indirect approximation.} Jones et al.~\cite{ref2} use a linear relaxation; the cost drops to $O(n)$ but theoretical guarantees weaken.
 
 \section{Method}\label{sec:method}
-\begin{definition}[Problem]
-  Given data $\{(x_i, y_i)\}_{i=1}^N$, find $f: \mathcal{X} \to \mathcal{Y}$ minimising
-  $\mathcal{R}(f) = \mathbb{E}_{(x,y)\sim\mathcal{D}}[\ell(f(x), y)]$.
+\begin{definition}[Problem]\label{def:problem}
+  Given data $\{(x_i, y_i)\}_{i=1}^N$, find $f:\mathcal{X}\to\mathcal{Y}$ minimising
+  \[ \mathcal{R}(f) = \mathbb{E}_{(x,y)\sim\mathcal{D}}[\ell(f(x), y)]. \]
 \end{definition}
 
+\begin{assumption}[Regularity]\label{asm:smooth}
+  $\mathcal{L}$ is $\mu$-strongly convex, $L$-smooth, and $\nabla\mathcal{L}$ is observable via a stochastic gradient with bounded variance $\sigma^2$.
+\end{assumption}
+
+\begin{algorithm}[t]
+\caption{Proposed SGD with hierarchical decomposition.}
+\label{alg:main}
+\begin{algorithmic}[1]
+\Require Initial $\theta_0$, learning rate $\eta > 0$, iterations $T$
+\Ensure $\theta_T$
+\For{$t = 0, 1, \dots, T-1$}
+  \State $g_t \gets \nabla \mathcal{L}(\theta_t;\xi_t)$ \Comment{$O(n \log n)$}
+  \State $\eta_t \gets \eta / \sqrt{t+1}$
+  \State $\theta_{t+1} \gets \theta_t - \eta_t\, g_t$
+\EndFor
+\State \Return $\theta_T$
+\end{algorithmic}
+\end{algorithm}
+
+The update rule is
 \begin{align}
   \theta_{t+1} &= \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \label{eq:sgd}\\
   \mathcal{L}(\theta) &= \tfrac{1}{N}\sum_i \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2.
 \end{align}
 
 \section{Theory}\label{sec:theory}
-\begin{theorem}[Convergence]
-  With $\eta_t = \eta/\sqrt{t}$ and $\mu$-strongly-convex $L$-smooth $\mathcal{L}$,
-  $\mathbb{E}[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)] \le C/T$.
+\begin{theorem}[Main]\label{thm:main}
+  Under Assumption~\ref{asm:smooth}, the iteration \eqref{eq:sgd} satisfies
+  \[ \mathbb{E}\!\left[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)\right] \le C/T. \]
 \end{theorem}
+\begin{proof}[Proof sketch]
+  Standard analysis \cite{ref4}; see Appendix~\ref{appx:proof}.
+\end{proof}
+
+\begin{corollary}
+  $T = O(1/\epsilon)$ iterations suffice for an $\epsilon$-optimal solution.
+\end{corollary}
+
+\begin{remark}
+  Strong convexity can be relaxed in practice: experiments on non-convex losses remain stable (\S\ref{sec:exp}).
+\end{remark}
 
 \section{Experiments}\label{sec:exp}
-\begin{table}[h]
-  \centering
-  \caption{Comparison (mean $\pm$ SD over 3 runs)}
-  \begin{tabular}{lcc}
-    \toprule Method & Acc.\,[\%] & Time\,[s]\\\midrule
-    Baseline A & $85.2 \pm 0.4$ & $120 \pm 3$\\
-    Baseline B & $87.1 \pm 0.3$ & $95 \pm 2$\\
-    \textbf{Ours} & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\\bottomrule
+\subsection{Setup}
+We compare against Approach A~\cite{ref1} and B~\cite{ref2} on three public benchmarks. All numbers are mean $\pm$ SD over 3 runs.
+
+\begin{table}[t]\centering\small
+  \caption{Datasets.}\label{tab:dataset}
+  \begin{tabular}{lrrr}\toprule
+    & Samples & Features & Classes\\\midrule
+    X & \num{50000}   & 128   & 10\\
+    Y & \num{100000}  & 512   & 100\\
+    Z & \num{1000000} & 1024  & 1000\\\bottomrule
   \end{tabular}
 \end{table}
 
+\subsection{Results}
+\begin{table}[t]\centering\small
+  \caption{Comparison on the three benchmarks.}\label{tab:results}
+  \begin{tabular}{lcc}\toprule
+    Method & Acc.\,[\%] & Time [s]\\\midrule
+    Baseline A \cite{ref1} & $85.2 \pm 0.4$          & $120 \pm 3$\\
+    Baseline B \cite{ref2} & $87.1 \pm 0.3$          & $95 \pm 2$\\
+    \textbf{Ours}          & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\\bottomrule
+  \end{tabular}
+\end{table}
+
+As shown in Table~\ref{tab:results}, our method improves accuracy by 4.6--6.6\% and reduces wall-clock time by 2.3--2.9$\times$, with the largest gains on the 1M-sample dataset Z.
+
+\subsection{Discussion}
+The empirical trend matches the $O(n \log n)$ cost predicted by theory. On non-convex losses (ResNet-50) we still observe a 1.8\% accuracy gain, suggesting practical utility beyond the theoretical regime.
+
 \section{Conclusion}
-We presented \dots and verified its effectiveness. Future work: scaling and applications.
+We introduced $\cdots$ with a matching theoretical guarantee and empirical evidence. Future directions: (i)~theory for non-convex losses, (ii)~federated training, (iii)~applications to $\cdots$.
 
 \section*{Acknowledgements}
-This work was supported by Grant No.~XXXXXXX.
+This work was supported by JSPS Grant JP-XXXXXXX and the $\cdots$ Foundation. We thank the anonymous reviewers.
 
+\appendix
+\section{Proof of Theorem~\ref{thm:main}}\label{appx:proof}
+\begin{lemma}
+  The stochastic gradient $g_t$ satisfies $\mathbb{E}[g_t \mid \theta_t] = \nabla\mathcal{L}(\theta_t)$ and $\mathbb{E}[\|g_t\|^2 \mid \theta_t] \le \sigma^2$.
+\end{lemma}
+
+Let $\Delta_t = \mathcal{L}(\theta_t) - \mathcal{L}(\theta^\ast)$. By strong convexity, $\|\theta_t - \theta^\ast\|^2 \le \tfrac{2}{\mu}\Delta_t$. From \eqref{eq:sgd},
+\begin{align*}
+  \|\theta_{t+1} - \theta^\ast\|^2
+    &= \|\theta_t - \theta^\ast\|^2\\
+    &\ \ - 2\eta_t \langle g_t, \theta_t - \theta^\ast\rangle + \eta_t^2 \|g_t\|^2.
+\end{align*}
+Taking expectations and summing yields the claim; see \cite{ref4}.
+
+\section*{Author Biographies}
+\noindent\textbf{Jane Doe} received her Ph.D.\ from Example University in 20XX. She is currently an Assistant Professor working on machine learning and optimisation. She is a member of IEEE and IPSJ.
+
+\smallskip\noindent\textbf{John Smith} received his Ph.D.\ from Example University in 20XX. He is a Principal Researcher at Example Research Institute, specialising in stochastic optimisation and Bayesian statistics.
+
+\balance
 \begin{thebibliography}{99}\small
-  \bibitem{ref1} Smith~J. and Lee~S., “Paper Title,” \emph{Proc.\ Conf.}, 20XX.
-  \bibitem{ref2} Jones~R., “Paper Title,” \emph{Journal}, 20XX.
+\bibitem{ref1} J.~Smith and S.~Lee, "An algorithm for $\cdots$," in \emph{Proc.\ NeurIPS}, pp.~1--10, 20XX.
+\bibitem{ref2} R.~Jones, "Approximation methods for $\cdots$," \emph{J. Mach. Learn. Res.}, vol.~22, no.~3, pp.~45--60, 2021.
+\bibitem{ref3} Y.~Tanaka, "A survey of $\cdots$," \emph{IPSJ J.}, vol.~X, pp.~XX--YY, 20XX.
+\bibitem{ref4} S.~Shalev-Shwartz and S.~Ben-David, \emph{Understanding Machine Learning: From Theory to Algorithms}. Cambridge Univ.\ Press, 2014.
 \end{thebibliography}
 
 \end{document}
@@ -3356,9 +4323,9 @@ This work was supported by Grant No.~XXXXXXX.
 const PROBLEM_BOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 \usepackage[haranoaji]{luatexja-preset}
 \usepackage{geometry}
-\geometry{top=25mm,bottom=22mm,left=22mm,right=22mm}
+\geometry{top=26mm,bottom=24mm,left=22mm,right=22mm,headheight=14pt}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs, tabularx}
+\usepackage{booktabs, tabularx, array, multirow}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
@@ -3367,24 +4334,47 @@ const PROBLEM_BOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{repor
 \tcbuselibrary{skins,breakable,theorems}
 \usepackage{comment}
 \usepackage{titlesec}
+\usepackage{fancyhdr}
 
-% ── 解答の表示/非表示を切り替えるトグル ──
-% \showsoltrue  → 解答冊子モード (すべての \begin{solution}..\end{solution} を表示)
-% \showsolfalse → 本冊モード      (解答を非表示)
+% ══════════════════════════════════
+% 解答表示モード切替トグル
+% ══════════════════════════════════
+% \showsoltrue  → 解答冊子モード (解答・別解・ヒントを表示)
+% \showsolfalse → 本冊モード      (解答だけを隠す)
 \newif\ifshowsol
 \showsoltrue
 
 \definecolor{pbaccent}{HTML}{c2410c}
 \definecolor{pbsoft}{HTML}{fde4d0}
+\definecolor{pbhint}{HTML}{0369a1}
+\definecolor{pbhintsoft}{HTML}{dbeafe}
+\definecolor{pbkey}{HTML}{059669}
+\definecolor{pbkeysoft}{HTML}{d1fae5}
 
+% ── 章・部 (Part) のスタイル ──
+\titleformat{\part}[display]
+  {\normalfont\Huge\bfseries\color{pbaccent}\filcenter}
+  {第 \thepart 部}{10pt}{\Huge}
 \titleformat{\chapter}[hang]
-  {\normalfont\huge\bfseries\color{pbaccent}}{第\thechapter 章}{12pt}{}
+  {\normalfont\huge\bfseries\color{pbaccent}}{第 \thechapter 章}{12pt}{}
 \titlespacing*{\chapter}{0pt}{10pt}{14pt}
 
+% ── ヘッダ (章名 + 問題集タイトル + ページ) ──
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{pbaccent}\textbf{高校数学 問題集 II$\cdot$B}}
+\fancyhead[R]{\small\leftmark}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ── 難易度バッジ (4 段階: ★ 基本 / ★★ 標準 / ★★★ 発展 / ★★★★ 最難関) ──
 \newcommand{\diff}[1]{%
   \hspace{4pt}\colorbox{pbaccent!15}{\textcolor{pbaccent}{\small\bfseries 難易度 #1}}%
 }
 
+% ── 問題 box (章.問題番号 自動) ──
+\newcounter{pbcount}[chapter]
+\renewcommand{\thepbcount}{\thechapter.\arabic{pbcount}}
 \newtcolorbox{problem}[2][]{%
   enhanced, breakable, colback=white, colframe=pbaccent!70,
   sharp corners, boxrule=0.4pt,
@@ -3396,83 +4386,178 @@ const PROBLEM_BOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{repor
   #1
 }
 
+% ── ヒント box (解答冊子モードでのみ表示) ──
+\newtcolorbox{hintbox}{%
+  colback=pbhintsoft!50, colframe=pbhint, sharp corners, boxrule=0.3pt,
+  left=3mm,right=3mm,top=1mm,bottom=1mm,
+  fontupper=\small
+}
+
+% ── 重要公式 box (両モードで常時表示) ──
+\newtcolorbox{keyformula}[1][]{%
+  enhanced, colback=pbkeysoft!60, colframe=pbkey,
+  sharp corners, boxrule=0.5pt,
+  attach boxed title to top left={xshift=5mm,yshift=-3mm},
+  boxed title style={colback=pbkey, colframe=pbkey, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={重要公式},
+  left=4mm,right=4mm,top=3mm,bottom=3mm, #1
+}
+
+% ── 解答冊子モードでのみ展開される環境 ──
 \ifshowsol
   \newenvironment{solution}{\par\medskip\noindent\textbf{\color{pbaccent}▶ 解答.}\enspace}{\par\medskip}
+  \newenvironment{altsolution}{\par\smallskip\noindent\textbf{\color{pbaccent}▶ 別解.}\enspace}{\par}
+  \newenvironment{hint}{\begin{hintbox}\textbf{\color{pbhint}ヒント.}\enspace}{\end{hintbox}\par\smallskip}
 \else
   \excludecomment{solution}
+  \excludecomment{altsolution}
+  \excludecomment{hint}
 \fi
 
 \title{}\author{}\date{}
 
 \begin{document}
 
-% ── 表紙 ──
+% ══════════════════════════════════
+% 表紙
+% ══════════════════════════════════
 \thispagestyle{empty}
 \begin{center}
-  \vspace*{35mm}
+  \vspace*{30mm}
   {\Huge\bfseries 高校数学 問題集\par}
   \vspace{5mm}
   {\large ---\ 教科書レベルから入試レベルまで ---\par}
   \vspace{25mm}
   {\LARGE 数学 II $\cdot$ B\par}
-  \vspace{55mm}
-  {\large 第 1 版\par}
+  \vspace{5mm}
+  \rule{80mm}{0.5pt}\par
+  \vspace{5mm}
+  {\large 微分・積分 \quad 数列 \quad ベクトル\par}
+  \vspace{45mm}
+  {\large 第 1 版 \quad [解答冊子モード]\par}
   \vspace{2mm}
   {\large 編著:\ \underline{\hspace{40mm}}\par}
+  \vfill
+  \fbox{\parbox{120mm}{\centering\small プリアンブルの \texttt{\textbackslash showsolfalse} で\\解答を隠した\textbf{本冊モード} を生成できます}}
+  \vspace{10mm}
 \end{center}
 \clearpage
 
 \tableofcontents
 \clearpage
 
-% ── 使い方 ──
+% ══════════════════════════════════
+% 使い方
+% ══════════════════════════════════
 \section*{この問題集の使い方}
-本書は「本冊」と「解答冊子」を一つの LaTeX ソースから切り替えて生成できる形で作られています。\par
-\medskip
-\noindent プリアンブルの \texttt{\textbackslash showsoltrue} を \texttt{\textbackslash showsolfalse} に書き換えてコンパイルすると、解答が省かれた\textbf{本冊モード}になります。そのままコンパイルすれば\textbf{解答冊子モード}です。\par
-\medskip
-\noindent 各問の右上には難易度バッジ \diff{★} \diff{★★} \diff{★★★} が付けられています。
+
+\noindent本書は一つの LaTeX ソースから、学習者用の「本冊」と、教員用の「解答冊子」の 2 つを切り替えてコンパイルできます。
+
+\begin{center}
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|l|c|c|}\hline
+    \rowcolor{pbsoft!60} モード & \texttt{\textbackslash showsoltrue} & \texttt{\textbackslash showsolfalse}\\\hline
+    解答 (▶ 解答.)  & \textcolor{pbkey}{表示}    & \textcolor{pbaccent}{非表示}\\\hline
+    別解 (▶ 別解.)  & \textcolor{pbkey}{表示}    & \textcolor{pbaccent}{非表示}\\\hline
+    ヒント         & \textcolor{pbkey}{表示}    & \textcolor{pbaccent}{非表示}\\\hline
+    問題本文・重要公式 & \multicolumn{2}{c|}{常時表示}\\\hline
+  \end{tabular}
+\end{center}
+
+\bigskip\noindent\textbf{難易度バッジ}\quad 各問題の右肩に以下の 4 段階のバッジが付きます。
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item \diff{★}\ 教科書レベル ── 授業後の確認に最適
+  \item \diff{★★}\ 標準 ── 定期試験レベル
+  \item \diff{★★★}\ 発展 ── 国公立二次・GMARCH レベル
+  \item \diff{★★★★}\ 最難関 ── 難関国立・上位私立レベル
+\end{itemize}
 
 \clearpage
 
+% ══════════════════════════════════
+% 第 1 部 ── 微分・積分
+% ══════════════════════════════════
+\part{微分・積分}
+
 \chapter{微分法}
+\section*{到達目標}
+\noindent本章では次の 3 点が達成できることを目指す。
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item 多項式関数・合成関数・積の関数の導関数が求められる
+  \item 増減表を描いて極値を正しく判定できる
+  \item 接線・法線の方程式が立てられる
+\end{itemize}
+
+\begin{keyformula}
+\textbf{導関数の公式 (抜粋)}
+\[ (x^n)' = nx^{n-1},\quad (cf)' = cf',\quad (f+g)' = f'+g',\quad (fg)' = f'g + fg'. \]
+\end{keyformula}
+
 \section{導関数の定義}
 
 \begin{problem}{1.1}\diff{★}
   次の関数を微分せよ。
   \[ f(x) = 3x^2 - 2x + 5 \]
+  \begin{hint}
+    導関数の線形性 $(af + bg)' = af' + bg'$ と $(x^n)' = nx^{n-1}$ を使う。
+  \end{hint}
   \begin{solution}
-    導関数の線形性より
-    \[ f'(x) = 6x - 2. \]
+    線形性より $f'(x) = 3 \cdot 2x - 2 \cdot 1 + 0 = 6x - 2.$
   \end{solution}
 \end{problem}
 
 \begin{problem}{1.2}\diff{★★}
   曲線 $y = x^3 - 3x$ の $x = 1$ における接線の方程式を求めよ。
+  \begin{hint}
+    接線の方程式は $y - y_0 = f'(x_0)(x - x_0)$。 $(x_0, y_0) = (1, f(1))$ をまず求める。
+  \end{hint}
   \begin{solution}
-    $y' = 3x^2 - 3$ より、$x = 1$ における傾きは $3 \cdot 1 - 3 = 0$。通る点は $(1, -2)$ なので、接線は
+    $y' = 3x^2 - 3$ より、$x = 1$ における傾きは $3 - 3 = 0$。通る点は $(1, 1 - 3) = (1, -2)$ なので、接線は
     \[ y = -2. \]
   \end{solution}
+  \begin{altsolution}
+    接線 $y = ax + b$ と放物線の方程式 $x^3 - 3x - ax - b = 0$ が $x = 1$ で重解を持つ条件から $a, b$ を決定してもよい。
+  \end{altsolution}
 \end{problem}
 
 \section{極値問題}
 
 \begin{problem}{1.3}\diff{★★★}
-  関数 $f(x) = x^3 - 6x^2 + 9x + 1$ の極値を求めよ。
+  関数 $f(x) = x^3 - 6x^2 + 9x + 1$ の極値を求めよ。類題: 問題 1.4。
+  \begin{hint}
+    $f'(x) = 0$ を解いて極値の候補を求め、増減表で極大・極小を判定する。
+  \end{hint}
   \begin{solution}
-    $f'(x) = 3x^2 - 12x + 9 = 3(x-1)(x-3)$ より、$x = 1$ で極大 $f(1) = 5$, $x = 3$ で極小 $f(3) = 1$。
+    $f'(x) = 3x^2 - 12x + 9 = 3(x-1)(x-3)$ より $f'(x) = 0$ の解は $x = 1, 3$。\par
+    増減表から $x = 1$ で極大値 $f(1) = 1 - 6 + 9 + 1 = 5$、$x = 3$ で極小値 $f(3) = 27 - 54 + 27 + 1 = 1$。
   \end{solution}
 \end{problem}
 
-\begin{problem}{1.4}\diff{★★★}
-  関数 $f(x) = x^4 - 4x^3 + 4x^2$ の最小値を求めよ。
+\begin{problem}{1.4}\diff{★★★★}
+  関数 $f(x) = x^4 - 4x^3 + 4x^2$ の最小値を求めよ。 (問題 1.3 の類題)
+  \begin{hint}
+    $f'(x)$ を因数分解し、増減表から最小となる $x$ を絞り込む。
+  \end{hint}
   \begin{solution}
-    $f'(x) = 4x^3 - 12x^2 + 8x = 4x(x-1)(x-2)$ より、増減表から最小値は $f(0) = 0$ または $f(2) = 0$。よって最小値 $0$。
+    $f'(x) = 4x^3 - 12x^2 + 8x = 4x(x-1)(x-2)$。$f'(x) = 0$ の解は $x = 0, 1, 2$。\par
+    増減表を作ると、$f(0) = 0$, $f(1) = 1$, $f(2) = 0$ で、$x \to \pm\infty$ のとき $f(x) \to \infty$。よって最小値は $\mathbf{0}$ ($x = 0, 2$ で実現)。
   \end{solution}
 \end{problem}
 
 \chapter{積分法}
-\section{不定積分}
+\section*{到達目標}
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item 不定積分・定積分の計算ができる
+  \item 曲線で囲まれた部分の面積を求められる
+\end{itemize}
+
+\begin{keyformula}[title={重要公式: 面積の計算}]
+区間 $[a, b]$ で $f(x) \ge g(x)$ のとき、$y = f(x)$ と $y = g(x)$ で囲まれる部分の面積 $S$ は
+\[ S = \int_a^b \bigl(f(x) - g(x)\bigr)\,dx. \]
+\end{keyformula}
+
+\section{不定積分・定積分}
 
 \begin{problem}{2.1}\diff{★}
   次の不定積分を求めよ。
@@ -3494,11 +4579,24 @@ const PROBLEM_BOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{repor
 
 \begin{problem}{2.3}\diff{★★★}
   曲線 $y = x^2$ と直線 $y = 2x$ で囲まれる部分の面積 $S$ を求めよ。
+  \begin{hint}
+    まず交点を求める ($x^2 = 2x$)。区間 $[0, 2]$ でどちらが上かを判定してから重要公式を適用。
+  \end{hint}
   \begin{solution}
     交点は $x^2 = 2x$ より $x = 0, 2$. $0 \le x \le 2$ で $2x \ge x^2$ だから
     \[ S = \int_0^2 (2x - x^2)\,dx = \Bigl[x^2 - \tfrac{x^3}{3}\Bigr]_0^2 = 4 - \tfrac{8}{3} = \tfrac{4}{3}. \]
   \end{solution}
 \end{problem}
+
+% ── 単元末まとめ ──
+\section*{章末まとめ}
+\begin{keyformula}[title={本章で押さえるべき 3 点}]
+\begin{enumerate}[leftmargin=*,itemsep=1pt]
+  \item 導関数は線形で、$(x^n)' = nx^{n-1}$ が基本。
+  \item 極値は $f'(x) = 0$ の解 $+$ 増減表で判定する。
+  \item 面積は「上 $-$ 下」の積分で求める。交点と大小関係を先に調べる。
+\end{enumerate}
+\end{keyformula}
 
 \end{document}
 `;
@@ -3506,9 +4604,9 @@ const PROBLEM_BOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{repor
 const PROBLEM_BOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
-\geometry{top=25mm,bottom=22mm,left=22mm,right=22mm}
+\geometry{top=26mm,bottom=24mm,left=22mm,right=22mm,headheight=14pt}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs}
+\usepackage{booktabs, tabularx, array, multirow}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
@@ -3517,18 +4615,33 @@ const PROBLEM_BOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{re
 \tcbuselibrary{skins,breakable}
 \usepackage{comment}
 \usepackage{titlesec}
+\usepackage{fancyhdr}
 
-% Toggle solutions on/off.
 % \showsoltrue  -> answer-key booklet
 % \showsolfalse -> exercise-only booklet
 \newif\ifshowsol
 \showsoltrue
 
 \definecolor{pbaccent}{HTML}{c2410c}
+\definecolor{pbsoft}{HTML}{fde4d0}
+\definecolor{pbhint}{HTML}{0369a1}
+\definecolor{pbhintsoft}{HTML}{dbeafe}
+\definecolor{pbkey}{HTML}{059669}
+\definecolor{pbkeysoft}{HTML}{d1fae5}
 
+\titleformat{\part}[display]
+  {\normalfont\Huge\bfseries\color{pbaccent}\filcenter}
+  {Part \thepart}{10pt}{\Huge}
 \titleformat{\chapter}[hang]
-  {\normalfont\huge\bfseries\color{pbaccent}}{Ch. \thechapter}{12pt}{}
+  {\normalfont\huge\bfseries\color{pbaccent}}{Ch.\ \thechapter}{12pt}{}
 \titlespacing*{\chapter}{0pt}{10pt}{14pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{pbaccent}\textbf{High-school Math II$\cdot$B}}
+\fancyhead[R]{\small\leftmark}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
 
 \newcommand{\diff}[1]{%
   \hspace{4pt}\colorbox{pbaccent!15}{\textcolor{pbaccent}{\small\bfseries Level #1}}%
@@ -3545,24 +4658,47 @@ const PROBLEM_BOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{re
   #1
 }
 
+\newtcolorbox{hintbox}{colback=pbhintsoft!50,colframe=pbhint,sharp corners,boxrule=0.3pt,left=3mm,right=3mm,top=1mm,bottom=1mm,fontupper=\small}
+
+\newtcolorbox{keyformula}[1][]{%
+  enhanced, colback=pbkeysoft!60, colframe=pbkey,
+  sharp corners, boxrule=0.5pt,
+  attach boxed title to top left={xshift=5mm,yshift=-3mm},
+  boxed title style={colback=pbkey, colframe=pbkey, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={Key formulas},
+  left=4mm,right=4mm,top=3mm,bottom=3mm, #1
+}
+
 \ifshowsol
   \newenvironment{solution}{\par\medskip\noindent\textbf{\color{pbaccent}▶ Solution.}\enspace}{\par\medskip}
+  \newenvironment{altsolution}{\par\smallskip\noindent\textbf{\color{pbaccent}▶ Alternative.}\enspace}{\par}
+  \newenvironment{hint}{\begin{hintbox}\textbf{\color{pbhint}Hint.}\enspace}{\end{hintbox}\par\smallskip}
 \else
   \excludecomment{solution}
+  \excludecomment{altsolution}
+  \excludecomment{hint}
 \fi
 
 \begin{document}
 
 \thispagestyle{empty}
 \begin{center}
-  \vspace*{35mm}
+  \vspace*{30mm}
   {\Huge\bfseries High-school Math Problem Book\par}
   \vspace{5mm}
-  {\large From textbook to entrance-exam level\par}
+  {\large From textbook level to university entrance exam\par}
   \vspace{25mm}
   {\LARGE Mathematics II $\cdot$ B\par}
-  \vspace{55mm}
-  {\large Edition 1.0\par}
+  \vspace{5mm}
+  \rule{80mm}{0.5pt}\par
+  \vspace{5mm}
+  {\large Calculus \quad Sequences \quad Vectors\par}
+  \vspace{45mm}
+  {\large Edition 1.0 \quad [answer-key mode]\par}
+  \vfill
+  \fbox{\parbox{120mm}{\centering\small Switch to \texttt{\textbackslash showsolfalse} to compile the\\ \textbf{exercise-only} booklet}}
+  \vspace{10mm}
 \end{center}
 \clearpage
 
@@ -3570,26 +4706,87 @@ const PROBLEM_BOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{re
 \clearpage
 
 \section*{How to Use This Book}
-This book compiles either as an \textbf{exercise booklet} or an \textbf{answer-key booklet} from a single LaTeX source.
-Toggle \texttt{\textbackslash showsoltrue} / \texttt{\textbackslash showsolfalse} in the preamble to switch modes.
-Each problem has a difficulty badge: \diff{★} \diff{★★} \diff{★★★}.
+\noindent This book compiles either as a student booklet or a teacher answer key from a single LaTeX source.
+
+\begin{center}
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{|l|c|c|}\hline
+    \rowcolor{pbsoft!60} Mode & \texttt{\textbackslash showsoltrue} & \texttt{\textbackslash showsolfalse}\\\hline
+    Solution (▶ Solution.)  & \textcolor{pbkey}{shown}    & \textcolor{pbaccent}{hidden}\\\hline
+    Alt.\ solution          & \textcolor{pbkey}{shown}    & \textcolor{pbaccent}{hidden}\\\hline
+    Hint                    & \textcolor{pbkey}{shown}    & \textcolor{pbaccent}{hidden}\\\hline
+    Problem / Key formula   & \multicolumn{2}{c|}{always shown}\\\hline
+  \end{tabular}
+\end{center}
+
+\bigskip\noindent\textbf{Difficulty badges}
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item \diff{★}\ Textbook level
+  \item \diff{★★}\ Standard (term-exam level)
+  \item \diff{★★★}\ Advanced (national 2nd stage)
+  \item \diff{★★★★}\ Top tier (top-national / elite private)
+\end{itemize}
 
 \clearpage
 
+\part{Calculus}
+
 \chapter{Differentiation}
+\section*{Learning goals}
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item Differentiate polynomials and products
+  \item Identify extrema from a sign table
+  \item Set up tangent and normal lines
+\end{itemize}
+
+\begin{keyformula}
+\textbf{Derivative rules.}
+\[ (x^n)' = nx^{n-1},\quad (cf)' = cf',\quad (f+g)' = f'+g',\quad (fg)' = f'g + fg'. \]
+\end{keyformula}
+
 \begin{problem}{1.1}\diff{★}
   Differentiate $f(x) = 3x^2 - 2x + 5$.
+  \begin{hint}
+    Use linearity and the power rule $(x^n)' = nx^{n-1}$.
+  \end{hint}
   \begin{solution} $f'(x) = 6x - 2$. \end{solution}
 \end{problem}
 
 \begin{problem}{1.2}\diff{★★}
   Find the tangent line to $y = x^3 - 3x$ at $x = 1$.
+  \begin{hint}
+    Use $y - y_0 = f'(x_0)(x - x_0)$. First compute $f(1)$ and $f'(1)$.
+  \end{hint}
   \begin{solution}
-    $y' = 3x^2 - 3$, so slope at $x=1$ is $0$. The line is $y = -2$.
+    $y' = 3x^2 - 3$; the slope at $x=1$ is $0$. The tangent line is $y = -2$.
+  \end{solution}
+  \begin{altsolution}
+    Equivalently, solve $x^3 - 3x - ax - b = 0$ with a double root at $x = 1$.
+  \end{altsolution}
+\end{problem}
+
+\begin{problem}{1.3}\diff{★★★}
+  Find the extrema of $f(x) = x^3 - 6x^2 + 9x + 1$.
+  \begin{hint}
+    Solve $f'(x) = 0$ and build a sign table.
+  \end{hint}
+  \begin{solution}
+    $f'(x) = 3(x-1)(x-3)$, so critical points are $x = 1, 3$. Maximum $f(1) = 5$; minimum $f(3) = 1$.
   \end{solution}
 \end{problem}
 
 \chapter{Integration}
+\section*{Learning goals}
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item Compute indefinite and definite integrals
+  \item Compute areas enclosed by curves
+\end{itemize}
+
+\begin{keyformula}[title={Key formula: area between curves}]
+If $f(x) \ge g(x)$ on $[a, b]$, the enclosed area is
+\[ S = \int_a^b \bigl(f(x) - g(x)\bigr)\,dx. \]
+\end{keyformula}
+
 \begin{problem}{2.1}\diff{★}
   Evaluate $\int (2x + 1)\,dx$.
   \begin{solution} $x^2 + x + C$. \end{solution}
@@ -3597,10 +4794,23 @@ Each problem has a difficulty badge: \diff{★} \diff{★★} \diff{★★★}.
 
 \begin{problem}{2.2}\diff{★★★}
   Find the area enclosed by $y = x^2$ and $y = 2x$.
+  \begin{hint}
+    First find the intersections, then determine which curve is on top over $[0, 2]$.
+  \end{hint}
   \begin{solution}
+    $x^2 = 2x$ gives $x \in \{0, 2\}$. On $[0, 2]$, $2x \ge x^2$, so
     $S = \int_0^2 (2x - x^2)\,dx = \tfrac{4}{3}$.
   \end{solution}
 \end{problem}
+
+\section*{Chapter summary}
+\begin{keyformula}[title={Three take-aways}]
+\begin{enumerate}[leftmargin=*,itemsep=1pt]
+  \item Differentiation is linear; the power rule $(x^n)' = nx^{n-1}$ is your workhorse.
+  \item Extrema come from $f'(x) = 0$ plus a sign table.
+  \item Areas are "upper $-$ lower" integrals; find intersections first.
+\end{enumerate}
+\end{keyformula}
 
 \end{document}
 `;
@@ -3611,9 +4821,9 @@ Each problem has a difficulty badge: \diff{★} \diff{★★} \diff{★★★}.
 const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 \usepackage[haranoaji]{luatexja-preset}
 \usepackage{geometry}
-\geometry{top=26mm,bottom=26mm,left=28mm,right=40mm,marginparwidth=30mm,marginparsep=4mm}
+\geometry{top=26mm,bottom=26mm,left=28mm,right=42mm,marginparwidth=34mm,marginparsep=4mm,headheight=14pt}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs, tabularx}
+\usepackage{booktabs, tabularx, array}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
@@ -3621,16 +4831,37 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 \usepackage{tcolorbox}
 \tcbuselibrary{skins,breakable,theorems}
 \usepackage{titlesec}
+\usepackage{fancyhdr}
 
 \definecolor{tbaccent}{HTML}{15803d}
 \definecolor{tbsoft}{HTML}{d1fae5}
 \definecolor{tbkey}{HTML}{fde68a}
+\definecolor{tbadvance}{HTML}{7c3aed}   % 発展 (purple)
+\definecolor{tbcaution}{HTML}{dc2626}   % 注意 (red)
+\definecolor{tbcolumn}{HTML}{0369a1}    % コラム (blue)
 
-\titleformat{\chapter}[hang]
+% ── 章扉スタイル (左端に垂直バー付き) ──
+\titleformat{\chapter}[display]
   {\normalfont\huge\bfseries\color{tbaccent}}
-  {第\thechapter 章}{14pt}{}
-\titlespacing*{\chapter}{0pt}{0pt}{16pt}
+  {}{0pt}
+  {\color{tbaccent}\rule{\linewidth}{3pt}\par\vspace{4mm}
+   \Huge 第 \thechapter 章\quad\Huge}
+  [\vspace{2mm}{\color{tbaccent}\hrule height 0.6pt}]
+\titlespacing*{\chapter}{0pt}{-10pt}{20pt}
 
+\titleformat{\section}[hang]
+  {\normalfont\Large\bfseries\color{tbaccent}}
+  {\S\thesection}{0.8em}{}
+
+% ── 走るヘッダ (章名とページ番号) ──
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{tbaccent}\textbf{高校数学 I}}
+\fancyhead[R]{\small\leftmark}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ── 例題 box ──
 \newtcolorbox{example}[1][]{%
   enhanced, breakable, colback=tbsoft!50, colframe=tbaccent,
   sharp corners, boxrule=0.6pt,
@@ -3642,13 +4873,46 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
   #1
 }
 
-\newtcolorbox{keypoint}{%
-  colback=tbkey!40, colframe=tbkey!80!black,
-  sharp corners, boxrule=0.4pt,
-  left=3mm,right=3mm,top=2mm,bottom=2mm
+% ── 重要公式カード ──
+\newtcolorbox{keyformula}[1][]{%
+  enhanced, colback=tbkey!40, colframe=tbkey!80!black,
+  sharp corners, boxrule=0.5pt,
+  attach boxed title to top left={xshift=5mm,yshift=-3mm},
+  boxed title style={colback=tbkey!80!black, colframe=tbkey!80!black, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={重要公式},
+  left=4mm,right=4mm,top=3mm,bottom=3mm, #1
 }
 
+% ── 4 種コールアウト (発展 / 注意 / コラム / 参考) ──
+\newtcolorbox{advanced}[1][]{%
+  enhanced, colback=tbadvance!10, colframe=tbadvance,
+  sharp corners, boxrule=0.4pt,
+  attach boxed title to top left={xshift=5mm,yshift=-3mm},
+  boxed title style={colback=tbadvance, colframe=tbadvance, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={発展},
+  left=4mm,right=4mm,top=2.5mm,bottom=2.5mm, #1
+}
+
+\newtcolorbox{caution}[1][]{%
+  colback=tbcaution!8, colframe=tbcaution,
+  sharp corners, boxrule=0.4pt, left=4mm,right=4mm,top=2mm,bottom=2mm, #1
+}
+
+\newtcolorbox{column}[1][]{%
+  enhanced, colback=tbcolumn!8, colframe=tbcolumn,
+  sharp corners, boxrule=0.4pt,
+  attach boxed title to top left={xshift=5mm,yshift=-3mm},
+  boxed title style={colback=tbcolumn, colframe=tbcolumn, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={コラム},
+  left=4mm,right=4mm,top=2.5mm,bottom=2.5mm, #1
+}
+
+% ── 余白メモ (margin note) ──
 \newcommand{\side}[1]{\marginpar{\raggedright\small\color{tbaccent}#1}}
+\newcommand{\term}[1]{\textbf{#1}\index{#1}}   % 用語強調 + 索引登録
 
 \newenvironment{solution}{\par\smallskip\noindent\textbf{\small 解.}\enspace}{\par}
 
@@ -3656,90 +4920,155 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 
 \begin{document}
 
+% ══════════════════════════════════
+% 章扉 (学習目標 + この章で学ぶキーワード)
+% ══════════════════════════════════
 \chapter{三角比}
 
-\section*{学習の目標}
-\begin{itemize}[leftmargin=*,itemsep=2pt]
-  \item 直角三角形を用いて三角比を定義できる。
-  \item 三角比の相互関係を説明し、計算に利用できる。
-  \item 三角比を用いて実際の測量問題を解くことができる。
+\begin{keyformula}[title={本章の学習目標}]
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item 直角三角形を用いて三角比 ($\sin, \cos, \tan$) を \term{定義} できる
+  \item 三角比の \term{相互関係} (3 つの公式) を説明し、計算に利用できる
+  \item 三角比を用いて実際の \term{測量問題} を解くことができる
+  \item $30^\circ, 45^\circ, 60^\circ$ の三角比の値を暗記している
 \end{itemize}
+\end{keyformula}
 
+\smallskip\noindent\textbf{キーワード:}\ 三角比 $\cdot$ 相似 $\cdot$ 三平方の定理 $\cdot$ 仰角 $\cdot$ 単位円
+
+% ══════════════════════════════════
+% §1. 定義
+% ══════════════════════════════════
 \section{三角比の定義}
-\side{直角三角形の鋭角 $\theta$ に対して三角比を定義する。斜辺 (hypotenuse)、対辺 (opposite)、底辺 (adjacent) の位置関係を図で確認しよう。}
+\side{直角三角形の鋭角 $\theta$ に対して三角比を定義する。斜辺 (hypotenuse) / 対辺 (opposite) / 底辺 (adjacent) の位置関係を図で確認しよう。}
 
-直角三角形 $\triangle ABC$ において $\angle C = 90^\circ$ とする。角 $\theta = \angle BAC$ に対して次の 3 つの比を定義する。
+直角三角形 $\triangle ABC$ において $\angle C = 90^\circ$ とし、角 $\theta = \angle BAC$ に対して次の 3 つの比を定義する。
 \begin{align*}
-  \sin\theta &= \frac{\text{対辺}}{\text{斜辺}}, &
-  \cos\theta &= \frac{\text{底辺}}{\text{斜辺}}, &
-  \tan\theta &= \frac{\text{対辺}}{\text{底辺}}.
+  \sin\theta = \frac{\text{対辺}}{\text{斜辺}},\quad
+  \cos\theta = \frac{\text{底辺}}{\text{斜辺}},\quad
+  \tan\theta = \frac{\text{対辺}}{\text{底辺}}.
 \end{align*}
 
-\begin{keypoint}
-\textbf{覚え方.}\quad 筆記体 s / c / t の書き順 “斜 → 対”、“斜 → 底”、“底 → 対” を思い浮かべると、分子と分母を迷わない。
-\end{keypoint}
+\begin{keyformula}[title={覚え方 (筆記体の書き順)}]
+筆記体 s / c / t の書き順 "斜 $\to$ 対" / "斜 $\to$ 底" / "底 $\to$ 対" を思い浮かべると、分子と分母を迷わない。
+\end{keyformula}
+
+\begin{caution}
+\textbf{よくある誤り:}\quad $\tan\theta$ の値は斜辺に依存しない。「対辺 $\div$ 底辺」であり、斜辺は分母に現れない。
+\end{caution}
 
 \begin{example}
   直角三角形で底辺 $= 4$, 対辺 $= 3$ のとき、$\sin\theta, \cos\theta, \tan\theta$ を求めよ。
   \begin{solution}
     斜辺は $\sqrt{4^2 + 3^2} = 5$。よって
-    \[ \sin\theta = \tfrac{3}{5},\quad \cos\theta = \tfrac{4}{5},\quad \tan\theta = \tfrac{3}{4}. \]
+    \[ \sin\theta = \tfrac{3}{5},\ \cos\theta = \tfrac{4}{5},\ \tan\theta = \tfrac{3}{4}. \]
   \end{solution}
 \end{example}
 
-\subsection*{練習 1.1}
-底辺 $= 5$, 対辺 $= 12$ のとき、三角比を求めよ。
+\subsection*{練習 1.1 (基礎)}
+底辺 $= 5$, 対辺 $= 12$ のとき、三角比 3 つの値を求めよ。
 
+% ══════════════════════════════════
+% §2. 主要な角
+% ══════════════════════════════════
 \section{主要な角の三角比}
-\side{$30^\circ, 45^\circ, 60^\circ$ の三角比は高校数学で頻出。表のまま暗記してしまうのが近道。}
+\side{$30^\circ, 45^\circ, 60^\circ$ は高校数学で頻出。表のまま暗記してしまうのが近道。}
 
 \begin{center}
   \renewcommand{\arraystretch}{1.5}
   \begin{tabular}{c|ccc}
     \toprule
-    $\theta$ & $30^\circ$ & $45^\circ$ & $60^\circ$\\
+    \rowcolor{tbsoft!60}
+    $\theta$      & $30^\circ$              & $45^\circ$              & $60^\circ$\\
     \midrule
-    $\sin\theta$ & $\dfrac{1}{2}$ & $\dfrac{\sqrt{2}}{2}$ & $\dfrac{\sqrt{3}}{2}$\\
-    $\cos\theta$ & $\dfrac{\sqrt{3}}{2}$ & $\dfrac{\sqrt{2}}{2}$ & $\dfrac{1}{2}$\\
-    $\tan\theta$ & $\dfrac{1}{\sqrt{3}}$ & $1$ & $\sqrt{3}$\\
+    $\sin\theta$  & $\dfrac{1}{2}$          & $\dfrac{\sqrt{2}}{2}$   & $\dfrac{\sqrt{3}}{2}$\\
+    $\cos\theta$  & $\dfrac{\sqrt{3}}{2}$   & $\dfrac{\sqrt{2}}{2}$   & $\dfrac{1}{2}$\\
+    $\tan\theta$  & $\dfrac{1}{\sqrt{3}}$   & $1$                     & $\sqrt{3}$\\
     \bottomrule
   \end{tabular}
 \end{center}
 
+\begin{column}[title={コラム: 30$^\circ$-60$^\circ$-90$^\circ$ の三角形}]
+一辺が 2 の正三角形を垂線で 2 等分すると、辺の比 $1 : \sqrt{3} : 2$ の直角三角形が現れる。これが $30^\circ/60^\circ$ の三角比を導く幾何的基礎となる。
+\end{column}
+
+% ══════════════════════════════════
+% §3. 相互関係
+% ══════════════════════════════════
 \section{相互関係}
 \side{3 つの公式は三角比の根幹。入試での頻出度も非常に高い。}
 
 直角三角形で三平方の定理 $(\text{対辺})^2 + (\text{底辺})^2 = (\text{斜辺})^2$ が成り立つことから、次の 3 つの等式が導かれる。
-\begin{enumerate}[label=(\roman*),leftmargin=*]
+
+\begin{keyformula}[title={三角比の相互関係 (必修)}]
+\begin{enumerate}[label=(\roman*),leftmargin=*,itemsep=2pt]
   \item $\sin^2\theta + \cos^2\theta = 1$
   \item $\displaystyle \tan\theta = \frac{\sin\theta}{\cos\theta}$
   \item $\displaystyle 1 + \tan^2\theta = \frac{1}{\cos^2\theta}$
 \end{enumerate}
+\end{keyformula}
 
 \begin{example}
   $\sin\theta = \tfrac{3}{5}$ かつ $0^\circ < \theta < 90^\circ$ のとき、$\cos\theta$ と $\tan\theta$ を求めよ。
   \begin{solution}
-    相互関係 (i) より $\cos^2\theta = 1 - \tfrac{9}{25} = \tfrac{16}{25}$。$0^\circ < \theta < 90^\circ$ のとき $\cos\theta > 0$ だから $\cos\theta = \tfrac{4}{5}$。したがって $\tan\theta = \tfrac{3}{4}$。
+    相互関係 (i) より $\cos^2\theta = 1 - \tfrac{9}{25} = \tfrac{16}{25}$。$0^\circ < \theta < 90^\circ$ のとき $\cos\theta > 0$ だから $\cos\theta = \tfrac{4}{5}$。したがって $\tan\theta = \tfrac{3/5}{4/5} = \tfrac{3}{4}$。
   \end{solution}
 \end{example}
 
+\begin{advanced}[title={発展: 負の角・鈍角への拡張}]
+高校 2 年で学ぶ単位円を用いると、三角比の定義は $0^\circ$ 未満や $90^\circ$ 超の角にも拡張できる。詳しくは後の章で扱う。
+\end{advanced}
+
+% ══════════════════════════════════
+% §4. 測量
+% ══════════════════════════════════
 \section{測量への応用}
 \side{実地測量では $\tan\theta$ を用いて「高さ」を求めることが多い。}
 
 \begin{example}
-  高さ 20\,m の建物を地点 P から見上げた仰角が $30^\circ$ であった。地点 P から建物までの水平距離を求めよ。
+  高さ 20\,m の建物を地点 P から見上げた仰角が $30^\circ$ であった。地点 P から建物までの水平距離 $d$ を求めよ。
   \begin{solution}
-    求める距離を $d$ とすると、$\tan 30^\circ = \tfrac{20}{d}$ より
-    \[ d = \frac{20}{\tan 30^\circ} = \frac{20}{1/\sqrt{3}} = 20\sqrt{3} \approx 34.6\,[\text{m}]. \]
+    $\tan 30^\circ = \tfrac{20}{d}$ より
+    \[ d = \frac{20}{\tan 30^\circ} = \frac{20}{1/\sqrt{3}} = 20\sqrt{3} \approx 34.6\,\text{[m]}. \]
   \end{solution}
 \end{example}
 
-\section*{章末問題}
-\begin{enumerate}[leftmargin=*,itemsep=5mm]
-  \item $\cos\theta = \tfrac{1}{3}$ かつ $0^\circ < \theta < 90^\circ$ のとき、$\sin\theta, \tan\theta$ を求めよ。
+\begin{column}[title={コラム: エラトステネスによる地球の大きさの測定}]
+紀元前 240 年頃、エラトステネスは日時計による太陽の影の角度差を測り、地球の円周を約 39{,}000\,km と算出した。現代の値 (約 40{,}000\,km) と数パーセントしか違わない。三角比が実地の大きな測量に使える強力な道具であることを示す古典的な例である。
+\end{column}
+
+% ══════════════════════════════════
+% 章末 — レベル別練習 + まとめ
+% ══════════════════════════════════
+\section*{章末問題 (レベル別)}
+
+\noindent\textbf{[基礎]}
+\begin{enumerate}[leftmargin=*,itemsep=3mm]
+  \item $\cos\theta = \tfrac{1}{3}$ かつ $0^\circ < \theta < 90^\circ$ のとき、$\sin\theta,\ \tan\theta$ を求めよ。
   \item $(\sin\theta + \cos\theta)^2 + (\sin\theta - \cos\theta)^2$ を簡単にせよ。
-  \item 地上 1.5\,m の観測者が高さ $h$\,m の電柱を見上げたとき、仰角が $45^\circ$ であった。観測者と電柱の根元との距離が 12\,m であるとして $h$ を求めよ。
 \end{enumerate}
+
+\medskip\noindent\textbf{[標準]}
+\begin{enumerate}[leftmargin=*,start=3,itemsep=3mm]
+  \item 地上 1.5\,m の観測者が高さ $h$\,m の電柱を見上げたとき、仰角が $45^\circ$ であった。観測者と電柱の根元との水平距離が 12\,m であるとして $h$ を求めよ。
+  \item $\sin\theta + \cos\theta = \tfrac{1}{2}$ のとき、$\sin\theta \cos\theta$ の値を求めよ。
+\end{enumerate}
+
+\medskip\noindent\textbf{[発展]}
+\begin{enumerate}[leftmargin=*,start=5,itemsep=3mm]
+  \item $0^\circ < \theta < 90^\circ$ において、$\sin\theta + \cos\theta$ と $\sin\theta \cos\theta$ の関係式を導け。
+\end{enumerate}
+
+\section*{章末まとめ}
+
+\begin{keyformula}[title={本章で押さえるべき 4 点}]
+\begin{enumerate}[leftmargin=*,itemsep=1pt]
+  \item 三角比は直角三角形の辺の比で定義される ($\sin, \cos, \tan$)。
+  \item $30^\circ, 45^\circ, 60^\circ$ の三角比は暗記 (頻出)。
+  \item 相互関係 3 公式は必修 ── $\sin^2 + \cos^2 = 1$ が最重要。
+  \item 仰角・俯角を用いた測量問題は $\tan\theta$ を使って「高さ $=$ 距離 $\times \tan\theta$」と組み立てる。
+\end{enumerate}
+\end{keyformula}
 
 \end{document}
 `;
@@ -3747,9 +5076,9 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 const TEXTBOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
-\geometry{top=26mm,bottom=26mm,left=28mm,right=40mm,marginparwidth=30mm,marginparsep=4mm}
+\geometry{top=26mm,bottom=26mm,left=28mm,right=42mm,marginparwidth=34mm,marginparsep=4mm,headheight=14pt}
 \usepackage{amsmath, amssymb, amsthm, mathtools, bm}
-\usepackage{booktabs}
+\usepackage{booktabs, tabularx, array}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
@@ -3757,14 +5086,33 @@ const TEXTBOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report
 \usepackage{tcolorbox}
 \tcbuselibrary{skins,breakable}
 \usepackage{titlesec}
+\usepackage{fancyhdr}
 
 \definecolor{tbaccent}{HTML}{15803d}
 \definecolor{tbsoft}{HTML}{d1fae5}
 \definecolor{tbkey}{HTML}{fde68a}
+\definecolor{tbadvance}{HTML}{7c3aed}
+\definecolor{tbcaution}{HTML}{dc2626}
+\definecolor{tbcolumn}{HTML}{0369a1}
 
-\titleformat{\chapter}[hang]
-  {\normalfont\huge\bfseries\color{tbaccent}}{Chapter \thechapter}{14pt}{}
-\titlespacing*{\chapter}{0pt}{0pt}{16pt}
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{tbaccent}}
+  {}{0pt}
+  {\color{tbaccent}\rule{\linewidth}{3pt}\par\vspace{4mm}
+   \Huge Chapter \thechapter\quad\Huge}
+  [\vspace{2mm}{\color{tbaccent}\hrule height 0.6pt}]
+\titlespacing*{\chapter}{0pt}{-10pt}{20pt}
+
+\titleformat{\section}[hang]
+  {\normalfont\Large\bfseries\color{tbaccent}}
+  {\S\thesection}{0.8em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{tbaccent}\textbf{High-school Math I}}
+\fancyhead[R]{\small\leftmark}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
 
 \newtcolorbox{example}[1][]{%
   enhanced, breakable, colback=tbsoft!50, colframe=tbaccent,
@@ -3777,34 +5125,71 @@ const TEXTBOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report
   #1
 }
 
-\newtcolorbox{keypoint}{%
-  colback=tbkey!40, colframe=tbkey!80!black,
+\newtcolorbox{keyformula}[1][]{%
+  enhanced, colback=tbkey!40, colframe=tbkey!80!black,
+  sharp corners, boxrule=0.5pt,
+  attach boxed title to top left={xshift=5mm,yshift=-3mm},
+  boxed title style={colback=tbkey!80!black, colframe=tbkey!80!black, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={Key point},
+  left=4mm,right=4mm,top=3mm,bottom=3mm, #1
+}
+
+\newtcolorbox{advanced}[1][]{%
+  enhanced, colback=tbadvance!10, colframe=tbadvance,
   sharp corners, boxrule=0.4pt,
-  left=3mm,right=3mm,top=2mm,bottom=2mm
+  attach boxed title to top left={xshift=5mm,yshift=-3mm},
+  boxed title style={colback=tbadvance, colframe=tbadvance, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={Further study},
+  left=4mm,right=4mm,top=2.5mm,bottom=2.5mm, #1
+}
+
+\newtcolorbox{caution}[1][]{colback=tbcaution!8, colframe=tbcaution, sharp corners, boxrule=0.4pt, left=4mm,right=4mm,top=2mm,bottom=2mm, #1}
+
+\newtcolorbox{column}[1][]{%
+  enhanced, colback=tbcolumn!8, colframe=tbcolumn,
+  sharp corners, boxrule=0.4pt,
+  attach boxed title to top left={xshift=5mm,yshift=-3mm},
+  boxed title style={colback=tbcolumn, colframe=tbcolumn, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={Column},
+  left=4mm,right=4mm,top=2.5mm,bottom=2.5mm, #1
 }
 
 \newcommand{\side}[1]{\marginpar{\raggedright\small\color{tbaccent}#1}}
+\newcommand{\term}[1]{\textbf{#1}\index{#1}}
+
 \newenvironment{solution}{\par\smallskip\noindent\textbf{\small Solution.}\enspace}{\par}
 
 \begin{document}
+
 \chapter{Trigonometric ratios}
 
-\section*{Learning objectives}
-\begin{itemize}[leftmargin=*,itemsep=2pt]
-  \item Define trigonometric ratios using a right-angled triangle.
-  \item Use the Pythagorean identities fluently.
-  \item Apply trigonometry to real measurement problems.
+\begin{keyformula}[title={Learning objectives}]
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+  \item \term{Define} $\sin$, $\cos$, and $\tan$ using a right triangle
+  \item State and use the three \term{Pythagorean identities}
+  \item Apply trigonometry to real-world \term{measurement} problems
+  \item Memorise the values of $\sin, \cos, \tan$ at $30^\circ, 45^\circ, 60^\circ$
 \end{itemize}
+\end{keyformula}
+
+\smallskip\noindent\textbf{Keywords:}\ trigonometric ratios $\cdot$ similarity $\cdot$ Pythagorean theorem $\cdot$ elevation angle $\cdot$ unit circle
 
 \section{Definitions}
 \side{Identify the hypotenuse, opposite, and adjacent sides relative to the acute angle $\theta$.}
 
 In a right triangle $\triangle ABC$ with $\angle C = 90^\circ$, let $\theta = \angle BAC$. Define
-$\sin\theta = \tfrac{\text{opp.}}{\text{hyp.}}$, $\cos\theta = \tfrac{\text{adj.}}{\text{hyp.}}$, $\tan\theta = \tfrac{\text{opp.}}{\text{adj.}}$.
+\[ \sin\theta = \tfrac{\text{opp.}}{\text{hyp.}},\ \cos\theta = \tfrac{\text{adj.}}{\text{hyp.}},\ \tan\theta = \tfrac{\text{opp.}}{\text{adj.}}. \]
 
-\begin{keypoint}
-\textbf{Tip.} Trace the letters \emph{s}, \emph{c}, \emph{t} in cursive to recall which pair of sides goes in the numerator/denominator.
-\end{keypoint}
+\begin{keyformula}[title={Memory aid}]
+Trace the cursive letters \emph{s}, \emph{c}, \emph{t} to remember which two sides go in the numerator and denominator.
+\end{keyformula}
+
+\begin{caution}
+\textbf{Common error:}\ $\tan\theta$ does not depend on the hypotenuse. It is "opposite $\div$ adjacent", not "opposite $\div$ hypotenuse".
+\end{caution}
 
 \begin{example}
   If the adjacent side is $4$ and the opposite side is $3$, find the three ratios.
@@ -3813,32 +5198,93 @@ $\sin\theta = \tfrac{\text{opp.}}{\text{hyp.}}$, $\cos\theta = \tfrac{\text{adj.
   \end{solution}
 \end{example}
 
+\subsection*{Practice 1.1 (basic)}
+If the adjacent side is $5$ and the opposite side is $12$, find the three ratios.
+
 \section{Table of special angles}
 \side{Memorise the values at $30^\circ, 45^\circ, 60^\circ$ — they appear everywhere.}
+
 \begin{center}
   \renewcommand{\arraystretch}{1.5}
   \begin{tabular}{c|ccc}\toprule
+    \rowcolor{tbsoft!60}
     $\theta$ & $30^\circ$ & $45^\circ$ & $60^\circ$\\\midrule
-    $\sin$ & $\tfrac{1}{2}$ & $\tfrac{\sqrt{2}}{2}$ & $\tfrac{\sqrt{3}}{2}$\\
-    $\cos$ & $\tfrac{\sqrt{3}}{2}$ & $\tfrac{\sqrt{2}}{2}$ & $\tfrac{1}{2}$\\
-    $\tan$ & $\tfrac{1}{\sqrt{3}}$ & $1$ & $\sqrt{3}$\\\bottomrule
+    $\sin$ & $\tfrac{1}{2}$          & $\tfrac{\sqrt{2}}{2}$   & $\tfrac{\sqrt{3}}{2}$\\
+    $\cos$ & $\tfrac{\sqrt{3}}{2}$   & $\tfrac{\sqrt{2}}{2}$   & $\tfrac{1}{2}$\\
+    $\tan$ & $\tfrac{1}{\sqrt{3}}$   & $1$                     & $\sqrt{3}$\\\bottomrule
   \end{tabular}
 \end{center}
 
+\begin{column}[title={Column: the 30-60-90 triangle}]
+Bisecting an equilateral triangle of side $2$ with a perpendicular produces a right triangle with sides in the ratio $1 : \sqrt{3} : 2$. This is the geometric basis of the $30^\circ$ and $60^\circ$ values.
+\end{column}
+
 \section{Identities}
 \side{These three are the backbone of trigonometry.}
-\begin{enumerate}[label=(\roman*),leftmargin=*]
-  \item $\sin^2\theta + \cos^2\theta = 1$
-  \item $\tan\theta = \sin\theta/\cos\theta$
-  \item $1 + \tan^2\theta = 1/\cos^2\theta$
-\end{enumerate}
 
-\section*{End-of-chapter problems}
-\begin{enumerate}[leftmargin=*,itemsep=5mm]
+From the Pythagorean theorem $(\text{opp.})^2 + (\text{adj.})^2 = (\text{hyp.})^2$, the following identities follow.
+
+\begin{keyformula}[title={Pythagorean identities (must memorise)}]
+\begin{enumerate}[label=(\roman*),leftmargin=*,itemsep=2pt]
+  \item $\sin^2\theta + \cos^2\theta = 1$
+  \item $\displaystyle \tan\theta = \frac{\sin\theta}{\cos\theta}$
+  \item $\displaystyle 1 + \tan^2\theta = \frac{1}{\cos^2\theta}$
+\end{enumerate}
+\end{keyformula}
+
+\begin{example}
+  Given $\sin\theta = \tfrac{3}{5}$ and $0^\circ < \theta < 90^\circ$, find $\cos\theta$ and $\tan\theta$.
+  \begin{solution}
+    From (i), $\cos^2\theta = 1 - \tfrac{9}{25} = \tfrac{16}{25}$. Since $\cos\theta > 0$ on $(0^\circ, 90^\circ)$, $\cos\theta = \tfrac{4}{5}$, and $\tan\theta = \tfrac{3/5}{4/5} = \tfrac{3}{4}$.
+  \end{solution}
+\end{example}
+
+\begin{advanced}[title={Further study: extending to negative and obtuse angles}]
+Using the unit-circle definition (introduced later), the trigonometric ratios extend to angles outside $(0^\circ, 90^\circ)$. Covered in a later chapter.
+\end{advanced}
+
+\section{Applications to measurement}
+\side{In surveying, $\tan\theta$ is often used to find heights from horizontal distances.}
+
+\begin{example}
+  From point $P$, the elevation angle of the top of a 20\,m building is $30^\circ$. Find the horizontal distance $d$ from $P$ to the building.
+  \begin{solution}
+    $\tan 30^\circ = \tfrac{20}{d}$, so $d = \tfrac{20}{\tan 30^\circ} = 20\sqrt{3} \approx 34.6\,\text{m}$.
+  \end{solution}
+\end{example}
+
+\begin{column}[title={Column: Eratosthenes measures the Earth}]
+Around 240 BC, Eratosthenes measured the angle of the Sun's shadow at two locations and used trigonometry to estimate the Earth's circumference as roughly 39{,}000\,km --- only a few percent off the modern figure of $\sim$40{,}000\,km. A striking demonstration that simple trigonometric ratios scale up to planetary measurements.
+\end{column}
+
+\section*{End-of-chapter problems (by level)}
+
+\noindent\textbf{[Basic]}
+\begin{enumerate}[leftmargin=*,itemsep=3mm]
   \item Given $\cos\theta = \tfrac{1}{3}$ and $0^\circ < \theta < 90^\circ$, find $\sin\theta$ and $\tan\theta$.
   \item Simplify $(\sin\theta + \cos\theta)^2 + (\sin\theta - \cos\theta)^2$.
-  \item An observer $1.5$\,m tall sees the top of a lamp post at a $45^\circ$ elevation from $12$\,m away. Find the height of the post.
 \end{enumerate}
+
+\medskip\noindent\textbf{[Standard]}
+\begin{enumerate}[leftmargin=*,start=3,itemsep=3mm]
+  \item A $1.5$-m-tall observer sees the top of a lamp post at a $45^\circ$ elevation from $12$\,m away. Find the height of the post.
+  \item If $\sin\theta + \cos\theta = \tfrac{1}{2}$, find $\sin\theta\cos\theta$.
+\end{enumerate}
+
+\medskip\noindent\textbf{[Advanced]}
+\begin{enumerate}[leftmargin=*,start=5,itemsep=3mm]
+  \item For $0^\circ < \theta < 90^\circ$, derive a relation between $\sin\theta + \cos\theta$ and $\sin\theta\cos\theta$.
+\end{enumerate}
+
+\section*{Chapter summary}
+\begin{keyformula}[title={Four take-aways}]
+\begin{enumerate}[leftmargin=*,itemsep=1pt]
+  \item Trigonometric ratios are defined by the sides of a right triangle.
+  \item Memorise the values at $30^\circ, 45^\circ, 60^\circ$.
+  \item The three Pythagorean identities are essential --- $\sin^2 + \cos^2 = 1$ most of all.
+  \item For elevation-angle problems: \emph{height $=$ distance $\times \tan\theta$}.
+\end{enumerate}
+\end{keyformula}
 
 \end{document}
 `;
