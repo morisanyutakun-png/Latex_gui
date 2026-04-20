@@ -2510,9 +2510,9 @@ const THESIS_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 本論文では ○○ を実現する新しい手法を提案し、数値実験によりその有効性を確認した。今後は △△ への拡張が課題である。
 
 \begin{thebibliography}{99}
-  \bibitem{ref1} 著者名, ``論文タイトル,'' 学会名, vol.~X, no.~Y, pp.~ZZ--ZZ, 20XX.
-  \bibitem{ref2} Author A., ``Paper Title,'' Conference Proceedings, 20XX.
-  \bibitem{ref3} Author B., Author C., ``Paper Title,'' Journal Name, vol.~X, pp.~ZZ--YY, 20XX.
+  \bibitem{ref1} 著者名, “論文タイトル,” 学会名, vol.~X, no.~Y, pp.~ZZ--ZZ, 20XX.
+  \bibitem{ref2} Author A., “Paper Title,” Conference Proceedings, 20XX.
+  \bibitem{ref3} Author B., Author C., “Paper Title,” Journal Name, vol.~X, pp.~ZZ--YY, 20XX.
 \end{thebibliography}
 
 \chapter*{謝辞}
@@ -2632,8 +2632,8 @@ The proposed algorithm consists of three stages:
 We proposed \dots and verified its effectiveness through experiments. Future work includes \dots.
 
 \begin{thebibliography}{99}
-  \bibitem{ref1} Author A., ``Paper Title,'' Conference Proc., 20XX.
-  \bibitem{ref2} Author B., ``Paper Title,'' Journal Name, vol.~X, pp.~YY--ZZ, 20XX.
+  \bibitem{ref1} Author A., “Paper Title,” Conference Proc., 20XX.
+  \bibitem{ref2} Author B., “Paper Title,” Journal Name, vol.~X, pp.~YY--ZZ, 20XX.
 \end{thebibliography}
 
 \chapter*{Acknowledgements}
@@ -3023,9 +3023,9 @@ const POSTER_LATEX = String.raw`\documentclass[final,t]{beamer}
 
 \begin{block}{参考文献}
   \footnotesize
-  [1] Author A., ``Paper Title,'' Conference, 20XX.\\
-  [2] Author B., ``Paper Title,'' Journal, 20XX.\\
-  [3] 著者名, ``論文タイトル,'' 学会誌, 20XX.
+  [1] Author A., “Paper Title,” Conference, 20XX.\\
+  [2] Author B., “Paper Title,” Journal, 20XX.\\
+  [3] 著者名, “論文タイトル,” 学会誌, 20XX.
 \end{block}
 
 \end{column}
@@ -3249,9 +3249,9 @@ const ACADEMIC_PAPER_LATEX = String.raw`\documentclass[11pt,a4paper]{article}
 
 \begin{thebibliography}{99}
   \small
-  \bibitem{ref1} Smith~J. and Lee~S., ``Paper Title,'' \emph{Proc.\ of Conf.}, pp.~1--10, 20XX.
-  \bibitem{ref2} Jones~R., ``Another Paper,'' \emph{Journal Name}, vol.~12, no.~3, pp.~45--60, 20XX.
-  \bibitem{ref3} 山田~太郎, ``論文タイトル,'' \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
+  \bibitem{ref1} Smith~J. and Lee~S., “Paper Title,” \emph{Proc.\ of Conf.}, pp.~1--10, 20XX.
+  \bibitem{ref2} Jones~R., “Another Paper,” \emph{Journal Name}, vol.~12, no.~3, pp.~45--60, 20XX.
+  \bibitem{ref3} 山田~太郎, “論文タイトル,” \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
 \end{thebibliography}
 
 \end{document}
@@ -3343,8 +3343,8 @@ We presented \dots and verified its effectiveness. Future work: scaling and appl
 This work was supported by Grant No.~XXXXXXX.
 
 \begin{thebibliography}{99}\small
-  \bibitem{ref1} Smith~J. and Lee~S., ``Paper Title,'' \emph{Proc.\ Conf.}, 20XX.
-  \bibitem{ref2} Jones~R., ``Paper Title,'' \emph{Journal}, 20XX.
+  \bibitem{ref1} Smith~J. and Lee~S., “Paper Title,” \emph{Proc.\ Conf.}, 20XX.
+  \bibitem{ref2} Jones~R., “Paper Title,” \emph{Journal}, 20XX.
 \end{thebibliography}
 
 \end{document}
@@ -3676,7 +3676,7 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 \end{align*}
 
 \begin{keypoint}
-\textbf{覚え方.}\quad 筆記体 s / c / t の書き順 ``斜 → 対''、``斜 → 底''、``底 → 対'' を思い浮かべると、分子と分母を迷わない。
+\textbf{覚え方.}\quad 筆記体 s / c / t の書き順 “斜 → 対”、“斜 → 底”、“底 → 対” を思い浮かべると、分子と分母を迷わない。
 \end{keypoint}
 
 \begin{example}
