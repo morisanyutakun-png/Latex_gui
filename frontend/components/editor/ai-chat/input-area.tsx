@@ -53,7 +53,7 @@ export function InputArea({
   };
 
   return (
-    <div className="px-3 pb-3 pt-2 shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm">
+    <div className="px-3 pb-3 pt-1 shrink-0 chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm">
       {/* Quick action chips */}
       {showQuick && !isChatLoading && (
         <div className="flex flex-wrap gap-1.5 mb-2 px-0.5 animate-in fade-in slide-in-from-bottom-1 duration-200">

@@ -19,6 +19,7 @@ import { MessageRow } from "./message-row";
 import { ThinkingIndicator } from "./thinking-indicator";
 import { UsageBar } from "./usage-bar";
 import { InputArea } from "./input-area";
+import { ModeSwitcher } from "./mode-switcher";
 
 export function AIChatPanel() {
   const { t, locale } = useI18n();
@@ -32,6 +33,8 @@ export function AIChatPanel() {
     setChatLoading,
     clearChat,
     setLastAIAction,
+    agentMode,
+    setAgentMode,
   } = useUIStore();
 
   const {
@@ -270,7 +273,7 @@ export function AIChatPanel() {
               lastStreamError = event.message;
               break;
           }
-        }, controller.signal, locale);
+        }, controller.signal, locale, agentMode);
       } catch (streamErr) {
         if (!streamSucceeded) {
           const currentContent = useUIStore.getState().chatMessages.find(m => m.id === assistantMsgId)?.content || "";
@@ -291,7 +294,7 @@ export function AIChatPanel() {
               setCurrentTool(null);
 
               try {
-                const result = await sendAIMessage(history, document, locale);
+                const result = await sendAIMessage(history, document, locale, agentMode);
                 const duration = Date.now() - startTime;
                 incrementUsage();
 
@@ -625,6 +628,14 @@ export function AIChatPanel() {
         className="hidden"
         onChange={handleOMRUpload}
       />
+
+      <div className="px-3 pt-2 shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm">
+        <ModeSwitcher
+          mode={agentMode}
+          onChange={setAgentMode}
+          disabled={isChatLoading}
+        />
+      </div>
 
       <InputArea
         input={input}

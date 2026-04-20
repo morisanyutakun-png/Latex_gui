@@ -3,9 +3,24 @@
 import { create } from "zustand";
 import { ChatMessage } from "@/lib/types";
 import type { RubricBundle, GradingResult, GradingPhase } from "@/lib/grading-types";
+import type { AgentMode } from "@/lib/api";
 
 export type PaperSize = "a4" | "a3" | "b5" | "letter";
 export type GuideContext = "none" | "math" | "heading" | "list" | "table" | "code" | "general";
+
+const AGENT_MODE_STORAGE_KEY = "eddivom-agent-mode";
+const VALID_AGENT_MODES: readonly AgentMode[] = ["auto", "problem", "math", "review"];
+
+function loadInitialAgentMode(): AgentMode {
+  if (typeof window === "undefined") return "auto";
+  try {
+    const saved = localStorage.getItem(AGENT_MODE_STORAGE_KEY);
+    if (saved && (VALID_AGENT_MODES as readonly string[]).includes(saved)) {
+      return saved as AgentMode;
+    }
+  } catch { /* ignore */ }
+  return "auto";
+}
 
 export interface LastAIAction {
   description: string;
@@ -31,6 +46,10 @@ interface UIState {
   chatMessages: ChatMessage[];
   isChatLoading: boolean;
   streamingMessageId: string | null;
+
+  // エージェントモード (localStorage 永続)
+  agentMode: AgentMode;
+  setAgentMode: (m: AgentMode) => void;
 
   // Programmatic chat message (e.g. from 類題作成)
   pendingChatMessage: string | null;
@@ -129,6 +148,12 @@ export const useUIStore = create<UIState>((set) => ({
   isChatLoading: false,
   streamingMessageId: null,
   pendingChatMessage: null,
+
+  agentMode: loadInitialAgentMode(),
+  setAgentMode: (m) => {
+    set({ agentMode: m });
+    try { localStorage.setItem(AGENT_MODE_STORAGE_KEY, m); } catch { /* ignore */ }
+  },
   omrMode: false,
   omrSourceUrl: null,
   omrSourceName: null,

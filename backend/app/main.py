@@ -681,6 +681,9 @@ class ChatRequest(pydantic.BaseModel):
     # Phase 3: UI ロケール ("ja" / "en") を AI システムプロンプトの言語切替に使う。
     # 省略時は "ja" (デフォルト) で従来動作。
     locale: str = "ja"
+    # Phase 4: エージェントモード ("auto" / "problem" / "math" / "review")。
+    # 未指定 or 不明値は "auto" にフォールバック (ai_service 側で正規化)。
+    mode: str = "auto"
 
 
 @app.post("/api/ai/chat")
@@ -719,7 +722,10 @@ async def ai_chat_endpoint(
     log_usage(db, user.id, "ai_request")
 
     try:
-        result = await ai_chat(request.messages, request.document, locale=request.locale)
+        result = await ai_chat(
+            request.messages, request.document,
+            locale=request.locale, mode=request.mode,
+        )
         return {"success": True, **result}
     except ValueError as e:
         raise HTTPException(status_code=503, detail={"message": str(e)})
@@ -769,7 +775,10 @@ async def ai_chat_stream_endpoint(
     logger.info("[stream] Starting SSE stream: %d messages, user=%s", len(request.messages), user.id)
 
     return StreamingResponse(
-        ai_chat_stream(request.messages, request.document, locale=request.locale),
+        ai_chat_stream(
+            request.messages, request.document,
+            locale=request.locale, mode=request.mode,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
