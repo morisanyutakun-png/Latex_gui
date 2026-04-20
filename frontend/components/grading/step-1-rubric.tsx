@@ -253,6 +253,13 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
   const [compiling, setCompiling] = useState(false);
   const [compileError, setCompileError] = useState<CompileErrorView | null>(null);
   const compileSeqRef = useRef(0);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // t は i18n provider 側で安定しているが、念のため ref 経由で参照し
+  // useCallback の deps から外す。これで親再描画で runCompile が再生成されず、
+  // debounce タイマがリセットされ続けて compile が永遠に始まらないバグを防ぐ。
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const runCompile = React.useCallback(async (source: string) => {
     if (!source.trim()) {
@@ -275,22 +282,31 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
       setCompileError(null);
     } catch (e) {
       if (seq !== compileSeqRef.current) return;
+      const tt = tRef.current;
       if (e instanceof CompileError) {
-        setCompileError(formatCompileError(e, t));
+        setCompileError(formatCompileError(e, tt));
       } else if (e instanceof Error) {
-        setCompileError({ title: t("error.compile"), lines: [e.message] });
+        setCompileError({ title: tt("error.compile"), lines: [e.message] });
       } else {
-        setCompileError({ title: t("error.compile"), lines: [t("error.pdf_generation_failed")] });
+        setCompileError({ title: tt("error.compile"), lines: [tt("error.pdf_generation_failed")] });
       }
     } finally {
       if (seq === compileSeqRef.current) setCompiling(false);
     }
-  }, [t]);
+  }, []);
 
-  // latex が変わるたびに自動コンパイル (短いデバウンスで連続変更に追随)
+  // 初回マウント時は即時コンパイル、以降の latex 変更は 600ms デバウンス
+  const hasCompiledOnceRef = useRef(false);
   useEffect(() => {
-    const timer = setTimeout(() => runCompile(latex), 200);
-    return () => clearTimeout(timer);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    const delay = hasCompiledOnceRef.current ? 600 : 0;
+    debounceTimerRef.current = setTimeout(() => {
+      hasCompiledOnceRef.current = true;
+      runCompile(latex);
+    }, delay);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
   }, [latex, runCompile]);
 
   // アンマウント時に Blob URL を解放
@@ -353,11 +369,33 @@ function ProblemPdfPreview({ latex }: ProblemPdfPreviewProps) {
         )}
 
         {!compileError && previewUrl && (
-          <iframe
-            src={previewUrl}
-            title={t("grading.rubric.preview")}
-            className="h-full w-full border-0"
-          />
+          <>
+            {/* Safari は <iframe src="blob:...pdf"> を白紙にすることがある。
+                <object> なら Safari 独自の PDF ビューアが発動しやすく、
+                未対応ブラウザでは内側の <iframe> フォールバックが描画される。 */}
+            <object
+              data={previewUrl}
+              type="application/pdf"
+              className="h-full w-full"
+              aria-label={t("grading.rubric.preview")}
+            >
+              <iframe
+                src={previewUrl}
+                title={t("grading.rubric.preview")}
+                className="h-full w-full border-0"
+              />
+            </object>
+            <a
+              href={previewUrl}
+              download="problem.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-md bg-foreground/80 text-background px-2 py-1 text-[10px] font-medium shadow-md hover:bg-foreground"
+              title="PDFをダウンロード / 新しいタブで開く"
+            >
+              PDF
+            </a>
+          </>
         )}
 
         {!compileError && !previewUrl && (
