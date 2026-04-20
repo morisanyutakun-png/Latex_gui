@@ -271,37 +271,57 @@ from .security import get_allowed_packages_doc as _get_pkg_doc
 
 
 # ─── Agent Modes ─────────────────────────────────────────────────────────────
-# Claude Code ライクなモード切替。UI の pill selector と 1:1 対応。
+# Claude Code ライクなモード切替。UI のタブと 1:1 対応。
 #
-#   auto    — 既定。標準エージェント (短い指示〜中規模の編集向け)。
-#   problem — 問題作成モード。問題+数式+解答+解説まで完走させる。
-#             途中で骨組みだけ返すのを禁止。ターン上限を引き上げる。
-#   math    — 数式集中モード。align/cases/数式記号を多用し、説明より式を優先。
-#   review  — 校正・レビューモード。既存ドキュメントを読み、欠損や誤りを
-#             検出して修正する。新規作成は避け、既存を尊重する。
+#   plan — 計画のみ。read-only ツールだけ許可し、LaTeX を一切編集しない。
+#          チャット応答として番号付きの実行計画を返す。ユーザーが計画を見て
+#          確認してから edit / mix で発火させる運用を想定。
+#   edit — 自律編集。計画は書かずに即座にツールを叩いて完走する。
+#          問題作成・数式・校正などすべてこのモードで走る (run-to-completion)。
+#   mix  — 両方。まず短い計画テキストを返し、続けて同じターンの中で実行まで完走する。
 #
 # ここで定義するのは "mode id" と "ターン予算" だけ。プロンプトの日英文面は
 # _MODE_APPENDIX_JA / _MODE_APPENDIX_EN に置き、ロケールごとに注入する。
 
-VALID_MODES = ("auto", "problem", "math", "review")
-DEFAULT_MODE = "auto"
+VALID_MODES = ("plan", "edit", "mix")
+DEFAULT_MODE = "edit"
+
+# 旧モード ID (auto/problem/math/review) → 新モードへのマイグレーション用エイリアス。
+# フロントの localStorage に古い値が残っていても壊れないようにする。
+_LEGACY_MODE_ALIAS: dict[str, str] = {
+    "auto": "edit",
+    "problem": "edit",
+    "math": "edit",
+    "review": "edit",
+}
 
 
 def _normalize_mode(mode: str | None) -> str:
     m = (mode or "").strip().lower()
-    if m not in VALID_MODES:
-        return DEFAULT_MODE
-    return m
+    if m in VALID_MODES:
+        return m
+    if m in _LEGACY_MODE_ALIAS:
+        return _LEGACY_MODE_ALIAS[m]
+    return DEFAULT_MODE
+
+
+# 書き込み系ツール名 (plan モードで取り除く対象)
+_WRITE_TOOL_NAMES = frozenset({
+    "set_latex",
+    "replace_in_latex",
+    "compile_check",
+    "insert_figure",
+    "draft_figure",
+})
 
 
 def max_turns_for_mode(mode: str) -> int:
-    """問題作成 / 校正は複数回の書き込み+検証+追記が必要なので余裕を持たせる。"""
+    """plan は計画だけなので短く、edit/mix は完走させるため余裕を持たせる。"""
     m = _normalize_mode(mode)
-    if m == "problem":
-        return 24
-    if m == "review":
-        return 18
-    return 15
+    if m == "plan":
+        return 6
+    # edit / mix: run-to-completion
+    return 24
 
 
 def _build_figure_catalog_block() -> str:
@@ -326,78 +346,95 @@ def _build_figure_catalog_block() -> str:
 
 
 _MODE_APPENDIX_JA: dict[str, str] = {
-    "auto": (
+    "plan": (
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "## モード: 標準 (auto)\n"
+        "## モード: Plan (計画のみ) — **編集は絶対に行わない**\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "ユーザーの指示を素直に解釈し、最小の差分で編集する。既存テンプレを尊重。\n"
-        "- 小さな編集 → `replace_in_latex`\n"
-        "- 新規作成 → `set_latex`\n"
-        "- 生成内容はすべて具体化 (プレースホルダ禁止)\n"
+        "このモードでは **LaTeX ソースを一切書き換えてはいけない**。\n"
+        "冒頭の「絶対原則 #1 (チャットではなくソースに書け)」はこのモードでは**例外**扱い。\n"
+        "\n"
+        "### やってよいこと\n"
+        "- `read_latex` で現状を把握する\n"
+        "- `list_figures` / `get_figure` で使える素材を調べる\n"
+        "- チャット応答として **実行計画** を番号付きで返す\n"
+        "\n"
+        "### やってはいけないこと\n"
+        "- `set_latex`, `replace_in_latex`, `compile_check`, `insert_figure`, `draft_figure`\n"
+        "  これらは **一切呼ばない** (ツール自体が外されている場合もある)\n"
+        "- 「計画を書いたついでに編集します」は禁止。ユーザーは後で edit / mix で実行する\n"
+        "\n"
+        "### 応答フォーマット\n"
+        "以下の構造を守る:\n"
+        "```\n"
+        "### 目的\n"
+        "(1〜2 行でユーザー要求を言い換える)\n"
+        "\n"
+        "### 実行計画\n"
+        "1. 〜〜を set_latex で新規作成する\n"
+        "2. 〜〜を replace_in_latex で差し替える (find/replace の要点)\n"
+        "3. 図は `<asset_id>` を insert_figure で挿入する\n"
+        "4. 最後に compile_check(quick=false) で検証する\n"
+        "\n"
+        "### 注意点・前提\n"
+        "- (テンプレ選択、語数、既存内容との整合など)\n"
+        "\n"
+        "次のアクション: Edit モード または Mix モードに切り替えて実行してください。\n"
+        "```\n"
+        "\n"
+        "計画は **具体的** に書く。「問題を追加する」だけでなく「二次方程式 5 問、係数は整数範囲、\n"
+        "解答と解説付き、レイアウトは問題/解答/解説で別セクション」まで踏み込むこと。\n"
     ),
-    "problem": (
+    "edit": (
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "## モード: 問題作成 (problem) — **完走モード**\n"
+        "## モード: Edit (自律編集) — **完走モード**\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "このモードではあなたは **自律型問題作成エージェント** として振る舞う。\n"
-        "ユーザーは細かく指示を出さない。最後まで自分で走り切れ。\n"
+        "このモードでは **計画をチャットに書く時間はない**。即座にツールを叩き、最後まで書き切れ。\n"
+        "ユーザーは結果 (LaTeX の変更 + PDF) だけを見たい。\n"
         "\n"
-        "### 必ず含める要素 (明示除外がない限り)\n"
-        "1. **問題文**: 具体的な数値・条件・図 (抽象変数のままは禁止)\n"
-        "2. **解答**: 各問題に対応する模範解答\n"
-        "3. **解説**: 主要な途中式・考え方のポイント\n"
-        "4. **番号付けと区切り**: `問題 1.`, `解答.`, `解説.` など視認性の高い構造\n"
-        "5. 関連する図が必要なら `list_figures` → `insert_figure` で挿入\n"
+        "### 行動原則\n"
+        "- 着手前のチャット応答は不要 (もしくは最短の一言)。いきなりツール呼び出しで始めてよい\n"
+        "- 「問題 N 問」「プリント」「テスト」と言われたら 問題文+解答+解説を **全部具体値で埋める**\n"
+        "- 抽象変数のまま / TODO / プレースホルダ / 空 enumerate は禁止\n"
+        "- 完走するまで自分から止まるな。途中で「続けますか？」と聞くな\n"
+        "- `compile_check` を通し、最後に `read_latex` で Self-Review して欠損があれば追記\n"
         "\n"
-        "### デフォルトの構成 (ユーザー指定がない場合)\n"
-        "- 問題数: ユーザーが指定した数。指定無しなら **5 問** を既定値とする\n"
-        "- 難易度: ユーザー指定の学年/試験に合わせる。指定無しなら高校標準レベル\n"
-        "- レイアウト: `\\section*{{問題}}` → `\\section*{{解答}}` → `\\section*{{解説}}` を使い分ける、\n"
-        "  もしくは問題ごとに (問題/解答/解説) をまとめる。既存テンプレに合わせて選べ\n"
-        "\n"
-        "### 完走の絶対条件\n"
-        "- 指定問題数 = 実際に書き込まれた問題数 (N 問依頼 → N 問全部書く)\n"
-        "- **1 問でも問題文が空/抽象/TODO ならそのターンで必ず埋めろ**\n"
-        "- 解答・解説を「省略」「割愛」してはいけない\n"
-        "- 最後に `read_latex` で自己検証し、欠損があれば `replace_in_latex` で追記\n"
-        "- 途中で止まって「必要なら続けますか？」と聞くな。**最後まで書き切ってから報告**\n"
+        "### デフォルト (ユーザー指定がない場合)\n"
+        "- 問題数指定なし → **5 問** を既定とする\n"
+        "- 難易度指定なし → 高校標準レベル\n"
+        "- レイアウトは既存テンプレのスタイルに合わせる\n"
         "\n"
         "### 数式の品質\n"
         "- インライン `$...$`、独立行は `\\[ ... \\]`、複数行は `align` / `align*`\n"
-        "- 分数は `\\dfrac`、根号・指数・添字は正しい LaTeX 記法で\n"
-        "- 解答の計算過程は `align*` で左辺=右辺の列を揃える\n"
+        "- `\\dfrac`、`\\bm`、`pmatrix`、`\\lim_{{x \\to a}}` を適切に使う\n"
+        "- 解答の計算は `align*` の `&=` で列を揃える\n"
+        "\n"
+        "### 最終報告\n"
+        "生成した具体数 (問題 N 問・図 K 点・セクション数) と compile 結果を 3〜6 行で。\n"
+        "「骨組みだけ」「あとはご自由に」系の報告は **絶対禁止**。\n"
     ),
-    "math": (
+    "mix": (
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "## モード: 数式 (math)\n"
+        "## モード: Mix (計画 + 自律実行) — 両方やる\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "数式の生成・整形に特化する。説明文は最小限、数式の正確さと美しさを優先。\n"
-        "- 独立式は `\\[ ... \\]` または `align` を既定とする\n"
-        "- 複数ステップの変形は `align*` の `&=` で縦に揃える\n"
-        "- ベクトル `\\bm{{...}}`、行列 `pmatrix` / `bmatrix`、集合 `\\{{...\\}}` を適切に使う\n"
-        "- 分数は `\\dfrac`、組み合わせは `\\binom`、極限は `\\lim_{{x \\to a}}`\n"
-        "- 数式が連続する場合でも、各ブロックの意味が分かるよう必要最小限の前置きを付ける\n"
-        "- 抽象変数のみで終わらせない。具体数値を含むサンプルがあると望ましい\n"
-    ),
-    "review": (
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "## モード: 校正 (review)\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "**同じターン内で** まず短い計画をテキスト応答し、続けて編集まで完走する。\n"
         "\n"
-        "既存ドキュメントを **読み込んで** から、欠損や誤りを見つけて修正する。\n"
-        "- まず必ず `read_latex` で全文を取得 (省略可のヒントがあっても念のため取得)\n"
-        "- チェック項目:\n"
-        "  (1) プレースホルダ・TODO の残骸\n"
-        "  (2) 未解答・未解説の問題\n"
-        "  (3) 数式記法のミス (`\\frac` ネスト崩れ・括弧閉じ忘れ・単位/記号の混在)\n"
-        "  (4) セクション番号の飛び・重複\n"
-        "  (5) コンパイルエラーや警告\n"
-        "- 発見した問題は **その場で修正** する。列挙だけして終わるな\n"
-        "- 大きく書き換える前に `replace_in_latex` で局所修正を試す (差分最小)\n"
-        "- 最後に `compile_check(quick=false)` で検証 → `read_latex` で仕上がり確認\n"
+        "### フェーズ 1: Plan (先にチャットへ)\n"
+        "- 3〜6 行程度。箇条書き。ユーザーが流し読みで把握できる粒度\n"
+        "- 具体的な内容 (問題数・図の id・セクション構成など) を含める\n"
+        "- **長々とした LaTeX 貼り付けは禁止**。計画の要約だけ\n"
+        "\n"
+        "### フェーズ 2: Execute (続けてツール実行)\n"
+        "- その計画通りに `set_latex` / `replace_in_latex` / `insert_figure` で書き込む\n"
+        "- Edit モードと同じ完走ルールを適用:\n"
+        "  抽象・TODO・プレースホルダ禁止 / compile_check 必須 / Self-Review 必須\n"
+        "- 計画から逸脱した場合は実行中に計画を更新してよいが、欠損を放置するな\n"
+        "\n"
+        "### 最終報告\n"
+        "(1) 計画との差分があれば一言 / (2) 生成した具体数 / (3) compile 結果。3〜6 行。\n"
+        "ユーザーは計画も結果も両方見る前提。\n"
     ),
 }
 
@@ -570,75 +607,93 @@ LuaLaTeX を前提とする。日本語テンプレなら `luatexja-preset[haran
 
 
 _MODE_APPENDIX_EN: dict[str, str] = {
-    "auto": (
+    "plan": (
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "## Mode: Standard (auto)\n"
+        "## Mode: Plan — **no editing allowed**\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "Interpret the user's instruction literally and make the smallest diff that satisfies it.\n"
-        "- Small edit → `replace_in_latex`\n"
-        "- New doc → `set_latex`\n"
-        "- Everything you write must be concrete. No placeholders.\n"
+        "In this mode you MUST NOT modify the LaTeX source. Cardinal rule #1\n"
+        "(\"write to the source\") is **overridden** here.\n"
+        "\n"
+        "### Allowed\n"
+        "- `read_latex` to inspect the current source\n"
+        "- `list_figures` / `get_figure` to survey available assets\n"
+        "- Reply in chat with a numbered execution plan\n"
+        "\n"
+        "### Forbidden\n"
+        "- Never call `set_latex`, `replace_in_latex`, `compile_check`, `insert_figure`,\n"
+        "  or `draft_figure`. (They may be stripped from the toolset in this mode.)\n"
+        "- Do not 'plan and then also edit just this once'. The user will run Edit / Mix later.\n"
+        "\n"
+        "### Response format\n"
+        "```\n"
+        "### Goal\n"
+        "(1–2 lines restating the user's ask)\n"
+        "\n"
+        "### Plan\n"
+        "1. Create <...> via set_latex\n"
+        "2. Patch <...> via replace_in_latex (find/replace gist)\n"
+        "3. Insert figure `<asset_id>` via insert_figure\n"
+        "4. Verify with compile_check(quick=false)\n"
+        "\n"
+        "### Notes & assumptions\n"
+        "- (template choice, word counts, consistency with existing doc, …)\n"
+        "\n"
+        "Next: switch to Edit or Mix mode to execute.\n"
+        "```\n"
+        "\n"
+        "Be **concrete** — not 'add problems' but 'add 5 quadratic-equation problems with\n"
+        "integer coefficients, answers, and solutions, split into Problem / Answer / Solution sections'.\n"
     ),
-    "problem": (
+    "edit": (
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "## Mode: Problem-set (problem) — **run-to-completion**\n"
+        "## Mode: Edit (autonomous) — **run-to-completion**\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "In this mode you act as an **autonomous problem-set author**.\n"
-        "The user will not micromanage. Drive the task to full completion yourself.\n"
+        "No plan-in-chat in this mode. Go straight to tool calls and keep writing until done.\n"
+        "The user wants the result (LaTeX + PDF), not a narration.\n"
         "\n"
-        "### Every output must contain (unless the user explicitly excludes it)\n"
-        "1. **Problem statement** with concrete numbers / conditions / context\n"
-        "2. **Answer** for each problem\n"
-        "3. **Solution walkthrough** (key steps, not just the final answer)\n"
-        "4. Clear numbering: `Problem 1.`, `Answer.`, `Solution.`\n"
-        "5. Insert supporting figures via `list_figures` → `insert_figure` when relevant\n"
+        "### Behaviour\n"
+        "- Skip the plan; start with tool calls (or a one-liner at most).\n"
+        "- 'N problems' / 'worksheet' / 'test' → every problem, answer, and solution filled in\n"
+        "  with concrete numbers. No abstract variables, no TODOs, no empty lists.\n"
+        "- Never stop midway asking 'should I continue?'.\n"
+        "- Run `compile_check`, then a final `read_latex` Self-Review; patch any gap.\n"
         "\n"
-        "### Defaults when the user did not specify\n"
-        "- Count: **5 problems** if no number is given\n"
-        "- Difficulty: match the grade/exam the user implied; otherwise standard high-school level\n"
-        "- Layout: either `\\section*{{Problems}}` → `\\section*{{Answers}}` → `\\section*{{Solutions}}`,\n"
-        "  or per-problem (problem/answer/solution grouped). Match the existing template.\n"
-        "\n"
-        "### Hard completion rules\n"
-        "- Requested count == actually written count. 5 problems requested → 5 full problems written.\n"
-        "- **If any problem text is empty, abstract, or a TODO, finish it in THIS turn.**\n"
-        "- Never skip or elide answers / solutions.\n"
-        "- Finish with a `read_latex` self-review; patch any gap with `replace_in_latex`.\n"
-        "- Do not stop mid-way and ask 'should I continue?'. **Write it all, then report.**\n"
+        "### Defaults (when unspecified)\n"
+        "- Problem count: **5** if no number is given.\n"
+        "- Difficulty: standard high-school level.\n"
+        "- Layout: follow the existing template.\n"
         "\n"
         "### Math quality\n"
         "- Inline `$...$`, display `\\[ ... \\]`, multi-line `align` / `align*`\n"
-        "- Use `\\dfrac`, proper superscripts/subscripts, aligned `&=` chains\n"
+        "- Use `\\dfrac`, `\\bm`, `pmatrix`, `\\lim_{{x \\to a}}`\n"
+        "- Aligned `&=` in multi-step derivations\n"
+        "\n"
+        "### Final report\n"
+        "3–6 lines with concrete counts (N problems, K figures) + compile result.\n"
+        "Never report 'skeleton only' / 'rest is up to you'.\n"
     ),
-    "math": (
+    "mix": (
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "## Mode: Math (math)\n"
+        "## Mode: Mix (plan + autonomous edit)\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "Specialize in equation authoring. Prose is minimal; prioritise correctness and visual polish.\n"
-        "- Default to `\\[ ... \\]` or `align` for standalone formulas\n"
-        "- Vertically align `&=` steps across multi-step derivations\n"
-        "- Use `\\bm{{...}}` for vectors, `pmatrix` / `bmatrix`, `\\dfrac`, `\\binom`, `\\lim_{{x \\to a}}`\n"
-        "- Include concrete numeric examples when possible — do not leave only abstract symbols\n"
-    ),
-    "review": (
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "## Mode: Review (review)\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "In the **same turn**, first emit a short plan, then execute it to completion.\n"
         "\n"
-        "Always read the existing doc first, then find and fix issues. Minimise new content.\n"
-        "- Start with `read_latex`\n"
-        "- Checklist:\n"
-        "  (1) leftover placeholders / TODO markers\n"
-        "  (2) problems with no answer or no solution\n"
-        "  (3) malformed math (nested fractions, unclosed braces, inconsistent units)\n"
-        "  (4) duplicate or skipped section numbers\n"
-        "  (5) compile errors / warnings\n"
-        "- Fix every issue you find in the same turn — don't just list them.\n"
-        "- Prefer local `replace_in_latex` patches over full rewrites.\n"
-        "- End with `compile_check(quick=false)` and a final `read_latex` pass.\n"
+        "### Phase 1 — Plan (in chat)\n"
+        "- 3–6 lines of bullets. Skimmable.\n"
+        "- Concrete: problem count, figure ids, section structure.\n"
+        "- No long LaTeX pasted. Summary only.\n"
+        "\n"
+        "### Phase 2 — Execute (tool calls, immediately after)\n"
+        "- Follow the plan with `set_latex` / `replace_in_latex` / `insert_figure`.\n"
+        "- Apply all Edit-mode run-to-completion rules:\n"
+        "  no placeholders, mandatory `compile_check`, mandatory Self-Review.\n"
+        "- If you diverge from the plan, adjust the plan mid-run — do not leave gaps.\n"
+        "\n"
+        "### Final report\n"
+        "(1) plan deviations if any, (2) concrete counts, (3) compile result. 3–6 lines.\n"
     ),
 }
 
@@ -856,6 +911,16 @@ def get_openai_tools() -> list[dict]:
     if OPENAI_TOOLS is None:
         OPENAI_TOOLS = build_openai_tools()
     return OPENAI_TOOLS
+
+
+def get_tools_for_mode(mode: str) -> list[dict]:
+    """Plan モードでは書き込み系ツールを物理的に外す。
+    プロンプトだけでなくツール層でも強制することで、AI が誤って編集することを防ぐ。"""
+    m = _normalize_mode(mode)
+    tools = get_openai_tools()
+    if m == "plan":
+        return [t for t in tools if t.get("function", {}).get("name") not in _WRITE_TOOL_NAMES]
+    return tools
 
 
 # Legacy alias for omr_service compatibility
@@ -1536,10 +1601,9 @@ def _build_agent_contents(
         )
         ctx_label = "Document context"
         mode_banner = {
-            "auto":    "[mode: auto] Standard edit — minimal diff, respect template.",
-            "problem": "[mode: problem] Autonomous problem-set author. Fully fill in every problem + answer + solution before stopping.",
-            "math":    "[mode: math] Math-focused. Prioritise correctness and visual polish of equations.",
-            "review":  "[mode: review] Review & fix existing content. Find placeholders/gaps/errors and patch them.",
+            "plan": "[mode: PLAN] Plan only — DO NOT edit the LaTeX. Use read_latex / list_figures only. Reply with a numbered plan.",
+            "edit": "[mode: EDIT] Autonomous edit — skip the plan, call tools immediately, finish every problem+answer+solution with concrete content. Run-to-completion.",
+            "mix":  "[mode: MIX] Plan + execute in the same turn. Short plan first in chat, then edit to completion.",
         }[norm_mode]
     else:
         nudge_with_ctx = (
@@ -1551,10 +1615,9 @@ def _build_agent_contents(
         )
         ctx_label = "文書コンテキスト"
         mode_banner = {
-            "auto":    "[モード: 標準] 最小差分で編集。既存テンプレを尊重。",
-            "problem": "[モード: 問題作成] 自律型問題作成エージェント。問題・解答・解説を全て具体化してから終了せよ。骨組みだけで止めるな。",
-            "math":    "[モード: 数式] 数式の正確さと見た目を最優先。説明は最小限。",
-            "review":  "[モード: 校正] 既存文書を読み、プレースホルダ/欠損/誤りを見つけて必ずその場で修正せよ。",
+            "plan": "[モード: PLAN] 計画のみ。LaTeX を書き換えるな。read_latex / list_figures だけ使い、番号付き計画をチャットに返せ。",
+            "edit": "[モード: EDIT] 自律編集。計画は書かずに即ツール呼び出し。問題・解答・解説まで具体値で完走。骨組みだけで止めるな。",
+            "mix":  "[モード: MIX] 同じターン内で まず短い計画テキスト → そのまま実行まで完走。",
         }[norm_mode]
 
     for i, msg in enumerate(messages):
@@ -1625,8 +1688,9 @@ async def chat_stream(
         messages: chat history
         document: current DocumentModel as dict (mutated by tools)
         locale:   "ja" (default) or "en" — selects system prompt + status text
-        mode:     agent mode id — one of VALID_MODES. Controls which prompt
-                  appendix is injected and the per-turn budget. Invalid → auto.
+        mode:     agent mode id — one of VALID_MODES (plan / edit / mix).
+                  Controls which prompt appendix is injected, the tool set,
+                  and the per-turn budget. Invalid / legacy ids → edit.
 
     SSE events:
       {"type": "thinking", "text": "..."}
@@ -1675,7 +1739,7 @@ async def chat_stream(
         openai_messages = _build_agent_contents(
             messages, doc_brief, locale=locale, mode=mode
         )
-        tools = get_openai_tools()
+        tools = get_tools_for_mode(mode)
 
         yield _sse({"type": "thinking", "text": STATUS_BOOT})
 
@@ -1925,14 +1989,14 @@ async def chat(
     """Non-streaming agent chat — fallback for when streaming fails.
 
     `locale` selects the system prompt language ("ja" / "en").
-    `mode` selects the agent mode (auto / problem / math / review)."""
+    `mode` selects the agent mode (plan / edit / mix)."""
     client = get_client()
     doc_brief = _document_context_brief(document)
     mode = _normalize_mode(mode)
     openai_messages = _build_agent_contents(
         messages, doc_brief, locale=locale, mode=mode
     )
-    tools = get_openai_tools()
+    tools = get_tools_for_mode(mode)
 
     all_thinking: list[dict] = []
     total_usage = {"inputTokens": 0, "outputTokens": 0}

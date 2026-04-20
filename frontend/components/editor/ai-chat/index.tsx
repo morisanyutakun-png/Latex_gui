@@ -629,7 +629,7 @@ export function AIChatPanel() {
         onChange={handleOMRUpload}
       />
 
-      <div className="px-3 pt-2 shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm">
+      <div className="px-3 pt-1.5 shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm">
         <ModeSwitcher
           mode={agentMode}
           onChange={setAgentMode}

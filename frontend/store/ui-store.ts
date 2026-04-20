@@ -8,18 +8,20 @@ import type { AgentMode } from "@/lib/api";
 export type PaperSize = "a4" | "a3" | "b5" | "letter";
 export type GuideContext = "none" | "math" | "heading" | "list" | "table" | "code" | "general";
 
-const AGENT_MODE_STORAGE_KEY = "eddivom-agent-mode";
-const VALID_AGENT_MODES: readonly AgentMode[] = ["auto", "problem", "math", "review"];
+// v2: モード ID 再設計 (plan / edit / mix)。旧値 (auto/problem/math/review) は
+// ここで破棄して edit にフォールバックする。キーも変えて旧値が読まれないようにする。
+const AGENT_MODE_STORAGE_KEY = "eddivom-agent-mode-v2";
+const VALID_AGENT_MODES: readonly AgentMode[] = ["plan", "edit", "mix"];
 
 function loadInitialAgentMode(): AgentMode {
-  if (typeof window === "undefined") return "auto";
+  if (typeof window === "undefined") return "edit";
   try {
     const saved = localStorage.getItem(AGENT_MODE_STORAGE_KEY);
     if (saved && (VALID_AGENT_MODES as readonly string[]).includes(saved)) {
       return saved as AgentMode;
     }
   } catch { /* ignore */ }
-  return "auto";
+  return "edit";
 }
 
 export interface LastAIAction {

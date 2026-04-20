@@ -319,18 +319,17 @@ export type AILocale = "ja" | "en";
 
 /**
  * エージェントモード ID。バックエンドの VALID_MODES と同期している。
- * - auto:    標準編集 (最小差分)
- * - problem: 問題作成モード (完走モード)
- * - math:    数式集中モード
- * - review:  校正・レビューモード
+ * - plan: 計画のみ。read-only ツールだけ許可、チャットに番号付き計画を返す
+ * - edit: 自律編集。計画を書かず即実行、完走モード
+ * - mix:  計画 + 自律実行。同ターン内で計画テキスト → 編集まで完走
  */
-export type AgentMode = "auto" | "problem" | "math" | "review";
+export type AgentMode = "plan" | "edit" | "mix";
 
 export async function sendAIMessage(
   messages: Pick<ChatMessage, "role" | "content">[],
   doc: DocumentModel,
   locale: AILocale = "ja",
-  mode: AgentMode = "auto",
+  mode: AgentMode = "edit",
 ): Promise<AIChatResponse> {
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/ai/chat`
@@ -384,7 +383,7 @@ export async function streamAIMessage(
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
   locale: AILocale = "ja",
-  mode: AgentMode = "auto",
+  mode: AgentMode = "edit",
 ): Promise<StreamDiagnostics> {
   const url = AI_BACKEND_URL
     ? `${AI_BACKEND_URL}/api/ai/chat/stream`
