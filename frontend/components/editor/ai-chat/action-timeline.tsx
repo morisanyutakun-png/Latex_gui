@@ -28,8 +28,8 @@ const stepStyle = {
 
 export function ActionTimeline({ steps }: { steps: ThinkingStep[] }) {
   const { t } = useI18n();
-  const hasToolCalls = steps?.some(s => s.type === "tool_call") ?? false;
-  const [expanded, setExpanded] = React.useState(hasToolCalls);
+  // 既定は折りたたみ。ユーザーはまずサマリーを読み、気になったときだけタブを開く想定。
+  const [expanded, setExpanded] = React.useState(false);
   if (!steps || steps.length === 0) return null;
 
   const totalDuration = steps.reduce((sum, s) => sum + (s.duration || 0), 0);
