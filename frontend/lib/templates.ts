@@ -2762,8 +2762,8 @@ const THESIS_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany,twoside]{
 
 \newtcolorbox{gloss}{colback=thesissoft!40,colframe=thesisaccent,left=3mm,right=3mm,top=2mm,bottom=2mm,sharp corners,boxrule=0.4pt}
 
-% Pseudo-code algorithm box (stand-in for the `algorithm` package)
-% #1: title suffix (e.g. "1: Proposed algorithm")
+% Pseudo-code algorithm box (stand-in for the algorithm package)
+% #1: title suffix, e.g. "1: Proposed algorithm"
 \newtcolorbox{algbox}[1]{%
   enhanced, breakable, colback=white, colframe=thesisaccent!85!black,
   sharp corners, boxrule=0.4pt,
