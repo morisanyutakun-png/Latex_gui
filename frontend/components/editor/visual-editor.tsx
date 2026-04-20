@@ -2122,6 +2122,22 @@ function buildInlinesHTML(inlines: Inline[], src: string): string {
       html += escapeHtml(inline.body);
     } else if (inline.kind === "inlineMath") {
       html += buildMathChipHTML(inline.body, "dollar");
+    } else if (inline.kind === "displayMath") {
+      // list item 等の段落内で出会った \[...\] / \begin{equation} は
+      // centered block で KaTeX 描画。生 LaTeX (wrapper/envName) は data 属性で
+      // 保持し、serializer がラウンドトリップで元の形式に戻せるようにする。
+      const wrapper = inline.meta?.wrapper ?? "bracket";
+      const envName = inline.meta?.envName ?? "";
+      const forKatex = (wrapper === "env" && envName)
+        ? `\\begin{${envName}}${inline.body}\\end{${envName}}`
+        : inline.body;
+      const rendered = renderDisplayMathOrPlaceholder(forKatex);
+      html += `<span class="latex-inline-display-math" contenteditable="false" ` +
+        `data-display-wrapper="${escapeHtml(wrapper)}" ` +
+        `data-display-env="${escapeHtml(envName)}" ` +
+        `data-display-body="${escapeHtml(inline.body)}" ` +
+        `style="display:block;margin:0.6em 0;text-align:center;">` +
+        `${rendered}</span>`;
     } else if (inline.kind === "bold") {
       html += `<strong>${escapeHtml(inline.body)}</strong>`;
     } else if (inline.kind === "italic") {
@@ -2369,6 +2385,23 @@ export function serializeContentEditableDOM(el: HTMLElement): string {
       const wrapper = child.dataset.wrapper || "dollar";
       if (wrapper === "paren") result += `\\(${body}\\)`;
       else result += `$${body}$`;
+      continue;
+    }
+
+    // 段落内の表示数式 (\[...\] / \begin{equation}...)
+    // buildInlinesHTML が付けた data-display-* を read してラウンドトリップする。
+    if (child.dataset.displayBody !== undefined) {
+      const body = (child.dataset.displayBody ?? "").trim();
+      if (!body) continue;
+      const wrapper = child.dataset.displayWrapper || "bracket";
+      const envName = child.dataset.displayEnv || "";
+      if (wrapper === "env" && envName) {
+        result += `\\begin{${envName}}${body}\\end{${envName}}`;
+      } else if (wrapper === "dollar") {
+        result += `$$${body}$$`;
+      } else {
+        result += `\\[${body}\\]`;
+      }
       continue;
     }
 

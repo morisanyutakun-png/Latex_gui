@@ -43,6 +43,7 @@ export type SegmentKind =
 export type InlineKind =
   | "text"
   | "inlineMath"
+  | "displayMath"  // \[...\] / \begin{equation}...\end{equation} 等を item 等の本文内で出会った場合
   | "bold"
   | "italic"
   | "code"
@@ -332,6 +333,14 @@ function inlinesToVisible(inlines: Inline[]): string {
   let out = "";
   for (const it of inlines) {
     if (it.kind === "inlineMath") out += `$${it.body}$`;
+    else if (it.kind === "displayMath") {
+      // ラウンドトリップ時に元の wrapper を尊重する
+      const wrapper = it.meta?.wrapper ?? "bracket";
+      const envName = it.meta?.envName ?? "";
+      if (wrapper === "env" && envName) out += `\\begin{${envName}}${it.body}\\end{${envName}}`;
+      else if (wrapper === "dollar") out += `$$${it.body}$$`;
+      else out += `\\[${it.body}\\]`;
+    }
     else if (it.kind === "linebreak") out += "\\\\";
     else if (it.kind === "rule") {
       // \rule{w}{h} は LaTeX の literal 文字列として残す。空文字だと
@@ -541,6 +550,77 @@ export function extractInlines(src: string, start: number, end: number): Inline[
           kind: "inlineMath",
           range: { start: i, end: close + 2 },
           body: src.slice(i + 2, close),
+        });
+        cursor = close + 2;
+        i = close + 2;
+        continue;
+      }
+    }
+
+    // \[ ... \] — list item 等「段落の中」に出現した表示数式。
+    // トップレベルでは parseBody が displayMath セグメントに昇格するが、
+    // \item の body を extractInlines で取ると段落扱いになるためここでも拾う。
+    if (ch === "\\" && src[i + 1] === "[") {
+      const close = src.indexOf("\\]", i + 2);
+      if (close !== -1 && close < end) {
+        pushText(cursor, i);
+        inlines.push({
+          id: nextId("inl"),
+          kind: "displayMath",
+          range: { start: i, end: close + 2 },
+          body: src.slice(i + 2, close).trim(),
+          meta: { wrapper: "bracket" },
+        });
+        cursor = close + 2;
+        i = close + 2;
+        continue;
+      }
+    }
+
+    // \begin{equation}...\end{equation} / align / gather / ... 等も
+    // 段落内で出会うことがある (稀だが教材で使われる)
+    if (ch === "\\" && src.startsWith("\\begin{", i)) {
+      const braceOpen = i + 7;
+      const braceClose = src.indexOf("}", braceOpen);
+      if (braceClose !== -1 && braceClose < end) {
+        const envName = src.slice(braceOpen, braceClose);
+        const mathEnvs = new Set([
+          "equation", "equation*", "align", "align*", "gather", "gather*",
+          "multline", "multline*", "displaymath", "eqnarray", "eqnarray*",
+        ]);
+        if (mathEnvs.has(envName)) {
+          const endMarker = `\\end{${envName}}`;
+          const endIdx = src.indexOf(endMarker, braceClose + 1);
+          if (endIdx !== -1 && endIdx + endMarker.length <= end) {
+            const envEnd = endIdx + endMarker.length;
+            const innerStart = braceClose + 1;
+            pushText(cursor, i);
+            inlines.push({
+              id: nextId("inl"),
+              kind: "displayMath",
+              range: { start: i, end: envEnd },
+              body: src.slice(innerStart, endIdx).trim(),
+              meta: { wrapper: "env", envName },
+            });
+            cursor = envEnd;
+            i = envEnd;
+            continue;
+          }
+        }
+      }
+    }
+
+    // $$ ... $$
+    if (ch === "$" && src[i + 1] === "$") {
+      const close = src.indexOf("$$", i + 2);
+      if (close !== -1 && close < end) {
+        pushText(cursor, i);
+        inlines.push({
+          id: nextId("inl"),
+          kind: "displayMath",
+          range: { start: i, end: close + 2 },
+          body: src.slice(i + 2, close).trim(),
+          meta: { wrapper: "dollar" },
         });
         cursor = close + 2;
         i = close + 2;
@@ -2433,6 +2513,17 @@ export function serializeInline(inline: Inline, newBody: string): string {
   switch (inline.kind) {
     case "text": return newBody;
     case "inlineMath": return `$${newBody}$`;
+    case "displayMath": {
+      const wrapper = inline.meta?.wrapper ?? "bracket";
+      const envName = inline.meta?.envName ?? "";
+      if (wrapper === "env" && envName) {
+        return `\\begin{${envName}}${newBody}\\end{${envName}}`;
+      }
+      if (wrapper === "dollar") {
+        return `$$${newBody}$$`;
+      }
+      return `\\[${newBody}\\]`;
+    }
     case "bold": return `\\textbf{${newBody}}`;
     case "italic": return `\\textit{${newBody}}`;
     case "code": return `\\texttt{${newBody}}`;
