@@ -644,6 +644,7 @@ export function AIChatPanel() {
         onKeyDown={handleKeyDown}
         isChatLoading={isChatLoading}
         agentMode={true}
+        mode={agentMode}
         textareaRef={textareaRef}
         onAttach={() => fileInputRef.current?.click()}
       />

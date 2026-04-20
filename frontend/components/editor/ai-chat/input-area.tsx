@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useI18n } from "@/lib/i18n";
 import { ArrowUp, Loader2, Paperclip, Sparkles, X, Wand2, FileText, Calculator, Table } from "lucide-react";
+import type { AgentMode } from "@/lib/api";
+import { MODE_ACCENTS } from "./mode-switcher";
 
 interface QuickAction {
   icon: React.ReactNode;
@@ -18,7 +20,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 export function InputArea({
   input, setInput, onSend, onKeyDown, isChatLoading,
-  textareaRef, onAttach,
+  textareaRef, onAttach, mode,
 }: {
   input: string;
   setInput: (v: string) => void;
@@ -26,6 +28,7 @@ export function InputArea({
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   isChatLoading: boolean;
   agentMode: boolean;
+  mode: AgentMode;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   onAttach?: () => void;
 }) {
@@ -34,6 +37,7 @@ export function InputArea({
   const [showQuick, setShowQuick] = useState(true);
   const hasInput = input.trim().length > 0;
   const composingRef = useRef(false);
+  const accent = MODE_ACCENTS[mode];
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -71,13 +75,13 @@ export function InputArea({
         </div>
       )}
 
-      {/* Input box — single border only via box-shadow on outer div */}
+      {/* Input box — focus ring tinted by the current agent mode */}
       <div
         style={{
           borderRadius: 16,
           background: "var(--color-background, #fff)",
           boxShadow: focused
-            ? "0 0 0 1.5px rgba(217,119,6,0.50), 0 0 0 4px rgba(245,158,11,0.08)"
+            ? `0 0 0 1.5px ${accent.ring}, 0 0 0 4px ${accent.ringSoft}`
             : "0 0 0 1px rgba(0,0,0,0.10)",
           transition: "box-shadow 0.15s ease",
         }}
@@ -144,9 +148,17 @@ export function InputArea({
             onClick={() => onSend()}
             disabled={isChatLoading || !hasInput}
             title={t("chat.send")}
+            style={
+              hasInput && !isChatLoading
+                ? {
+                    background: `linear-gradient(135deg, ${accent.btnFrom} 0%, ${accent.btnTo} 100%)`,
+                    boxShadow: `0 2px 8px ${accent.btnShadow}`,
+                  }
+                : undefined
+            }
             className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 focus:outline-none mb-0.5 ${
               hasInput && !isChatLoading
-                ? "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-105 active:scale-95"
+                ? "text-white hover:scale-105 active:scale-95"
                 : "bg-foreground/[0.06] text-foreground/25"
             }`}
           >
@@ -160,9 +172,12 @@ export function InputArea({
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-1.5 px-1">
-        <div className="flex items-center gap-1 text-[10px] font-medium text-amber-600/50 dark:text-amber-400/40">
+        <div
+          className="flex items-center gap-1 text-[10px] font-medium transition-colors duration-150"
+          style={{ color: accent.accent, opacity: 0.65 }}
+        >
           <Sparkles className="h-2.5 w-2.5" />
-          <span>{t("chat.model.badge")}</span>
+          <span>{t("chat.model.badge")} · {mode}</span>
         </div>
         <span className="text-[10px] text-muted-foreground/30 font-mono tracking-wide">
           {input.length > 0 ? `${input.length} ${t("status.chars")}` : t("chat.input.hint")}

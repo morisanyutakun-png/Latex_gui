@@ -20,11 +20,60 @@ interface ModeDef {
   labelEn: string;
   descJa: string;
   descEn: string;
-  // CSS color tokens
-  accent: string;         // main accent color (for underline, active text, dot)
-  accentSoft: string;     // translucent bg for hover / active wash
-  accentGlow: string;     // shadow under active underline
+  // CSS color tokens (see MODE_ACCENTS below for the shared palette)
+  accent: string;
+  accentSoft: string;
+  accentGlow: string;
 }
+
+/**
+ * モード固有のアクセント色パレット。タブ UI と InputArea の focus/送信ボタンで共有する。
+ * `ring` は focus 時の濃いリング、`ringSoft` はその外側の薄いハロー、
+ * `btnFrom` / `btnTo` は送信ボタンのグラデ両端、`btnShadow` は送信ボタンの影。
+ */
+export interface ModeAccent {
+  accent: string;
+  accentSoft: string;
+  accentGlow: string;
+  ring: string;
+  ringSoft: string;
+  btnFrom: string;
+  btnTo: string;
+  btnShadow: string;
+}
+
+export const MODE_ACCENTS: Record<AgentMode, ModeAccent> = {
+  plan: {
+    accent: "#0284c7",
+    accentSoft: "rgba(14,165,233,0.10)",
+    accentGlow: "rgba(14,165,233,0.55)",
+    ring: "rgba(2,132,199,0.55)",
+    ringSoft: "rgba(14,165,233,0.10)",
+    btnFrom: "#0ea5e9",
+    btnTo: "#0369a1",
+    btnShadow: "rgba(2,132,199,0.35)",
+  },
+  edit: {
+    accent: "#d97706",
+    accentSoft: "rgba(245,158,11,0.12)",
+    accentGlow: "rgba(217,119,6,0.55)",
+    ring: "rgba(217,119,6,0.55)",
+    ringSoft: "rgba(245,158,11,0.10)",
+    btnFrom: "#f59e0b",
+    btnTo: "#d97706",
+    btnShadow: "rgba(217,119,6,0.35)",
+  },
+  mix: {
+    accent: "#7c3aed",
+    accentSoft: "rgba(139,92,246,0.12)",
+    accentGlow: "rgba(124,58,237,0.55)",
+    ring: "rgba(124,58,237,0.55)",
+    ringSoft: "rgba(139,92,246,0.10)",
+    btnFrom: "#8b5cf6",
+    btnTo: "#6d28d9",
+    btnShadow: "rgba(124,58,237,0.35)",
+  },
+};
 
 const MODES: ModeDef[] = [
   {
@@ -34,9 +83,9 @@ const MODES: ModeDef[] = [
     labelEn: "Plan",
     descJa: "計画のみ・編集しない。番号付きの実行計画をチャットに返す。",
     descEn: "Plan only. Reply with a numbered plan — no edits applied.",
-    accent: "#0284c7",
-    accentSoft: "rgba(14,165,233,0.10)",
-    accentGlow: "rgba(14,165,233,0.55)",
+    accent: MODE_ACCENTS.plan.accent,
+    accentSoft: MODE_ACCENTS.plan.accentSoft,
+    accentGlow: MODE_ACCENTS.plan.accentGlow,
   },
   {
     id: "edit",
@@ -45,9 +94,9 @@ const MODES: ModeDef[] = [
     labelEn: "Edit",
     descJa: "自律編集。問題・数式・解答・解説まで完走する run-to-completion。",
     descEn: "Autonomous edit. Run-to-completion: problems, math, answers, solutions.",
-    accent: "#d97706",
-    accentSoft: "rgba(245,158,11,0.12)",
-    accentGlow: "rgba(217,119,6,0.55)",
+    accent: MODE_ACCENTS.edit.accent,
+    accentSoft: MODE_ACCENTS.edit.accentSoft,
+    accentGlow: MODE_ACCENTS.edit.accentGlow,
   },
   {
     id: "mix",
@@ -56,9 +105,9 @@ const MODES: ModeDef[] = [
     labelEn: "Mix",
     descJa: "計画 + 実行。短い計画を先に出してから、そのまま編集まで完走。",
     descEn: "Plan + execute. Emit a short plan, then run it to completion.",
-    accent: "#7c3aed",
-    accentSoft: "rgba(139,92,246,0.12)",
-    accentGlow: "rgba(124,58,237,0.55)",
+    accent: MODE_ACCENTS.mix.accent,
+    accentSoft: MODE_ACCENTS.mix.accentSoft,
+    accentGlow: MODE_ACCENTS.mix.accentGlow,
   },
 ];
 
