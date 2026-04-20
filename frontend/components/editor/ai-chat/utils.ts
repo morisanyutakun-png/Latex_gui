@@ -17,6 +17,37 @@ export function cleanAIContent(content: string): string {
   return cleaned;
 }
 
+/**
+ * edit / mix モードで強制している「実施サマリー」ブロックを本文から切り出す。
+ *
+ * 検出ヘッダ (ja/en 両対応):
+ *   **✅ 実施サマリー**
+ *   **✅ What was done**
+ *
+ * 見つかったらヘッダ以降をサマリーとして返し、本文からは取り除く。
+ * AI が誤って ``` でサマリーを囲んだ場合のフェンスも除去する。
+ *
+ * 見つからなければ content をそのまま body に返し、summary は null。
+ * ストリーミング途中でヘッダがまだ出現していない段階でも壊れないようにする。
+ */
+const SUMMARY_HEAD_RE = /\*\*✅\s*(?:実施サマリー|What was done)\*\*/;
+
+export function splitSummary(content: string): { body: string; summary: string | null } {
+  if (!content) return { body: "", summary: null };
+  const m = content.match(SUMMARY_HEAD_RE);
+  if (!m || m.index === undefined) return { body: content, summary: null };
+
+  let body = content.slice(0, m.index).trimEnd();
+  let summary = content.slice(m.index).trim();
+
+  // 本文末尾が ```... で残っていたら落とす (AI がサマリーを fence で囲んだケース)
+  body = body.replace(/```[a-zA-Z]*\s*$/m, "").trimEnd();
+  // サマリー冒頭/末尾の ``` フェンスも剥がす
+  summary = summary.replace(/^```[a-zA-Z]*\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+
+  return { body, summary };
+}
+
 export function formatRelativeTime(timestamp: number, t: Translator, locale: "ja" | "en" = "ja"): string {
   const diff = Date.now() - timestamp;
   const seconds = Math.floor(diff / 1000);

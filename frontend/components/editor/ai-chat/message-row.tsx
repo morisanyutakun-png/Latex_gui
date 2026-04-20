@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
-import { formatRelativeTime, formatDuration, formatTokens } from "./utils";
+import { formatRelativeTime, formatDuration, formatTokens, splitSummary } from "./utils";
 import { useI18n } from "@/lib/i18n";
 
 export function MessageRow({
@@ -20,6 +20,12 @@ export function MessageRow({
   const { t, locale } = useI18n();
   const isUser = msg.role === "user";
   const [showErrorDetails, setShowErrorDetails] = React.useState(false);
+
+  // AI メッセージは実施サマリーを本文から切り出し、別カードで下に表示する。
+  // 検出されなかった場合は summary=null で従来通り全文を本文バブルに出す。
+  const { body: aiBody, summary: aiSummary } = !isUser
+    ? splitSummary(msg.content)
+    : { body: msg.content, summary: null };
 
   // Error message display
   if (!isUser && msg.error) {
@@ -101,14 +107,14 @@ export function MessageRow({
           </div>
         ) : (
           <div className="max-w-full w-full">
-            {msg.isStreaming && !msg.content ? null : (
+            {msg.isStreaming && !msg.content ? null : aiBody || msg.isStreaming ? (
               <div className="chat-msg-ai rounded-2xl rounded-tl-sm px-4 py-3.5">
                 <div className="text-[13.5px] leading-[1.75] text-foreground/85 chat-markdown">
-                  <ChatMarkdown content={msg.content} />
+                  <ChatMarkdown content={aiBody || ""} />
                   {msg.isStreaming && <span className="stream-cursor" />}
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -123,6 +129,26 @@ export function MessageRow({
         {/* Action timeline */}
         {!isUser && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
           <ActionTimeline steps={msg.thinkingSteps} />
+        )}
+
+        {/* 実施サマリー — 思考ログのさらに下に表示 */}
+        {!isUser && aiSummary && (
+          <div
+            className="mt-2.5 rounded-xl border border-emerald-200/55 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50/60 via-white to-amber-50/35 dark:from-emerald-500/[0.05] dark:via-white/[0.01] dark:to-amber-500/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_1px_2px_rgba(6,95,70,0.04)]"
+            role="region"
+            aria-label={locale === "en" ? "Execution summary" : "実施サマリー"}
+          >
+            {/* ラベルストリップ */}
+            <div className="flex items-center gap-1.5 px-3.5 pt-2 pb-1 border-b border-emerald-200/40 dark:border-emerald-500/15">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.6)]" aria-hidden />
+              <span className="text-[10.5px] font-bold tracking-[0.08em] uppercase text-emerald-700/80 dark:text-emerald-300/75">
+                {locale === "en" ? "Summary" : "サマリー"}
+              </span>
+            </div>
+            <div className="px-4 py-3 text-[13px] leading-[1.7] text-foreground/85 chat-markdown">
+              <ChatMarkdown content={aiSummary} />
+            </div>
+          </div>
         )}
 
         {/* Footer: feedback + token usage */}
