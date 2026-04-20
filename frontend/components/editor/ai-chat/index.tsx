@@ -49,19 +49,18 @@ export function AIChatPanel() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // OMR (画像/PDF → LaTeX) は独立した全画面 SplitView に張り替えた。
+  // ここ (チャットパネル) ではファイル入力を持たず、サイドバーの「読み取り」ボタンは
+  // 親ページ (app/editor/page.tsx) の hidden input に委譲される。
+  // 「決してチャットに OMR 結果を流さない」という要件を満たすため、旧 setOMRTrigger
+  // バインドと handleOMRUpload は撤去した。
+  const triggerOMR = useUIStore((s) => s.triggerOMR);
 
   // プランとクオータの取得は <SubscriptionInitializer> (layout.tsx) に一元化。
   // ここで initFromStorage() を呼ぶと、先に解決した fetchSubscription() の
   // "pro" 状態を "free" で上書きしてしまう race があった (Stripe 成功直後に顕著)。
-
-  // OMRトリガー
-  useEffect(() => {
-    const { setOMRTrigger } = useUIStore.getState();
-    setOMRTrigger(() => fileInputRef.current?.click());
-    return () => setOMRTrigger(null);
-  }, []);
 
   // Restore chat history from localStorage
   useEffect(() => {
@@ -485,44 +484,8 @@ export function AIChatPanel() {
     }
   };
 
-  const handleOMRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !document) return;
-    e.target.value = "";
-
-    addChatMessage({ id: crypto.randomUUID(), role: "user", content: `📎 ${file.name}`, timestamp: Date.now() });
-    setChatLoading(true);
-    const requestId = crypto.randomUUID();
-    const startTime = Date.now();
-
-    try {
-      const { analyzeImageOMR } = await import("@/lib/api");
-      const result = await analyzeImageOMR(file, document, "", locale);
-      incrementUsage();
-      if (result.latex) {
-        applyLatex(result.latex);
-      }
-      addChatMessage({
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: result.description || t("chat.file.applied"),
-        latex: result.latex,
-        requestId,
-        timestamp: Date.now(),
-        duration: Date.now() - startTime,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : t("error.file_analyze");
-      if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("MISSING_API_KEY")) setApiKeyMissing(true);
-      chatLog.error(requestId, msg);
-      addChatMessage({
-        id: crypto.randomUUID(), role: "assistant", content: msg,
-        error: msg, requestId, timestamp: Date.now(), duration: Date.now() - startTime,
-      });
-    } finally {
-      setChatLoading(false);
-    }
-  };
+  // 旧 handleOMRUpload (チャットに画像/PDF 取り込み結果を書き込む実装) は
+  // 廃止した。添付ボタンは読み取り (OMR) SplitView を開く動線に張り替えている。
 
   return (
     <div className="flex flex-col h-full chat-aurora-panel">
@@ -621,14 +584,6 @@ export function AIChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-        className="hidden"
-        onChange={handleOMRUpload}
-      />
-
       <div className="px-3 pt-1.5 shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm">
         <ModeSwitcher
           mode={agentMode}
@@ -646,7 +601,9 @@ export function AIChatPanel() {
         agentMode={true}
         mode={agentMode}
         textareaRef={textareaRef}
-        onAttach={() => fileInputRef.current?.click()}
+        // 添付ボタンは読み取り (OMR) SplitView を開く動線に振り替えた。
+        // チャットへ画像/PDF の内容を流し込むことはしない。
+        onAttach={triggerOMR}
       />
     </div>
   );

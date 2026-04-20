@@ -41,6 +41,8 @@ export default function EditorPage() {
   const togglePdfPanel = useUIStore((s) => s.togglePdfPanel);
   const toggleSourcePanel = useUIStore((s) => s.toggleSourcePanel);
   const triggerOMR = useUIStore((s) => s.triggerOMR);
+  const openOMR = useUIStore((s) => s.openOMR);
+  const setOMRTrigger = useUIStore((s) => s.setOMRTrigger);
   const openGrading = useUIStore((s) => s.openGrading);
   const closeGrading = useUIStore((s) => s.closeGrading);
   const gradingMode = useUIStore((s) => s.gradingMode);
@@ -67,6 +69,27 @@ export default function EditorPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<SidebarTab>("ai");
   const { width: sidebarWidth, isDragging, handleMouseDown } = useResizePanel();
+
+  // ── 読み取り (OMR) モード起動用ファイル入力 ──────────────────────────────
+  // サイドバーの「読み取り」ボタン・Welcome/Quick-start の「ファイルから読み込む」は
+  // すべて useUIStore.triggerOMR() 経由で、この hidden <input> の click() を叩く。
+  // ユーザがファイルを選ぶと openOMR(url, name) を呼び、<OMRSplitView /> がフル画面で
+  // 立ち上がり、解析完了後に抽出 LaTeX でドキュメントを上書きする。
+  // チャットには一切流さない。
+  const omrFileInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    setOMRTrigger(() => omrFileInputRef.current?.click());
+    return () => setOMRTrigger(null);
+  }, [setOMRTrigger]);
+
+  const handleOMRFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // 同じファイルを連続選択できるよう入力値をリセット
+    e.target.value = "";
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    openOMR(url, file.name);
+  };
 
   const [mobileTab, setMobileTab] = useState<"ai" | "preview">("ai");
 
@@ -307,6 +330,18 @@ export default function EditorPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f5f4f0] dark:bg-[#111110]">
+      {/* OMR (読み取りモード) は全画面 Split View として常時マウント。
+          omrMode=false の間は null を返すので不可視。起動用の hidden <input> は
+          その直下に置き、サイドバー → triggerOMR() → click() → onChange で openOMR() が
+          呼ばれて SplitView が前面に出る。 */}
+      <input
+        ref={omrFileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+        className="hidden"
+        onChange={handleOMRFilePick}
+        aria-hidden="true"
+      />
       <OMRSplitView />
       {figureEditorMode && <FigureEditor />}
 
