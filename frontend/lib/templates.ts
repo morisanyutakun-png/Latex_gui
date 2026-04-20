@@ -2361,6 +2361,1489 @@ Jane Doe\\
 `;
 
 // ══════════════════════════════════════════
+// Premium-only templates (Premium tier 限定)
+//
+// Pro 以上で使えるテンプレとは別枠で、本格的な長尺ドキュメント
+// (卒論 / 学術論文 / 学会ポスター / 教科書 / 問題集 / 総合模試冊子) を Premium に解放する。
+// いずれも 手で組めば数時間〜1 日かかる仕上がりを最初から提供する、というテンプレ指針に沿う。
+// ══════════════════════════════════════════
+
+// ──────────────────────────────────────────
+// P1. 卒論・修論 (thesis)
+// ──────────────────────────────────────────
+const THESIS_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{geometry}
+\geometry{top=30mm,bottom=28mm,left=30mm,right=25mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx, array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{tocbibind}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+\definecolor{thesisaccent}{HTML}{1f3a68}
+
+\titleformat{\chapter}[display]
+  {\normalfont\Huge\bfseries\color{thesisaccent}}
+  {第\thechapter 章}{20pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-25pt}{20pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\leftmark}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.2pt}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{定理}[chapter]
+\newtheorem{proposition}[theorem]{命題}
+\newtheorem{lemma}[theorem]{補題}
+
+\theoremstyle{definition}
+\newtheorem{definition}{定義}[chapter]
+\newtheorem{example}{例}[chapter]
+
+\begin{document}
+
+% ── 表紙 ──
+\begin{titlepage}
+  \centering
+  \vspace*{30mm}
+  {\LARGE 令和\underline{\hspace{10mm}}年度 卒業論文\par}
+  \vspace{25mm}
+  {\Huge\bfseries\color{thesisaccent} ○○に関する研究\par}
+  \vspace{5mm}
+  {\Large --- サブタイトル ---\par}
+  \vspace{50mm}
+  {\Large\bfseries 氏名：△△ △△\par}
+  \vspace{15mm}
+  {\large 学籍番号：20XX-XXXX\par}
+  \vspace{5mm}
+  {\large 指導教員：○○ 教授\par}
+  \vfill
+  {\large ○○大学 ○○学部 ○○学科\par}
+  {\large 令和\underline{\hspace{10mm}}年 \underline{\hspace{10mm}}月\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\chapter{序論}
+\section{研究背景}
+本研究では、○○分野における△△の課題に取り組む。近年、××の発展により新たな可能性が開かれつつあるが、☆☆という観点で未解決の問題が残されている。
+
+\section{研究目的}
+本論文の目的は、○○を実現するための新しい手法を提案し、実験を通じてその有効性を検証することである。
+
+\section{本論文の構成}
+本論文は本章を含め 5 章から構成される。第 2 章では関連研究を概観し、第 3 章で提案手法を示す。第 4 章で実験結果を報告し、第 5 章で結論を述べる。
+
+\chapter{関連研究}
+\section{○○の既存研究}
+\begin{definition}[○○性]
+  集合 $\mathcal{X}$ 上の写像 $f$ が次の条件を満たすとき、$f$ は\emph{○○性}を持つという。
+  \[ \forall x, y \in \mathcal{X}:\ |f(x) - f(y)| \le L\,|x - y|. \]
+\end{definition}
+
+\begin{theorem}[既存結果]
+  上の定義の下で、次の不等式が成り立つ：
+  \[ \int_\mathcal{X} f(x)\,d\mu(x) \le C \cdot \mu(\mathcal{X}). \]
+\end{theorem}
+
+\section{従来手法の限界}
+従来手法 A, B は ○○ の観点では有効であるが、計算量が $O(n^2)$ と大きく大規模データに適用しづらいという課題がある。
+
+\chapter{提案手法}
+提案アルゴリズムは以下の 3 段階からなる。
+\begin{enumerate}
+  \item \textbf{特徴抽出}：入力 $x$ に対して特徴量 $\phi(x)$ を計算する。
+  \item \textbf{学習}：目的関数 $\mathcal{L}$ を最小化するパラメータ $\theta^\ast$ を求める。
+  \item \textbf{推論}：得られた $\theta^\ast$ を用いて新しい入力に対する予測を行う。
+\end{enumerate}
+
+学習は次の確率的勾配降下法で行う：
+\[
+  \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t).
+\]
+
+\chapter{実験}
+\section{実験設定}
+\begin{table}[h]
+  \centering
+  \caption{実験環境}
+  \label{tab:env}
+  \begin{tabular}{ll}
+    \toprule
+    項目 & 値\\
+    \midrule
+    CPU  & Intel Xeon (仕様を記載)\\
+    GPU  & NVIDIA (仕様を記載)\\
+    RAM  & 128\,GB\\
+    OS   & Ubuntu 22.04\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{結果と考察}
+\begin{table}[h]
+  \centering
+  \caption{精度と計算時間の比較}
+  \begin{tabular}{lcc}
+    \toprule
+    手法 & 精度\,[\%] & 時間\,[s]\\
+    \midrule
+    既存手法 A          & 85.2 & 120\\
+    既存手法 B          & 87.1 &  95\\
+    \textbf{提案手法}   & \textbf{91.8} & \textbf{42}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+提案手法は既存手法を精度の面で上回り、かつ計算時間も短縮できた。
+
+\chapter{結論}
+本論文では ○○ を実現する新しい手法を提案し、数値実験によりその有効性を確認した。今後は △△ への拡張が課題である。
+
+\begin{thebibliography}{99}
+  \bibitem{ref1} 著者名, ``論文タイトル,'' 学会名, vol.~X, no.~Y, pp.~ZZ--ZZ, 20XX.
+  \bibitem{ref2} Author A., ``Paper Title,'' Conference Proceedings, 20XX.
+  \bibitem{ref3} Author B., Author C., ``Paper Title,'' Journal Name, vol.~X, pp.~ZZ--YY, 20XX.
+\end{thebibliography}
+
+\chapter*{謝辞}
+\addcontentsline{toc}{chapter}{謝辞}
+本研究を進めるにあたり、終始熱心なご指導を賜りました ○○ 教授に深く感謝いたします。また、日頃より有益な議論をしてくださった研究室の皆様にも感謝申し上げます。
+
+\end{document}
+`;
+
+const THESIS_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{top=30mm,bottom=28mm,left=30mm,right=25mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{tocbibind}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+\definecolor{thesisaccent}{HTML}{1f3a68}
+
+\titleformat{\chapter}[display]
+  {\normalfont\Huge\bfseries\color{thesisaccent}}
+  {Chapter \thechapter}{20pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-25pt}{20pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\leftmark}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.2pt}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{lemma}[theorem]{Lemma}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[chapter]
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{30mm}
+  {\LARGE Bachelor/Master Thesis --- Academic Year 20XX\par}
+  \vspace{25mm}
+  {\Huge\bfseries\color{thesisaccent} A Study on \dots\par}
+  \vspace{5mm}
+  {\Large --- Subtitle ---\par}
+  \vspace{50mm}
+  {\Large\bfseries Author: Jane Doe\par}
+  \vspace{15mm}
+  {\large Student ID: 20XX-XXXX\par}
+  \vspace{5mm}
+  {\large Supervisor: Prof. A. Example\par}
+  \vfill
+  {\large Department of \dots, Example University\par}
+  {\large \underline{\hspace{10mm}} 20XX\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\chapter{Introduction}
+\section{Background}
+This thesis addresses the problem of \dots in the field of \dots. Recent advances in \dots have opened new possibilities, but a fundamental challenge remains unresolved.
+
+\section{Objectives}
+The goal of this thesis is to propose a new method for \dots and evaluate its effectiveness through numerical experiments.
+
+\section{Structure of This Thesis}
+This thesis is organised in five chapters. Chapter 2 reviews related work; Chapter 3 introduces the proposed method; Chapter 4 reports experimental results; Chapter 5 concludes.
+
+\chapter{Related Work}
+\begin{definition}[Key property]
+  A map $f$ on $\mathcal{X}$ satisfies \emph{property P} if
+  $|f(x) - f(y)| \le L |x - y|$ for all $x, y \in \mathcal{X}$.
+\end{definition}
+
+\begin{theorem}
+  Under the definition above, $\int_\mathcal{X} f\,d\mu \le C\mu(\mathcal{X})$.
+\end{theorem}
+
+\chapter{Proposed Method}
+The proposed algorithm consists of three stages:
+\begin{enumerate}
+  \item \textbf{Feature extraction}: compute $\phi(x)$ for the input $x$.
+  \item \textbf{Training}: minimise $\mathcal{L}$ via SGD.
+  \item \textbf{Inference}: apply the learned model $\theta^\ast$ to new inputs.
+\end{enumerate}
+
+\[
+  \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t).
+\]
+
+\chapter{Experiments}
+\begin{table}[h]
+  \centering
+  \caption{Accuracy and wall-clock time.}
+  \begin{tabular}{lcc}
+    \toprule
+    Method & Acc.\,[\%] & Time\,[s]\\
+    \midrule
+    Baseline A & 85.2 & 120\\
+    Baseline B & 87.1 &  95\\
+    \textbf{Ours} & \textbf{91.8} & \textbf{42}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\chapter{Conclusion}
+We proposed \dots and verified its effectiveness through experiments. Future work includes \dots.
+
+\begin{thebibliography}{99}
+  \bibitem{ref1} Author A., ``Paper Title,'' Conference Proc., 20XX.
+  \bibitem{ref2} Author B., ``Paper Title,'' Journal Name, vol.~X, pp.~YY--ZZ, 20XX.
+\end{thebibliography}
+
+\chapter*{Acknowledgements}
+\addcontentsline{toc}{chapter}{Acknowledgements}
+I would like to express my sincere gratitude to my supervisor Prof. A.\ Example for continuous guidance throughout this research.
+
+\end{document}
+`;
+
+// ──────────────────────────────────────────
+// P2. 総合模試冊子 (mock-exam-book)
+// ──────────────────────────────────────────
+const MOCK_EXAM_LATEX = String.raw`\documentclass[11pt,a4paper]{article}
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{geometry}
+\geometry{top=22mm,bottom=24mm,left=20mm,right=20mm,footskip=12mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx, array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+
+\definecolor{mockaccent}{HTML}{b22222}
+\definecolor{mocksoft}{HTML}{fee2e2}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\small --- \thepage\ ---}
+\renewcommand{\headrulewidth}{0pt}
+
+\newcommand{\daimon}[3]{%
+  \vspace{6mm}%
+  \noindent\begin{tcolorbox}[enhanced,colback=mocksoft!40,colframe=mockaccent,sharp corners,boxrule=0.4pt,left=4mm,right=4mm,top=1.5mm,bottom=1.5mm]%
+    \textbf{\large\color{mockaccent} 第 #1 問}\quad \textbf{#2} \hfill \small 配点 \textbf{#3}\,点%
+  \end{tcolorbox}\par%
+  \vspace{2mm}%
+}
+
+\begin{document}
+
+% ── 表紙 ──
+\thispagestyle{empty}
+\begin{center}
+  \vspace*{18mm}
+  {\Huge\bfseries 令和\underline{\hspace{6mm}}年度\par}
+  \vspace{6mm}
+  {\Huge\bfseries\color{mockaccent} 第 1 回 総合模擬試験\par}
+  \vspace{20mm}
+  {\LARGE 数学 I $\cdot$ A $\cdot$ II $\cdot$ B\par}
+  \vspace{30mm}
+  \renewcommand{\arraystretch}{1.8}
+  \begin{tabular}{|p{40mm}|p{80mm}|}\hline
+    \centering 試験時間 & \hspace{3mm} 90 分 \\\hline
+    \centering 配点 & \hspace{3mm} 合計 200 点 \\\hline
+    \centering 受験番号 & \\\hline
+    \centering 氏名 & \\\hline
+    \centering 会場 & \\\hline
+  \end{tabular}
+  \vfill
+  \fbox{\parbox{130mm}{\centering\bfseries 試験官の指示があるまで この冊子を開かないでください。}}
+  \vspace{10mm}
+\end{center}
+\clearpage
+
+% ── 注意事項 ──
+\section*{\color{mockaccent} 注意事項}
+\begin{enumerate}[leftmargin=*,itemsep=4pt]
+  \item 試験時間は 90 分です。
+  \item 解答はすべて別紙の解答用紙に記入してください。問題冊子への書き込みは採点の対象外です。
+  \item 数表・電卓・スマートフォンの使用は認めません。
+  \item 問題冊子の余白は下書きとして自由に利用してかまいません。
+  \item 途中退出は試験開始 45 分後から可能です。
+  \item 不正行為があった場合、その時点で失格となります。
+\end{enumerate}
+\clearpage
+
+% ── 大問 1 ──
+\daimon{1}{小問集合}{40}
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item $2x^2 - 5x + 3 = 0$ の解を求めよ。
+  \item 点 $(2, 3)$ を通り、傾き $-1$ の直線の方程式を求めよ。
+  \item $\sin 75^\circ$ の値を求めよ。
+  \item 不等式 $|x - 2| < 3$ を解け。
+  \item $\log_3 81$ の値を求めよ。
+\end{enumerate}
+
+% ── 大問 2 ──
+\daimon{2}{二次関数}{50}
+放物線 $y = x^2 - 4x + k$ について、次の問いに答えよ。
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item 頂点の座標を $k$ で表せ。
+  \item この放物線が $x$ 軸と異なる 2 点で交わるような $k$ の範囲を求めよ。
+  \item $k = 2$ のとき、放物線と直線 $y = x$ で囲まれる部分の面積を求めよ。
+\end{enumerate}
+
+% ── 大問 3 ──
+\daimon{3}{微分・積分}{50}
+関数 $f(x) = x^3 - 3x^2 + 1$ について、次の問いに答えよ。
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item $f(x)$ の極値を求めよ。
+  \item 曲線 $y = f(x)$ と $x$ 軸で囲まれる部分のうち $x \ge 0$ の領域の面積を求めよ。
+\end{enumerate}
+
+% ── 大問 4 ──
+\daimon{4}{数列}{60}
+数列 $\{a_n\}$ が $a_1 = 1,\ a_{n+1} = 2a_n + 1$ で定義されている。
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item 一般項 $a_n$ を求めよ。
+  \item $\displaystyle S_n = \sum_{k=1}^{n} a_k$ を $n$ の式で表せ。
+\end{enumerate}
+
+\clearpage
+
+% ── 解答用紙 ──
+\section*{\color{mockaccent} 解答用紙}
+\begin{center}
+  \renewcommand{\arraystretch}{1.5}
+  \begin{tabular}{|p{30mm}|p{60mm}||p{30mm}|p{40mm}|}\hline
+    受験番号 & & 氏名 & \\\hline
+  \end{tabular}
+\end{center}
+
+\vspace{5mm}
+\noindent
+\renewcommand{\arraystretch}{1.6}
+\begin{tabularx}{\linewidth}{|c|c|X|c|}\hline
+  \textbf{大問} & \textbf{小問} & \textbf{解答} & \textbf{採点}\\\hline
+  1 & (1) & & \\\hline
+    & (2) & & \\\hline
+    & (3) & & \\\hline
+    & (4) & & \\\hline
+    & (5) & & \\\hline
+  2 & (1) & & \\\hline
+    & (2) & & \\\hline
+    & (3) & & \\\hline
+  3 & (1) & & \\\hline
+    & (2) & & \\\hline
+  4 & (1) & & \\\hline
+    & (2) & & \\\hline
+\end{tabularx}
+
+\vspace{8mm}
+\begin{flushright}
+  \fbox{\parbox{70mm}{\centering\large 合計 \hfill \underline{\hspace{25mm}} / \textbf{200} 点}}
+\end{flushright}
+
+\end{document}
+`;
+
+const MOCK_EXAM_LATEX_EN = String.raw`\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{top=22mm,bottom=24mm,left=20mm,right=20mm,footskip=12mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx, array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+
+\definecolor{mockaccent}{HTML}{b22222}
+\definecolor{mocksoft}{HTML}{fee2e2}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\small --- \thepage\ ---}
+\renewcommand{\headrulewidth}{0pt}
+
+\newcommand{\daimon}[3]{%
+  \vspace{6mm}%
+  \noindent\begin{tcolorbox}[enhanced,colback=mocksoft!40,colframe=mockaccent,sharp corners,boxrule=0.4pt,left=4mm,right=4mm,top=1.5mm,bottom=1.5mm]%
+    \textbf{\large\color{mockaccent} Problem #1}\quad \textbf{#2} \hfill \small \textbf{#3}\,pts%
+  \end{tcolorbox}\par%
+  \vspace{2mm}%
+}
+
+\begin{document}
+
+\thispagestyle{empty}
+\begin{center}
+  \vspace*{18mm}
+  {\Huge\bfseries Academic Year 20XX\par}
+  \vspace{6mm}
+  {\Huge\bfseries\color{mockaccent} Mock Examination 1\par}
+  \vspace{20mm}
+  {\LARGE Mathematics I $\cdot$ A $\cdot$ II $\cdot$ B\par}
+  \vspace{30mm}
+  \renewcommand{\arraystretch}{1.8}
+  \begin{tabular}{|p{40mm}|p{80mm}|}\hline
+    Duration & \hspace{3mm} 90 min\\\hline
+    Total    & \hspace{3mm} 200 pts\\\hline
+    Student ID & \\\hline
+    Name & \\\hline
+    Room & \\\hline
+  \end{tabular}
+  \vfill
+  \fbox{\parbox{130mm}{\centering\bfseries Do not open this booklet until instructed.}}
+  \vspace{10mm}
+\end{center}
+\clearpage
+
+\section*{\color{mockaccent} Instructions}
+\begin{enumerate}[leftmargin=*,itemsep=4pt]
+  \item The duration is 90 minutes.
+  \item All answers must be written on the answer sheet at the end.
+  \item Calculators and phones are not permitted.
+  \item You may use blank space for scratch work.
+  \item Dishonest conduct results in disqualification.
+\end{enumerate}
+\clearpage
+
+\daimon{1}{Short questions}{40}
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item Solve $2x^2 - 5x + 3 = 0$.
+  \item Find the line through $(2, 3)$ with slope $-1$.
+  \item Evaluate $\sin 75^\circ$.
+\end{enumerate}
+
+\daimon{2}{Quadratic functions}{50}
+For $y = x^2 - 4x + k$:
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item Find the vertex in terms of $k$.
+  \item Find the range of $k$ so the parabola meets the $x$-axis at two distinct points.
+\end{enumerate}
+
+\daimon{3}{Calculus}{60}
+For $f(x) = x^3 - 3x^2 + 1$:
+\begin{enumerate}[label=(\arabic*),leftmargin=*,itemsep=6mm]
+  \item Find all local extrema.
+  \item Find the area bounded by $y = f(x)$ and the $x$-axis for $x \ge 0$.
+\end{enumerate}
+
+\clearpage
+
+\section*{\color{mockaccent} Answer Sheet}
+\begin{center}
+  \renewcommand{\arraystretch}{1.5}
+  \begin{tabular}{|p{30mm}|p{60mm}||p{30mm}|p{40mm}|}\hline
+    Student ID & & Name & \\\hline
+  \end{tabular}
+\end{center}
+
+\vspace{5mm}\noindent
+\renewcommand{\arraystretch}{1.6}
+\begin{tabularx}{\linewidth}{|c|c|X|c|}\hline
+  \textbf{Problem} & \textbf{Part} & \textbf{Answer} & \textbf{Score}\\\hline
+  1 & (1) & & \\\hline
+    & (2) & & \\\hline
+    & (3) & & \\\hline
+  2 & (1) & & \\\hline
+    & (2) & & \\\hline
+  3 & (1) & & \\\hline
+    & (2) & & \\\hline
+\end{tabularx}
+
+\vspace{8mm}
+\begin{flushright}
+  \fbox{\parbox{70mm}{\centering\large Total \hfill \underline{\hspace{25mm}} / \textbf{200}}}
+\end{flushright}
+
+\end{document}
+`;
+
+// ──────────────────────────────────────────
+// P3. 学会ポスター (academic-poster, A0 portrait)
+// ──────────────────────────────────────────
+const POSTER_LATEX = String.raw`\documentclass[final,t]{beamer}
+\usepackage[orientation=portrait,size=a0,scale=1.15]{beamerposter}
+\usepackage{luatexja}
+\usepackage{amsmath, amssymb, mathtools, bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+
+\definecolor{posterbg}{HTML}{0f172a}
+\definecolor{postertitle}{HTML}{38bdf8}
+\definecolor{posteraccent}{HTML}{f59e0b}
+
+\setbeamercolor{block title}{bg=posterbg,fg=white}
+\setbeamercolor{block body}{bg=white,fg=black}
+\setbeamercolor{background canvas}{bg=white}
+\setbeamertemplate{navigation symbols}{}
+\setbeamerfont{block title}{size=\large,series=\bfseries}
+
+\setbeamertemplate{headline}{%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=10ex,dp=2ex,center]{}%
+    \usebeamercolor{title}%
+    \vspace{3mm}
+    {\color{posterbg}\huge\bfseries 研究ポスタータイトル \par}
+    \vspace{4mm}
+    {\color{posterbg!70}\Large 山田 太郎$^{1}$\quad 鈴木 花子$^{2}$ \qquad $^{1}$○○大学\quad $^{2}$△△研究所 \par}
+    \vspace{3mm}
+  \end{beamercolorbox}
+  \vspace{-6mm}
+  {\color{posteraccent}\hrule height 4pt}
+  \vspace{5mm}
+}
+\setbeamertemplate{footline}{\vspace{6mm}\centering\small 第 XX 回 ○○学会大会 \quad|\quad 連絡先: \texttt{yamada@example.ac.jp}\vspace{3mm}}
+
+\begin{document}
+\begin{frame}[t]
+\vspace{2mm}
+\begin{columns}[T,totalwidth=.98\paperwidth]
+
+% ── 左 ──
+\begin{column}{.32\paperwidth}
+
+\begin{block}{1. 背景}
+  近年、○○分野では\dots が急速に発展している。しかし、従来手法は計算コストが高く、実用には大きな制約があった。本研究ではこれを解決する手法を提案する。
+\end{block}
+
+\begin{block}{2. 目的}
+  \begin{itemize}
+    \item ○○を実現する新しいアルゴリズムの設計
+    \item 実データ上での有効性の検証
+    \item 既存手法との定量的比較
+  \end{itemize}
+\end{block}
+
+\begin{block}{3. システム概要}
+  \centering
+  \vspace{2mm}
+  \fbox{\parbox[c][80mm][c]{.9\linewidth}{\centering\Large [システム概念図を配置]}}
+  \vspace{2mm}
+\end{block}
+
+\end{column}
+
+% ── 中央 ──
+\begin{column}{.32\paperwidth}
+
+\begin{block}{4. 提案手法}
+  目的関数を以下で定義する:
+  \[
+    \min_{\theta}\ \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2.
+  \]
+  学習は確率的勾配降下法 (SGD) で行う:
+  \[
+    \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t).
+  \]
+\end{block}
+
+\begin{block}{5. 理論保証}
+  次の定理が成り立つ:
+  \begin{itemize}
+    \item 収束率 $O(1/T)$
+    \item サンプル複雑度 $O(d \log d)$
+    \item 特異点を持たない損失関数の場合、大域最適解への収束
+  \end{itemize}
+\end{block}
+
+\end{column}
+
+% ── 右 ──
+\begin{column}{.32\paperwidth}
+
+\begin{block}{6. 実験結果}
+  \centering
+  \vspace{2mm}
+  \begin{tabular}{lcc}
+    \toprule
+    \textbf{手法} & \textbf{精度\,[\%]} & \textbf{時間\,[s]}\\
+    \midrule
+    既存 A & 85.2 & 120\\
+    既存 B & 87.1 &  95\\
+    \rowcolor{posteraccent!25} \textbf{提案} & \textbf{91.8} & \textbf{42}\\
+    \bottomrule
+  \end{tabular}
+  \vspace{3mm}
+
+  提案手法は精度で \textbf{+4.7\%}、計算時間で \textbf{$\times$2.3 高速化} を達成した。
+\end{block}
+
+\begin{block}{7. 結論と今後の課題}
+  \begin{itemize}
+    \item 提案手法は既存手法を精度・時間の両面で上回ることを確認
+    \item 今後は ○○ への応用、大規模データセットでの検証を進める
+  \end{itemize}
+\end{block}
+
+\begin{block}{参考文献}
+  \footnotesize
+  [1] Author A., ``Paper Title,'' Conference, 20XX.\\
+  [2] Author B., ``Paper Title,'' Journal, 20XX.\\
+  [3] 著者名, ``論文タイトル,'' 学会誌, 20XX.
+\end{block}
+
+\end{column}
+\end{columns}
+\end{frame}
+\end{document}
+`;
+
+const POSTER_LATEX_EN = String.raw`\documentclass[final,t]{beamer}
+\usepackage[orientation=portrait,size=a0,scale=1.15]{beamerposter}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb, mathtools, bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+
+\definecolor{posterbg}{HTML}{0f172a}
+\definecolor{posteraccent}{HTML}{f59e0b}
+
+\setbeamercolor{block title}{bg=posterbg,fg=white}
+\setbeamercolor{block body}{bg=white,fg=black}
+\setbeamercolor{background canvas}{bg=white}
+\setbeamertemplate{navigation symbols}{}
+\setbeamerfont{block title}{size=\large,series=\bfseries}
+
+\setbeamertemplate{headline}{%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=10ex,dp=2ex,center]{}%
+    \vspace{3mm}
+    {\color{posterbg}\huge\bfseries Research Poster Title \par}
+    \vspace{4mm}
+    {\color{posterbg!70}\Large Jane Doe$^{1}$\quad John Smith$^{2}$ \qquad $^{1}$Example University\quad $^{2}$Example Institute\par}
+    \vspace{3mm}
+  \end{beamercolorbox}
+  \vspace{-6mm}
+  {\color{posteraccent}\hrule height 4pt}
+  \vspace{5mm}
+}
+\setbeamertemplate{footline}{\vspace{6mm}\centering\small The XXth Conf. on \dots \quad|\quad Contact: \texttt{jane@example.ac.jp}\vspace{3mm}}
+
+\begin{document}
+\begin{frame}[t]
+\vspace{2mm}
+\begin{columns}[T,totalwidth=.98\paperwidth]
+
+\begin{column}{.32\paperwidth}
+\begin{block}{1. Background}
+  Recent advances in \dots have opened new possibilities but existing methods are computationally expensive. We propose a method that resolves this bottleneck.
+\end{block}
+\begin{block}{2. Goals}
+  \begin{itemize}
+    \item Design an efficient algorithm for \dots
+    \item Validate on real data
+    \item Quantitatively compare against baselines
+  \end{itemize}
+\end{block}
+\begin{block}{3. System Overview}
+  \centering\vspace{2mm}
+  \fbox{\parbox[c][80mm][c]{.9\linewidth}{\centering\Large [Diagram here]}}
+\end{block}
+\end{column}
+
+\begin{column}{.32\paperwidth}
+\begin{block}{4. Method}
+  \[ \min_{\theta}\ \tfrac{1}{N}\sum_i \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2. \]
+  Trained via SGD: $\theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t).$
+\end{block}
+\begin{block}{5. Theory}
+  \begin{itemize}
+    \item Convergence rate $O(1/T)$
+    \item Sample complexity $O(d \log d)$
+  \end{itemize}
+\end{block}
+\end{column}
+
+\begin{column}{.32\paperwidth}
+\begin{block}{6. Experiments}
+  \centering
+  \begin{tabular}{lcc}
+    \toprule \textbf{Method} & \textbf{Acc.\,[\%]} & \textbf{Time\,[s]}\\\midrule
+    Baseline A & 85.2 & 120\\
+    Baseline B & 87.1 &  95\\
+    \rowcolor{posteraccent!25}\textbf{Ours} & \textbf{91.8} & \textbf{42}\\
+    \bottomrule
+  \end{tabular}
+\end{block}
+\begin{block}{7. Conclusion}
+  \begin{itemize}
+    \item Ours beats baselines in accuracy and speed.
+    \item Future work: scale-up and applications to \dots.
+  \end{itemize}
+\end{block}
+\begin{block}{References}
+  \footnotesize [1] A., Paper, Conf., 20XX.\\ [2] B., Paper, Journal, 20XX.
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+\end{document}
+`;
+
+// ──────────────────────────────────────────
+// P4. 学術論文 (academic-paper, 投稿原稿)
+// ──────────────────────────────────────────
+const ACADEMIC_PAPER_LATEX = String.raw`\documentclass[11pt,a4paper]{article}
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{geometry}
+\geometry{top=25mm,bottom=25mm,left=22mm,right=22mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{authblk}
+
+\definecolor{paperaccent}{HTML}{0b4f8c}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{定理}[section]
+\newtheorem{proposition}[theorem]{命題}
+\newtheorem{lemma}[theorem]{補題}
+
+\theoremstyle{definition}
+\newtheorem{definition}{定義}[section]
+\newtheorem{remark}{注意}[section]
+
+\title{\vspace{-10mm}{\Large\bfseries 論文タイトル: ○○に関する新しいアプローチ}\\[0.4em]\normalsize A Novel Approach to \dots}
+
+\author[1]{\normalsize 山田 太郎\thanks{Corresponding author: \texttt{yamada@example.ac.jp}}}
+\author[2]{\normalsize 鈴木 花子}
+\affil[1]{\small ○○大学 大学院情報理工学系研究科}
+\affil[2]{\small △△研究所 情報科学部門}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  \noindent
+  本論文では、○○分野における△△問題に対して新しいアプローチを提案する。
+  提案手法はアルゴリズム的な工夫により従来手法と比べ計算量を大幅に削減しつつ、
+  理論保証を維持することに成功している。
+  数値実験により、実データ上でも有効であることを示した。提案手法は精度で 4.7\%、計算時間で 2.3 倍の改善を達成した。
+
+  \vspace{2mm}
+  \noindent\textbf{キーワード:} ○○, △△, ××, 最適化, 機械学習
+\end{abstract}
+
+\section{序論}
+近年、○○分野では $\cdots$ に関する研究が盛んに行われている~\cite{ref1,ref2}。既存手法には計算コストが大きいという課題がある。
+
+本論文の貢献は以下の通りである。
+\begin{itemize}[leftmargin=*]
+  \item 新しいアルゴリズムの提案 (\S\ref{sec:method})
+  \item 理論的な収束保証 (\S\ref{sec:theory})
+  \item 実データでの実証評価 (\S\ref{sec:exp})
+\end{itemize}
+
+\section{関連研究}
+○○ に関する従来研究は大きく 2 つのアプローチに分類できる。
+
+\paragraph{アプローチ A.}
+○○ を直接最適化する方針。Smith ら~\cite{ref1} は $\cdots$ を提案したが、$n$ の増加に対して $O(n^2)$ の計算量を要する。
+
+\paragraph{アプローチ B.}
+間接的な近似を用いる方針。Jones ら~\cite{ref2} は線形緩和に基づく手法を導入した。
+
+\section{提案手法}\label{sec:method}
+\begin{definition}[問題設定]
+  入力空間 $\mathcal{X} \subseteq \mathbb{R}^d$ と出力空間 $\mathcal{Y} \subseteq \mathbb{R}$ に対して、データ $\{(x_i, y_i)\}_{i=1}^N$ が与えられたとき、
+  次の汎化誤差を最小化する写像 $f: \mathcal{X} \to \mathcal{Y}$ を求めることを問題とする:
+  \[ \mathcal{R}(f) = \mathbb{E}_{(x,y) \sim \mathcal{D}} [\ell(f(x), y)]. \]
+\end{definition}
+
+提案アルゴリズムは次のように表される:
+\begin{align}
+  \theta_{t+1} &= \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \label{eq:sgd}\\
+  \mathcal{L}(\theta) &= \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2. \label{eq:loss}
+\end{align}
+
+\section{理論解析}\label{sec:theory}
+\begin{theorem}[収束率]\label{thm:convergence}
+  学習率 $\eta_t = \eta / \sqrt{t}$ を用い、$\mathcal{L}$ が $\mu$-強凸かつ $L$-平滑であるとき、式 \eqref{eq:sgd} の反復は次を満たす:
+  \[ \mathbb{E}\!\left[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)\right] \le \frac{C}{T}. \]
+\end{theorem}
+\begin{proof}[証明 (概略)]
+  標準的な解析に従う。詳細は補遺 A を参照のこと。
+\end{proof}
+
+\begin{remark}
+  強凸性の仮定は実用上は緩和可能であり、実験では凸でない損失関数でも良好な結果が得られた。
+\end{remark}
+
+\section{数値実験}\label{sec:exp}
+\subsection{実験設定}
+公開ベンチマーク X, Y, Z を用いて、既存手法 A, B と比較した。
+
+\subsection{結果}
+\begin{table}[h]
+  \centering
+  \caption{提案手法と既存手法の比較 (3 試行の平均 $\pm$ 標準偏差)}
+  \label{tab:results}
+  \begin{tabular}{lcc}
+    \toprule
+    手法          & 精度\,[\%]       & 時間\,[s]\\
+    \midrule
+    既存 A       & $85.2 \pm 0.4$   & $120 \pm 3$\\
+    既存 B       & $87.1 \pm 0.3$   & $95 \pm 2$\\
+    \textbf{提案}& $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+提案手法は Table~\ref{tab:results} に示すように、精度・計算時間の両面で既存手法を上回った。
+
+\section{結論}
+本論文では ○○ を実現する新しい手法を提案し、理論解析と数値実験の両面からその有効性を示した。今後は $\cdots$ への拡張が課題である。
+
+\section*{謝辞}
+本研究は科学研究費補助金 (課題番号 XXXXXXX) の助成を受けたものである。
+
+\begin{thebibliography}{99}
+  \small
+  \bibitem{ref1} Smith~J. and Lee~S., ``Paper Title,'' \emph{Proc.\ of Conf.}, pp.~1--10, 20XX.
+  \bibitem{ref2} Jones~R., ``Another Paper,'' \emph{Journal Name}, vol.~12, no.~3, pp.~45--60, 20XX.
+  \bibitem{ref3} 山田~太郎, ``論文タイトル,'' \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
+\end{thebibliography}
+
+\end{document}
+`;
+
+const ACADEMIC_PAPER_LATEX_EN = String.raw`\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{top=25mm,bottom=25mm,left=22mm,right=22mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{authblk}
+
+\definecolor{paperaccent}{HTML}{0b4f8c}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+
+\title{\vspace{-10mm}{\Large\bfseries A Novel Approach to \dots}}
+\author[1]{\normalsize Jane Doe\thanks{Corresponding author: \texttt{jane@example.ac.jp}}}
+\author[2]{\normalsize John Smith}
+\affil[1]{\small Graduate School of \dots, Example University}
+\affil[2]{\small Example Research Institute}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  \noindent
+  We propose a novel approach to the problem of \dots in the field of \dots. Our algorithmic refinements substantially reduce the computational cost of prior work while preserving theoretical guarantees. Experiments show a 4.7\% improvement in accuracy and a 2.3$\times$ speed-up on real-world data.
+
+  \vspace{2mm}\noindent\textbf{Keywords:} \dots, optimisation, machine learning.
+\end{abstract}
+
+\section{Introduction}
+Recent studies~\cite{ref1,ref2} in the field of \dots have drawn considerable attention. However, existing methods are computationally expensive.
+
+Our contributions are:
+\begin{itemize}[leftmargin=*]
+  \item A new algorithm (\S\ref{sec:method}).
+  \item A convergence-rate guarantee (\S\ref{sec:theory}).
+  \item An empirical evaluation (\S\ref{sec:exp}).
+\end{itemize}
+
+\section{Related Work}
+Prior work falls into two categories. Approach A by Smith et al.~\cite{ref1} optimises \dots but requires $O(n^2)$ time. Approach B by Jones~\cite{ref2} uses a linear relaxation.
+
+\section{Method}\label{sec:method}
+\begin{definition}[Problem]
+  Given data $\{(x_i, y_i)\}_{i=1}^N$, find $f: \mathcal{X} \to \mathcal{Y}$ minimising
+  $\mathcal{R}(f) = \mathbb{E}_{(x,y)\sim\mathcal{D}}[\ell(f(x), y)]$.
+\end{definition}
+
+\begin{align}
+  \theta_{t+1} &= \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \label{eq:sgd}\\
+  \mathcal{L}(\theta) &= \tfrac{1}{N}\sum_i \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2.
+\end{align}
+
+\section{Theory}\label{sec:theory}
+\begin{theorem}[Convergence]
+  With $\eta_t = \eta/\sqrt{t}$ and $\mu$-strongly-convex $L$-smooth $\mathcal{L}$,
+  $\mathbb{E}[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)] \le C/T$.
+\end{theorem}
+
+\section{Experiments}\label{sec:exp}
+\begin{table}[h]
+  \centering
+  \caption{Comparison (mean $\pm$ SD over 3 runs)}
+  \begin{tabular}{lcc}
+    \toprule Method & Acc.\,[\%] & Time\,[s]\\\midrule
+    Baseline A & $85.2 \pm 0.4$ & $120 \pm 3$\\
+    Baseline B & $87.1 \pm 0.3$ & $95 \pm 2$\\
+    \textbf{Ours} & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\\bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Conclusion}
+We presented \dots and verified its effectiveness. Future work: scaling and applications.
+
+\section*{Acknowledgements}
+This work was supported by Grant No.~XXXXXXX.
+
+\begin{thebibliography}{99}\small
+  \bibitem{ref1} Smith~J. and Lee~S., ``Paper Title,'' \emph{Proc.\ Conf.}, 20XX.
+  \bibitem{ref2} Jones~R., ``Paper Title,'' \emph{Journal}, 20XX.
+\end{thebibliography}
+
+\end{document}
+`;
+
+// ──────────────────────────────────────────
+// P5. 問題集 (problem-book, 章別 + 解答切替)
+// ──────────────────────────────────────────
+const PROBLEM_BOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{geometry}
+\geometry{top=25mm,bottom=22mm,left=22mm,right=22mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable,theorems}
+\usepackage{comment}
+\usepackage{titlesec}
+
+% ── 解答の表示/非表示を切り替えるトグル ──
+% \showsoltrue  → 解答冊子モード (すべての \begin{solution}..\end{solution} を表示)
+% \showsolfalse → 本冊モード      (解答を非表示)
+\newif\ifshowsol
+\showsoltrue
+
+\definecolor{pbaccent}{HTML}{c2410c}
+\definecolor{pbsoft}{HTML}{fde4d0}
+
+\titleformat{\chapter}[hang]
+  {\normalfont\huge\bfseries\color{pbaccent}}{第\thechapter 章}{12pt}{}
+\titlespacing*{\chapter}{0pt}{10pt}{14pt}
+
+\newcommand{\diff}[1]{%
+  \hspace{4pt}\colorbox{pbaccent!15}{\textcolor{pbaccent}{\small\bfseries 難易度 #1}}%
+}
+
+\newtcolorbox{problem}[2][]{%
+  enhanced, breakable, colback=white, colframe=pbaccent!70,
+  sharp corners, boxrule=0.4pt,
+  attach boxed title to top left={xshift=6mm,yshift=-3mm},
+  boxed title style={colback=pbaccent, colframe=pbaccent, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={問\,#2},
+  left=4mm,right=4mm,top=3mm,bottom=3mm,
+  #1
+}
+
+\ifshowsol
+  \newenvironment{solution}{\par\medskip\noindent\textbf{\color{pbaccent}▶ 解答.}\enspace}{\par\medskip}
+\else
+  \excludecomment{solution}
+\fi
+
+\title{}\author{}\date{}
+
+\begin{document}
+
+% ── 表紙 ──
+\thispagestyle{empty}
+\begin{center}
+  \vspace*{35mm}
+  {\Huge\bfseries 高校数学 問題集\par}
+  \vspace{5mm}
+  {\large ---\ 教科書レベルから入試レベルまで ---\par}
+  \vspace{25mm}
+  {\LARGE 数学 II $\cdot$ B\par}
+  \vspace{55mm}
+  {\large 第 1 版\par}
+  \vspace{2mm}
+  {\large 編著:\ \underline{\hspace{40mm}}\par}
+\end{center}
+\clearpage
+
+\tableofcontents
+\clearpage
+
+% ── 使い方 ──
+\section*{この問題集の使い方}
+本書は「本冊」と「解答冊子」を一つの LaTeX ソースから切り替えて生成できる形で作られています。\par
+\medskip
+\noindent プリアンブルの \texttt{\textbackslash showsoltrue} を \texttt{\textbackslash showsolfalse} に書き換えてコンパイルすると、解答が省かれた\textbf{本冊モード}になります。そのままコンパイルすれば\textbf{解答冊子モード}です。\par
+\medskip
+\noindent 各問の右上には難易度バッジ \diff{★} \diff{★★} \diff{★★★} が付けられています。
+
+\clearpage
+
+\chapter{微分法}
+\section{導関数の定義}
+
+\begin{problem}{1.1}\diff{★}
+  次の関数を微分せよ。
+  \[ f(x) = 3x^2 - 2x + 5 \]
+  \begin{solution}
+    導関数の線形性より
+    \[ f'(x) = 6x - 2. \]
+  \end{solution}
+\end{problem}
+
+\begin{problem}{1.2}\diff{★★}
+  曲線 $y = x^3 - 3x$ の $x = 1$ における接線の方程式を求めよ。
+  \begin{solution}
+    $y' = 3x^2 - 3$ より、$x = 1$ における傾きは $3 \cdot 1 - 3 = 0$。通る点は $(1, -2)$ なので、接線は
+    \[ y = -2. \]
+  \end{solution}
+\end{problem}
+
+\section{極値問題}
+
+\begin{problem}{1.3}\diff{★★★}
+  関数 $f(x) = x^3 - 6x^2 + 9x + 1$ の極値を求めよ。
+  \begin{solution}
+    $f'(x) = 3x^2 - 12x + 9 = 3(x-1)(x-3)$ より、$x = 1$ で極大 $f(1) = 5$, $x = 3$ で極小 $f(3) = 1$。
+  \end{solution}
+\end{problem}
+
+\begin{problem}{1.4}\diff{★★★}
+  関数 $f(x) = x^4 - 4x^3 + 4x^2$ の最小値を求めよ。
+  \begin{solution}
+    $f'(x) = 4x^3 - 12x^2 + 8x = 4x(x-1)(x-2)$ より、増減表から最小値は $f(0) = 0$ または $f(2) = 0$。よって最小値 $0$。
+  \end{solution}
+\end{problem}
+
+\chapter{積分法}
+\section{不定積分}
+
+\begin{problem}{2.1}\diff{★}
+  次の不定積分を求めよ。
+  \[ \int (2x + 1)\,dx \]
+  \begin{solution}
+    \[ \int (2x + 1)\,dx = x^2 + x + C. \]
+  \end{solution}
+\end{problem}
+
+\begin{problem}{2.2}\diff{★★}
+  次の定積分を求めよ。
+  \[ \int_0^1 (3x^2 + 2x)\,dx \]
+  \begin{solution}
+    \[ \bigl[x^3 + x^2\bigr]_0^1 = 1 + 1 = 2. \]
+  \end{solution}
+\end{problem}
+
+\section{面積}
+
+\begin{problem}{2.3}\diff{★★★}
+  曲線 $y = x^2$ と直線 $y = 2x$ で囲まれる部分の面積 $S$ を求めよ。
+  \begin{solution}
+    交点は $x^2 = 2x$ より $x = 0, 2$. $0 \le x \le 2$ で $2x \ge x^2$ だから
+    \[ S = \int_0^2 (2x - x^2)\,dx = \Bigl[x^2 - \tfrac{x^3}{3}\Bigr]_0^2 = 4 - \tfrac{8}{3} = \tfrac{4}{3}. \]
+  \end{solution}
+\end{problem}
+
+\end{document}
+`;
+
+const PROBLEM_BOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{top=25mm,bottom=22mm,left=22mm,right=22mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{comment}
+\usepackage{titlesec}
+
+% Toggle solutions on/off.
+% \showsoltrue  -> answer-key booklet
+% \showsolfalse -> exercise-only booklet
+\newif\ifshowsol
+\showsoltrue
+
+\definecolor{pbaccent}{HTML}{c2410c}
+
+\titleformat{\chapter}[hang]
+  {\normalfont\huge\bfseries\color{pbaccent}}{Ch. \thechapter}{12pt}{}
+\titlespacing*{\chapter}{0pt}{10pt}{14pt}
+
+\newcommand{\diff}[1]{%
+  \hspace{4pt}\colorbox{pbaccent!15}{\textcolor{pbaccent}{\small\bfseries Level #1}}%
+}
+
+\newtcolorbox{problem}[2][]{%
+  enhanced, breakable, colback=white, colframe=pbaccent!70,
+  sharp corners, boxrule=0.4pt,
+  attach boxed title to top left={xshift=6mm,yshift=-3mm},
+  boxed title style={colback=pbaccent, colframe=pbaccent, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={Q\,#2},
+  left=4mm,right=4mm,top=3mm,bottom=3mm,
+  #1
+}
+
+\ifshowsol
+  \newenvironment{solution}{\par\medskip\noindent\textbf{\color{pbaccent}▶ Solution.}\enspace}{\par\medskip}
+\else
+  \excludecomment{solution}
+\fi
+
+\begin{document}
+
+\thispagestyle{empty}
+\begin{center}
+  \vspace*{35mm}
+  {\Huge\bfseries High-school Math Problem Book\par}
+  \vspace{5mm}
+  {\large From textbook to entrance-exam level\par}
+  \vspace{25mm}
+  {\LARGE Mathematics II $\cdot$ B\par}
+  \vspace{55mm}
+  {\large Edition 1.0\par}
+\end{center}
+\clearpage
+
+\tableofcontents
+\clearpage
+
+\section*{How to Use This Book}
+This book compiles either as an \textbf{exercise booklet} or an \textbf{answer-key booklet} from a single LaTeX source.
+Toggle \texttt{\textbackslash showsoltrue} / \texttt{\textbackslash showsolfalse} in the preamble to switch modes.
+Each problem has a difficulty badge: \diff{★} \diff{★★} \diff{★★★}.
+
+\clearpage
+
+\chapter{Differentiation}
+\begin{problem}{1.1}\diff{★}
+  Differentiate $f(x) = 3x^2 - 2x + 5$.
+  \begin{solution} $f'(x) = 6x - 2$. \end{solution}
+\end{problem}
+
+\begin{problem}{1.2}\diff{★★}
+  Find the tangent line to $y = x^3 - 3x$ at $x = 1$.
+  \begin{solution}
+    $y' = 3x^2 - 3$, so slope at $x=1$ is $0$. The line is $y = -2$.
+  \end{solution}
+\end{problem}
+
+\chapter{Integration}
+\begin{problem}{2.1}\diff{★}
+  Evaluate $\int (2x + 1)\,dx$.
+  \begin{solution} $x^2 + x + C$. \end{solution}
+\end{problem}
+
+\begin{problem}{2.2}\diff{★★★}
+  Find the area enclosed by $y = x^2$ and $y = 2x$.
+  \begin{solution}
+    $S = \int_0^2 (2x - x^2)\,dx = \tfrac{4}{3}$.
+  \end{solution}
+\end{problem}
+
+\end{document}
+`;
+
+// ──────────────────────────────────────────
+// P6. 教科書章 (textbook, 例題+練習+marginpar)
+// ──────────────────────────────────────────
+const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{geometry}
+\geometry{top=26mm,bottom=26mm,left=28mm,right=40mm,marginparwidth=30mm,marginparsep=4mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs, tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable,theorems}
+\usepackage{titlesec}
+
+\definecolor{tbaccent}{HTML}{15803d}
+\definecolor{tbsoft}{HTML}{d1fae5}
+\definecolor{tbkey}{HTML}{fde68a}
+
+\titleformat{\chapter}[hang]
+  {\normalfont\huge\bfseries\color{tbaccent}}
+  {第\thechapter 章}{14pt}{}
+\titlespacing*{\chapter}{0pt}{0pt}{16pt}
+
+\newtcolorbox{example}[1][]{%
+  enhanced, breakable, colback=tbsoft!50, colframe=tbaccent,
+  sharp corners, boxrule=0.6pt,
+  attach boxed title to top left={xshift=6mm,yshift=-3mm},
+  boxed title style={colback=tbaccent, colframe=tbaccent, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={例題},
+  left=4mm,right=4mm,top=3mm,bottom=3mm,
+  #1
+}
+
+\newtcolorbox{keypoint}{%
+  colback=tbkey!40, colframe=tbkey!80!black,
+  sharp corners, boxrule=0.4pt,
+  left=3mm,right=3mm,top=2mm,bottom=2mm
+}
+
+\newcommand{\side}[1]{\marginpar{\raggedright\small\color{tbaccent}#1}}
+
+\newenvironment{solution}{\par\smallskip\noindent\textbf{\small 解.}\enspace}{\par}
+
+\title{}\author{}\date{}
+
+\begin{document}
+
+\chapter{三角比}
+
+\section*{学習の目標}
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+  \item 直角三角形を用いて三角比を定義できる。
+  \item 三角比の相互関係を説明し、計算に利用できる。
+  \item 三角比を用いて実際の測量問題を解くことができる。
+\end{itemize}
+
+\section{三角比の定義}
+\side{直角三角形の鋭角 $\theta$ に対して三角比を定義する。斜辺 (hypotenuse)、対辺 (opposite)、底辺 (adjacent) の位置関係を図で確認しよう。}
+
+直角三角形 $\triangle ABC$ において $\angle C = 90^\circ$ とする。角 $\theta = \angle BAC$ に対して次の 3 つの比を定義する。
+\begin{align*}
+  \sin\theta &= \frac{\text{対辺}}{\text{斜辺}}, &
+  \cos\theta &= \frac{\text{底辺}}{\text{斜辺}}, &
+  \tan\theta &= \frac{\text{対辺}}{\text{底辺}}.
+\end{align*}
+
+\begin{keypoint}
+\textbf{覚え方.}\quad 筆記体 s / c / t の書き順 ``斜 → 対''、``斜 → 底''、``底 → 対'' を思い浮かべると、分子と分母を迷わない。
+\end{keypoint}
+
+\begin{example}
+  直角三角形で底辺 $= 4$, 対辺 $= 3$ のとき、$\sin\theta, \cos\theta, \tan\theta$ を求めよ。
+  \begin{solution}
+    斜辺は $\sqrt{4^2 + 3^2} = 5$。よって
+    \[ \sin\theta = \tfrac{3}{5},\quad \cos\theta = \tfrac{4}{5},\quad \tan\theta = \tfrac{3}{4}. \]
+  \end{solution}
+\end{example}
+
+\subsection*{練習 1.1}
+底辺 $= 5$, 対辺 $= 12$ のとき、三角比を求めよ。
+
+\section{主要な角の三角比}
+\side{$30^\circ, 45^\circ, 60^\circ$ の三角比は高校数学で頻出。表のまま暗記してしまうのが近道。}
+
+\begin{center}
+  \renewcommand{\arraystretch}{1.5}
+  \begin{tabular}{c|ccc}
+    \toprule
+    $\theta$ & $30^\circ$ & $45^\circ$ & $60^\circ$\\
+    \midrule
+    $\sin\theta$ & $\dfrac{1}{2}$ & $\dfrac{\sqrt{2}}{2}$ & $\dfrac{\sqrt{3}}{2}$\\
+    $\cos\theta$ & $\dfrac{\sqrt{3}}{2}$ & $\dfrac{\sqrt{2}}{2}$ & $\dfrac{1}{2}$\\
+    $\tan\theta$ & $\dfrac{1}{\sqrt{3}}$ & $1$ & $\sqrt{3}$\\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+\section{相互関係}
+\side{3 つの公式は三角比の根幹。入試での頻出度も非常に高い。}
+
+直角三角形で三平方の定理 $(\text{対辺})^2 + (\text{底辺})^2 = (\text{斜辺})^2$ が成り立つことから、次の 3 つの等式が導かれる。
+\begin{enumerate}[label=(\roman*),leftmargin=*]
+  \item $\sin^2\theta + \cos^2\theta = 1$
+  \item $\displaystyle \tan\theta = \frac{\sin\theta}{\cos\theta}$
+  \item $\displaystyle 1 + \tan^2\theta = \frac{1}{\cos^2\theta}$
+\end{enumerate}
+
+\begin{example}
+  $\sin\theta = \tfrac{3}{5}$ かつ $0^\circ < \theta < 90^\circ$ のとき、$\cos\theta$ と $\tan\theta$ を求めよ。
+  \begin{solution}
+    相互関係 (i) より $\cos^2\theta = 1 - \tfrac{9}{25} = \tfrac{16}{25}$。$0^\circ < \theta < 90^\circ$ のとき $\cos\theta > 0$ だから $\cos\theta = \tfrac{4}{5}$。したがって $\tan\theta = \tfrac{3}{4}$。
+  \end{solution}
+\end{example}
+
+\section{測量への応用}
+\side{実地測量では $\tan\theta$ を用いて「高さ」を求めることが多い。}
+
+\begin{example}
+  高さ 20\,m の建物を地点 P から見上げた仰角が $30^\circ$ であった。地点 P から建物までの水平距離を求めよ。
+  \begin{solution}
+    求める距離を $d$ とすると、$\tan 30^\circ = \tfrac{20}{d}$ より
+    \[ d = \frac{20}{\tan 30^\circ} = \frac{20}{1/\sqrt{3}} = 20\sqrt{3} \approx 34.6\,[\text{m}]. \]
+  \end{solution}
+\end{example}
+
+\section*{章末問題}
+\begin{enumerate}[leftmargin=*,itemsep=5mm]
+  \item $\cos\theta = \tfrac{1}{3}$ かつ $0^\circ < \theta < 90^\circ$ のとき、$\sin\theta, \tan\theta$ を求めよ。
+  \item $(\sin\theta + \cos\theta)^2 + (\sin\theta - \cos\theta)^2$ を簡単にせよ。
+  \item 地上 1.5\,m の観測者が高さ $h$\,m の電柱を見上げたとき、仰角が $45^\circ$ であった。観測者と電柱の根元との距離が 12\,m であるとして $h$ を求めよ。
+\end{enumerate}
+
+\end{document}
+`;
+
+const TEXTBOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{top=26mm,bottom=26mm,left=28mm,right=40mm,marginparwidth=30mm,marginparsep=4mm}
+\usepackage{amsmath, amssymb, amsthm, mathtools, bm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{titlesec}
+
+\definecolor{tbaccent}{HTML}{15803d}
+\definecolor{tbsoft}{HTML}{d1fae5}
+\definecolor{tbkey}{HTML}{fde68a}
+
+\titleformat{\chapter}[hang]
+  {\normalfont\huge\bfseries\color{tbaccent}}{Chapter \thechapter}{14pt}{}
+\titlespacing*{\chapter}{0pt}{0pt}{16pt}
+
+\newtcolorbox{example}[1][]{%
+  enhanced, breakable, colback=tbsoft!50, colframe=tbaccent,
+  sharp corners, boxrule=0.6pt,
+  attach boxed title to top left={xshift=6mm,yshift=-3mm},
+  boxed title style={colback=tbaccent, colframe=tbaccent, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\bfseries\small,
+  title={Worked example},
+  left=4mm,right=4mm,top=3mm,bottom=3mm,
+  #1
+}
+
+\newtcolorbox{keypoint}{%
+  colback=tbkey!40, colframe=tbkey!80!black,
+  sharp corners, boxrule=0.4pt,
+  left=3mm,right=3mm,top=2mm,bottom=2mm
+}
+
+\newcommand{\side}[1]{\marginpar{\raggedright\small\color{tbaccent}#1}}
+\newenvironment{solution}{\par\smallskip\noindent\textbf{\small Solution.}\enspace}{\par}
+
+\begin{document}
+\chapter{Trigonometric ratios}
+
+\section*{Learning objectives}
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+  \item Define trigonometric ratios using a right-angled triangle.
+  \item Use the Pythagorean identities fluently.
+  \item Apply trigonometry to real measurement problems.
+\end{itemize}
+
+\section{Definitions}
+\side{Identify the hypotenuse, opposite, and adjacent sides relative to the acute angle $\theta$.}
+
+In a right triangle $\triangle ABC$ with $\angle C = 90^\circ$, let $\theta = \angle BAC$. Define
+$\sin\theta = \tfrac{\text{opp.}}{\text{hyp.}}$, $\cos\theta = \tfrac{\text{adj.}}{\text{hyp.}}$, $\tan\theta = \tfrac{\text{opp.}}{\text{adj.}}$.
+
+\begin{keypoint}
+\textbf{Tip.} Trace the letters \emph{s}, \emph{c}, \emph{t} in cursive to recall which pair of sides goes in the numerator/denominator.
+\end{keypoint}
+
+\begin{example}
+  If the adjacent side is $4$ and the opposite side is $3$, find the three ratios.
+  \begin{solution}
+    Hypotenuse $= \sqrt{16+9} = 5$. Hence $\sin\theta = \tfrac{3}{5}$, $\cos\theta = \tfrac{4}{5}$, $\tan\theta = \tfrac{3}{4}$.
+  \end{solution}
+\end{example}
+
+\section{Table of special angles}
+\side{Memorise the values at $30^\circ, 45^\circ, 60^\circ$ — they appear everywhere.}
+\begin{center}
+  \renewcommand{\arraystretch}{1.5}
+  \begin{tabular}{c|ccc}\toprule
+    $\theta$ & $30^\circ$ & $45^\circ$ & $60^\circ$\\\midrule
+    $\sin$ & $\tfrac{1}{2}$ & $\tfrac{\sqrt{2}}{2}$ & $\tfrac{\sqrt{3}}{2}$\\
+    $\cos$ & $\tfrac{\sqrt{3}}{2}$ & $\tfrac{\sqrt{2}}{2}$ & $\tfrac{1}{2}$\\
+    $\tan$ & $\tfrac{1}{\sqrt{3}}$ & $1$ & $\sqrt{3}$\\\bottomrule
+  \end{tabular}
+\end{center}
+
+\section{Identities}
+\side{These three are the backbone of trigonometry.}
+\begin{enumerate}[label=(\roman*),leftmargin=*]
+  \item $\sin^2\theta + \cos^2\theta = 1$
+  \item $\tan\theta = \sin\theta/\cos\theta$
+  \item $1 + \tan^2\theta = 1/\cos^2\theta$
+\end{enumerate}
+
+\section*{End-of-chapter problems}
+\begin{enumerate}[leftmargin=*,itemsep=5mm]
+  \item Given $\cos\theta = \tfrac{1}{3}$ and $0^\circ < \theta < 90^\circ$, find $\sin\theta$ and $\tan\theta$.
+  \item Simplify $(\sin\theta + \cos\theta)^2 + (\sin\theta - \cos\theta)^2$.
+  \item An observer $1.5$\,m tall sees the top of a lamp post at a $45^\circ$ elevation from $12$\,m away. Find the height of the post.
+\end{enumerate}
+
+\end{document}
+`;
+
+// ══════════════════════════════════════════
 // Template Registry
 // ══════════════════════════════════════════
 
@@ -2394,11 +3877,13 @@ export interface TemplateDefinition {
    *  英訳されていないテンプレートでは undefined → ja 版にフォールバック。 */
   latexEn?: string;
   /**
-   * 利用可能な最低プラン。"free" は全プラン (LP の「基本テンプレート」)、
-   * "pro" は Pro/Premium 限定 (LP の「全テンプレート利用可」の対象)。
+   * 利用可能な最低プラン。
+   *   - "free":    全プラン (LP の「基本テンプレート」、6 種)
+   *   - "pro":     Pro / Premium 限定 (入試・発表・報告書 等、+6 種)
+   *   - "premium": Premium のみ (卒論・学会ポスター・教科書 等の本格長尺、+6 種)
    * 省略時は "free" とみなす。
    */
-  tier?: "free" | "pro";
+  tier?: "free" | "pro" | "premium";
 }
 
 export const TEMPLATES: TemplateDefinition[] = [
@@ -2610,6 +4095,114 @@ export const TEMPLATES: TemplateDefinition[] = [
     documentClass: "article",
     latex: LETTER_LATEX,
     latexEn: LETTER_LATEX_EN,
+  },
+
+  // ════════════════════════════════════════
+  // Premium-only templates (tier: "premium")
+  //   本格長尺ドキュメント — 卒論 / 総合模試冊子 / 学会ポスター
+  //   学術論文 / 問題集 / 教科書。Premium プラン限定。
+  // ════════════════════════════════════════
+  {
+    id: "thesis",
+    name: "卒論・修論",
+    nameEn: "Thesis",
+    description: "表紙+目次+5章+参考文献+謝辞の本格卒業論文",
+    descriptionEn: "Title + TOC + 5 chapters + bibliography + acknowledgements",
+    tag: "卒論",
+    tagEn: "Thesis",
+    category: "document",
+    gradient: "from-blue-900 via-indigo-700 to-slate-600",
+    accentColor: "bg-blue-900",
+    icon: "🎓",
+    documentClass: "article",
+    latex: THESIS_LATEX,
+    latexEn: THESIS_LATEX_EN,
+    tier: "premium",
+  },
+  {
+    id: "mock-exam-book",
+    name: "総合模試冊子",
+    nameEn: "Full mock-exam",
+    description: "表紙+注意事項+4大問+解答用紙の模試一式",
+    descriptionEn: "Cover + instructions + 4 problems + answer sheet",
+    tag: "模試",
+    tagEn: "Mock",
+    category: "exam",
+    gradient: "from-red-800 via-rose-600 to-orange-500",
+    accentColor: "bg-red-800",
+    icon: "📚",
+    documentClass: "article",
+    latex: MOCK_EXAM_LATEX,
+    latexEn: MOCK_EXAM_LATEX_EN,
+    tier: "premium",
+  },
+  {
+    id: "poster",
+    name: "学会ポスター",
+    nameEn: "Academic poster",
+    description: "A0縦・3列×7ブロック構成の学会ポスター",
+    descriptionEn: "A0 portrait, 3-column × 7-block conference poster",
+    tag: "ポスター",
+    tagEn: "Poster",
+    category: "slide",
+    gradient: "from-sky-700 via-cyan-500 to-amber-300",
+    accentColor: "bg-sky-700",
+    icon: "🖼️",
+    documentClass: "beamer",
+    latex: POSTER_LATEX,
+    latexEn: POSTER_LATEX_EN,
+    tier: "premium",
+  },
+  {
+    id: "academic-paper",
+    name: "学術論文 (投稿原稿)",
+    nameEn: "Journal paper",
+    description: "abstract+キーワード+6節+定理環境+参考文献",
+    descriptionEn: "Abstract + keywords + 6 sections + theorems + bibliography",
+    tag: "論文",
+    tagEn: "Journal",
+    category: "document",
+    gradient: "from-indigo-800 via-blue-600 to-sky-400",
+    accentColor: "bg-indigo-800",
+    icon: "🧪",
+    documentClass: "article",
+    latex: ACADEMIC_PAPER_LATEX,
+    latexEn: ACADEMIC_PAPER_LATEX_EN,
+    tier: "premium",
+  },
+  {
+    id: "problem-book",
+    name: "問題集 (解答切替)",
+    nameEn: "Problem book",
+    description: "章別・難易度バッジ・本冊/解答冊子をトグルで切替",
+    descriptionEn: "Chapters + difficulty badges + answer-key toggle",
+    tag: "問題集",
+    tagEn: "Problems",
+    category: "study",
+    gradient: "from-orange-700 via-amber-500 to-yellow-300",
+    accentColor: "bg-orange-700",
+    icon: "📕",
+    documentClass: "article",
+    latex: PROBLEM_BOOK_LATEX,
+    latexEn: PROBLEM_BOOK_LATEX_EN,
+    tier: "premium",
+  },
+  {
+    id: "textbook",
+    name: "教科書章",
+    nameEn: "Textbook chapter",
+    description: "margin注+例題box+練習+章末問題の本格教科書章",
+    descriptionEn: "Margin notes + example boxes + exercises + end-of-chapter",
+    tag: "教科書",
+    tagEn: "Textbook",
+    category: "study",
+    gradient: "from-emerald-800 via-green-500 to-lime-300",
+    accentColor: "bg-emerald-800",
+    icon: "📗",
+    documentClass: "article",
+    latex: TEXTBOOK_LATEX,
+    latexEn: TEXTBOOK_LATEX_EN,
+    tier: "premium",
   },
 ];
 

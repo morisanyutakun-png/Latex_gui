@@ -40,12 +40,16 @@ export function TemplatePicker({ currentId, onSelect, label, compact, large }: T
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  // LP の「全テンプレート利用可」に対応するためプラン情報を購読する。
-  // Pro 未満は tier:"pro" のテンプレを選ぶと pricing modal に誘導する。
-  const currentPlan = usePlanStore((s) => s.currentPlan);
+  // LP の「テンプレート解放」に対応するためプラン情報を購読する。
+  //   - tier:"pro"     → Pro / Premium で解放
+  //   - tier:"premium" → Premium のみで解放
+  // いずれも未解放のテンプレを選ぶと pricing modal に誘導する。
+  // subscribe to currentPlan so UI re-renders on plan changes (value read via checkFeature)
+  usePlanStore((s) => s.currentPlan);
   const checkFeature = usePlanStore((s) => s.checkFeature);
   const setShowPricing = usePlanStore((s) => s.setShowPricing);
-  const templatesAllowed = checkFeature("allTemplates").allowed;
+  const proTemplatesAllowed = checkFeature("allTemplates").allowed;
+  const premiumTemplatesAllowed = checkFeature("premiumTemplates").allowed;
   // ポップオーバーをツールバー (backdrop-blur で stacking context が固定される) の外に
   // 描画するため createPortal + fixed positioning を使う。
   const [pos, setPos] = useState<{ top: number; left: number; maxWidth: number } | null>(null);
@@ -207,17 +211,24 @@ export function TemplatePicker({ currentId, onSelect, label, compact, large }: T
           <div className="max-h-[68vh] overflow-y-auto p-4 bg-stone-100/50 dark:bg-stone-950/30">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {visible.map((tpl) => {
-                const isLocked = tpl.tier === "pro" && !templatesAllowed;
+                // tier:"pro"     → Pro/Premium で解放、未満は pro ロック (紫バッジ)
+                // tier:"premium" → Premium のみ解放、未満は premium ロック (金バッジ)
+                const lockedBy: "pro" | "premium" | null =
+                  tpl.tier === "premium" && !premiumTemplatesAllowed
+                    ? "premium"
+                    : tpl.tier === "pro" && !proTemplatesAllowed
+                      ? "pro"
+                      : null;
                 return (
                   <TemplateCard
                     key={tpl.id}
                     tpl={tpl}
                     isJa={isJa}
                     selected={tpl.id === currentId}
-                    locked={isLocked}
+                    lockedBy={lockedBy}
                     onSelect={() => {
-                      if (isLocked) {
-                        // Pro 未満が tier:"pro" を選んだ → pricing modal を開いてアップグレード誘導
+                      if (lockedBy) {
+                        // 未解放テンプレを選択 → pricing modal へ誘導
                         setOpen(false);
                         setShowPricing(true);
                         return;
@@ -229,13 +240,14 @@ export function TemplatePicker({ currentId, onSelect, label, compact, large }: T
                 );
               })}
             </div>
-            {!templatesAllowed && (
+            {/* Pro 未満の人向け: Pro 解放テンプレの案内 */}
+            {!proTemplatesAllowed && (
               <div className="mt-4 rounded-xl border border-violet-400/30 bg-violet-50/60 dark:bg-violet-500/[0.08] px-4 py-3 flex items-center gap-3">
                 <Lock className="h-4 w-4 text-violet-500 shrink-0" />
                 <div className="flex-1 text-[11.5px] text-foreground/75 leading-snug">
                   {isJa
-                    ? `入試・発表・長文レポートなどの上位テンプレートは ${PLANS.pro.name} プラン以上でご利用いただけます。`
-                    : `Advanced exam / slide / long-report templates are available on ${PLANS.pro.name} and above.`}
+                    ? `入試・発表・塾プリント・英語・技術報告書 の 6 種テンプレートは ${PLANS.pro.name} プラン以上でご利用いただけます。`
+                    : `6 Pro templates (exams, slides, reading, reports…) are available on ${PLANS.pro.name} and above.`}
                 </div>
                 <button
                   type="button"
@@ -245,7 +257,28 @@ export function TemplatePicker({ currentId, onSelect, label, compact, large }: T
                   }}
                   className="shrink-0 h-7 px-3 rounded-lg text-[11px] font-bold bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow hover:opacity-90 transition"
                 >
-                  {isJa ? "アップグレード" : "Upgrade"}
+                  {isJa ? "Pro にアップグレード" : `Upgrade to ${PLANS.pro.name}`}
+                </button>
+              </div>
+            )}
+            {/* Premium 未満の人向け: Premium 限定テンプレ (卒論・ポスター 等) の案内 */}
+            {!premiumTemplatesAllowed && (
+              <div className="mt-3 rounded-xl border border-amber-400/40 bg-gradient-to-r from-amber-50/70 to-orange-50/50 dark:from-amber-500/[0.08] dark:to-orange-500/[0.06] px-4 py-3 flex items-center gap-3">
+                <Lock className="h-4 w-4 text-amber-500 shrink-0" />
+                <div className="flex-1 text-[11.5px] text-foreground/80 leading-snug">
+                  {isJa
+                    ? `卒論・学会ポスター・学術論文・総合模試冊子・問題集・教科書 の Premium 限定 6 テンプレは ${PLANS.premium.name} プランでご利用いただけます。`
+                    : `Thesis, academic poster, journal paper, full mock-exam, problem book, textbook — these ${PLANS.premium.name}-only templates require ${PLANS.premium.name}.`}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    setShowPricing(true);
+                  }}
+                  className="shrink-0 h-7 px-3 rounded-lg text-[11px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow hover:opacity-90 transition"
+                >
+                  {isJa ? `${PLANS.premium.name} にアップグレード` : `Upgrade to ${PLANS.premium.name}`}
                 </button>
               </div>
             )}
@@ -301,25 +334,48 @@ interface TemplateCardProps {
   tpl: TemplateDefinition;
   isJa: boolean;
   selected: boolean;
-  /** Pro 未満のユーザで tier:"pro" のテンプレを表示中。選択時は pricing へ誘導。 */
-  locked?: boolean;
+  /**
+   * どのプランが未解放でこのカードをロックしているか。
+   *   - "pro"     → Pro で解放可能な Pro テンプレ
+   *   - "premium" → Premium 専用テンプレ
+   *   - null      → 解放済み (選択可能)
+   */
+  lockedBy?: "pro" | "premium" | null;
   onSelect: () => void;
 }
 
-function TemplateCard({ tpl, isJa, selected, locked = false, onSelect }: TemplateCardProps) {
+function TemplateCard({ tpl, isJa, selected, lockedBy = null, onSelect }: TemplateCardProps) {
   const name = isJa ? tpl.name : tpl.nameEn;
   const tag = isJa ? tpl.tag : tpl.tagEn;
+  const locked = lockedBy !== null;
+
+  // ロックバッジの見た目はプラン階層で差をつける。
+  //   Pro     → ブランドの紫/青グラデ (既存の視覚言語)
+  //   Premium → 金/オレンジグラデ (最上位プラン = 特別感)
+  const lockBadge = lockedBy === "premium"
+    ? {
+        bg: "bg-gradient-to-r from-amber-500 to-orange-500",
+        ring: "ring-1 ring-amber-400/50 hover:ring-amber-500/70 hover:shadow-md hover:shadow-amber-500/15",
+        label: isJa ? "Premium 限定" : "Premium only",
+        title: isJa ? "Premium プランで利用可能" : "Requires Premium plan",
+      }
+    : {
+        bg: "bg-gradient-to-r from-blue-600 to-violet-600",
+        ring: "ring-1 ring-violet-400/40 hover:ring-violet-500/60 hover:shadow-md hover:shadow-violet-500/10",
+        label: isJa ? "Pro 以上" : "Pro only",
+        title: isJa ? "Pro プラン以上で利用可能" : "Requires Pro plan or higher",
+      };
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      title={locked ? (isJa ? "Proプラン以上で利用可能" : "Pro plan required") : undefined}
+      title={locked ? lockBadge.title : undefined}
       className={`group relative text-left rounded-xl transition-all duration-200 overflow-hidden hover:-translate-y-0.5 ${
         selected
           ? "ring-2 ring-emerald-400 shadow-lg shadow-emerald-500/15"
           : locked
-          ? "ring-1 ring-violet-400/40 hover:ring-violet-500/60 hover:shadow-md hover:shadow-violet-500/10"
+          ? lockBadge.ring
           : "ring-1 ring-border/40 hover:ring-foreground/30 hover:shadow-md hover:shadow-foreground/10"
       }`}
     >
@@ -332,14 +388,12 @@ function TemplateCard({ tpl, isJa, selected, locked = false, onSelect }: Templat
           </div>
         )}
         {locked && (
-          <>
-            <div className="absolute inset-3 rounded-md bg-foreground/[0.35] dark:bg-black/50 backdrop-blur-[1px] flex items-center justify-center">
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[10px] font-bold shadow">
-                <Lock className="h-3 w-3" />
-                {isJa ? "Pro 以上" : "Pro only"}
-              </span>
-            </div>
-          </>
+          <div className="absolute inset-3 rounded-md bg-foreground/[0.35] dark:bg-black/50 backdrop-blur-[1px] flex items-center justify-center">
+            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${lockBadge.bg} text-white text-[10px] font-bold shadow`}>
+              <Lock className="h-3 w-3" />
+              {lockBadge.label}
+            </span>
+          </div>
         )}
       </div>
 

@@ -82,10 +82,18 @@ export function WelcomeOverlay() {
   };
 
   const startWithTemplate = (id: string) => {
-    // LP:「全テンプレート利用可」は Pro+。Pro 未満が tier:"pro" を選んだら pricing へ。
+    // LP の 2 段階ゲート:
+    //   tier:"pro"     → allTemplates      (Pro+ で解放)
+    //   tier:"premium" → premiumTemplates  (Premium のみ解放)
+    // 未解放のテンプレを選んだら pricing modal へ誘導する。
     const tpl = TEMPLATES.find((t) => t.id === id);
-    if (tpl?.tier === "pro") {
-      const check = usePlanStore.getState().checkFeature("allTemplates");
+    const gatingFeature = tpl?.tier === "premium"
+      ? "premiumTemplates"
+      : tpl?.tier === "pro"
+        ? "allTemplates"
+        : null;
+    if (gatingFeature) {
+      const check = usePlanStore.getState().checkFeature(gatingFeature);
       if (!check.allowed) {
         usePlanStore.getState().setShowPricing(true);
         return;

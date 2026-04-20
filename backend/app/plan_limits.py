@@ -17,22 +17,25 @@ Action = Literal["ai_request", "pdf_export"]
 
 # プランでゲートする機能。frontend/lib/plans.ts `GatedFeature` と同期させること。
 Feature = Literal[
-    "grading",          # 採点・自動採点 (Pro+)
-    "ocr",              # OMR / PDF・画像から問題抽出 (Pro+)
-    "latexExport",      # LaTeXソースエクスポート (Starter+)
-    "allTemplates",     # 全テンプレート利用 (Pro+)
-    "batch",            # バッチ処理 (Pro+)
+    "grading",            # 採点・自動採点 (Pro+)
+    "ocr",                # OMR / PDF・画像から問題抽出 (Pro+)
+    "latexExport",        # LaTeXソースエクスポート (Starter+)
+    "allTemplates",       # Pro テンプレ解放 (入試・発表・報告書 等, Pro+)
+    "premiumTemplates",   # Premium 限定テンプレ (卒論・ポスター・教科書 等, Premium+)
+    "batch",              # バッチ処理 (Pro+)
 ]
 
 # 機能 → 使えるようになる最低プラン。frontend/lib/plans.ts の FEATURE_MIN_PLAN と同期。
 # Starter は「AI回数UP + PDF無制限 + LaTeXエクスポート」まで。
-# 採点/OMR/全テンプレ/バッチ は教師向け本格機能として Pro+ に集約する。
+# 採点/OMR/Pro テンプレ/バッチ は教師向け本格機能として Pro+ に集約する。
+# 卒論・学会ポスター・教科書 等の本格長尺テンプレは Premium+ のみ。
 FEATURE_MIN_PLAN: dict[Feature, PlanId] = {
-    "grading":         "pro",
-    "ocr":             "pro",
-    "latexExport":     "starter",
-    "allTemplates":    "pro",
-    "batch":           "pro",
+    "grading":           "pro",
+    "ocr":               "pro",
+    "latexExport":       "starter",
+    "allTemplates":      "pro",
+    "premiumTemplates":  "premium",
+    "batch":             "pro",
 }
 
 _PLAN_RANK: dict[PlanId, int] = {"free": 0, "starter": 1, "pro": 2, "premium": 3}

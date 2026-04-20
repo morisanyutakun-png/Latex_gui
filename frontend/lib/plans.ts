@@ -6,10 +6,12 @@
  *   2. 教材PDF出力 回数 (Free のみ 1回/月、Starter 以上は無制限)
  *   3. 機能解放:
  *        - Starter+: LaTeXソースエクスポート (+ 上記の数量UP)
- *        - Pro+:     採点 / OMR(OCR) / 全テンプレート / バッチ処理
- *   4. テンプレート数:
+ *        - Pro+:     採点 / OMR(OCR) / Pro テンプレート / バッチ処理
+ *        - Premium+: Premium 限定テンプレート (卒論・学会ポスター 等)
+ *   4. テンプレート数 (積み上げ式):
  *        - Free / Starter: 基本 6 種類 (blank / article / letter / worksheet / school-test / kaisetsu-note)
- *        - Pro / Premium:  全 12 種類 (+ 共通テスト / 国公立二次 / 塾プリント / 英語 / 報告書 / 発表スライド)
+ *        - Pro:            12 種類 (+ 共通テスト / 国公立二次 / 塾プリント / 英語 / 報告書 / 発表スライド)
+ *        - Premium:        18 種類 (+ 卒論・修論 / 総合模試冊子 / 学会ポスター / 学術論文 / 問題集 / 教科書)
  *
  * TikZ図の作成・保存、リアルタイムプレビュー、思考ログは全プラン共通 (無制限)。
  * 月額払い (Stripe) のみ。内部コスト: $0.01/リクエスト ≈ ¥1.5 (実測値)
@@ -28,25 +30,28 @@ export type GatedFeature =
   | "grading"          // 採点・自動採点 (Pro+)
   | "ocr"              // PDF・画像から問題抽出 (Pro+)
   | "latexExport"      // LaTeXソースエクスポート (Starter+)
-  | "allTemplates"     // 全テンプレート利用 (Pro+)
+  | "allTemplates"     // Pro テンプレ解放 (入試・発表・報告書 等, Pro+)
+  | "premiumTemplates" // Premium 限定テンプレ (卒論・ポスター・教科書 等, Premium+)
   | "batch";           // バッチ処理 (Pro+)
 
 /** 機能 → 使えるようになる最低プラン (バックエンド plan_limits.py と同期必須) */
 const FEATURE_MIN_PLAN: Record<GatedFeature, PlanId> = {
-  grading:         "pro",
-  ocr:             "pro",
-  latexExport:     "starter",
-  allTemplates:    "pro",
-  batch:           "pro",
+  grading:           "pro",
+  ocr:               "pro",
+  latexExport:       "starter",
+  allTemplates:      "pro",
+  premiumTemplates:  "premium",
+  batch:             "pro",
 };
 
 /** 機能ごとの日本語ラベル (アップグレード促進メッセージ用) */
 export const FEATURE_LABELS: Record<GatedFeature, { ja: string; en: string }> = {
-  grading:         { ja: "採点・自動採点", en: "Grading & auto-scoring" },
-  ocr:             { ja: "PDF・画像取り込み (OCR)", en: "PDF & image import (OCR)" },
-  latexExport:     { ja: "LaTeXソースエクスポート", en: "LaTeX source export" },
-  allTemplates:    { ja: "全テンプレート利用", en: "All templates" },
-  batch:           { ja: "バッチ処理", en: "Batch processing" },
+  grading:           { ja: "採点・自動採点", en: "Grading & auto-scoring" },
+  ocr:               { ja: "PDF・画像取り込み (OCR)", en: "PDF & image import (OCR)" },
+  latexExport:       { ja: "LaTeXソースエクスポート", en: "LaTeX source export" },
+  allTemplates:      { ja: "入試・発表テンプレ利用", en: "Exam & slide templates" },
+  premiumTemplates:  { ja: "Premium 限定テンプレート", en: "Premium-only templates" },
+  batch:             { ja: "バッチ処理", en: "Batch processing" },
 };
 
 const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2, premium: 3 };
@@ -189,7 +194,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     features: [
       "高性能AI 月500回 (1日40回まで)",
       "教材PDF出力 無制限 (優先処理)",
-      "全テンプレート 12種類 (入試・発表含む)",
+      "Pro テンプレート 12種類 (入試・発表・英語・報告書など)",
       "採点・自動採点 (OMR)",
       "PDF・画像取り込み (OCR)",
       "バッチ処理 (最大100行)",
@@ -198,7 +203,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     featuresEn: [
       "Premium AI: 500 / month (40 / day)",
       "Worksheet PDF: unlimited (priority)",
-      "All 12 templates (exams, slides, etc.)",
+      "12 Pro templates (exams, slides, reading, reports…)",
       "Grading & auto-scoring (OMR)",
       "PDF & image import (OCR)",
       "Batch processing (up to 100 rows)",
@@ -207,7 +212,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     builtOn: "starter",
     addedFeatures: [
       "高性能AI 月500回に拡張 (Starterの3.3倍・1日40回)",
-      "全テンプレート 12種類に解放 (入試・発表・長文レポート +6種)",
+      "Pro テンプレ 6種を解放 (共通テスト / 国公立二次 / 塾プリント / 英語 / 技術報告書 / プレゼン)",
       "採点・自動採点 (OMR)",
       "PDF・画像取り込み (OCR)",
       "バッチ処理 (最大100行)",
@@ -215,7 +220,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     ],
     addedFeaturesEn: [
       "Premium AI boosted to 500 / month (3.3× Starter, 40 / day)",
-      "Unlocks all 12 templates (+6 for exams, slides, reports)",
+      "Unlocks 6 Pro templates (national exam, 2nd-stage, cram worksheet, reading, tech report, slides)",
       "Grading & auto-scoring (OMR)",
       "PDF & image import (OCR)",
       "Batch processing (up to 100 rows)",
@@ -240,7 +245,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
     features: [
       "高性能AI 月2,000回 (1日150回まで)",
       "教材PDF出力 無制限 (最優先処理)",
-      "全テンプレート 12種類 (入試・発表含む)",
+      "全 18 種類のテンプレート (Premium 限定 6 種を含む)",
+      "Premium 限定テンプレ: 卒論・修論 / 総合模試冊子 / 学会ポスター / 学術論文 / 問題集 / 教科書",
       "採点・自動採点 (OMR)",
       "PDF・画像取り込み (OCR)",
       "バッチ処理 (最大300行)",
@@ -249,7 +255,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
     featuresEn: [
       "Premium AI: 2,000 / month (150 / day)",
       "Worksheet PDF: unlimited (highest priority)",
-      "All 12 templates (exams, slides, etc.)",
+      "All 18 templates (incl. 6 Premium-only)",
+      "Premium-only: Thesis / Full mock-exam / Academic poster / Journal paper / Problem book / Textbook",
       "Grading & auto-scoring (OMR)",
       "PDF & image import (OCR)",
       "Batch processing (up to 300 rows)",
@@ -258,11 +265,13 @@ export const PLANS: Record<PlanId, PlanDef> = {
     builtOn: "pro",
     addedFeatures: [
       "高性能AI 月2,000回に拡張 (Proの4倍・1日150回)",
+      "Premium 限定テンプレ 6 種を解放 (卒論・修論 / 総合模試冊子 / 学会ポスター / 学術論文 / 問題集 / 教科書)",
       "バッチ処理 最大300行に拡張 (Proの3倍)",
       "PDF出力 最優先処理",
     ],
     addedFeaturesEn: [
       "Premium AI boosted to 2,000 / month (4× Pro, 150 / day)",
+      "Unlocks 6 Premium-only templates (Thesis, Academic poster, Journal paper, Full mock-exam, Problem book, Textbook)",
       "Batch processing boosted to 300 rows (3× Pro)",
       "Highest-priority PDF rendering",
     ],

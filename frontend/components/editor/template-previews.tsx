@@ -799,6 +799,287 @@ export function LetterPreview({ locale }: { locale: Locale }) {
   );
 }
 
+// ══════════════════════════════════════════
+// Premium-only templates (tier: "premium")
+// ══════════════════════════════════════════
+
+// ──────────────────────────────────────────
+// P1. 卒論・修論 / Thesis
+// ──────────────────────────────────────────
+export function ThesisPreview({ locale }: { locale: Locale }) {
+  const navy = "#1f3a68";
+  const yearLabel = t(locale, "令和X年度 卒業論文", "Bachelor/Master Thesis · 20XX");
+  const title = t(locale, "○○に関する研究", "A Study on \u2026");
+  const subtitle = t(locale, "--- サブタイトル ---", "--- Subtitle ---");
+  const author = t(locale, "△△ △△", "Jane Doe");
+  const univ = t(locale, "○○大学 ○○学部", "Example University");
+  const chapLabel = t(locale, "第 1 章", "Chapter 1");
+  const chapTitle = t(locale, "序論", "Introduction");
+  return (
+    <Paper>
+      <div className="absolute inset-0 px-4 py-5 flex flex-col gap-1 font-serif">
+        {/* 表紙風 */}
+        <div className="text-[3.5px] text-gray-600 text-center">{yearLabel}</div>
+        <div className="mt-3 text-center">
+          <div className="text-[8px] font-extrabold leading-tight" style={{ color: navy }}>{title}</div>
+          <div className="text-[4px] italic text-gray-700 mt-0.5">{subtitle}</div>
+        </div>
+        <div className="mt-6 text-center text-[4px] text-gray-800 font-bold">{author}</div>
+        <div className="text-center text-[3.2px] text-gray-500">{t(locale, "学籍番号: 20XX-XXXX", "ID: 20XX-XXXX")}</div>
+        <div className="mt-auto text-center text-[3.2px] text-gray-500">{univ}</div>
+
+        {/* 区切り線 — 次ページの示唆 */}
+        <div className="mt-2 mb-1 border-t-2 border-dashed border-gray-300" />
+
+        {/* Chapter 1 風 */}
+        <div className="text-[3.5px] font-bold" style={{ color: navy }}>{chapLabel}</div>
+        <div className="text-[7px] font-extrabold leading-none" style={{ color: navy }}>{chapTitle}</div>
+        <div className="mt-1"><Lines n={3} widths={[100, 94, 82]} /></div>
+      </div>
+    </Paper>
+  );
+}
+
+// ──────────────────────────────────────────
+// P2. 総合模試冊子 / Full mock-exam
+// ──────────────────────────────────────────
+export function MockExamPreview({ locale }: { locale: Locale }) {
+  const red = "#b22222";
+  const yearLabel = t(locale, "令和X年度", "Academic Year 20XX");
+  const title = t(locale, "第 1 回 総合模擬試験", "Mock Examination 1");
+  const subject = t(locale, "数学 I · A · II · B", "Math I · A · II · B");
+  const rows = locale === "en"
+    ? [["Duration", "90 min"], ["Total", "200 pts"], ["Student ID", ""], ["Name", ""]]
+    : [["試験時間", "90 分"], ["配点", "合計 200 点"], ["受験番号", ""], ["氏名", ""]];
+  const warning = t(locale, "試験官の指示があるまで開かないでください", "Do not open until instructed");
+  return (
+    <Paper>
+      <div className="absolute inset-0 px-4 py-5 flex flex-col items-center gap-1 font-serif">
+        <div className="mt-2 text-[4px] font-bold text-gray-800">{yearLabel}</div>
+        <div className="text-[8px] font-extrabold leading-tight" style={{ color: red }}>{title}</div>
+        <div className="mt-2 text-[5px] font-semibold text-gray-900">{subject}</div>
+
+        <div className="mt-3 w-[78%] border text-[3.5px]" style={{ borderColor: red }}>
+          {rows.map((row, i) => (
+            <div key={i} className="grid grid-cols-[45%_55%] border-b last:border-b-0" style={{ borderColor: `${red}55` }}>
+              <div className="px-1 py-[1.5px] border-r bg-[#fee2e2] text-center font-bold" style={{ borderColor: `${red}55`, color: red }}>{row[0]}</div>
+              <div className="px-1 py-[1.5px] text-gray-700">{row[1]}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-auto px-2 py-1 border text-[3px] text-center font-bold" style={{ borderColor: red, color: red }}>
+          {warning}
+        </div>
+        <div className="text-[2.8px] text-gray-400">- 1 -</div>
+      </div>
+    </Paper>
+  );
+}
+
+// ──────────────────────────────────────────
+// P3. 学会ポスター / Academic poster (A0 portrait, 3 columns)
+// ──────────────────────────────────────────
+export function PosterPreview({ locale }: { locale: Locale }) {
+  const bg = "#0f172a";
+  const accent = "#f59e0b";
+  const title = t(locale, "研究ポスタータイトル", "Research Poster Title");
+  const authors = t(locale, "山田 太郎 · 鈴木 花子", "Jane Doe · John Smith");
+  const blocks = locale === "en"
+    ? ["1. Background", "2. Goals", "3. Method", "4. Theory", "5. Results", "6. Conclusion"]
+    : ["1. 背景", "2. 目的", "3. 提案手法", "4. 理論", "5. 実験結果", "6. 結論"];
+  return (
+    <Paper>
+      <div className="absolute inset-0 flex flex-col">
+        {/* Header */}
+        <div className="px-2 py-1.5 text-center" style={{ background: "white" }}>
+          <div className="text-[6px] font-extrabold leading-tight" style={{ color: bg }}>{title}</div>
+          <div className="text-[3px] text-gray-600">{authors}</div>
+        </div>
+        <div style={{ background: accent, height: 2 }} />
+
+        {/* 3 columns */}
+        <div className="flex-1 grid grid-cols-3 gap-[3px] p-[3px]" style={{ background: "#f8fafc" }}>
+          {[0, 1, 2].map((col) => (
+            <div key={col} className="flex flex-col gap-[3px]">
+              {[0, 1].map((row) => {
+                const idx = col * 2 + row;
+                return (
+                  <div key={row} className="flex-1 flex flex-col border border-gray-200 bg-white overflow-hidden">
+                    <div className="px-1 py-[0.5px] text-[3px] font-bold text-white" style={{ background: bg }}>
+                      {blocks[idx]}
+                    </div>
+                    <div className="flex-1 p-1">
+                      <Lines n={3} widths={[95, 85, 72]} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Paper>
+  );
+}
+
+// ──────────────────────────────────────────
+// P4. 学術論文 / Journal paper
+// ──────────────────────────────────────────
+export function AcademicPaperPreview({ locale }: { locale: Locale }) {
+  const blue = "#0b4f8c";
+  const title = t(locale, "論文タイトル: ○○に関する新しいアプローチ", "A Novel Approach to \u2026");
+  const abstract = t(locale, "概要", "Abstract");
+  const keywords = t(locale, "キーワード", "Keywords");
+  const s1 = t(locale, "1 序論", "1 Introduction");
+  const s2 = t(locale, "2 関連研究", "2 Related Work");
+  const thmLabel = t(locale, "定理 1.", "Theorem 1.");
+  return (
+    <Paper>
+      <div className="absolute inset-0 px-4 py-4 flex flex-col gap-1 font-serif">
+        <div className="text-center">
+          <div className="text-[6.5px] font-extrabold leading-tight text-gray-900">{title}</div>
+          <div className="mt-1 text-[3px] text-gray-600">Jane Doe<sup>1</sup> · John Smith<sup>2</sup></div>
+          <div className="text-[2.8px] italic text-gray-500">{t(locale, "○○大学 · △△研究所", "Univ. A · Institute B")}</div>
+        </div>
+
+        <div className="mt-1 px-1 py-1 border-l-2 bg-gray-50" style={{ borderColor: blue }}>
+          <div className="text-[3.2px] font-bold" style={{ color: blue }}>{abstract}</div>
+          <div className="mt-0.5"><Lines n={3} widths={[100, 98, 88]} /></div>
+          <div className="mt-0.5 text-[2.8px] text-gray-500">
+            <span className="font-bold" style={{ color: blue }}>{keywords}:</span> {"…, …, …"}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-1.5 mt-1 flex-1 min-h-0">
+          <div className="flex flex-col gap-[2px]">
+            <div className="text-[3.5px] font-bold" style={{ color: blue }}>{s1}</div>
+            <Lines n={5} widths={[100, 94, 90, 82, 70]} />
+          </div>
+          <div className="flex flex-col gap-[2px]">
+            <div className="text-[3.5px] font-bold" style={{ color: blue }}>{s2}</div>
+            <Lines n={3} widths={[100, 88, 78]} />
+            <div className="mt-0.5 px-1 py-0.5 border-l-2 bg-blue-50 text-[2.6px]" style={{ borderColor: blue }}>
+              <span className="font-bold italic" style={{ color: blue }}>{thmLabel}</span>{" E[L] \u2264 C/T."}
+            </div>
+            <Lines n={2} widths={[95, 68]} />
+          </div>
+        </div>
+
+        <div className="mt-auto text-center text-[2.8px] text-gray-400">- 1 -</div>
+      </div>
+    </Paper>
+  );
+}
+
+// ──────────────────────────────────────────
+// P5. 問題集 / Problem book (with answer toggle)
+// ──────────────────────────────────────────
+export function ProblemBookPreview({ locale }: { locale: Locale }) {
+  const orange = "#c2410c";
+  const chapLabel = t(locale, "第 1 章", "Ch. 1");
+  const chapTitle = t(locale, "微分法", "Differentiation");
+  const problems = locale === "en"
+    ? [{ id: "1.1", d: "★", body: "Differentiate $f(x) = 3x^2 - 2x$" },
+       { id: "1.2", d: "★★", body: "Tangent line of $y = x^3 - 3x$ at $x=1$" },
+       { id: "1.3", d: "★★★", body: "Extrema of $f(x) = x^3 - 6x^2 + 9x$" }]
+    : [{ id: "1.1", d: "★", body: "$f(x) = 3x^2 - 2x$ を微分せよ" },
+       { id: "1.2", d: "★★", body: "$y = x^3 - 3x$ の $x=1$ の接線" },
+       { id: "1.3", d: "★★★", body: "$f(x) = x^3 - 6x^2 + 9x$ の極値" }];
+  const solLabel = t(locale, "▶ 解答.", "▶ Solution.");
+  return (
+    <Paper>
+      <div className="absolute inset-0 px-3.5 py-3.5 flex flex-col gap-1 font-serif">
+        <div className="flex items-baseline gap-1.5">
+          <div className="text-[3.5px] font-bold" style={{ color: orange }}>{chapLabel}</div>
+          <div className="text-[7px] font-extrabold" style={{ color: orange }}>{chapTitle}</div>
+        </div>
+
+        <div className="flex flex-col gap-1.5 mt-1">
+          {problems.map((p) => (
+            <div key={p.id} className="relative border rounded-[2px] bg-white" style={{ borderColor: `${orange}aa` }}>
+              {/* tcolorbox boxed-title 風 */}
+              <div className="absolute -top-1 left-2 px-1 text-[2.8px] font-bold text-white rounded-[1px]" style={{ background: orange }}>
+                {t(locale, `問 ${p.id}`, `Q ${p.id}`)}
+              </div>
+              <div className="absolute top-0.5 right-1 text-[2.5px] font-bold px-0.5 rounded" style={{ color: orange, background: `${orange}1a` }}>
+                {t(locale, `難易度 ${p.d}`, `Level ${p.d}`)}
+              </div>
+              <div className="px-1.5 pt-1.5 pb-0.5 text-[3px] text-gray-800">{p.body}</div>
+              {/* 解答 (解答冊子モードの示唆) */}
+              <div className="px-1.5 pb-1 text-[2.8px]" style={{ color: orange }}>
+                <span className="font-bold">{solLabel}</span>&nbsp;<span className="text-gray-600">{"f'(x) = …"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-auto text-center text-[2.6px] text-gray-400 italic">
+          {t(locale, "\\showsolfalse で解答を隠せます", "Toggle \\showsolfalse to hide solutions")}
+        </div>
+      </div>
+    </Paper>
+  );
+}
+
+// ──────────────────────────────────────────
+// P6. 教科書章 / Textbook (with margin notes)
+// ──────────────────────────────────────────
+export function TextbookPreview({ locale }: { locale: Locale }) {
+  const green = "#15803d";
+  const soft = "#d1fae5";
+  const key = "#fde68a";
+  const chapLabel = t(locale, "第 1 章", "Chapter 1");
+  const chapTitle = t(locale, "三角比", "Trigonometric ratios");
+  const secTitle = t(locale, "1. 三角比の定義", "1. Definitions");
+  const keyTitle = t(locale, "覚え方", "Tip");
+  const exTitle = t(locale, "例題", "Worked example");
+  const sideNote = t(locale, "斜辺・対辺・底辺の関係", "Identify hyp / opp / adj");
+  return (
+    <Paper>
+      <div className="absolute inset-0 px-3 py-3.5 flex flex-col gap-1 font-serif">
+        <div className="flex items-baseline gap-1.5">
+          <div className="text-[3.5px] font-bold" style={{ color: green }}>{chapLabel}</div>
+          <div className="text-[7px] font-extrabold" style={{ color: green }}>{chapTitle}</div>
+        </div>
+
+        {/* 本文 + 右 margin コラム */}
+        <div className="grid grid-cols-[72%_28%] gap-1 mt-1 flex-1 min-h-0">
+          <div className="flex flex-col gap-[2px]">
+            <div className="text-[4px] font-bold" style={{ color: green }}>{secTitle}</div>
+            <Lines n={3} widths={[100, 92, 80]} />
+
+            {/* keypoint */}
+            <div className="mt-1 px-1 py-0.5 border text-[3px]" style={{ background: `${key}66`, borderColor: `${key}cc` }}>
+              <span className="font-bold">{keyTitle}.</span>&nbsp;<span className="text-gray-700">s / c / t 筆記体</span>
+            </div>
+
+            {/* example box */}
+            <div className="mt-1 relative border rounded-[1.5px]" style={{ background: `${soft}80`, borderColor: green }}>
+              <div className="absolute -top-1 left-1.5 px-1 text-[2.8px] font-bold text-white rounded-[1px]" style={{ background: green }}>
+                {exTitle}
+              </div>
+              <div className="px-1.5 pt-1.5 pb-1 text-[3px] text-gray-800">
+                {"sin θ = 3/5, cos θ = 4/5"}
+              </div>
+            </div>
+          </div>
+
+          {/* margin notes — 緑の小さな note */}
+          <div className="flex flex-col gap-1 border-l pl-1" style={{ borderColor: `${green}44` }}>
+            <div className="text-[2.6px]" style={{ color: green }}>{sideNote}</div>
+            <div className="mt-1 text-[2.6px]" style={{ color: green }}>
+              {t(locale, "$30^\\circ, 45^\\circ, 60^\\circ$ は暗記", "Memorise $30^\\circ, 45^\\circ, 60^\\circ$")}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-auto text-center text-[2.8px] text-gray-400">- 3 -</div>
+      </div>
+    </Paper>
+  );
+}
+
 // ──────────────────────────────────────────
 // Dispatcher
 // ──────────────────────────────────────────
@@ -817,6 +1098,13 @@ const PREVIEWS: Record<string, React.FC<PreviewProps> | React.FC> = {
   report: ReportPreview,
   beamer: BeamerPreview,
   letter: LetterPreview,
+  // Premium tier
+  thesis: ThesisPreview,
+  "mock-exam-book": MockExamPreview,
+  poster: PosterPreview,
+  "academic-paper": AcademicPaperPreview,
+  "problem-book": ProblemBookPreview,
+  textbook: TextbookPreview,
 };
 
 export function TemplatePreview({ id }: { id: string }) {

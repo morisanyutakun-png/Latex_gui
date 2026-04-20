@@ -75,11 +75,16 @@ export function QuickStartBar() {
   };
 
   const handleTemplate = (id: string) => {
-    // LP:「全テンプレート利用可」は Pro+。tier:"pro" のテンプレを Pro 未満が選んだら
-    // pricing modal を開き、呼び出し側では何もしない (実体は TemplatePicker と同じ挙動)。
+    // tier:"pro" は allTemplates (Pro+)、tier:"premium" は premiumTemplates (Premium のみ) でゲート。
+    // 未解放のテンプレは pricing modal に誘導 (TemplatePicker と同じ挙動)。
     const tpl = TEMPLATES.find((t) => t.id === id);
-    if (tpl?.tier === "pro") {
-      const check = usePlanStore.getState().checkFeature("allTemplates");
+    const gatingFeature = tpl?.tier === "premium"
+      ? "premiumTemplates"
+      : tpl?.tier === "pro"
+        ? "allTemplates"
+        : null;
+    if (gatingFeature) {
+      const check = usePlanStore.getState().checkFeature(gatingFeature);
       if (!check.allowed) {
         usePlanStore.getState().setShowPricing(true);
         return;

@@ -2040,7 +2040,7 @@ export function TemplateGallery() {
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月500回に拡張 (Starterの3.3倍・1日40回)" : "Premium AI boosted to 500 / month (3.3× Starter, 40 / day)",
-                  isJa ? "全テンプレート 12種類に解放 (入試・発表・長文レポート +6種)" : "Unlocks all 12 templates (+6 exams/slides/reports)",
+                  isJa ? "Pro テンプレ 6種を解放 (共通テスト / 国公立二次 / 塾プリント / 英語 / 技術報告書 / プレゼン)" : "Unlocks 6 Pro templates (national exam / 2nd-stage / cram / reading / tech report / slides)",
                   isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大100行)" : "Batch processing (up to 100 rows)",
@@ -2107,6 +2107,7 @@ export function TemplateGallery() {
               <ul className="space-y-2.5">
                 {[
                   isJa ? "高性能AI 月2,000回に拡張 (Proの4倍・1日150回)" : "Premium AI boosted to 2,000 / month (4× Pro, 150 / day)",
+                  isJa ? "Premium 限定テンプレ 6 種を解放 (卒論・修論 / 総合模試冊子 / 学会ポスター / 学術論文 / 問題集 / 教科書)" : "Unlocks 6 Premium-only templates (Thesis / Full mock-exam / Academic poster / Journal paper / Problem book / Textbook)",
                   isJa ? "バッチ処理 最大300行に拡張 (Proの3倍)" : "Batch processing boosted to 300 rows (3× Pro)",
                   isJa ? "PDF出力 最優先処理" : "Highest-priority PDF rendering",
                 ].map((f) => (
