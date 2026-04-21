@@ -3761,7 +3761,7 @@ Z は本研究で新規構築した大規模ベンチマーク。}
 {\fontsize{20pt}{26pt}\selectfont
 [1] J. Smith, S. Lee, "An algorithm for $\cdots$," \emph{Proc.\ NeurIPS}, pp.~1--10, 20XX.\\[1mm]
 [2] R. Jones, "Approximation methods for $\cdots$," \emph{JMLR}, vol.~22, no.~3, pp.~45--60, 2021.\\[1mm]
-[3] 田中 洋, ``○○ のサーベイ,'' \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
+[3] 田中 洋, “○○ のサーベイ,” \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
 }
 \end{pblock}
 
