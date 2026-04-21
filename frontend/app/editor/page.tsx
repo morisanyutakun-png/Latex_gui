@@ -38,8 +38,10 @@ export default function EditorPage() {
   const isChatLoading = useUIStore((s) => s.isChatLoading);
   const showPdfPanel = useUIStore((s) => s.showPdfPanel);
   const showSourcePanel = useUIStore((s) => s.showSourcePanel);
+  const showVisualPanel = useUIStore((s) => s.showVisualPanel);
   const togglePdfPanel = useUIStore((s) => s.togglePdfPanel);
   const toggleSourcePanel = useUIStore((s) => s.toggleSourcePanel);
+  const toggleVisualPanel = useUIStore((s) => s.toggleVisualPanel);
   const triggerOMR = useUIStore((s) => s.triggerOMR);
   const openOMR = useUIStore((s) => s.openOMR);
   const setOMRTrigger = useUIStore((s) => s.setOMRTrigger);
@@ -466,6 +468,16 @@ export default function EditorPage() {
             />
 
             <div className="h-px bg-foreground/[0.06] mx-2 my-1" />
+
+            {/* Visual editor toggle — 中央の「直接編集できる紙」を出し入れ */}
+            <ActivityBtn
+              accent="emerald"
+              active={showVisualPanel}
+              icon={<PenTool className={showVisualPanel ? "h-[16px] w-[16px] text-white" : "h-[16px] w-[16px]"} />}
+              label={t("side.label.visual")}
+              onClick={toggleVisualPanel}
+              title={t("side.tooltip.visual")}
+            />
 
             {/* PDF preview toggle */}
             <ActivityBtn

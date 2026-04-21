@@ -24,6 +24,18 @@ function loadInitialAgentMode(): AgentMode {
   return "edit";
 }
 
+const VISUAL_PANEL_STORAGE_KEY = "eddivom-show-visual-panel";
+
+function loadInitialShowVisualPanel(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const saved = localStorage.getItem(VISUAL_PANEL_STORAGE_KEY);
+    if (saved === "false") return false;
+    if (saved === "true") return true;
+  } catch { /* ignore */ }
+  return true;
+}
+
 export interface LastAIAction {
   description: string;
   timestamp: number;
@@ -40,6 +52,12 @@ interface UIState {
   // ── Editor panel visibility (default: visual editor only) ──
   showSourcePanel: boolean;
   showPdfPanel: boolean;
+  /**
+   * 中央の VisualEditor (直接編集できる紙) を表示するか。
+   * localStorage 永続 — ユーザーが非表示にしたらリロード後もその状態を保つ。
+   * AI チャット中心で使いたい人、Source / PDF だけ見たい人向け。
+   */
+  showVisualPanel: boolean;
 
   // AI action tracking
   lastAIAction: LastAIAction | null;
@@ -87,8 +105,10 @@ interface UIState {
   setActiveGuideContext: (ctx: GuideContext) => void;
   setShowSourcePanel: (v: boolean) => void;
   setShowPdfPanel: (v: boolean) => void;
+  setShowVisualPanel: (v: boolean) => void;
   toggleSourcePanel: () => void;
   togglePdfPanel: () => void;
+  toggleVisualPanel: () => void;
   setGenerating: (v: boolean) => void;
   setZoom: (v: number) => void;
   setZoomFitMode: (v: boolean) => void;
@@ -145,6 +165,7 @@ export const useUIStore = create<UIState>((set) => ({
   activeGuideContext: "none",
   showSourcePanel: false,
   showPdfPanel: false,
+  showVisualPanel: loadInitialShowVisualPanel(),
   lastAIAction: null,
   chatMessages: [],
   isChatLoading: false,
@@ -184,8 +205,17 @@ export const useUIStore = create<UIState>((set) => ({
   setActiveGuideContext: (ctx) => set({ activeGuideContext: ctx }),
   setShowSourcePanel: (v) => set({ showSourcePanel: v }),
   setShowPdfPanel: (v) => set({ showPdfPanel: v }),
+  setShowVisualPanel: (v) => {
+    set({ showVisualPanel: v });
+    try { localStorage.setItem(VISUAL_PANEL_STORAGE_KEY, v ? "true" : "false"); } catch { /* ignore */ }
+  },
   toggleSourcePanel: () => set((s) => ({ showSourcePanel: !s.showSourcePanel })),
   togglePdfPanel: () => set((s) => ({ showPdfPanel: !s.showPdfPanel })),
+  toggleVisualPanel: () => {
+    const next = !useUIStore.getState().showVisualPanel;
+    set({ showVisualPanel: next });
+    try { localStorage.setItem(VISUAL_PANEL_STORAGE_KEY, next ? "true" : "false"); } catch { /* ignore */ }
+  },
   setGenerating: (v) => set({ isGenerating: v }),
   setZoom: (v) => set({ zoom: Math.max(0.3, Math.min(2, v)), zoomFitMode: false }),
   setZoomFitMode: (v) => set({ zoomFitMode: v }),
