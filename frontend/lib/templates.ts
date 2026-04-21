@@ -3508,10 +3508,18 @@ A sequence $\{a_n\}$ is defined by $a_1 = 1,\ a_{n+1} = 2a_n + 1$ $(n \ge 1)$.
 // P3. 学会ポスター (academic-poster, A0 portrait)
 // ──────────────────────────────────────────
 const POSTER_LATEX = String.raw`% A0 縦サイズの学会ポスター (beamerposter 非依存)
-% article クラス + geometry で A0 を作り、multicol で 3 段組を構成する。
-\documentclass[17pt]{article}
+% ─────────────────────────────────────────────────────────────────────
+% ★ A0 (841×1189mm) を 1〜2m 離れて見る距離に合わせて、以下の字サイズ指針で設計:
+%       title:      80pt  (5m から読める)
+%       author:     38pt
+%       affil:      26pt
+%       block title:34pt
+%       body:       24pt  (1m 先からでも読める)
+%       caption:    20pt
+% ─────────────────────────────────────────────────────────────────────
+\documentclass[20pt]{article}
 \usepackage[haranoaji]{luatexja-preset}
-\usepackage[paperwidth=841mm,paperheight=1189mm,top=30mm,bottom=30mm,left=20mm,right=20mm]{geometry}
+\usepackage[paperwidth=841mm,paperheight=1189mm,top=32mm,bottom=30mm,left=26mm,right=26mm]{geometry}
 \usepackage{amsmath, amssymb, mathtools, bm}
 \usepackage{graphicx}
 \usepackage{booktabs, colortbl, array}
@@ -3522,93 +3530,122 @@ const POSTER_LATEX = String.raw`% A0 縦サイズの学会ポスター (beamerpo
 \usepackage{tcolorbox}
 \tcbuselibrary{skins,breakable}
 \usepackage{anyfontsize}
+\usepackage{enumitem}
 
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{4mm}
-\setlength{\columnsep}{10mm}
+\setlength{\parskip}{6mm}
+\setlength{\columnsep}{18mm}
 \setlength{\columnseprule}{0pt}
 
-% ── カラーテーマ ──
-\definecolor{posterbg}{HTML}{0f172a}
-\definecolor{posteraccent}{HTML}{f59e0b}
-\definecolor{postersoft}{HTML}{fff7ed}
-\definecolor{posterkey}{HTML}{dc2626}
+% デフォルト本文フォントを A0 向けに大きく (24pt / 32pt leading)
+\renewcommand{\normalsize}{\fontsize{24pt}{32pt}\selectfont}
+\normalsize
 
-% ── ポスター block: 濃色バー付きタイトル + 本文 (tcolorbox) ──
-\newtcolorbox{pblock}[1]{%
-  enhanced, breakable, colback=white, colframe=posterbg,
-  sharp corners, boxrule=1pt,
-  attach boxed title to top left={xshift=8mm,yshift=-4mm},
-  boxed title style={colback=posterbg, colframe=posterbg, sharp corners, boxrule=0pt},
-  coltitle=white, fonttitle=\bfseries\Large,
-  title={#1},
-  left=6mm,right=6mm,top=6mm,bottom=4mm,
-  before skip=6mm, after skip=6mm
+% リスト間隔も A0 に合わせて広げる
+\setlist[itemize]{leftmargin=1.2em,itemsep=2mm,topsep=2mm}
+\setlist[enumerate]{leftmargin=1.4em,itemsep=2mm,topsep=2mm}
+
+% ── カラーテーマ ──
+\definecolor{posterbg}{HTML}{0f172a}      % 濃紺
+\definecolor{posteraccent}{HTML}{f59e0b}  % アンバー
+\definecolor{postersoft}{HTML}{fff7ed}    % クリーム
+\definecolor{posterkey}{HTML}{dc2626}     % 主張色 (Key finding)
+\definecolor{posterblue}{HTML}{2563eb}    % 青アクセント (method)
+\definecolor{postergreen}{HTML}{059669}   % 緑アクセント (result)
+
+% ── ポスター block — 濃色バー付きタイトル + 本文 ──
+% title block は boxed title で上にはみ出す。breakable なのでページ跨ぎ安全。
+\newtcolorbox{pblock}[2][posterbg]{%
+  enhanced, breakable, colback=white, colframe=#1,
+  sharp corners, boxrule=1.4pt,
+  attach boxed title to top left={xshift=10mm,yshift=-6mm},
+  boxed title style={colback=#1, colframe=#1, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\fontsize{32pt}{38pt}\selectfont\bfseries,
+  title={#2},
+  left=8mm,right=8mm,top=12mm,bottom=6mm,
+  before skip=10mm, after skip=10mm,
+  fontupper=\fontsize{24pt}{32pt}\selectfont
 }
 
 \begin{document}
 
-% ══════════════════════════════════
-% 見出しバー (所属ロゴ + タイトル + 著者)
-% ══════════════════════════════════
+% ══════════════════════════════════════════════
+% タイトルバー (所属ロゴ | タイトル + 著者 | 所属ロゴ)
+% ══════════════════════════════════════════════
 \noindent
-\begin{minipage}[c]{0.1\linewidth}\centering
-  \fbox{\parbox[c][60mm][c]{70mm}{\centering\large LOGO\\(所属 1)}}
+\begin{minipage}[c]{0.14\linewidth}\centering
+  \fbox{\parbox[c][90mm][c]{110mm}{\centering\fontsize{28pt}{34pt}\selectfont LOGO\\\fontsize{22pt}{26pt}\selectfont (所属 1)}}
 \end{minipage}%
-\hfill\begin{minipage}[c]{0.76\linewidth}\centering
-  {\color{posterbg}\fontsize{60pt}{70pt}\selectfont\bfseries 研究ポスタータイトル ── $\cdots$ への新しいアプローチ\par}
+\hfill
+\begin{minipage}[c]{0.68\linewidth}\centering
+  {\color{posterbg}\fontsize{80pt}{92pt}\selectfont\bfseries 研究ポスタータイトル\par}
+  \vspace{6mm}
+  {\color{posterbg!85}\fontsize{48pt}{56pt}\selectfont\bfseries ── $\cdots$ への新しいアプローチ ──\par}
+  \vspace{14mm}
+  {\color{posterbg!80}\fontsize{38pt}{46pt}\selectfont 山田 太郎$^{\mathsf{1,\dagger}}$\quad 鈴木 花子$^{\mathsf{2}}$\quad 佐藤 一郎$^{\mathsf{1}}$\par}
   \vspace{4mm}
-  {\color{posterbg!70}\fontsize{28pt}{34pt}\selectfont 山田 太郎$^{\mathsf{1,\dagger}}$\quad 鈴木 花子$^{\mathsf{2}}$\quad 佐藤 一郎$^{\mathsf{1}}$\par}
+  {\color{posterbg!65}\fontsize{26pt}{32pt}\selectfont $^{\mathsf{1}}$ ○○大学 大学院情報理工学系研究科 \quad $^{\mathsf{2}}$ △△研究所 情報科学部門\par}
   \vspace{2mm}
-  {\fontsize{22pt}{28pt}\selectfont $^{\mathsf{1}}$○○大学 \quad $^{\mathsf{2}}$△△研究所 \quad $\dagger$ \texttt{yamada@example.ac.jp}\par}
-\end{minipage}\hfill
-\begin{minipage}[c]{0.1\linewidth}\centering
-  \fbox{\parbox[c][60mm][c]{70mm}{\centering\large LOGO\\(所属 2)}}
+  {\color{posterbg!65}\fontsize{24pt}{30pt}\selectfont $\dagger$ Corresponding author: \texttt{yamada@example.ac.jp}\par}
+\end{minipage}%
+\hfill
+\begin{minipage}[c]{0.14\linewidth}\centering
+  \fbox{\parbox[c][90mm][c]{110mm}{\centering\fontsize{28pt}{34pt}\selectfont LOGO\\\fontsize{22pt}{26pt}\selectfont (所属 2)}}
 \end{minipage}
 
-\vspace{6mm}
-{\color{posteraccent}\hrule height 4pt}
-\vspace{6mm}
+\vspace{10mm}
+{\color{posteraccent}\hrule height 8pt}
+\vspace{10mm}
 
-% ══════════════════════════════════
+% ══════════════════════════════════════════════
 % 3 段組本体
-% ══════════════════════════════════
+% ══════════════════════════════════════════════
 \begin{multicols}{3}
 
-% ── 左カラム ──
+% ─────────────────────────────
+% 左カラム — 背景・目的・Key finding・概要図
+% ─────────────────────────────
 \begin{pblock}{1. 背景}
-近年、○○ 分野では $\cdots$ の研究が急速に発展しているが、従来手法は計算コストが高く、実用規模のデータに適用するには大きな制約があった。本研究ではこれを解決する手法を提案し、理論と実験の両面からその有効性を示す。
+近年、○○ 分野では $\cdots$ の研究が急速に発展し、実応用への期待が高まっている。しかし、従来手法は計算コストが高く、サンプル数 $n$ に対して $O(n^2)$ の時間を要するため、実用規模のデータに適用するには大きな制約があった。本研究では、この計算コスト問題を解決する新しいアルゴリズムを提案し、理論と実験の両面からその有効性を検証する。
 \end{pblock}
 
 \begin{pblock}{2. 目的と貢献}
 \begin{itemize}
-  \item 計算量を $O(n \log n)$ に削減する新アルゴリズムの設計
+  \item 計算量を $O(n^2) \to O(n \log n)$ に削減する新アルゴリズムの設計
   \item $\mu$-強凸条件下における収束率 $O(1/T)$ の理論保証
-  \item 公開ベンチマーク 3 種における定量評価
+  \item 公開ベンチマーク 3 種 (最大 100 万サンプル) での定量評価
+  \item 非凸損失 (ResNet-50) への経験的拡張
 \end{itemize}
 \end{pblock}
 
-% Key Finding コールアウト
-\begin{tcolorbox}[colback=posterkey!10,colframe=posterkey,boxrule=1.2pt,sharp corners,left=4mm,right=4mm,top=3mm,bottom=3mm]
-\centering\Large\bfseries\color{posterkey}
-精度 $+$ \textbf{4.7\%} \quad 速度 $\times$ \textbf{2.3} \\[2pt]
-\normalsize 大規模データ Z (100 万件) で最大の改善
+% ★ Key Finding の大きなコールアウト
+\begin{tcolorbox}[colback=posterkey!12,colframe=posterkey,boxrule=2.4pt,sharp corners,left=8mm,right=8mm,top=8mm,bottom=8mm]
+\centering
+{\fontsize{32pt}{40pt}\selectfont\bfseries\color{posterkey} Key Finding\par}
+\vspace{4mm}
+{\fontsize{56pt}{64pt}\selectfont\bfseries\color{posterkey}
+$+$\,\textbf{4.7\%} \quad $\times$\,\textbf{2.3}\par}
+\vspace{4mm}
+{\fontsize{24pt}{30pt}\selectfont\color{posterkey!80!black}
+精度向上 (pt)\hspace{18mm}高速化 (倍)\par}
+\vspace{3mm}
+{\fontsize{22pt}{28pt}\selectfont 大規模データ Z (1M件) で最大の改善}
 \end{tcolorbox}
 
 \begin{pblock}{3. システム全体像}
 \centering
 \begin{tikzpicture}[
-  node distance=8mm and 10mm,
-  box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=34mm, minimum height=11mm, align=center, rounded corners=1mm},
-  hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!10, minimum width=34mm, minimum height=11mm, align=center, rounded corners=1mm},
-  arr/.style={-{Latex[length=3mm,width=2mm]}, thick, posterbg}
+  node distance=14mm and 16mm,
+  box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=62mm, minimum height=20mm, align=center, rounded corners=2mm, font=\fontsize{22pt}{26pt}\selectfont},
+  hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!10, minimum width=62mm, minimum height=20mm, align=center, rounded corners=2mm, font=\fontsize{22pt}{26pt}\selectfont\bfseries},
+  arr/.style={-{Latex[length=5mm,width=4mm]}, thick, posterbg}
 ]
   \node[box] (in) {入力 $x$};
-  \node[box, right=of in] (feat) {特徴抽出 $\phi(x)$};
-  \node[hl, right=of feat] (opt) {\textbf{提案 SGD}\\(O($n \log n$))};
+  \node[box, right=of in] (feat) {特徴抽出\\$\phi(x)$};
+  \node[hl, right=of feat] (opt) {\textbf{提案 SGD}\\ $O(n \log n)$};
   \node[box, below=of opt] (model) {学習済 $\theta^\ast$};
-  \node[box, below=of feat] (pred) {推論 $f_{\theta^\ast}(x')$};
+  \node[box, below=of feat] (pred) {推論\\$f_{\theta^\ast}(x')$};
   \node[box, below=of in] (out) {出力 $\hat y$};
   \draw[arr] (in) -- (feat);
   \draw[arr] (feat) -- (opt);
@@ -3621,117 +3658,153 @@ const POSTER_LATEX = String.raw`% A0 縦サイズの学会ポスター (beamerpo
 
 \columnbreak
 
-% ── 中央カラム ──
-\begin{pblock}{4. 提案手法}
-目的関数を以下で定義する。
-\[ \min_{\theta}\ \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2. \]
-学習は確率的勾配降下法 (SGD) で行う。
-\[ \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \qquad \eta_t = \frac{\eta}{\sqrt{t+1}}. \]
+% ─────────────────────────────
+% 中央カラム — 手法・理論・データセット
+% ─────────────────────────────
+\begin{pblock}[posterblue]{4. 提案手法}
+目的関数を以下で定義する:
+\[
+  \min_{\theta}\ \mathcal{L}(\theta) = \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2.
+\]
+学習は確率的勾配降下法 (SGD) で行う:
+\[
+  \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \qquad \eta_t = \frac{\eta}{\sqrt{t+1}}.
+\]
 
-\textbf{アルゴリズムの核心:} 特徴空間を階層分解し、勾配計算を $O(n^2) \to O(n \log n)$ に削減。
+\vspace{2mm}
+\textbf{\color{posterblue}アルゴリズムの核心:} 特徴空間を階層分解し、勾配計算を $O(n^2) \to O(n \log n)$ に削減。同時に $L$-平滑性を保ったまま理論保証を維持する。
 \end{pblock}
 
-\begin{pblock}{5. 理論保証}
-\textbf{定理 (収束率).} $\mathcal{L}$ が $\mu$-強凸かつ $L$-平滑のとき、
-\[ \mathbb{E}[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)] \le \frac{C}{T}. \]
+\begin{pblock}[posterblue]{5. 理論保証}
+\textbf{定理 (収束率).} $\mathcal{L}$ が $\mu$-強凸かつ $L$-平滑のとき、反復 $T$ 回後の期待最適性ギャップは
+\[
+  \mathbb{E}\!\left[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)\right] \le \frac{C}{T}.
+\]
+ここで $C$ は $\mu, L, \sigma, \|\theta_0 - \theta^\ast\|$ にのみ依存する正定数である。
 
+\vspace{2mm}
 \begin{itemize}
   \item 収束率 $O(1/T)$ (強凸仮定下)
   \item サンプル複雑度 $O(d \log d)$
-  \item 非凸損失でも実験的に収束
+  \item $\epsilon$-最適解に $T = O(1/\epsilon)$ 反復で到達
+  \item 非凸損失でも実験的に収束を確認
 \end{itemize}
 \end{pblock}
 
-\begin{pblock}{6. データセット}
+\begin{pblock}[posterblue]{6. データセット}
 \centering
-\renewcommand{\arraystretch}{1.3}
+\renewcommand{\arraystretch}{1.6}
 \begin{tabular}{lrrr}
   \toprule
-  & サンプル数 & 特徴数 & クラス数\\
+  \textbf{データ}   & \textbf{サンプル数}    & \textbf{特徴数} & \textbf{クラス数}\\
   \midrule
-  X & 50{,}000    & 128  & 10\\
-  Y & 100{,}000   & 512  & 100\\
-  \rowcolor{posteraccent!20} Z & 1{,}000{,}000 & 1{,}024 & 1{,}000\\
+  X                 & 50{,}000               & 128             & 10\\
+  Y                 & 100{,}000              & 512             & 100\\
+  \rowcolor{posteraccent!20}
+  \textbf{Z}        & \textbf{1{,}000{,}000} & \textbf{1{,}024}& \textbf{1{,}000}\\
   \bottomrule
 \end{tabular}
+
+\vspace{3mm}
+{\fontsize{20pt}{26pt}\selectfont\color{posterbg!70}
+Z は本研究で新規構築した大規模ベンチマーク。}
 \end{pblock}
 
 \columnbreak
 
-% ── 右カラム ──
-\begin{pblock}{7. 実験結果}
+% ─────────────────────────────
+% 右カラム — 結果・結論・貢献・謝辞・参考文献
+% ─────────────────────────────
+\begin{pblock}[postergreen]{7. 実験結果}
 \centering
-\renewcommand{\arraystretch}{1.35}
+\renewcommand{\arraystretch}{1.5}
 \begin{tabular}{lcc}
   \toprule
-  \textbf{手法} & \textbf{精度\,[\%]} & \textbf{時間\,[s]}\\
+  \textbf{手法} & \textbf{精度 [\%]}       & \textbf{時間 [s]}\\
   \midrule
-  既存 A                                 & $85.2 \pm 0.4$          & $120 \pm 3$\\
-  既存 B                                 & $87.1 \pm 0.3$          & $95 \pm 2$\\
-  \rowcolor{posteraccent!25}\textbf{提案} & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
+  既存 A         & $85.2 \pm 0.4$          & $120 \pm 3$\\
+  既存 B         & $87.1 \pm 0.3$          & $95 \pm 2$\\
+  \rowcolor{posteraccent!25}
+  \textbf{提案}  & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
   \bottomrule
 \end{tabular}
 
-\vspace{4mm}
-\textbf{$+$4.7 pt} 精度向上、\textbf{$\times$2.3} 高速化を達成。
+\vspace{5mm}
+{\fontsize{26pt}{32pt}\selectfont\color{postergreen}\textbf{$+$4.7 pt} 精度向上 \quad \textbf{$\times$2.3} 高速化}
 
-\vspace{4mm}
-\fbox{\parbox[c][60mm][c]{0.92\linewidth}{\centering\large [実験結果のグラフ (精度 vs.\ 反復回数)]}}
+\vspace{6mm}
+\fbox{\parbox[c][110mm][c]{0.94\linewidth}{\centering\fontsize{24pt}{30pt}\selectfont [実験結果のグラフ\\ (精度 vs.\ 反復回数 $T$)]}}
 \end{pblock}
 
-\begin{pblock}{8. 結論と今後の課題}
+\begin{pblock}[postergreen]{8. 結論と今後の課題}
+\textbf{\color{postergreen}まとめ:} 提案手法は既存手法を精度・時間の両面で上回ることを 3 つの公開ベンチマークで確認した。
+
+\vspace{2mm}
+\textbf{\color{postergreen}今後:}
 \begin{itemize}
-  \item 提案手法は既存手法を精度・時間両面で上回ることを確認
-  \item \textbf{今後:} 非凸損失への理論拡張、Federated 環境への応用
+  \item 非凸損失に対する理論解析の拡張
+  \item 分散・Federated 環境への応用
+  \item 他分野 ($\cdots$) への展開
 \end{itemize}
 \end{pblock}
 
 \begin{pblock}{9. 著者貢献 \& 謝辞}
-\small
-\textbf{貢献:}\ 山田 (手法設計・実装)、鈴木 (理論解析)、佐藤 (実験・論文統括)。
+{\fontsize{22pt}{28pt}\selectfont
+\textbf{貢献:} 山田 (手法設計・実装), 鈴木 (理論解析), 佐藤 (実験・論文統括)。
 
-\textbf{謝辞:}\ 本研究は JSPS 科研費 JP-XXXX および ○○ 財団の助成を受けて実施した。共有計算基盤として △△ クラスタを利用した。
+\vspace{2mm}
+\textbf{謝辞:} 本研究は JSPS 科研費 JP-XXXXXXX および ○○ 財団の助成を受けて実施した。共有計算基盤として △△ クラスタを利用した。査読者の方々の有益なコメントに感謝する。
+}
 \end{pblock}
 
 \begin{pblock}{参考文献}
-\small
-[1] Smith, J., Lee, S., "An algorithm for $\cdots$," \emph{Proc.\ NeurIPS}, 20XX.\\
-[2] Jones, R., "Approximation methods for $\cdots$," \emph{JMLR}, vol.~22, 2021.\\
-[3] 田中, "○○ のサーベイ," \emph{情処論誌}, 20XX.
+{\fontsize{20pt}{26pt}\selectfont
+[1] J. Smith, S. Lee, "An algorithm for $\cdots$," \emph{Proc.\ NeurIPS}, pp.~1--10, 20XX.\\[1mm]
+[2] R. Jones, "Approximation methods for $\cdots$," \emph{JMLR}, vol.~22, no.~3, pp.~45--60, 2021.\\[1mm]
+[3] 田中 洋, ``○○ のサーベイ,'' \emph{情報処理学会論文誌}, vol.~X, pp.~XX--YY, 20XX.
+}
 \end{pblock}
 
 \end{multicols}
 
-% ══════════════════════════════════
+% ══════════════════════════════════════════════
 % フッタ (QR コード風 + 連絡先)
-% ══════════════════════════════════
+% ══════════════════════════════════════════════
 \vfill
-{\color{posteraccent}\hrule height 2pt}
-\vspace{4mm}
+{\color{posteraccent}\hrule height 4pt}
+\vspace{8mm}
 
 \noindent
-\begin{minipage}[c]{0.75\linewidth}
-  \small 第 XX 回 ○○学会大会 \ | \ 連絡先: \texttt{yamada@example.ac.jp}
-  \ | \ $\dagger$ Corresponding author
+\begin{minipage}[c]{0.70\linewidth}
+  {\fontsize{24pt}{30pt}\selectfont 第 XX 回 ○○学会大会\ (20XX)} \\[2mm]
+  {\fontsize{22pt}{28pt}\selectfont\color{posterbg!70}
+    連絡先: \texttt{yamada@example.ac.jp} \ | \ $\dagger$ Corresponding author \ | \ 論文全文は QR コードから $\to$}
 \end{minipage}\hfill
-\begin{minipage}[c]{0.2\linewidth}\raggedleft
-  \begin{tikzpicture}[scale=0.7]
+\begin{minipage}[c]{0.22\linewidth}\raggedleft
+  \begin{tikzpicture}[scale=1.8]
     \foreach \x in {0,...,6} \foreach \y in {0,...,6} {
       \pgfmathsetmacro{\v}{mod(\x*31 + \y*17 + 3, 3)}
       \ifnum\v=0 \fill[black] (\x,\y) rectangle ++(1,1); \fi
     }
-    \draw[black,line width=1pt] (-0.3,-0.3) rectangle (7.3,7.3);
-  \end{tikzpicture}\quad\small 論文 PDF $\to$
+    \draw[black,line width=1.5pt] (-0.3,-0.3) rectangle (7.3,7.3);
+  \end{tikzpicture}
 \end{minipage}
 
 \end{document}
 `;
 
 const POSTER_LATEX_EN = String.raw`% A0 portrait conference poster (no beamerposter dependency)
-% article class + geometry for A0, multicol for 3 columns.
-\documentclass[17pt]{article}
+% ─────────────────────────────────────────────────────────────────────
+% Sized for A0 (841×1189mm) viewed at ~1–2m:
+%     title      80pt   readable from 5m
+%     author     38pt
+%     affil      26pt
+%     block title 34pt
+%     body       24pt    readable from 1m
+% ─────────────────────────────────────────────────────────────────────
+\documentclass[20pt]{article}
 \usepackage[T1]{fontenc}
-\usepackage[paperwidth=841mm,paperheight=1189mm,top=30mm,bottom=30mm,left=20mm,right=20mm]{geometry}
+\usepackage[paperwidth=841mm,paperheight=1189mm,top=32mm,bottom=30mm,left=26mm,right=26mm]{geometry}
 \usepackage{amsmath, amssymb, mathtools, bm}
 \usepackage{graphicx}
 \usepackage{booktabs, colortbl, array}
@@ -3742,83 +3815,107 @@ const POSTER_LATEX_EN = String.raw`% A0 portrait conference poster (no beamerpos
 \usepackage{tcolorbox}
 \tcbuselibrary{skins,breakable}
 \usepackage{anyfontsize}
+\usepackage{enumitem}
 
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{4mm}
-\setlength{\columnsep}{10mm}
+\setlength{\parskip}{6mm}
+\setlength{\columnsep}{18mm}
 \setlength{\columnseprule}{0pt}
+
+\renewcommand{\normalsize}{\fontsize{24pt}{32pt}\selectfont}
+\normalsize
+
+\setlist[itemize]{leftmargin=1.2em,itemsep=2mm,topsep=2mm}
+\setlist[enumerate]{leftmargin=1.4em,itemsep=2mm,topsep=2mm}
 
 \definecolor{posterbg}{HTML}{0f172a}
 \definecolor{posteraccent}{HTML}{f59e0b}
 \definecolor{postersoft}{HTML}{fff7ed}
 \definecolor{posterkey}{HTML}{dc2626}
+\definecolor{posterblue}{HTML}{2563eb}
+\definecolor{postergreen}{HTML}{059669}
 
-\newtcolorbox{pblock}[1]{%
-  enhanced, breakable, colback=white, colframe=posterbg,
-  sharp corners, boxrule=1pt,
-  attach boxed title to top left={xshift=8mm,yshift=-4mm},
-  boxed title style={colback=posterbg, colframe=posterbg, sharp corners, boxrule=0pt},
-  coltitle=white, fonttitle=\bfseries\Large,
-  title={#1},
-  left=6mm,right=6mm,top=6mm,bottom=4mm,
-  before skip=6mm, after skip=6mm
+\newtcolorbox{pblock}[2][posterbg]{%
+  enhanced, breakable, colback=white, colframe=#1,
+  sharp corners, boxrule=1.4pt,
+  attach boxed title to top left={xshift=10mm,yshift=-6mm},
+  boxed title style={colback=#1, colframe=#1, sharp corners, boxrule=0pt},
+  coltitle=white, fonttitle=\fontsize{32pt}{38pt}\selectfont\bfseries,
+  title={#2},
+  left=8mm,right=8mm,top=12mm,bottom=6mm,
+  before skip=10mm, after skip=10mm,
+  fontupper=\fontsize{24pt}{32pt}\selectfont
 }
 
 \begin{document}
 
 \noindent
-\begin{minipage}[c]{0.1\linewidth}\centering
-  \fbox{\parbox[c][60mm][c]{70mm}{\centering\large LOGO\\(Univ.)}}
+\begin{minipage}[c]{0.14\linewidth}\centering
+  \fbox{\parbox[c][90mm][c]{110mm}{\centering\fontsize{28pt}{34pt}\selectfont LOGO\\\fontsize{22pt}{26pt}\selectfont (Univ.)}}
 \end{minipage}%
-\hfill\begin{minipage}[c]{0.76\linewidth}\centering
-  {\color{posterbg}\fontsize{60pt}{70pt}\selectfont\bfseries Research Poster Title --- A Novel Approach to $\cdots$\par}
+\hfill
+\begin{minipage}[c]{0.68\linewidth}\centering
+  {\color{posterbg}\fontsize{80pt}{92pt}\selectfont\bfseries Research Poster Title\par}
+  \vspace{6mm}
+  {\color{posterbg!85}\fontsize{48pt}{56pt}\selectfont\bfseries --- A Novel Approach to $\cdots$ ---\par}
+  \vspace{14mm}
+  {\color{posterbg!80}\fontsize{38pt}{46pt}\selectfont Jane Doe$^{\mathsf{1,\dagger}}$\quad John Smith$^{\mathsf{2}}$\quad Alice Brown$^{\mathsf{1}}$\par}
   \vspace{4mm}
-  {\color{posterbg!70}\fontsize{28pt}{34pt}\selectfont Jane Doe$^{\mathsf{1,\dagger}}$\quad John Smith$^{\mathsf{2}}$\quad Alice Brown$^{\mathsf{1}}$\par}
+  {\color{posterbg!65}\fontsize{26pt}{32pt}\selectfont $^{\mathsf{1}}$ Example University \quad $^{\mathsf{2}}$ Example Research Institute\par}
   \vspace{2mm}
-  {\fontsize{22pt}{28pt}\selectfont $^{\mathsf{1}}$Example University \quad $^{\mathsf{2}}$Example Institute \quad $\dagger$ \texttt{jane@example.ac.jp}\par}
-\end{minipage}\hfill
-\begin{minipage}[c]{0.1\linewidth}\centering
-  \fbox{\parbox[c][60mm][c]{70mm}{\centering\large LOGO\\(Inst.)}}
+  {\color{posterbg!65}\fontsize{24pt}{30pt}\selectfont $\dagger$ Corresponding author: \texttt{jane@example.ac.jp}\par}
+\end{minipage}%
+\hfill
+\begin{minipage}[c]{0.14\linewidth}\centering
+  \fbox{\parbox[c][90mm][c]{110mm}{\centering\fontsize{28pt}{34pt}\selectfont LOGO\\\fontsize{22pt}{26pt}\selectfont (Inst.)}}
 \end{minipage}
 
-\vspace{6mm}
-{\color{posteraccent}\hrule height 4pt}
-\vspace{6mm}
+\vspace{10mm}
+{\color{posteraccent}\hrule height 8pt}
+\vspace{10mm}
 
 \begin{multicols}{3}
 
 \begin{pblock}{1. Background}
-Recent advances in $\cdots$ have opened new possibilities, yet existing methods are prohibitively expensive for real-world scale. We propose a method that resolves this bottleneck and provide both theoretical and empirical evidence.
+Recent advances in $\cdots$ have opened new possibilities, yet existing methods require $O(n^2)$ computation per iteration, making them prohibitively expensive for real-world scale. We propose an algorithm that resolves this bottleneck and provide both theoretical and empirical evidence.
 \end{pblock}
 
 \begin{pblock}{2. Goals \& Contributions}
 \begin{itemize}
-  \item An algorithm reducing complexity to $O(n \log n)$
-  \item An $O(1/T)$ convergence-rate guarantee
-  \item Quantitative evaluation on three public benchmarks
+  \item An algorithm reducing complexity from $O(n^2)$ to $O(n \log n)$
+  \item An $O(1/T)$ convergence-rate guarantee under $\mu$-strong convexity
+  \item Quantitative evaluation on three public benchmarks (up to 1M samples)
+  \item Empirical extension to non-convex losses (ResNet-50)
 \end{itemize}
 \end{pblock}
 
-\begin{tcolorbox}[colback=posterkey!10,colframe=posterkey,boxrule=1.2pt,sharp corners,left=4mm,right=4mm,top=3mm,bottom=3mm]
-\centering\Large\bfseries\color{posterkey}
-$+$\textbf{4.7\%} Accuracy \quad $\times$\textbf{2.3} Speed-up \\[2pt]
-\normalsize Largest gains on the 1M-sample dataset Z
+\begin{tcolorbox}[colback=posterkey!12,colframe=posterkey,boxrule=2.4pt,sharp corners,left=8mm,right=8mm,top=8mm,bottom=8mm]
+\centering
+{\fontsize{32pt}{40pt}\selectfont\bfseries\color{posterkey} Key Finding\par}
+\vspace{4mm}
+{\fontsize{56pt}{64pt}\selectfont\bfseries\color{posterkey}
+$+$\,\textbf{4.7\%} \quad $\times$\,\textbf{2.3}\par}
+\vspace{4mm}
+{\fontsize{24pt}{30pt}\selectfont\color{posterkey!80!black}
+Accuracy (pt)\hspace{18mm}Speed-up ($\times$)\par}
+\vspace{3mm}
+{\fontsize{22pt}{28pt}\selectfont Largest gains on the 1M-sample dataset}
 \end{tcolorbox}
 
 \begin{pblock}{3. System Overview}
 \centering
 \begin{tikzpicture}[
-  node distance=8mm and 10mm,
-  box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=34mm, minimum height=11mm, align=center, rounded corners=1mm},
-  hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!10, minimum width=34mm, minimum height=11mm, align=center, rounded corners=1mm},
-  arr/.style={-{Latex[length=3mm,width=2mm]}, thick, posterbg}
+  node distance=14mm and 16mm,
+  box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=62mm, minimum height=20mm, align=center, rounded corners=2mm, font=\fontsize{22pt}{26pt}\selectfont},
+  hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!10, minimum width=62mm, minimum height=20mm, align=center, rounded corners=2mm, font=\fontsize{22pt}{26pt}\selectfont\bfseries},
+  arr/.style={-{Latex[length=5mm,width=4mm]}, thick, posterbg}
 ]
   \node[box] (in) {Input $x$};
-  \node[box, right=of in] (feat) {Features $\phi(x)$};
-  \node[hl, right=of feat] (opt) {\textbf{Ours SGD}\\(O($n \log n$))};
+  \node[box, right=of in] (feat) {Features\\$\phi(x)$};
+  \node[hl, right=of feat] (opt) {\textbf{Ours SGD}\\ $O(n \log n)$};
   \node[box, below=of opt] (model) {Trained $\theta^\ast$};
-  \node[box, below=of feat] (pred) {Predict $f_{\theta^\ast}(x')$};
+  \node[box, below=of feat] (pred) {Predict\\$f_{\theta^\ast}(x')$};
   \node[box, below=of in] (out) {Output $\hat y$};
   \draw[arr] (in) -- (feat);
   \draw[arr] (feat) -- (opt);
@@ -3831,95 +3928,127 @@ $+$\textbf{4.7\%} Accuracy \quad $\times$\textbf{2.3} Speed-up \\[2pt]
 
 \columnbreak
 
-\begin{pblock}{4. Method}
-\[ \min_{\theta}\ \tfrac{1}{N}\sum_i \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2. \]
-Trained via SGD
-\[ \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \qquad \eta_t = \frac{\eta}{\sqrt{t+1}}. \]
-\textbf{Key idea:} hierarchical feature decomposition reduces gradient cost $O(n^2) \to O(n \log n)$.
+\begin{pblock}[posterblue]{4. Method}
+We define the objective
+\[
+  \min_{\theta}\ \mathcal{L}(\theta) = \tfrac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i), y_i) + \lambda \|\theta\|^2,
+\]
+and train via SGD:
+\[
+  \theta_{t+1} = \theta_t - \eta_t \nabla \mathcal{L}(\theta_t;\xi_t), \qquad \eta_t = \frac{\eta}{\sqrt{t+1}}.
+\]
+
+\vspace{2mm}
+\textbf{\color{posterblue}Key idea:} a hierarchical feature decomposition reduces the gradient cost from $O(n^2)$ to $O(n \log n)$ while preserving $L$-smoothness and the convergence guarantee.
 \end{pblock}
 
-\begin{pblock}{5. Theory}
-\textbf{Theorem (Convergence).} For $\mu$-strongly-convex, $L$-smooth $\mathcal{L}$,
-\[ \mathbb{E}[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)] \le C/T. \]
+\begin{pblock}[posterblue]{5. Theory}
+\textbf{Theorem (Convergence).} For $\mu$-strongly-convex, $L$-smooth $\mathcal{L}$, after $T$ iterations
+\[
+  \mathbb{E}\!\left[\mathcal{L}(\theta_T) - \mathcal{L}(\theta^\ast)\right] \le \frac{C}{T},
+\]
+with $C$ depending only on $\mu, L, \sigma, \|\theta_0 - \theta^\ast\|$.
+
+\vspace{2mm}
 \begin{itemize}
   \item Convergence rate $O(1/T)$ (strongly-convex regime)
   \item Sample complexity $O(d \log d)$
-  \item Empirically stable even on non-convex losses
+  \item $T = O(1/\epsilon)$ iterations for an $\epsilon$-optimal solution
+  \item Empirically stable on non-convex losses
 \end{itemize}
 \end{pblock}
 
-\begin{pblock}{6. Datasets}
+\begin{pblock}[posterblue]{6. Datasets}
 \centering
-\renewcommand{\arraystretch}{1.3}
+\renewcommand{\arraystretch}{1.6}
 \begin{tabular}{lrrr}
   \toprule
-  & Samples & Features & Classes\\
+  \textbf{Dataset}  & \textbf{Samples}       & \textbf{Features} & \textbf{Classes}\\
   \midrule
-  X & 50{,}000    & 128  & 10\\
-  Y & 100{,}000   & 512  & 100\\
-  \rowcolor{posteraccent!20} Z & 1{,}000{,}000 & 1{,}024 & 1{,}000\\
+  X                 & 50{,}000               & 128               & 10\\
+  Y                 & 100{,}000              & 512               & 100\\
+  \rowcolor{posteraccent!20}
+  \textbf{Z}        & \textbf{1{,}000{,}000} & \textbf{1{,}024}  & \textbf{1{,}000}\\
   \bottomrule
 \end{tabular}
+
+\vspace{3mm}
+{\fontsize{20pt}{26pt}\selectfont\color{posterbg!70}
+Z is a new large-scale benchmark introduced in this work.}
 \end{pblock}
 
 \columnbreak
 
-\begin{pblock}{7. Experiments}
-\centering\renewcommand{\arraystretch}{1.35}
+\begin{pblock}[postergreen]{7. Experiments}
+\centering
+\renewcommand{\arraystretch}{1.5}
 \begin{tabular}{lcc}
-  \toprule \textbf{Method} & \textbf{Acc.\,[\%]} & \textbf{Time\,[s]}\\\midrule
-  Baseline A                             & $85.2 \pm 0.4$          & $120 \pm 3$\\
-  Baseline B                             & $87.1 \pm 0.3$          & $95 \pm 2$\\
-  \rowcolor{posteraccent!25}\textbf{Ours} & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
+  \toprule
+  \textbf{Method} & \textbf{Accuracy [\%]} & \textbf{Time [s]}\\
+  \midrule
+  Baseline A     & $85.2 \pm 0.4$          & $120 \pm 3$\\
+  Baseline B     & $87.1 \pm 0.3$          & $95 \pm 2$\\
+  \rowcolor{posteraccent!25}
+  \textbf{Ours}  & $\mathbf{91.8 \pm 0.2}$ & $\mathbf{42 \pm 1}$\\
   \bottomrule
 \end{tabular}
 
-\vspace{4mm}
-\textbf{$+$4.7 pt} accuracy, \textbf{$\times$2.3} speed-up.
+\vspace{5mm}
+{\fontsize{26pt}{32pt}\selectfont\color{postergreen}\textbf{$+$4.7 pt} accuracy \quad \textbf{$\times$2.3} speed-up}
 
-\vspace{4mm}
-\fbox{\parbox[c][60mm][c]{0.92\linewidth}{\centering\large [Accuracy vs.\ iterations plot]}}
+\vspace{6mm}
+\fbox{\parbox[c][110mm][c]{0.94\linewidth}{\centering\fontsize{24pt}{30pt}\selectfont [Accuracy vs.\ iterations $T$ curve here]}}
 \end{pblock}
 
-\begin{pblock}{8. Conclusion}
+\begin{pblock}[postergreen]{8. Conclusion \& Future work}
+\textbf{\color{postergreen}Summary:} Ours beats baselines in accuracy \emph{and} speed across three benchmarks.
+
+\vspace{2mm}
+\textbf{\color{postergreen}Future:}
 \begin{itemize}
-  \item Ours beats baselines in accuracy \emph{and} speed.
-  \item \textbf{Future:} non-convex theory, federated deployment.
+  \item Theoretical extension to non-convex losses
+  \item Federated / distributed deployment
+  \item Application to $\cdots$
 \end{itemize}
 \end{pblock}
 
 \begin{pblock}{9. Contributions \& Acknowledgements}
-\small
+{\fontsize{22pt}{28pt}\selectfont
 \textbf{Contributions:} Doe (method \& code), Smith (theory), Brown (experiments \& writing).
 
-\textbf{Acknowledgements:} Supported by JSPS Grant JP-XXXX and the $\cdots$ Foundation. Computed on the $\triangle\triangle$ cluster.
+\vspace{2mm}
+\textbf{Acknowledgements:} Supported by JSPS Grant JP-XXXX and the $\cdots$ Foundation. Computed on the $\triangle\triangle$ cluster. We thank the anonymous reviewers.
+}
 \end{pblock}
 
 \begin{pblock}{References}
-\small
-[1] Smith, J., Lee, S., "An algorithm for $\cdots$," \emph{Proc.\ NeurIPS}, 20XX.\\
-[2] Jones, R., "Approximation methods for $\cdots$," \emph{JMLR}, vol.~22, 2021.
+{\fontsize{20pt}{26pt}\selectfont
+[1] J. Smith, S. Lee, "An algorithm for $\cdots$," \emph{Proc.\ NeurIPS}, pp.~1--10, 20XX.\\[1mm]
+[2] R. Jones, "Approximation methods for $\cdots$," \emph{JMLR}, vol.~22, no.~3, pp.~45--60, 2021.\\[1mm]
+[3] Y. Tanaka, "A survey of $\cdots$," \emph{IPSJ J.}, vol.~X, pp.~XX--YY, 20XX.
+}
 \end{pblock}
 
 \end{multicols}
 
 \vfill
-{\color{posteraccent}\hrule height 2pt}
-\vspace{4mm}
+{\color{posteraccent}\hrule height 4pt}
+\vspace{8mm}
 
 \noindent
-\begin{minipage}[c]{0.75\linewidth}
-  \small The XXth Conference on $\cdots$ \ | \ Contact: \texttt{jane@example.ac.jp}
-  \ | \ $\dagger$ Corresponding author
+\begin{minipage}[c]{0.70\linewidth}
+  {\fontsize{24pt}{30pt}\selectfont The XXth Conference on $\cdots$\ (20XX)} \\[2mm]
+  {\fontsize{22pt}{28pt}\selectfont\color{posterbg!70}
+    Contact: \texttt{jane@example.ac.jp} \ | \ $\dagger$ Corresponding author \ | \ Paper PDF $\to$}
 \end{minipage}\hfill
-\begin{minipage}[c]{0.2\linewidth}\raggedleft
-  \begin{tikzpicture}[scale=0.7]
+\begin{minipage}[c]{0.22\linewidth}\raggedleft
+  \begin{tikzpicture}[scale=1.8]
     \foreach \x in {0,...,6} \foreach \y in {0,...,6} {
       \pgfmathsetmacro{\v}{mod(\x*31 + \y*17 + 3, 3)}
       \ifnum\v=0 \fill[black] (\x,\y) rectangle ++(1,1); \fi
     }
-    \draw[black,line width=1pt] (-0.3,-0.3) rectangle (7.3,7.3);
-  \end{tikzpicture}\quad\small Paper PDF $\to$
+    \draw[black,line width=1.5pt] (-0.3,-0.3) rectangle (7.3,7.3);
+  \end{tikzpicture}
 \end{minipage}
 
 \end{document}
@@ -4874,14 +5003,17 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 \definecolor{tbcaution}{HTML}{dc2626}   % 注意 (red)
 \definecolor{tbcolumn}{HTML}{0369a1}    % コラム (blue)
 
-% ── 章扉スタイル (左端に垂直バー付き) ──
+% ── 章タイトル (display 形式) ──
+% 小さな章番号 (第 N 章) を1行目、大きなタイトル (例: 三角比) を2行目、下線で締める。
+% display shape の引数は {format}{label}{sep}{before-code}[after-code] の 5 つ。
+% label = 第 N 章、before-code = title のフォントサイズ指定、after-code = 下線。
 \titleformat{\chapter}[display]
-  {\normalfont\huge\bfseries\color{tbaccent}}
-  {}{0pt}
-  {\color{tbaccent}\rule{\linewidth}{3pt}\par\vspace{4mm}
-   \Huge 第 \thechapter 章\quad\Huge}
-  [\vspace{2mm}{\color{tbaccent}\hrule height 0.6pt}]
-\titlespacing*{\chapter}{0pt}{-10pt}{20pt}
+  {\normalfont\color{tbaccent}}
+  {\Large\bfseries 第 \thechapter 章}
+  {6pt}
+  {\Huge\bfseries}
+  [\vspace{3mm}{\color{tbaccent}\hrule height 2pt}]
+\titlespacing*{\chapter}{0pt}{0pt}{18pt}
 
 \titleformat{\section}[hang]
   {\normalfont\Large\bfseries\color{tbaccent}}
@@ -4895,7 +5027,7 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 \fancyfoot[C]{\small\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 
-% ── 例題 box ──
+% ── 例題 box (breakable で長文も確実に) ──
 \newtcolorbox{example}[1][]{%
   enhanced, breakable, colback=tbsoft!50, colframe=tbaccent,
   sharp corners, boxrule=0.6pt,
@@ -4909,7 +5041,7 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 
 % ── 重要公式カード ──
 \newtcolorbox{keyformula}[1][]{%
-  enhanced, colback=tbkey!40, colframe=tbkey!80!black,
+  enhanced, breakable, colback=tbkey!40, colframe=tbkey!80!black,
   sharp corners, boxrule=0.5pt,
   attach boxed title to top left={xshift=5mm,yshift=-3mm},
   boxed title style={colback=tbkey!80!black, colframe=tbkey!80!black, sharp corners, boxrule=0pt},
@@ -4918,9 +5050,9 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
   left=4mm,right=4mm,top=3mm,bottom=3mm, #1
 }
 
-% ── 4 種コールアウト (発展 / 注意 / コラム / 参考) ──
+% ── 4 種コールアウト (発展 / 注意 / コラム / 参考) — すべて breakable ──
 \newtcolorbox{advanced}[1][]{%
-  enhanced, colback=tbadvance!10, colframe=tbadvance,
+  enhanced, breakable, colback=tbadvance!10, colframe=tbadvance,
   sharp corners, boxrule=0.4pt,
   attach boxed title to top left={xshift=5mm,yshift=-3mm},
   boxed title style={colback=tbadvance, colframe=tbadvance, sharp corners, boxrule=0pt},
@@ -4930,12 +5062,13 @@ const TEXTBOOK_LATEX = String.raw`\documentclass[11pt,a4paper,openany]{report}
 }
 
 \newtcolorbox{caution}[1][]{%
-  colback=tbcaution!8, colframe=tbcaution,
-  sharp corners, boxrule=0.4pt, left=4mm,right=4mm,top=2mm,bottom=2mm, #1
+  enhanced, breakable, colback=tbcaution!8, colframe=tbcaution,
+  sharp corners, boxrule=0.4pt,
+  left=4mm,right=4mm,top=2mm,bottom=2mm, #1
 }
 
 \newtcolorbox{column}[1][]{%
-  enhanced, colback=tbcolumn!8, colframe=tbcolumn,
+  enhanced, breakable, colback=tbcolumn!8, colframe=tbcolumn,
   sharp corners, boxrule=0.4pt,
   attach boxed title to top left={xshift=5mm,yshift=-3mm},
   boxed title style={colback=tbcolumn, colframe=tbcolumn, sharp corners, boxrule=0pt},
@@ -5129,13 +5262,14 @@ const TEXTBOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report
 \definecolor{tbcaution}{HTML}{dc2626}
 \definecolor{tbcolumn}{HTML}{0369a1}
 
+% Chapter title — small chapter label above a big title, ended by a rule.
 \titleformat{\chapter}[display]
-  {\normalfont\huge\bfseries\color{tbaccent}}
-  {}{0pt}
-  {\color{tbaccent}\rule{\linewidth}{3pt}\par\vspace{4mm}
-   \Huge Chapter \thechapter\quad\Huge}
-  [\vspace{2mm}{\color{tbaccent}\hrule height 0.6pt}]
-\titlespacing*{\chapter}{0pt}{-10pt}{20pt}
+  {\normalfont\color{tbaccent}}
+  {\Large\bfseries Chapter \thechapter}
+  {6pt}
+  {\Huge\bfseries}
+  [\vspace{3mm}{\color{tbaccent}\hrule height 2pt}]
+\titlespacing*{\chapter}{0pt}{0pt}{18pt}
 
 \titleformat{\section}[hang]
   {\normalfont\Large\bfseries\color{tbaccent}}
@@ -5160,7 +5294,7 @@ const TEXTBOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report
 }
 
 \newtcolorbox{keyformula}[1][]{%
-  enhanced, colback=tbkey!40, colframe=tbkey!80!black,
+  enhanced, breakable, colback=tbkey!40, colframe=tbkey!80!black,
   sharp corners, boxrule=0.5pt,
   attach boxed title to top left={xshift=5mm,yshift=-3mm},
   boxed title style={colback=tbkey!80!black, colframe=tbkey!80!black, sharp corners, boxrule=0pt},
@@ -5170,7 +5304,7 @@ const TEXTBOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report
 }
 
 \newtcolorbox{advanced}[1][]{%
-  enhanced, colback=tbadvance!10, colframe=tbadvance,
+  enhanced, breakable, colback=tbadvance!10, colframe=tbadvance,
   sharp corners, boxrule=0.4pt,
   attach boxed title to top left={xshift=5mm,yshift=-3mm},
   boxed title style={colback=tbadvance, colframe=tbadvance, sharp corners, boxrule=0pt},
@@ -5179,10 +5313,14 @@ const TEXTBOOK_LATEX_EN = String.raw`\documentclass[11pt,a4paper,openany]{report
   left=4mm,right=4mm,top=2.5mm,bottom=2.5mm, #1
 }
 
-\newtcolorbox{caution}[1][]{colback=tbcaution!8, colframe=tbcaution, sharp corners, boxrule=0.4pt, left=4mm,right=4mm,top=2mm,bottom=2mm, #1}
+\newtcolorbox{caution}[1][]{%
+  enhanced, breakable, colback=tbcaution!8, colframe=tbcaution,
+  sharp corners, boxrule=0.4pt,
+  left=4mm,right=4mm,top=2mm,bottom=2mm, #1
+}
 
 \newtcolorbox{column}[1][]{%
-  enhanced, colback=tbcolumn!8, colframe=tbcolumn,
+  enhanced, breakable, colback=tbcolumn!8, colframe=tbcolumn,
   sharp corners, boxrule=0.4pt,
   attach boxed title to top left={xshift=5mm,yshift=-3mm},
   boxed title style={colback=tbcolumn, colframe=tbcolumn, sharp corners, boxrule=0pt},
