@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore, PaperSize } from "@/store/ui-store";
+import { PAPER_OPTIONS } from "@/lib/paper-size";
 import { generatePDF, CompileError, formatCompileError } from "@/lib/api";
 import { createFromTemplate, TEMPLATES } from "@/lib/templates";
 import { useI18n } from "@/lib/i18n";
@@ -16,13 +17,6 @@ import { FormattingToolbar } from "@/components/editor/formatting-toolbar";
 import { Download, Loader2, Printer, PenTool } from "lucide-react";
 import { toast } from "sonner";
 import { usePlanStore } from "@/store/plan-store";
-
-const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
-  { value: "a4", label: "A4" },
-  { value: "a3", label: "A3" },
-  { value: "b5", label: "B5" },
-  { value: "letter", label: "Letter" },
-];
 
 export function EditToolbar() {
   const { t, locale } = useI18n();

@@ -1,19 +1,13 @@
 "use client";
 
 import { useDocumentStore } from "@/store/document-store";
-import { useUIStore, PaperSize } from "@/store/ui-store";
+import { useUIStore } from "@/store/ui-store";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS, PlanId } from "@/lib/plans";
+import { PAPER_OPTIONS } from "@/lib/paper-size";
 import { useI18n } from "@/lib/i18n";
 import { ChevronDown, Zap, Crown, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-
-const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
-  { value: "a4", label: "A4" },
-  { value: "a3", label: "A3" },
-  { value: "b5", label: "B5" },
-  { value: "letter", label: "Letter" },
-];
 
 const PLAN_BADGE_COLORS: Record<PlanId, string> = {
   free: "bg-slate-500/10 text-slate-500",

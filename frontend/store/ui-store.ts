@@ -4,6 +4,8 @@ import { create } from "zustand";
 import { ChatMessage } from "@/lib/types";
 import type { RubricBundle, GradingResult, GradingPhase } from "@/lib/grading-types";
 import type { AgentMode } from "@/lib/api";
+import { useDocumentStore } from "@/store/document-store";
+import { applyPaperSizeToLatex, paperSizeFromLatex } from "@/lib/paper-size";
 
 export type PaperSize = "a4" | "a3" | "b5" | "letter";
 export type GuideContext = "none" | "math" | "heading" | "list" | "table" | "code" | "general";
@@ -119,6 +121,8 @@ interface UIState {
   setZoom: (v: number) => void;
   setZoomFitMode: (v: boolean) => void;
   setPaperSize: (s: PaperSize) => void;
+  /** ドキュメントの LaTeX から paper size を読み取って UI 状態へ同期する (latex 書き換えはしない)。 */
+  syncPaperSizeFromLatex: () => void;
 
   setLastAIAction: (action: LastAIAction | null) => void;
   clearLastAIAction: () => void;
@@ -225,7 +229,22 @@ export const useUIStore = create<UIState>((set) => ({
   setGenerating: (v) => set({ isGenerating: v }),
   setZoom: (v) => set({ zoom: Math.max(0.3, Math.min(2, v)), zoomFitMode: false }),
   setZoomFitMode: (v) => set({ zoomFitMode: v }),
-  setPaperSize: (s) => set({ paperSize: s }),
+  setPaperSize: (s) => {
+    set({ paperSize: s });
+    // LaTeX ソースの \documentclass[...] を書き換えて PDF/プレビューに反映させる。
+    const docStore = useDocumentStore.getState();
+    const doc = docStore.document;
+    if (!doc) return;
+    const nextLatex = applyPaperSizeToLatex(doc.latex, s);
+    if (nextLatex !== doc.latex) docStore.setLatex(nextLatex);
+  },
+  syncPaperSizeFromLatex: () => {
+    const doc = useDocumentStore.getState().document;
+    if (!doc) return;
+    const detected = paperSizeFromLatex(doc.latex);
+    if (!detected) return;
+    set((state) => (state.paperSize === detected ? state : { paperSize: detected }));
+  },
 
   setLastAIAction: (action) => set({ lastAIAction: action }),
   clearLastAIAction: () => set({ lastAIAction: null }),

@@ -54,7 +54,14 @@ export default function EditorPage() {
 
   const doc = useDocumentStore((s) => s.document);
   const setDocument = useDocumentStore((s) => s.setDocument);
+  const syncPaperSizeFromLatex = useUIStore((s) => s.syncPaperSizeFromLatex);
   const router = useRouter();
+
+  // テンプレートや AI 編集でドキュメントが変わったとき、
+  // LaTeX ソースの \documentclass[...] にある paper option を UI に反映する。
+  useEffect(() => {
+    syncPaperSizeFromLatex();
+  }, [doc?.template, doc?.latex, syncPaperSizeFromLatex]);
 
   // プラン状態を購読 — Activity bar の OMR / 採点 / LaTeXソース ボタンを
   // 使えないプランでは視覚的にロック表示する (クリックは pricing 誘導に回す)。
