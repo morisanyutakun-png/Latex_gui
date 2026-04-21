@@ -286,9 +286,6 @@ const ja = {
   "side.label.source": "ソース",
   "side.label.visual": "直接編集",
   "side.tooltip.figure": "図・ダイアグラムエディタを開く",
-  "doc.editor.visual.hidden.title": "直接編集パネルを非表示中",
-  "doc.editor.visual.hidden.hint": "AI チャット・プレビュー・ソース表示だけで作業したいときの構成です。",
-  "doc.editor.visual.hidden.restore": "直接編集を再表示",
 
   // OMR
   "omr.title": "読み取りモード",
@@ -799,9 +796,6 @@ const en = {
   "side.label.preview": "Preview",
   "side.label.source": "Source",
   "side.label.visual": "Visual",
-  "doc.editor.visual.hidden.title": "Visual editor hidden",
-  "doc.editor.visual.hidden.hint": "Use the AI chat, preview, or LaTeX source view. Toggle visual editing back anytime.",
-  "doc.editor.visual.hidden.restore": "Restore visual editor",
   "side.tooltip.figure": "Open Figure / Diagram Editor",
 
   // OMR

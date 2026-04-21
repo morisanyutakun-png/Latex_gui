@@ -6,7 +6,7 @@ import { useUIStore } from "@/store/ui-store";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
 import { useResizePanel } from "@/hooks/use-resize-panel";
 import { useI18n } from "@/lib/i18n";
-import { FileText, Loader2, AlertTriangle, RefreshCw, Code2, X, PenLine } from "lucide-react";
+import { FileText, Loader2, AlertTriangle, RefreshCw, Code2, X } from "lucide-react";
 import { VisualEditor } from "./visual-editor";
 import { LatexCodeEditor } from "./latex-code-editor";
 
@@ -30,7 +30,6 @@ export function DocumentEditor() {
   const showVisualPanel = useUIStore((s) => s.showVisualPanel);
   const setShowSourcePanel = useUIStore((s) => s.setShowSourcePanel);
   const setShowPdfPanel = useUIStore((s) => s.setShowPdfPanel);
-  const setShowVisualPanel = useUIStore((s) => s.setShowVisualPanel);
 
   const sourcePanel = useResizePanel({
     side: "left",
@@ -76,13 +75,13 @@ export function DocumentEditor() {
         </>
       )}
 
-      {/* ── Visual editor (中央, flex で残りを埋める) — ユーザーは非表示にできる ── */}
-      {showVisualPanel ? (
+      {/* ── Visual editor (中央, flex で残りを埋める) ──
+         showVisualPanel=false のときは Source / PDF と同じく
+         何も描画しない (サイドバーのトグルから再表示) */}
+      {showVisualPanel && (
         <div className="flex flex-1 min-w-0 flex-col">
           <VisualEditor latex={latex} onChange={setLatex} template={document.template} />
         </div>
-      ) : (
-        <VisualHiddenPlaceholder onRestore={() => setShowVisualPanel(true)} />
       )}
 
       {/* ── PDF preview panel (opt-in, 右, リサイズ可) ── */}
@@ -100,41 +99,6 @@ export function DocumentEditor() {
           />
         </>
       )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────
-// VisualHiddenPlaceholder — VisualEditor を非表示にしているときの中央の枠
-// ─────────────────────────────────────
-// Source / PDF パネルが開いていれば flex-1 で隙間を吸収する役割も兼ねる。
-// 中央に小さなカードを浮かべ、再表示ボタンでワンクリックで戻せるようにする。
-
-function VisualHiddenPlaceholder({ onRestore }: { onRestore: () => void }) {
-  const { t } = useI18n();
-  return (
-    <div className="flex flex-1 min-w-0 items-center justify-center bg-gradient-to-br from-amber-50/30 via-background to-sky-50/20 dark:from-amber-500/[0.02] dark:via-background dark:to-sky-500/[0.02]">
-      <div className="flex flex-col items-center gap-3 px-6 py-8 rounded-2xl border border-dashed border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/[0.02] backdrop-blur-sm max-w-xs text-center">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-400/80 to-teal-500/70 flex items-center justify-center shadow-sm">
-          <PenLine className="h-5 w-5 text-white" />
-        </div>
-        <div className="space-y-1">
-          <p className="text-[12.5px] font-semibold text-foreground/75">
-            {t("doc.editor.visual.hidden.title")}
-          </p>
-          <p className="text-[11px] text-foreground/50 leading-relaxed">
-            {t("doc.editor.visual.hidden.hint")}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onRestore}
-          className="mt-1 inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[11.5px] font-semibold text-white bg-gradient-to-br from-emerald-500 to-teal-600 shadow-sm hover:scale-[1.03] active:scale-[0.98] transition-transform"
-        >
-          <PenLine className="h-3 w-3" />
-          {t("doc.editor.visual.hidden.restore")}
-        </button>
-      </div>
     </div>
   );
 }
