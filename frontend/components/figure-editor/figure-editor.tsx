@@ -20,6 +20,7 @@ import { useUIStore } from "@/store/ui-store";
 import {
   X, Code2, ChevronDown, ChevronUp, ClipboardCopy, Check,
   ImagePlus, Keyboard, FileDown, Loader2, Layers, Command, Globe,
+  Eye, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
@@ -164,8 +165,14 @@ export function FigureEditor() {
     );
   }, [fullCode, selectedSize]);
 
-  const handleInsert = useCallback(() => {
-    if (!doc || shapes.length === 0) return;
+  // Visual multiplier so the drawing canvas reflects the selected insert size.
+  const insertScaleFactor = useMemo(() => {
+    const s = SIZE_PRESETS[selectedSize].scale;
+    return s === "none" ? 1 : parseFloat(s);
+  }, [selectedSize]);
+
+  const buildInsertedLatex = useCallback((): { newLatex: string; marker: string } | null => {
+    if (!doc || shapes.length === 0) return null;
 
     // Generate a unique marker so the block can be located & replaced later
     const marker = lastMarkerRef.current ?? `eddivom-fig-${Date.now().toString(36)}`;
@@ -290,13 +297,8 @@ export function FigureEditor() {
     if (existingBegin >= 0 && existingEnd >= 0) {
       const before = currentLatex.slice(0, existingBegin).replace(/\n$/, "");
       const after = currentLatex.slice(existingEnd + endMark.length).replace(/^\n/, "");
-      currentLatex = ensureDocumentStructure(before + block + after);
-      setLatex(currentLatex);
-      lastMarkerRef.current = marker;
-      setShowPdfPanel(true);
-      closeFigureEditor();
-      toast.success(isJa ? "図を更新しました (サイズ反映)" : "Figure updated (new size applied)");
-      return;
+      const newLatex = ensureDocumentStructure(before + block + after);
+      return { newLatex, marker };
     }
 
     // 2. Otherwise insert at the chosen position
@@ -335,18 +337,98 @@ export function FigureEditor() {
     // this, a figure inserted into a stripped-down doc compiles as an orphan
     // block and lualatex errors with "Missing \begin{document}".
     newLatex = ensureDocumentStructure(newLatex);
+    return { newLatex, marker };
+  }, [doc, shapes, scaledCode, caption, insertPos]);
 
-    setLatex(newLatex);
-    lastMarkerRef.current = marker;
-    // Auto-open PDF preview so user immediately sees the rendered result
+  // ── Pre-insert preview state ─────────────────────────────────
+  //
+  // When the user clicks "Insert", we first compile the prospective document
+  // and show the resulting PDF in a modal. The user can then confirm to
+  // commit the insertion, or cancel to keep editing — they see exactly what
+  // the final PDF looks like before anything is written back to the doc.
+  const [previewState, setPreviewState] = useState<{
+    newLatex: string;
+    marker: string;
+    pdfUrl: string | null;
+    loading: boolean;
+    errorTitle: string | null;
+    errorLines: string[];
+  } | null>(null);
+
+  const cancelPreview = useCallback(() => {
+    setPreviewState((prev) => {
+      if (prev?.pdfUrl) URL.revokeObjectURL(prev.pdfUrl);
+      return null;
+    });
+  }, []);
+
+  const handleInsert = useCallback(async () => {
+    const built = buildInsertedLatex();
+    if (!built) return;
+
+    // Enter preview mode — show modal with a spinner while we compile.
+    setPreviewState({
+      newLatex: built.newLatex,
+      marker: built.marker,
+      pdfUrl: null,
+      loading: true,
+      errorTitle: null,
+      errorLines: [],
+    });
+
+    try {
+      const blob = await compileRawLatex(built.newLatex, "figure-preview");
+      const url = URL.createObjectURL(blob);
+      // If the user cancelled during compile, discard the blob URL so it
+      // doesn't leak — otherwise attach it to the active preview.
+      setPreviewState((prev) => {
+        if (!prev) {
+          URL.revokeObjectURL(url);
+          return prev;
+        }
+        return { ...prev, pdfUrl: url, loading: false };
+      });
+    } catch (err) {
+      if (err instanceof CompileError) {
+        const view = formatCompileError(err, t);
+        setPreviewState((prev) => prev ? {
+          ...prev,
+          loading: false,
+          errorTitle: view.title,
+          errorLines: view.lines,
+        } : prev);
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        setPreviewState((prev) => prev ? {
+          ...prev,
+          loading: false,
+          errorTitle: isJa ? "プレビュー生成に失敗しました" : "Preview failed",
+          errorLines: [msg],
+        } : prev);
+      }
+    }
+  }, [buildInsertedLatex, isJa, t]);
+
+  const confirmInsert = useCallback(() => {
+    const p = previewState;
+    if (!p) return;
+    if (p.pdfUrl) URL.revokeObjectURL(p.pdfUrl);
+    setLatex(p.newLatex);
+    lastMarkerRef.current = p.marker;
+    setPreviewState(null);
     setShowPdfPanel(true);
-    // Close the figure editor to reveal the preview — shapes remain in memory
     closeFigureEditor();
     toast.success(isJa
-      ? "図を挿入 — プレビュー画面を開きました (再編集は図アイコンから)"
-      : "Figure inserted — preview opened (re-edit via the figure icon)");
-    // Keep shapes in memory (don't resetAll) so user can reopen & adjust size / caption
-  }, [doc, shapes, scaledCode, caption, insertPos, setLatex, setShowPdfPanel, closeFigureEditor, isJa]);
+      ? "図を挿入しました"
+      : "Figure inserted");
+  }, [previewState, setLatex, setShowPdfPanel, closeFigureEditor, isJa]);
+
+  // Release blob URL if the component unmounts while a preview is open.
+  React.useEffect(() => {
+    return () => {
+      if (previewState?.pdfUrl) URL.revokeObjectURL(previewState.pdfUrl);
+    };
+  }, [previewState?.pdfUrl]);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(scaledCode).then(() => {
@@ -641,17 +723,17 @@ export function FigureEditor() {
           </HelpTip>
 
           {/* Insert */}
-          <HelpTip title={lastMarkerRef.current ? (isJa ? "図を更新" : "Update figure") : (isJa ? "LaTeX文書に挿入" : "Insert into LaTeX document")}
+          <HelpTip title={lastMarkerRef.current ? (isJa ? "図を更新" : "Update figure") : (isJa ? "挿入プレビューを表示" : "Show insert preview")}
             description={lastMarkerRef.current
               ? (isJa ? "挿入済みの図をこの設定で更新 (サイズ・キャプション反映)" : "Replace the previously inserted figure with these settings")
-              : (isJa ? "選んだサイズ・位置で図をエディタに挿入" : "Drop the figure into the editor at the chosen size & position")}>
+              : (isJa ? "挿入前にどんなPDFになるか確認画面を表示" : "Opens a modal with the resulting PDF so you can confirm before inserting")}>
           <button
             onClick={handleInsert}
-            disabled={shapes.length === 0}
+            disabled={shapes.length === 0 || !!previewState}
             className="flex items-center gap-1.5 h-8 px-4 rounded-full text-[11px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md hover:opacity-90 transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <ImagePlus size={13} />
-            <span>{lastMarkerRef.current ? (isJa ? "更新" : "Update figure") : (isJa ? "挿入" : "Insert figure")}</span>
+            {previewState?.loading ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+            <span>{lastMarkerRef.current ? (isJa ? "更新プレビュー" : "Update preview") : (isJa ? "挿入プレビュー" : "Preview insert")}</span>
           </button>
           </HelpTip>
 
@@ -725,7 +807,7 @@ export function FigureEditor() {
       {/* ══════════ MAIN AREA ══════════ */}
       <div className="flex flex-1 overflow-hidden min-h-0">
         <FigureToolbar />
-        <FigureCanvas />
+        <FigureCanvas insertScale={insertScaleFactor} />
         <FigureProperties />
 
         {/* Layers panel — overlays the canvas area */}
@@ -766,6 +848,119 @@ export function FigureEditor() {
             <pre className="text-[11px] font-mono text-foreground/65 leading-relaxed whitespace-pre-wrap select-all">
               {scaledCode || (isJa ? "% 図形を追加してください" : "% Add shapes to generate TikZ code")}
             </pre>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════ PRE-INSERT PDF PREVIEW MODAL ══════════ */}
+      {previewState && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center animate-page-fade-in p-4 sm:p-8"
+          style={{ background: "rgba(10, 12, 20, 0.6)", backdropFilter: "blur(4px)" }}
+          onClick={cancelPreview}
+        >
+          <div
+            className="relative bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl flex flex-col w-full max-w-5xl h-full max-h-[92vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="shrink-0 h-12 flex items-center px-4 gap-3 border-b border-foreground/[0.08] bg-gradient-to-r from-teal-50/60 to-cyan-50/40 dark:from-teal-500/10 dark:to-cyan-500/10">
+              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-sm">
+                <Eye className="h-4 w-4 text-white" />
+              </div>
+              <div className="flex flex-col">
+                <h2 className="text-sm font-bold text-foreground/85">
+                  {isJa ? "挿入前プレビュー" : "Pre-insert preview"}
+                </h2>
+                <span className="text-[10px] text-foreground/50">
+                  {isJa
+                    ? `挿入位置: ${insertPos === "end" ? "末尾" : insertPos === "top" ? "先頭" : "カーソル前"} · サイズ: ${SIZE_PRESETS[selectedSize].labelJa}`
+                    : `Position: ${insertPos} · Size: ${SIZE_PRESETS[selectedSize].label}`}
+                </span>
+              </div>
+              <div className="flex-1" />
+              <button
+                onClick={cancelPreview}
+                className="h-7 w-7 flex items-center justify-center rounded-lg text-foreground/40 hover:text-foreground/70 hover:bg-foreground/[0.06] transition-colors"
+                title={isJa ? "閉じる" : "Close"}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* PDF body */}
+            <div className="flex-1 min-h-0 bg-neutral-100 dark:bg-neutral-950 relative">
+              {previewState.loading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-foreground/60">
+                  <Loader2 size={28} className="animate-spin text-teal-500" />
+                  <span className="text-xs font-medium">
+                    {isJa ? "プレビューを生成中..." : "Compiling preview..."}
+                  </span>
+                </div>
+              )}
+              {!previewState.loading && previewState.errorTitle && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
+                  <AlertTriangle size={32} className="text-amber-500" />
+                  <span className="text-sm font-bold text-foreground/80">
+                    {previewState.errorTitle}
+                  </span>
+                  {previewState.errorLines.length > 0 && (
+                    <pre className="max-w-full text-[10px] text-foreground/55 bg-foreground/[0.04] rounded-md px-3 py-2 whitespace-pre-wrap text-left overflow-auto max-h-40">
+                      {previewState.errorLines.join("\n")}
+                    </pre>
+                  )}
+                  <span className="text-[10px] text-foreground/45">
+                    {isJa
+                      ? "LaTeXエラーが出ても「このまま挿入」で本文には書き戻せます"
+                      : "You can still commit with 'Insert anyway' if you want to inspect the source"}
+                  </span>
+                </div>
+              )}
+              {previewState.pdfUrl && !previewState.errorTitle && (
+                <object
+                  data={previewState.pdfUrl}
+                  type="application/pdf"
+                  className="w-full h-full"
+                  aria-label="Pre-insert PDF preview"
+                >
+                  <iframe
+                    src={previewState.pdfUrl}
+                    title="Pre-insert PDF preview"
+                    className="w-full h-full border-0"
+                  />
+                </object>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="shrink-0 px-4 py-3 border-t border-foreground/[0.08] bg-background flex items-center gap-2">
+              <span className="text-[10px] text-foreground/45">
+                {isJa
+                  ? "このまま文書に書き戻していいですか？"
+                  : "Commit this result to your document?"}
+              </span>
+              <div className="flex-1" />
+              <button
+                onClick={cancelPreview}
+                className="h-8 px-4 rounded-lg text-[11px] font-semibold text-foreground/65 border border-foreground/[0.08] hover:bg-foreground/[0.04] transition-colors"
+              >
+                {isJa ? "キャンセル" : "Cancel"}
+              </button>
+              <button
+                onClick={confirmInsert}
+                disabled={previewState.loading}
+                className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-[11px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md hover:opacity-90 transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Check size={13} />
+                <span>
+                  {previewState.errorTitle
+                    ? (isJa ? "このまま挿入" : "Insert anyway")
+                    : (lastMarkerRef.current
+                      ? (isJa ? "この内容で更新" : "Commit update")
+                      : (isJa ? "この内容で挿入" : "Commit insert"))}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}

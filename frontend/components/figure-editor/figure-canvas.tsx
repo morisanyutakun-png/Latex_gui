@@ -325,7 +325,16 @@ const RESIZE_HANDLES: { dir: ResizeDir; dx: number; dy: number; cursor: string }
 //  COMPONENT
 // ══════════════════════════════════════════════════════════════════
 
-export function FigureCanvas() {
+interface FigureCanvasProps {
+  /**
+   * Visual scale multiplier applied on top of the user's zoom — reflects the
+   * "Insert size" preset so the drawing area previews the final inserted size.
+   * Defaults to 1 (no effect).
+   */
+  insertScale?: number;
+}
+
+export function FigureCanvas({ insertScale = 1 }: FigureCanvasProps = {}) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { locale } = useI18n();
@@ -351,7 +360,11 @@ export function FigureCanvas() {
   const setViewport      = useFigureStore((s) => s.setViewport);
   const setActiveTool    = useFigureStore((s) => s.setActiveTool);
 
-  const { zoom, offsetX, offsetY } = viewport;
+  // `zoom` is the EFFECTIVE rendering zoom: user-controlled zoom × insert-size
+  // preset. Hit-testing and coord math use this combined value so clicks map
+  // to the right TikZ point no matter which preset is active.
+  const { zoom: userZoom, offsetX, offsetY } = viewport;
+  const zoom = userZoom * insertScale;
   const scale = PX_PER_CM * zoom;
 
   // ── Space key for pan ─────────────────────────────────────────
@@ -564,17 +577,22 @@ export function FigureCanvas() {
   /**
    * Smoothly center the paper (canvas rectangle) in the viewport at the given zoom level.
    * Used by the 100% / reset button — always returns to a predictable "home" view.
+   *
+   * `insertScale` is folded into all pixel-size math because rendering uses
+   * effective zoom (userZoom × insertScale). targetZoom is the user-zoom we
+   * commit to the store; the actual on-screen pixels reflect the preset too.
    */
   const centerCanvas = useCallback((targetZoom = 1) => {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect) return;
     const { canvasWidth: cW, canvasHeight: cH } = useFigureStore.getState();
-    const paperPxW = cW * PX_PER_CM * targetZoom;
-    const paperPxH = cH * PX_PER_CM * targetZoom;
+    const effZoom = targetZoom * insertScale;
+    const paperPxW = cW * PX_PER_CM * effZoom;
+    const paperPxH = cH * PX_PER_CM * effZoom;
     const ox = (rect.width - paperPxW) / 2;
     const oy = (rect.height - paperPxH) / 2;
     animateViewport({ zoom: targetZoom, offsetX: ox, offsetY: oy });
-  }, [animateViewport]);
+  }, [animateViewport, insertScale]);
 
   /** Smoothly zoom & center on a single shape (used by double-click). */
   const focusShape = useCallback((shapeId: string) => {
@@ -583,14 +601,17 @@ export function FigureCanvas() {
     if (!sh || !rect) return;
     const padCm = 1.5;
     const w = sh.width + padCm * 2, h = sh.height + padCm * 2;
-    const targetScale = Math.min(rect.width / (w * PX_PER_CM), rect.height / (h * PX_PER_CM));
+    // targetEffective fits the shape; divide out insertScale to get userZoom.
+    const targetEff = Math.min(rect.width / (w * PX_PER_CM), rect.height / (h * PX_PER_CM));
+    const targetScale = targetEff / (insertScale || 1);
     const nz = Math.max(0.5, Math.min(3, targetScale));
+    const effZoom = nz * insertScale;
     const cH = useFigureStore.getState().canvasHeight;
     const cxCm = sh.x + sh.width / 2, cyCm = sh.y + sh.height / 2;
-    const ox = rect.width / 2 - cxCm * PX_PER_CM * nz;
-    const oy = rect.height / 2 - (cH - cyCm) * PX_PER_CM * nz;
+    const ox = rect.width / 2 - cxCm * PX_PER_CM * effZoom;
+    const oy = rect.height / 2 - (cH - cyCm) * PX_PER_CM * effZoom;
     animateViewport({ zoom: nz, offsetX: ox, offsetY: oy });
-  }, [animateViewport]);
+  }, [animateViewport, insertScale]);
 
   /** Fit all shapes to view — if no shapes, fit the canvas frame. */
   const fitToContent = useCallback(() => {
@@ -610,14 +631,16 @@ export function FigureCanvas() {
     }
     const w = maxX - minX, h = maxY - minY;
     if (w <= 0 || h <= 0) return;
-    const targetScale = Math.min(rect.width / (w * PX_PER_CM), rect.height / (h * PX_PER_CM));
+    const targetEff = Math.min(rect.width / (w * PX_PER_CM), rect.height / (h * PX_PER_CM));
+    const targetScale = targetEff / (insertScale || 1);
     const nz = Math.max(0.25, Math.min(3, targetScale));
-    const targetPxW = w * PX_PER_CM * nz;
-    const targetPxH = h * PX_PER_CM * nz;
-    const ox = (rect.width - targetPxW) / 2 - minX * PX_PER_CM * nz;
-    const oy = (rect.height - targetPxH) / 2 - (cH - maxY) * PX_PER_CM * nz;
+    const effZoom = nz * insertScale;
+    const targetPxW = w * PX_PER_CM * effZoom;
+    const targetPxH = h * PX_PER_CM * effZoom;
+    const ox = (rect.width - targetPxW) / 2 - minX * PX_PER_CM * effZoom;
+    const oy = (rect.height - targetPxH) / 2 - (cH - maxY) * PX_PER_CM * effZoom;
     useFigureStore.getState().setViewport({ zoom: nz, offsetX: ox, offsetY: oy });
-  }, []);
+  }, [insertScale]);
 
   // Wire refs for cross-component event handlers
   useEffect(() => {
@@ -629,6 +652,26 @@ export function FigureCanvas() {
 
   // Cancel pending start when tool changes
   useEffect(() => { setPendingStart(null); setPreviewEnd(null); setAngleDraw(null); setAngleRefHoverId(null); }, [activeTool]);
+
+  // ── Re-anchor viewport when insertScale changes ──────────────────
+  // The scale multiplier changes how much of the drawing fills the viewport.
+  // Scale around the viewport centre so the user's focus point stays put
+  // (avoids the whole drawing sliding toward the TikZ origin on preset switch).
+  const prevInsertScaleRef = useRef(insertScale);
+  useEffect(() => {
+    const prev = prevInsertScaleRef.current;
+    if (prev === insertScale) return;
+    prevInsertScaleRef.current = insertScale;
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || prev === 0) return;
+    const r = insertScale / prev;
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const vp = useFigureStore.getState().viewport;
+    useFigureStore.getState().setViewport({
+      offsetX: cx - (cx - vp.offsetX) * r,
+      offsetY: cy - (cy - vp.offsetY) * r,
+    });
+  }, [insertScale]);
 
   useEffect(() => {
     const el = containerRef.current;
