@@ -24,11 +24,17 @@ function loadInitialAgentMode(): AgentMode {
   return "edit";
 }
 
-const VISUAL_PANEL_STORAGE_KEY = "eddivom-show-visual-panel";
+// v2: 既定を確実に ON に揃えるためキーを回した。旧キーに "false" が
+// 残っていても無視され、新規にトグルしたタイミングで v2 に保存される。
+const VISUAL_PANEL_STORAGE_KEY = "eddivom-show-visual-panel-v2";
+const VISUAL_PANEL_LEGACY_KEYS = ["eddivom-show-visual-panel"];
 
 function loadInitialShowVisualPanel(): boolean {
   if (typeof window === "undefined") return true;
   try {
+    // 旧キーが残っていたら掃除 (保存内容は尊重しない)
+    for (const k of VISUAL_PANEL_LEGACY_KEYS) localStorage.removeItem(k);
+
     const saved = localStorage.getItem(VISUAL_PANEL_STORAGE_KEY);
     if (saved === "false") return false;
     if (saved === "true") return true;
