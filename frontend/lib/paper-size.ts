@@ -3,23 +3,37 @@ import type { PaperSize } from "@/store/ui-store";
 // 注: ui-store は paper-size.ts を runtime import するが、こちらは `import type` のみ。
 // TS のタイプ消去により循環参照にはならない (ビルド後は何も残らない)。
 
+// 学会ポスター用の A0〜A2 と、日本で使われる B4 を追加。
+// A0 (841×1189mm) は学会発表用、A1/A2 は小型ポスター、B4 はテスト用紙向け。
 export const PAPER_OPTIONS: { value: PaperSize; label: string }[] = [
-  { value: "a4", label: "A4" },
+  { value: "a0", label: "A0 (841×1189mm)" },
+  { value: "a1", label: "A1 (594×841mm)" },
+  { value: "a2", label: "A2 (420×594mm)" },
   { value: "a3", label: "A3" },
+  { value: "a4", label: "A4" },
+  { value: "b4", label: "B4" },
   { value: "b5", label: "B5" },
   { value: "letter", label: "Letter" },
 ];
 
 const PAPER_TO_OPTION: Record<PaperSize, string> = {
-  a4: "a4paper",
+  a0: "a0paper",
+  a1: "a1paper",
+  a2: "a2paper",
   a3: "a3paper",
+  a4: "a4paper",
+  b4: "b4paper",
   b5: "b5paper",
   letter: "letterpaper",
 };
 
 const OPTION_TO_PAPER: Record<string, PaperSize> = {
-  a4paper: "a4",
+  a0paper: "a0",
+  a1paper: "a1",
+  a2paper: "a2",
   a3paper: "a3",
+  a4paper: "a4",
+  b4paper: "b4",
   b5paper: "b5",
   letterpaper: "letter",
 };

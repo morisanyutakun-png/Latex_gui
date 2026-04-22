@@ -3528,7 +3528,10 @@ const POSTER_LATEX = String.raw`% A0 縦サイズの学会ポスター (beamerpo
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc,shadows}
 \usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+% 高速化のため skin / breakable / theorems は読まない。
+% pblock は colbacktitle で上部バーを出す単純構成にして、enhanced や
+% attach boxed title を避ける (それらは LuaLaTeX で compile が劇的に遅くなる原因)。
+\tcbuselibrary{skins}
 \usepackage{anyfontsize}
 \usepackage{enumitem}
 
@@ -3559,14 +3562,15 @@ const POSTER_LATEX = String.raw`% A0 縦サイズの学会ポスター (beamerpo
 \definecolor{postergreen}{HTML}{059669}   % 緑アクセント (result)
 
 % ── ポスター block — 濃色バー付きタイトル + 本文 ──
+% NOTE: enhanced / breakable / attach boxed title は避ける。これらは A0 × 9 ブロックで
+%       compile が 50 秒超に膨らむ主犯。colbacktitle による単純なヘッダーバーで代用する。
 \newtcolorbox{pblock}[2][posterbg]{%
-  enhanced, breakable, colback=white, colframe=#1,
+  colback=white, colbacktitle=#1, colframe=#1,
   sharp corners, boxrule=1.6pt,
-  attach boxed title to top left={xshift=10mm,yshift=-8mm},
-  boxed title style={colback=#1, colframe=#1, sharp corners, boxrule=0pt},
-  coltitle=white, fonttitle=\fontsize{34pt}{40pt}\selectfont\bfseries,
-  title={#2},
-  left=10mm,right=10mm,top=16mm,bottom=10mm,
+  title={#2}, coltitle=white,
+  fonttitle=\fontsize{34pt}{40pt}\selectfont\bfseries,
+  toptitle=4mm, bottomtitle=4mm,
+  left=10mm, right=10mm, top=8mm, bottom=8mm,
   before skip=10mm, after skip=10mm,
   fontupper=\fontsize{26pt}{34pt}\selectfont
 }
@@ -3634,15 +3638,15 @@ const POSTER_LATEX = String.raw`% A0 縦サイズの学会ポスター (beamerpo
 \end{itemize}
 \end{pblock}
 
-% ★ Key Finding の主役級コールアウト
+% ★ Key Finding コールアウト (軽量化: enhanced skin 不使用)
 \begin{tcolorbox}[colback=posterkey!12,colframe=posterkey,boxrule=3pt,sharp corners,left=10mm,right=10mm,top=12mm,bottom=12mm]
 \centering
-{\fontsize{36pt}{44pt}\selectfont\bfseries\color{posterkey} Key Finding\par}
+{\fontsize{36pt}{44pt}\bfseries\color{posterkey} Key Finding\par}
 \vspace{6mm}
-{\fontsize{68pt}{76pt}\selectfont\bfseries\color{posterkey}
+{\fontsize{68pt}{76pt}\bfseries\color{posterkey}
 $+$\,\textbf{4.7\%} \quad $\times$\,\textbf{2.3}\par}
 \vspace{6mm}
-{\fontsize{26pt}{32pt}\selectfont\color{posterkey!80!black}
+{\fontsize{26pt}{32pt}\color{posterkey!80!black}
 精度向上 (pt)\hspace{22mm}高速化 (倍)\par}
 \vspace{4mm}
 {\fontsize{24pt}{30pt}\selectfont 大規模データ Z (1M件) で最大の改善}
@@ -3650,10 +3654,13 @@ $+$\,\textbf{4.7\%} \quad $\times$\,\textbf{2.3}\par}
 
 \begin{pblock}{3. システム全体像}
 \centering
+% TikZ 側の font override は picture 全体に 1 回だけ掛ける (per-node の \fontsize は
+% 遅い。A0 で 6 ノード × \fontsize するだけで compile 時間が数秒伸びる)
 \begin{tikzpicture}[
+  font=\large\bfseries,
   node distance=18mm and 20mm,
-  box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=80mm, minimum height=28mm, align=center, rounded corners=3mm, font=\fontsize{24pt}{30pt}\selectfont},
-  hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!15, minimum width=80mm, minimum height=28mm, align=center, rounded corners=3mm, font=\fontsize{24pt}{30pt}\selectfont\bfseries},
+  box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=80mm, minimum height=28mm, align=center, rounded corners=3mm},
+  hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!15, minimum width=80mm, minimum height=28mm, align=center, rounded corners=3mm},
   arr/.style={-{Latex[length=6mm,width=5mm]}, very thick, posterbg}
 ]
   \node[box] (in) {入力 $x$};
@@ -3857,7 +3864,8 @@ const POSTER_LATEX_EN = String.raw`% A0 portrait conference poster (no beamerpos
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc,shadows}
 \usepackage{tcolorbox}
-\tcbuselibrary{skins,breakable}
+% Speed: skip skins sub-features we don't need; keep only what colbacktitle needs.
+\tcbuselibrary{skins}
 \usepackage{anyfontsize}
 \usepackage{enumitem}
 
@@ -3873,7 +3881,6 @@ const POSTER_LATEX_EN = String.raw`% A0 portrait conference poster (no beamerpos
 \setlist[itemize]{leftmargin=1.4em,itemsep=3mm,topsep=2mm,parsep=0pt}
 \setlist[enumerate]{leftmargin=1.6em,itemsep=3mm,topsep=2mm,parsep=0pt}
 
-% Keep natural content order (don't balance columns — content would cluster top otherwise)
 \raggedcolumns
 
 \definecolor{posterbg}{HTML}{0f172a}
@@ -3883,14 +3890,15 @@ const POSTER_LATEX_EN = String.raw`% A0 portrait conference poster (no beamerpos
 \definecolor{posterblue}{HTML}{2563eb}
 \definecolor{postergreen}{HTML}{059669}
 
+% NOTE: avoid enhanced, breakable, attach boxed title — these balloon LuaLaTeX
+% compile time on A0 with 9 blocks. Use colbacktitle for a simple coloured header bar.
 \newtcolorbox{pblock}[2][posterbg]{%
-  enhanced, breakable, colback=white, colframe=#1,
+  colback=white, colbacktitle=#1, colframe=#1,
   sharp corners, boxrule=1.6pt,
-  attach boxed title to top left={xshift=10mm,yshift=-8mm},
-  boxed title style={colback=#1, colframe=#1, sharp corners, boxrule=0pt},
-  coltitle=white, fonttitle=\fontsize{34pt}{40pt}\selectfont\bfseries,
-  title={#2},
-  left=10mm,right=10mm,top=16mm,bottom=10mm,
+  title={#2}, coltitle=white,
+  fonttitle=\fontsize{34pt}{40pt}\selectfont\bfseries,
+  toptitle=4mm, bottomtitle=4mm,
+  left=10mm, right=10mm, top=8mm, bottom=8mm,
   before skip=10mm, after skip=10mm,
   fontupper=\fontsize{26pt}{34pt}\selectfont
 }
@@ -3951,12 +3959,12 @@ Four contributions of this work:
 
 \begin{tcolorbox}[colback=posterkey!12,colframe=posterkey,boxrule=3pt,sharp corners,left=10mm,right=10mm,top=12mm,bottom=12mm]
 \centering
-{\fontsize{36pt}{44pt}\selectfont\bfseries\color{posterkey} Key Finding\par}
+{\fontsize{36pt}{44pt}\bfseries\color{posterkey} Key Finding\par}
 \vspace{6mm}
-{\fontsize{68pt}{76pt}\selectfont\bfseries\color{posterkey}
+{\fontsize{68pt}{76pt}\bfseries\color{posterkey}
 $+$\,\textbf{4.7\%} \quad $\times$\,\textbf{2.3}\par}
 \vspace{6mm}
-{\fontsize{26pt}{32pt}\selectfont\color{posterkey!80!black}
+{\fontsize{26pt}{32pt}\color{posterkey!80!black}
 Accuracy (pt)\hspace{22mm}Speed-up ($\times$)\par}
 \vspace{4mm}
 {\fontsize{24pt}{30pt}\selectfont Largest gains on the 1M-sample dataset}
@@ -3965,9 +3973,10 @@ Accuracy (pt)\hspace{22mm}Speed-up ($\times$)\par}
 \begin{pblock}{3. System Overview}
 \centering
 \begin{tikzpicture}[
+  font=\large\bfseries,
   node distance=18mm and 20mm,
-  box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=80mm, minimum height=28mm, align=center, rounded corners=3mm, font=\fontsize{24pt}{30pt}\selectfont},
-  hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!15, minimum width=80mm, minimum height=28mm, align=center, rounded corners=3mm, font=\fontsize{24pt}{30pt}\selectfont\bfseries},
+  box/.style={rectangle, draw=posterbg, thick, fill=postersoft, minimum width=80mm, minimum height=28mm, align=center, rounded corners=3mm},
+  hl/.style={rectangle, draw=posterkey, very thick, fill=posterkey!15, minimum width=80mm, minimum height=28mm, align=center, rounded corners=3mm},
   arr/.style={-{Latex[length=6mm,width=5mm]}, very thick, posterbg}
 ]
   \node[box] (in) {Input $x$};

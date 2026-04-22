@@ -7,7 +7,12 @@ import type { AgentMode } from "@/lib/api";
 import { useDocumentStore } from "@/store/document-store";
 import { applyPaperSizeToLatex, paperSizeFromLatex } from "@/lib/paper-size";
 
-export type PaperSize = "a4" | "a3" | "b5" | "letter";
+// ポスター用に A0〜A2 を追加、日本標準の B4 も追加。
+// 既存テンプレが参照する a4/a3/b5/letter は互換維持。
+export type PaperSize =
+  | "a0" | "a1" | "a2" | "a3" | "a4"
+  | "b4" | "b5"
+  | "letter";
 export type GuideContext = "none" | "math" | "heading" | "list" | "table" | "code" | "general";
 
 // v2: モード ID 再設計 (plan / edit / mix)。旧値 (auto/problem/math/review) は
