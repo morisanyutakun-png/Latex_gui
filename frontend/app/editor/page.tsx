@@ -5,6 +5,7 @@ import { EditToolbar } from "@/components/layout/edit-toolbar";
 import { StatusBar } from "@/components/layout/status-bar";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { AIChatPanel } from "@/components/editor/ai-chat-panel";
+import { MobilePdfPreview } from "@/components/editor/mobile-pdf-preview";
 import { PricingModal } from "@/components/pricing-modal";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { useAutosave } from "@/hooks/use-autosave";
@@ -307,7 +308,12 @@ export default function EditorPage() {
           {mobileTab === "ai" ? (
             <div className="h-full overflow-hidden flex flex-col"><AIChatPanel /></div>
           ) : (
-            <div className="h-full overflow-auto"><DocumentEditor /></div>
+            // 編集 UI はモバイル非表示。クリーンな PDF プレビューだけを出す。
+            // プラン / クオータ判定は plan-store でデバイス共通なので、PC で Pro なら
+            // モバイルでも同じ機能が使える (Stripe 同期済み)。
+            <div className="h-full overflow-hidden">
+              <MobilePdfPreview onOpenChat={() => setMobileTab("ai")} />
+            </div>
           )}
         </div>
 

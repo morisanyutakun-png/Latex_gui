@@ -9,6 +9,9 @@ import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
 import { formatRelativeTime, formatDuration, formatTokens, splitSummary } from "./utils";
 import { useI18n } from "@/lib/i18n";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useDocumentStore } from "@/store/document-store";
+import { ChatPdfPreviewCard } from "./chat-pdf-preview-card";
 
 export function MessageRow({
   msg, onFeedback, onRetryError,
@@ -20,6 +23,10 @@ export function MessageRow({
   const { t, locale } = useI18n();
   const isUser = msg.role === "user";
   const [showErrorDetails, setShowErrorDetails] = React.useState(false);
+  // モバイルのみ、AI が編集を確定したメッセージ直下に PDF プレビューカードを差し込む。
+  // PC は既存サイドバー / プレビューパネルがあるので追加しない。
+  const isMobile = useIsMobile();
+  const docTitle = useDocumentStore((s) => s.document?.metadata.title || "");
 
   // AI メッセージは実施サマリーを本文から切り出し、別カードで下に表示する。
   // 検出されなかった場合は summary=null で従来通り全文を本文バブルに出す。
@@ -124,6 +131,16 @@ export function MessageRow({
             <CheckCircle2 className="h-3 w-3 shrink-0" />
             <span>{t("chat.applied.label")} — {msg.latex.length.toLocaleString()} {t("chat.applied.suffix")}</span>
           </div>
+        )}
+
+        {/* モバイルでは編集確定後に PDF プレビューを「チャット内のメッセージ」として差し込む。
+            ストリーミング中は出さず、確定 (latex 入り) してから lazy にコンパイルする。 */}
+        {!isUser && isMobile && msg.latex && !msg.isStreaming && (
+          <ChatPdfPreviewCard
+            latex={msg.latex}
+            title={docTitle}
+            msgId={msg.id}
+          />
         )}
 
         {/* Action timeline */}
