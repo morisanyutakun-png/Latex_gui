@@ -627,94 +627,70 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
 }
 
 /* ── Figure Draw Mockup ──
- * 実際の図エディタ画面 (frontend/components/figure-editor) を忠実に再現した
- * 16 秒ループの自動デモ。
+ * 実機の図エディタ (frontend/components/figure-editor) のスクリーンショットを
+ * そのまま再現した 14 秒ループ。2 フェーズ:
+ *   (A) 矩形を描画中 — Rect ツール active、破線プレビュー、緑の「対角の点をクリック」
+ *       ヒント、座標コールアウト、下中央に「領域描画モード」の青ピル
+ *   (B) 矩形が選択された — 実線の矩形 + 8 個の青ハンドル + バブルツールバー、上部に
+ *       キャプションバー、右側にプロパティパネル (rect / RECT)、下中央に青い「1 個選択中」
+ *       ピル + キーボードショートカットのヒントバー、挿入プレビューボタンに ring 強調
  *
- * 実機との対応:
+ * 実機チラ見えの細部:
  *  - 上端の rainbow accent strip (blue → violet → pink → amber → emerald)
- *  - Header: ImagePlus ロゴ + "図エディタ" + 図形数バッジ / 中央: 挿入サイズ S・M・L /
- *    右: TikZ・Copy・PDF アイコン + teal→cyan グラデの「挿入プレビュー」ボタン + X
- *  - Caption bar: 図形が出現した後に薄い teal 帯で表示される
- *  - Left toolbar (256px の card): 検索 → 主要ツール行 (Select/Rect/Circle/Line/Arrow/Text/Pen)
- *    → アクションバー (Undo/Redo/Dup/Del/Grid/Snap) → 4 列カテゴリタブ (絵文字付)
- *    → 3 列パレットグリッド
- *  - Canvas: 白背景 + 細いグリッド (20px) + 太いグリッド (100px)
- *
- * 動画ファイルは使わず、CSS の transition と inline style だけで滑らかに描画する。
- * 実際にあるボタン以外の装飾は付けず、UI を信頼できる形で見せる。
+ *  - Header: ImagePlus teal→cyan ロゴ + 図形数 pill / 中央: 挿入サイズ 小/中/原寸/大/全幅 (原寸 active) /
+ *    右: JA · ⌘K · Layers · Keyboard · TikZ · コピー · PDF · 末尾 · 挿入プレビュー · ×
+ *  - Left toolbar (244px): 検索 → 主要ツール 1 行 + フリーハンド → アクションバー →
+ *    2×4 カテゴリ (基本図形/電気回路/力学/物理 / 数学/情報/化学/生物) → 3×3 パレット
+ *  - Canvas: 白 + 細グリッド + cm ruler + 青 x-axis + 右下に縦並びズームパネル +
+ *    左下に「x ? y ? cm」の座標チップ + 右下の「自由角度 / スナップ / グリッド」ピル
  */
 function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   const [tick, setTick] = useState(0);
-  const CYCLE = 16000; // 16 s
-
+  const CYCLE = 14000; // 14 s
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 100);
+    const id = setInterval(() => setTick((t) => t + 1), 80);
     return () => clearInterval(id);
   }, []);
-  const e = (tick * 100) % CYCLE; // ms in current cycle
+  const e = (tick * 80) % CYCLE;
 
   // ── Phase timeline (ms) ──
+  //  A) 0-1500 : intro + Rect ツール選択 (cursor が toolbar の rect へ)
+  //  B) 1500-5500 : 矩形を描画中 (破線プレビュー)
+  //  C) 5500-12500 : 矩形が選択された (ハンドル・properties panel・ヒントバー)
+  //  D) 12500-14000 : フェードアウト → ループ
   const T = {
-    intro:        0,
-    rectSelect:   1500,
-    rectDraw:     2200,
-    rectDone:     3800,
-    circleSelect: 4400,
-    circleDraw:   5100,
-    circleDone:   6700,
-    arrowSelect:  7200,
-    arrowDraw:    7900,
-    arrowDone:    9300,
-    textSelect:   9700,
-    textType:     10100,
-    textDone:     11800,
-    showcase:     12200,
-    fadeOut:      14800,
+    introEnd:     1500,
+    drawStart:    1500,
+    drawEnd:      5500,
+    selectStart:  5500,
+    selectEnd:    12500,
+    fadeOut:      12500,
   };
 
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
   const progress = (start: number, end: number) => clamp((e - start) / (end - start), 0, 1);
 
-  // どのツールが選ばれているか (アイコン強調用)
-  const activeTool: "select" | "rect" | "circle" | "arrow" | "text" =
-    e < T.rectSelect      ? "select"
-    : e < T.circleSelect  ? "rect"
-    : e < T.arrowSelect   ? "circle"
-    : e < T.textSelect    ? "arrow"
-    : e < T.showcase      ? "text"
-    : "select";
+  const isDrawing  = e >= T.drawStart   && e < T.drawEnd;
+  const isSelected = e >= T.selectStart && e < T.fadeOut;
+  const drawP      = progress(T.drawStart, T.drawEnd);
+  const activeTool: "select" | "rect" = isSelected ? "select" : "rect";
 
-  // 図形の出現プログレス (0..1)
-  const rectP   = progress(T.rectDraw, T.rectDone);
-  const circleP = progress(T.circleDraw, T.circleDone);
-  const arrowP  = progress(T.arrowDraw, T.arrowDone);
-  const textP   = progress(T.textType, T.textDone);
+  const opacity =
+    e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1200)
+    : e < 400      ? e / 400
+    : 1;
 
-  // テキスト「F」のタイピング演出
-  const labelText = "F";
-  const typedChars = e >= T.textType
-    ? Math.min(labelText.length, Math.floor((e - T.textType) / 200))
-    : 0;
-
-  // showcase phase でうっすら全体が脈打つ
-  const isShowcase = e >= T.showcase && e < T.fadeOut;
-
-  // ループ際のフェード
-  const opacity = e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1000)
-                : e < 400 ? e / 400 : 1;
-
-  // ── Primary tools (実機の figure-toolbar.tsx と同じ並び順・ラベル) ──
+  // ── Primary tools (実機と同じ並び、ラベル・ショートカット含む) ──
   const tools = [
-    { id: "select",  Icon: MousePointer2,   label: isJa ? "選択"     : "Select",   kbd: "V" },
-    { id: "rect",    Icon: Square,          label: isJa ? "四角形"   : "Rectangle", kbd: "R" },
-    { id: "circle",  Icon: CircleIcon,      label: isJa ? "円"       : "Circle",   kbd: "C" },
-    { id: "line",    Icon: MinusIcon,       label: isJa ? "直線"     : "Line",     kbd: "L" },
-    { id: "arrow",   Icon: ArrowRight,      label: isJa ? "矢印"     : "Arrow",    kbd: "A" },
-    { id: "text",    Icon: TypeIcon,        label: isJa ? "テキスト" : "Text",     kbd: "T" },
-    { id: "freehand",Icon: PenIcon,         label: isJa ? "フリーハンド" : "Freehand", kbd: "" },
+    { id: "select",  Icon: MousePointer2, label: isJa ? "選択"       : "Select",   kbd: "V" },
+    { id: "rect",    Icon: Square,        label: isJa ? "四角形"     : "Rectangle", kbd: "R" },
+    { id: "circle",  Icon: CircleIcon,    label: isJa ? "円"         : "Circle",   kbd: "C" },
+    { id: "line",    Icon: MinusIcon,     label: isJa ? "直線"       : "Line",     kbd: "L" },
+    { id: "arrow",   Icon: ArrowRight,    label: isJa ? "矢印"       : "Arrow",    kbd: "A" },
+    { id: "text",    Icon: TypeIcon,      label: isJa ? "テキスト"   : "Text",     kbd: "T" },
   ] as const;
 
-  // 4 列カテゴリタブ (実機の domain-palettes.ts CATEGORIES と同一)
+  // 2 行 4 列カテゴリ (実機 domain-palettes.ts と同じ)
   const categories = [
     { id: "basic",     ja: "基本図形", en: "Basic",     icon: "⬜" },
     { id: "circuit",   ja: "電気回路", en: "Circuit",   icon: "⚡" },
@@ -725,27 +701,56 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
     { id: "chemistry", ja: "化学",     en: "Chemistry", icon: "🧪" },
     { id: "biology",   ja: "生物",     en: "Biology",   icon: "🧬" },
   ] as const;
-  const activeCategory = "basic"; // 演出簡潔化のため Basic 固定
 
-  // 図形数 (実機の "N 個" バッジ用)
-  const shapeCount =
-    (rectP > 0 ? 1 : 0) + (circleP > 0 ? 1 : 0) + (arrowP > 0 ? 1 : 0) + (textP > 0 ? 1 : 0);
+  // 挿入サイズ preset (実機と同じ)
+  const sizes: Array<{ ja: string; en: string }> = [
+    { ja: "小", en: "S" },
+    { ja: "中", en: "M" },
+    { ja: "原寸", en: "1×" },
+    { ja: "大", en: "L" },
+    { ja: "全幅", en: "Full" },
+  ];
+  const activeSizeIdx = 2; // 原寸 active
 
-  // Canvas の中の絶対座標 (px)。Canvas を 480 x 280 想定。
-  const RECT   = { x: 90,  y: 80,  w: 90,  h: 70  };  // 質量ブロック
-  const CIRCLE = { cx: 270, cy: 100, r: 30 };          // 滑車
-  const ARROW  = { x1: 180, y1: 115, x2: 260, y2: 105 }; // 力ベクトル
-  const TEXT   = { x: 215, y: 100 }; // ラベル
+  // 3 列パレット (基本図形のアイテム 9 つ)
+  const paletteItems = [
+    { ja: "四角形",   en: "Rect",   Ic: () => <Square size={12} /> },
+    { ja: "円",       en: "Circle", Ic: () => <CircleIcon size={12} /> },
+    { ja: "楕円",     en: "Ellipse",Ic: () => <span className="text-[11px] leading-none">⬭</span> },
+    { ja: "直線",     en: "Line",   Ic: () => <MinusIcon size={12} /> },
+    { ja: "矢印",     en: "Arrow",  Ic: () => <ArrowRight size={12} /> },
+    { ja: "テキスト", en: "Text",   Ic: () => <TypeIcon size={12} /> },
+    { ja: "三角形",   en: "Tri",    Ic: () => <span className="text-[11px] leading-none">△</span> },
+    { ja: "弧",       en: "Arc",    Ic: () => <span className="text-[11px] leading-none">⌒</span> },
+    { ja: "フリーハンド", en: "Free", Ic: () => <PenIcon size={12} /> },
+  ] as const;
 
-  // 矢印の進捗描画 — 始点から end までの線分を progress で伸ばす
-  const arrowEndX = ARROW.x1 + (ARROW.x2 - ARROW.x1) * arrowP;
-  const arrowEndY = ARROW.y1 + (ARROW.y2 - ARROW.y1) * arrowP;
+  const shapeCount = isSelected ? 1 : 0;
+
+  // ── Canvas 座標系 (viewBox 480 x 300) ──
+  // 矩形は X=4→7cm, Y=4→5cm → viewBox で (x=140, y=120, w=140, h=40)
+  const RECT = { x: 140, y: 120, w: 140, h: 40 };
+  // 描画中の破線矩形は drawP に比例して伸びる
+  const drawW = RECT.w * drawP;
+  const drawH = RECT.h * drawP;
+
+  // 8 個の選択ハンドル位置 (矩形の四隅 + 辺中点)
+  const handles = [
+    [RECT.x,           RECT.y],
+    [RECT.x + RECT.w/2, RECT.y],
+    [RECT.x + RECT.w,  RECT.y],
+    [RECT.x,           RECT.y + RECT.h/2],
+    [RECT.x + RECT.w,  RECT.y + RECT.h/2],
+    [RECT.x,           RECT.y + RECT.h],
+    [RECT.x + RECT.w/2, RECT.y + RECT.h],
+    [RECT.x + RECT.w,  RECT.y + RECT.h],
+  ] as const;
 
   return (
-    <div className="relative w-full max-w-3xl mx-auto" style={{ opacity }}>
+    <div className="relative w-full max-w-4xl mx-auto" style={{ opacity }}>
       <div className="absolute -inset-4 bg-gradient-to-b from-teal-500/[0.06] to-cyan-500/[0.04] rounded-3xl blur-2xl pointer-events-none" />
 
-      {/* 実機の workspace 背景: 薄いグレー + 青/ピンクの radial アクセント */}
+      {/* 実機 workspace 背景: 薄グレー + 青/ピンク radial */}
       <div
         className="relative rounded-2xl border border-foreground/[0.08] shadow-2xl shadow-foreground/[0.08] overflow-hidden"
         style={{
@@ -755,18 +760,18 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
             "linear-gradient(180deg, #e5e7ec 0%, #dfe0e6 100%)",
         }}
       >
-        {/* 上端のレインボー accent strip — 実機と同じ */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 via-pink-500 via-amber-500 to-emerald-500 opacity-70 z-10" />
+        {/* 上端 rainbow accent */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 via-pink-500 via-amber-500 to-emerald-500 opacity-70 z-20" />
 
-        {/* ══════════ HEADER (h-12 相当) ══════════ */}
+        {/* ══════ HEADER ══════ */}
         <div
-          className="flex items-center gap-2 px-3 h-11 border-b border-black/[0.06] backdrop-blur"
+          className="flex items-center gap-2 px-3 h-11 border-b border-black/[0.06] relative z-10"
           style={{
             background:
               "linear-gradient(90deg, rgba(59,130,246,0.06) 0%, rgba(255,255,255,0.95) 30%, rgba(255,255,255,0.95) 70%, rgba(245,158,11,0.06) 100%)",
           }}
         >
-          {/* 左: ロゴ + タイトル + 図形数バッジ */}
+          {/* ロゴ + "図エディタ" + 図形数 pill */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="h-6 w-6 rounded-md bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-sm">
               <ImagePlus className="h-3.5 w-3.5 text-white" />
@@ -779,80 +784,88 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
             </span>
           </div>
 
-          {/* 中央: 挿入サイズ S / M / L (M を active として固定) — 実機と同じ役割 */}
-          <div className="flex-1 hidden md:flex items-center justify-center gap-1">
+          {/* 中央: 挿入サイズ 小/中/原寸/大/全幅 (原寸 active) */}
+          <div className="flex-1 hidden md:flex items-center justify-center gap-0.5">
             <span className="text-[9.5px] text-foreground/35 mr-1.5 font-medium">
               {isJa ? "挿入サイズ" : "Insert size"}:
             </span>
-            {(["S", "M", "L"] as const).map((s) => (
+            {sizes.map((s, i) => (
               <span
-                key={s}
+                key={i}
                 className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
-                  s === "M"
+                  i === activeSizeIdx
                     ? "bg-teal-500/15 text-teal-700 dark:text-teal-400 ring-1 ring-teal-500/30"
                     : "text-foreground/35"
                 }`}
               >
-                {s}
+                {isJa ? s.ja : s.en}
               </span>
             ))}
           </div>
 
-          {/* 右: TikZ / Copy / PDF / 挿入プレビュー / X (実機と同じ並び順) */}
+          {/* 右: JA / ⌘K / TikZ / コピー / PDF / 末尾 dropdown / 挿入プレビュー / × */}
           <div className="ml-auto flex items-center gap-1 shrink-0">
-            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45 hover:bg-foreground/[0.04]">
+            <span className="hidden xl:inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-foreground/[0.08] text-[9.5px] font-bold text-foreground/50">
+              <span>🌐</span> JA
+            </span>
+            <span className="hidden xl:inline-flex items-center gap-1 h-6 px-1.5 rounded-lg text-foreground/40">
+              <span className="text-[9px]">⌘</span>
+              <kbd className="text-[8.5px] font-mono bg-foreground/[0.06] px-1 py-px rounded">⌘K</kbd>
+            </span>
+            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45">
               <Code2 className="h-3 w-3" /> TikZ
             </span>
-            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45 hover:bg-foreground/[0.04]">
+            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45">
               <Copy className="h-3 w-3" /> {isJa ? "コピー" : "Copy"}
             </span>
-            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45 hover:bg-foreground/[0.04]">
+            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45">
               <FileDown className="h-3 w-3" /> PDF
             </span>
             <div className="hidden lg:block w-px h-4 bg-foreground/10 mx-0.5" />
-            {/* 末尾の primary CTA: 実機の teal→cyan グラデの「挿入プレビュー」ボタン */}
+            {/* 挿入位置 dropdown */}
+            <span className="hidden md:inline-flex items-center gap-1 h-6 px-2 rounded-lg border border-foreground/[0.08] bg-white/70 text-[9.5px] font-semibold text-foreground/60">
+              {isJa ? "末尾" : "End"} <ChevronDown className="h-2.5 w-2.5" />
+            </span>
+            {/* 挿入プレビュー ボタン (teal→cyan) — 選択状態で ring 強調 */}
             <span
-              className={`inline-flex items-center gap-1 h-7 px-3 rounded-full text-[10px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md shadow-teal-500/30 transition-transform ${
-                isShowcase ? "scale-[1.08] ring-2 ring-teal-300/60" : ""
+              className={`inline-flex items-center gap-1 h-7 px-3 rounded-full text-[10px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md shadow-teal-500/30 transition-all ${
+                isSelected ? "ring-2 ring-teal-300/70 scale-[1.03]" : ""
               }`}
             >
               <Eye className="h-3 w-3" />
               {isJa ? "挿入プレビュー" : "Preview insert"}
             </span>
-            <span className="ml-1 hidden sm:inline-flex h-6 w-6 items-center justify-center rounded-md text-foreground/35">
+            <span className="ml-0.5 hidden sm:inline-flex h-6 w-6 items-center justify-center rounded-md text-foreground/35">
               <X className="h-3.5 w-3.5" />
             </span>
           </div>
         </div>
 
-        {/* ══════════ CAPTION BAR (実機: 図形が出現したら表示) ══════════ */}
-        {shapeCount > 0 && (
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 border-b border-black/[0.05] bg-gradient-to-r from-teal-50/60 to-cyan-50/30 dark:from-teal-500/5 dark:to-cyan-500/5">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400 shrink-0">
+        {/* ══════ CAPTION BAR (選択時のみ) ══════ */}
+        {isSelected && (
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1 border-b border-black/[0.05] bg-gradient-to-r from-teal-50/60 to-cyan-50/30">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-teal-700 shrink-0">
               {isJa ? "キャプション" : "Caption"}
             </span>
-            <div className="flex-1 h-5 rounded border border-teal-500/20 bg-white/80 dark:bg-white/5 flex items-center px-2 text-[10px] text-foreground/55 italic truncate">
-              {isJa ? "ニュートンの第二法則 F = ma" : "Newton's second law F = ma"}
+            <div className="flex-1 h-5 rounded border border-teal-500/20 bg-white/80 flex items-center px-2 text-[10px] text-foreground/35 italic truncate">
+              {isJa ? "図の下に表示されます (空欄なら図のみ)" : "Shown below the figure (leave empty for no caption)"}
             </div>
-            <span className="hidden md:inline text-[8.5px] text-foreground/40 font-mono shrink-0">
-              fig:ref → <code className="text-teal-600 dark:text-teal-400">fig:abc123</code>
-            </span>
           </div>
         )}
 
-        {/* ══════════ MAIN AREA: toolbar card + canvas ══════════ */}
-        <div className="flex gap-2 p-2" style={{ minHeight: "300px" }}>
+        {/* ══════ MAIN: toolbar + canvas + properties ══════ */}
+        <div className="flex gap-2 p-2 relative" style={{ minHeight: "340px" }}>
 
-          {/* Left: Toolbar card (実機の 256px 幅相当・モバイルでは隠す) */}
+          {/* ───── LEFT TOOLBAR ───── */}
           <div
-            className="hidden sm:flex w-[244px] shrink-0 flex-col rounded-xl overflow-hidden"
+            className="hidden sm:flex w-[188px] lg:w-[220px] shrink-0 flex-col rounded-xl overflow-hidden"
             style={{
               background:
                 "linear-gradient(180deg, rgba(59,130,246,0.06) 0%, rgba(255,255,255,0.98) 14%, rgba(255,255,255,1) 100%)",
               border: "1px solid rgba(59, 130, 246, 0.18)",
             }}
           >
-            {/* Search input */}
+            {/* Search */}
             <div className="px-2 pt-2 pb-1.5">
               <div className="relative h-6 rounded-md border border-foreground/[0.08] bg-white/70 flex items-center px-2 gap-1.5">
                 <span className="text-foreground/40 text-[11px]">⌕</span>
@@ -862,22 +875,23 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               </div>
             </div>
 
-            {/* Primary tools (横一列・実機と同じ並び) */}
-            <div className="px-2 pb-1.5 flex items-center gap-0.5 flex-wrap">
-              {tools.map(({ id, Icon, label }, i) => {
+            {/* Primary tools: Select | Rect Circle Line Arrow Text */}
+            <div className="px-2 pb-1 flex items-center gap-0.5">
+              {tools.map(({ id, Icon, label, kbd }, i) => {
                 const isActive = id === activeTool;
                 return (
                   <React.Fragment key={id}>
                     {i === 1 && <div className="w-px h-4 bg-foreground/[0.08] mx-0.5" />}
                     <div
                       title={label}
-                      className={`relative h-7 w-7 rounded-md flex items-center justify-center transition-all duration-200 ${
+                      className={`relative flex flex-col items-center gap-0 h-9 w-[26px] rounded-md justify-center ${
                         isActive
-                          ? "bg-blue-500/15 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/40"
+                          ? "bg-blue-500/15 text-blue-700 ring-1 ring-blue-500/40"
                           : "text-foreground/55"
                       }`}
                     >
-                      <Icon size={13} />
+                      <Icon size={12} />
+                      <span className="text-[7px] font-mono text-foreground/30 mt-px leading-none">{kbd}</span>
                       {isActive && (
                         <span className="absolute inset-0 rounded-md ring-1 ring-blue-500/30 animate-ping pointer-events-none" />
                       )}
@@ -887,29 +901,37 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               })}
             </div>
 
-            {/* Action bar (Undo / Redo / Dup / Del / Grid / Snap) */}
-            <div className="mx-2 mb-1.5 h-6 flex items-center gap-0.5 px-1 rounded-md bg-foreground/[0.03] border border-foreground/[0.05]">
-              <span className="text-foreground/35 text-[10px] px-1">↶</span>
-              <span className="text-foreground/35 text-[10px] px-1">↷</span>
-              <div className="w-px h-3 bg-foreground/[0.1] mx-0.5" />
-              <span className="text-foreground/35 text-[10px] px-1">⧉</span>
-              <span className="text-foreground/35 text-[10px] px-1">🗑</span>
-              <div className="flex-1" />
-              <span className="text-foreground/35 text-[10px] px-1">▦</span>
-              <span className="text-foreground/35 text-[10px] px-1">🧲</span>
+            {/* 2 段目: freehand */}
+            <div className="px-2 pb-1.5">
+              <div className="h-7 w-7 rounded-md flex items-center justify-center text-foreground/55">
+                <PenIcon size={12} />
+              </div>
             </div>
 
-            {/* 4-col category tabs (実機と同じ並び・絵文字付) */}
+            {/* Action bar */}
+            <div className="mx-2 mb-1.5 h-7 flex items-center gap-0.5 px-1 rounded-md bg-foreground/[0.03] border border-foreground/[0.05]">
+              <span className="text-foreground/35 text-[11px] px-1">↶</span>
+              <span className="text-foreground/35 text-[11px] px-1">↷</span>
+              <span className="text-foreground/35 text-[11px] px-1">⧉</span>
+              <span className="text-foreground/35 text-[11px] px-1">🗑</span>
+              <div className="flex-1" />
+              <span className="text-foreground/35 text-[11px] px-1">↕</span>
+              <span className="text-foreground/35 text-[11px] px-1">↓</span>
+              <span className="text-foreground/55 text-[11px] px-1 bg-blue-500/10 rounded">▦</span>
+              <span className="text-foreground/35 text-[11px] px-1">🧲</span>
+            </div>
+
+            {/* 2 段 4 列 カテゴリ */}
             <div className="px-1.5 py-1.5 border-t border-foreground/[0.06]">
               <div className="grid grid-cols-4 gap-0.5">
-                {categories.map((c) => {
-                  const isActive = c.id === activeCategory;
+                {categories.map((c, i) => {
+                  const catActive = i === 0;
                   return (
                     <span
                       key={c.id}
-                      className={`flex flex-col items-center gap-0 py-1 rounded-md text-[8.5px] font-semibold ${
-                        isActive
-                          ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/30"
+                      className={`flex flex-col items-center py-1 rounded-md text-[8.5px] font-semibold ${
+                        catActive
+                          ? "bg-blue-500/10 text-blue-700 ring-1 ring-blue-500/30"
                           : "text-foreground/50"
                       }`}
                     >
@@ -923,28 +945,22 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               </div>
             </div>
 
-            {/* 3-col palette grid (Basic カテゴリの代表アイテム) */}
+            {/* 3 列 パレット (画像に合わせて 9 アイテム) */}
             <div className="flex-1 px-1.5 py-1.5 border-t border-black/[0.04]">
               <div className="grid grid-cols-3 gap-1">
-                {[
-                  { Icon: Square, label: isJa ? "四角形" : "Rect" },
-                  { Icon: CircleIcon, label: isJa ? "円" : "Circle" },
-                  { Icon: () => <span className="text-[10px]">⬭</span>, label: isJa ? "楕円" : "Ellipse" },
-                  { Icon: MinusIcon, label: isJa ? "直線" : "Line" },
-                  { Icon: ArrowRight, label: isJa ? "矢印" : "Arrow" },
-                  { Icon: TypeIcon, label: isJa ? "文字" : "Text" },
-                  { Icon: () => <span className="text-[10px]">▲</span>, label: isJa ? "三角" : "Tri" },
-                  { Icon: () => <span className="text-[10px]">⌒</span>, label: isJa ? "弧" : "Arc" },
-                  { Icon: PenIcon, label: isJa ? "ペン" : "Free" },
-                ].map((item, i) => {
-                  const Ic = item.Icon as React.ComponentType<{ size?: number }>;
+                {paletteItems.map((item, i) => {
+                  const isRectItem = i === 0 && !isSelected;
                   return (
                     <span
                       key={i}
-                      className="flex flex-col items-center justify-center gap-0.5 py-1 rounded text-foreground/45 border border-transparent"
+                      className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded text-foreground/55 ${
+                        isRectItem ? "bg-blue-500/10 ring-1 ring-blue-500/30 text-blue-700" : "border border-transparent"
+                      }`}
                     >
-                      <Ic size={12} />
-                      <span className="text-[8px] leading-none truncate max-w-full">{item.label}</span>
+                      <item.Ic />
+                      <span className="text-[8px] leading-none truncate max-w-full">
+                        {isJa ? item.ja : item.en}
+                      </span>
                     </span>
                   );
                 })}
@@ -952,20 +968,20 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
             </div>
           </div>
 
-          {/* Right: Canvas (white, with grid) */}
-          <div className="flex-1 relative bg-white dark:bg-zinc-950/40 rounded-xl overflow-hidden border border-black/[0.06]">
-            {/* 細いグリッド (20px) */}
+          {/* ───── CENTER: CANVAS ───── */}
+          <div className="flex-1 relative bg-white rounded-xl overflow-hidden border border-black/[0.06]">
+            {/* 細グリッド */}
             <div
-              className="absolute inset-0 opacity-[0.55] dark:opacity-[0.20]"
+              className="absolute inset-0 opacity-60"
               style={{
                 backgroundImage:
-                  "linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px)",
+                  "linear-gradient(to right, rgba(0,0,0,0.055) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.055) 1px, transparent 1px)",
                 backgroundSize: "20px 20px",
               }}
             />
-            {/* 太いグリッド (100px) */}
+            {/* 太グリッド */}
             <div
-              className="absolute inset-0 opacity-[0.45] dark:opacity-[0.18] pointer-events-none"
+              className="absolute inset-0 opacity-50 pointer-events-none"
               style={{
                 backgroundImage:
                   "linear-gradient(to right, rgba(0,0,0,0.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.10) 1px, transparent 1px)",
@@ -973,117 +989,295 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               }}
             />
 
-            {/* SVG: 図形描画レイヤー */}
             <svg
               className="absolute inset-0 w-full h-full"
-              viewBox="0 0 480 280"
+              viewBox="0 0 480 300"
               preserveAspectRatio="xMidYMid meet"
             >
-              {/* Rectangle (mass block) */}
-              {rectP > 0 && (
-                <rect
-                  x={RECT.x}
-                  y={RECT.y}
-                  width={RECT.w * rectP}
-                  height={RECT.h * rectP}
-                  fill="rgba(59, 130, 246, 0.10)"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  strokeDasharray={rectP < 1 ? "4 3" : "0"}
-                  rx="2"
-                />
-              )}
-              {rectP >= 1 && (
-                <text x={RECT.x + RECT.w / 2} y={RECT.y + RECT.h / 2 + 5}
-                  textAnchor="middle" fontSize="14" fontStyle="italic"
-                  fill="#1d4ed8" fontFamily="serif">m</text>
-              )}
+              {/* cm ruler (上端に数字) */}
+              {["cm", "2", "4", "6", "8", "10", "12", "14"].map((label, i) => (
+                <text key={i}
+                  x={20 + i * 60} y={18}
+                  textAnchor="middle" fontSize="9"
+                  fill={label === "cm" ? "#9ca3af" : "#6b7280"}
+                  fontFamily="system-ui">{label}</text>
+              ))}
+              {/* 「5cm」と「10cm」は強調 */}
+              <text x={170} y={36} textAnchor="middle" fontSize="9" fill="#374151" fontWeight="600">5cm</text>
+              <text x={290} y={36} textAnchor="middle" fontSize="9" fill="#374151" fontWeight="600">10cm</text>
+              <text x={410} y={36} textAnchor="middle" fontSize="9" fill="#374151" fontWeight="600">15cm</text>
 
-              {/* Circle (pulley) */}
-              {circleP > 0 && (
-                <circle
-                  cx={CIRCLE.cx} cy={CIRCLE.cy} r={CIRCLE.r * circleP}
-                  fill="rgba(236, 72, 153, 0.08)"
-                  stroke="#ec4899" strokeWidth={2}
-                  strokeDasharray={circleP < 1 ? "4 3" : "0"}
-                />
-              )}
-              {circleP >= 1 && (
-                <circle cx={CIRCLE.cx} cy={CIRCLE.cy} r="2" fill="#ec4899" />
-              )}
+              {/* 左側 Y ruler ラベル */}
+              <text x={12} y={95}  textAnchor="middle" fontSize="9" fill="#374151" fontWeight="600">5cm</text>
+              <text x={12} y={215} textAnchor="middle" fontSize="9" fill="#6b7280">0</text>
 
-              {/* Arrow (force) */}
-              {arrowP > 0 && (
-                <g>
-                  <defs>
-                    <marker id="fdmHeadActive" viewBox="0 0 10 10" refX="8" refY="5"
-                      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                      <path d="M0,0 L10,5 L0,10 z" fill="#16a34a" />
-                    </marker>
-                  </defs>
-                  <line
-                    x1={ARROW.x1} y1={ARROW.y1} x2={arrowEndX} y2={arrowEndY}
-                    stroke="#16a34a" strokeWidth={2.2}
-                    markerEnd={arrowP >= 1 ? "url(#fdmHeadActive)" : undefined}
+              {/* x-axis baseline (青) */}
+              <line x1="0" y1={215} x2="480" y2={215} stroke="#3b82f6" strokeWidth="1" opacity="0.8" />
+
+              {/* ── Phase A: drawing (破線矩形 + 座標コールアウト) ── */}
+              {isDrawing && drawP > 0.02 && (
+                <>
+                  <rect
+                    x={RECT.x} y={RECT.y}
+                    width={drawW} height={drawH}
+                    fill="rgba(20,184,166,0.08)"
+                    stroke="#14b8a6"
+                    strokeWidth={1.8}
+                    strokeDasharray="5 3"
                   />
-                </g>
+                  {/* 対角の終点に小さな teal ドット (ハンドル風) */}
+                  <circle cx={RECT.x + drawW} cy={RECT.y + drawH} r="4"
+                    fill="white" stroke="#14b8a6" strokeWidth="1.5" />
+                  {/* 座標コールアウト */}
+                  <text
+                    x={RECT.x + drawW / 2} y={RECT.y - 6}
+                    textAnchor="middle" fontSize="10" fontFamily="ui-monospace, monospace"
+                    fill="#0f766e">
+                    ({(3 + 3 * drawP).toFixed(2)}, {(5 - drawP).toFixed(2)}) {drawP.toFixed(2)} cm
+                  </text>
+                </>
               )}
 
-              {/* Text label "F" */}
-              {textP > 0 && typedChars > 0 && (
-                <text x={TEXT.x} y={TEXT.y - 6} textAnchor="middle"
-                  fontSize="15" fontStyle="italic" fontWeight="700"
-                  fill="#16a34a" fontFamily="serif" opacity={textP}>
-                  {labelText.slice(0, typedChars)}
-                </text>
+              {/* ── Phase B: selected (実線矩形) ── */}
+              {isSelected && (
+                <rect
+                  x={RECT.x} y={RECT.y}
+                  width={RECT.w} height={RECT.h}
+                  fill="white" stroke="#0f172a" strokeWidth="1.5"
+                />
               )}
+
+              {/* selection dashed outline */}
+              {isSelected && (
+                <rect
+                  x={RECT.x - 3} y={RECT.y - 3}
+                  width={RECT.w + 6} height={RECT.h + 6}
+                  fill="none" stroke="#3b82f6" strokeWidth="1"
+                  strokeDasharray="4 2" opacity="0.7"
+                />
+              )}
+
+              {/* 8 個の選択ハンドル */}
+              {isSelected && handles.map(([hx, hy], i) => (
+                <rect key={i}
+                  x={hx - 3.5} y={hy - 3.5} width="7" height="7"
+                  fill="#3b82f6" stroke="white" strokeWidth="1.2" rx="0.5" />
+              ))}
             </svg>
 
-            {/* 床のハッチング (mass block 完成後) */}
-            {rectP >= 1 && (
-              <svg className="absolute inset-0 w-full h-full pointer-events-none"
-                viewBox="0 0 480 280">
-                <line x1="60" y1="150" x2="220" y2="150"
-                  stroke="rgba(0,0,0,0.45)" strokeWidth="1.5" />
-                {[...Array(8)].map((_, i) => (
-                  <line key={i} x1={70 + i * 20} y1={150} x2={62 + i * 20} y2={160}
-                    stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
-                ))}
-              </svg>
+            {/* 描画中: 緑の「対角の点をクリック [Esc]」ピル (上中央) */}
+            {isDrawing && (
+              <div className="absolute left-1/2 -translate-x-1/2 top-2 px-2.5 py-1 rounded-full bg-teal-600/95 text-white text-[10px] font-semibold shadow-md shadow-teal-600/30 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                {isJa ? "対角の点をクリック" : "Click the opposite corner"}
+                <kbd className="ml-1 text-[8.5px] font-mono bg-white/20 px-1 py-px rounded">Esc</kbd>
+              </div>
             )}
 
-            {/* Animated cursor */}
+            {/* 選択時: バブルツールバー (矩形の上) */}
+            {isSelected && (
+              <div
+                className="absolute flex items-center gap-0 rounded-md bg-white shadow-lg border border-black/10 overflow-hidden"
+                style={{
+                  left: `${((RECT.x + RECT.w / 2) / 480) * 100}%`,
+                  top: `${((RECT.y - 30) / 300) * 100}%`,
+                  transform: "translateX(-50%)",
+                }}
+              >
+                {["🎨", "⧉", "↻", "🔓", "🗑"].map((g, i) => (
+                  <span key={i} className="h-6 w-6 flex items-center justify-center text-[11px] text-foreground/60 hover:bg-foreground/[0.04]">
+                    {g}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* アニメーション cursor */}
             <div
-              className="absolute pointer-events-none transition-all duration-700 ease-out"
+              className="absolute pointer-events-none transition-all duration-500 ease-out"
               style={{
-                left:
-                  activeTool === "rect"   ? "27%"
-                  : activeTool === "circle" ? "55%"
-                  : activeTool === "arrow"  ? "47%"
-                  : activeTool === "text"   ? "44%"
-                  : "20%",
-                top:
-                  activeTool === "rect"   ? "55%"
-                  : activeTool === "circle" ? "38%"
-                  : activeTool === "arrow"  ? "42%"
-                  : activeTool === "text"   ? "38%"
-                  : "30%",
+                left: isDrawing
+                  ? `${((RECT.x + drawW) / 480) * 100}%`
+                  : isSelected
+                    ? `${((RECT.x + RECT.w - 10) / 480) * 100}%`
+                    : "22%",
+                top: isDrawing
+                  ? `${((RECT.y + drawH) / 300) * 100}%`
+                  : isSelected
+                    ? `${((RECT.y + RECT.h / 2) / 300) * 100}%`
+                    : "40%",
               }}
             >
-              <svg width="20" height="22" viewBox="0 0 20 22">
+              <svg width="18" height="20" viewBox="0 0 20 22">
                 <path d="M2,2 L2,16 L6,12 L9,18 L11,17 L8,11 L14,11 z"
                   fill="white" stroke="#0f172a" strokeWidth="1.2" strokeLinejoin="round" />
               </svg>
             </div>
 
-            {/* Showcase 中: 「→ 挿入プレビュー」へ視線誘導する小さなヒント */}
-            {isShowcase && (
-              <div
-                className="absolute right-3 top-2 px-2 py-1 rounded-md bg-teal-500/95 text-white text-[10px] font-bold shadow-lg shadow-teal-500/40 flex items-center gap-1"
-                style={{ animation: "fadeInUp 600ms ease-out" }}
-              >
-                <Check className="h-3 w-3" />
-                {isJa ? "↑ プレビューで PDF に挿入" : "↑ Preview & insert into PDF"}
+            {/* 右下 zoom パネル (縦並び) */}
+            <div className="absolute right-2 bottom-20 flex flex-col gap-0.5 items-center px-1 py-1 rounded-md bg-white/85 border border-black/[0.06] shadow-sm">
+              <span className="text-[9px] text-foreground/55">🔍+</span>
+              <span className="text-[8.5px] font-mono text-foreground/70">100%</span>
+              <span className="text-[9px] text-foreground/55">🔍−</span>
+              <span className="text-[9px] text-foreground/55">⤢</span>
+            </div>
+
+            {/* 左下 座標チップ */}
+            <div className="absolute left-2 bottom-2 px-2 py-0.5 rounded-md bg-foreground/[0.75] text-white text-[9.5px] font-mono">
+              x {isDrawing ? (3 + 3 * drawP).toFixed(1) : "7.7"} y {isDrawing ? (5 - drawP).toFixed(1) : "5.3"} cm
+            </div>
+
+            {/* 右下 自由角度 / スナップ / グリッド */}
+            <div className="absolute right-2 bottom-2 hidden md:flex items-center gap-1">
+              <span className="px-1.5 py-0.5 rounded bg-white/85 border border-black/[0.06] text-[9px] text-foreground/60">
+                ∡ {isJa ? "自由角度" : "Free angle"}
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[9px] text-emerald-700 font-semibold">
+                ◈ {isJa ? "スナップ" : "Snap"}
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[9px] text-emerald-700 font-semibold">
+                ▦ {isJa ? "グリッド" : "Grid"}
+              </span>
+            </div>
+
+            {/* 下中央: モード/選択状態のピル */}
+            {isDrawing && (
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-9 px-2.5 py-1 rounded-full bg-blue-500/95 text-white text-[9.5px] font-semibold shadow-md flex items-center gap-1.5">
+                ▦ {isJa ? "領域描画モード" : "Drag-draw mode"}
+                <span className="w-px h-3 bg-white/40" />
+                <span className="font-normal opacity-90">
+                  {isJa ? "対角の 2 点をクリックで矩形の大きさを指定" : "Click two opposite corners"}
+                </span>
+              </div>
+            )}
+            {isSelected && (
+              <>
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-9 px-2.5 py-1 rounded-full bg-blue-500/95 text-white text-[9.5px] font-semibold shadow-md flex items-center gap-1.5">
+                  ◈ {isJa ? "1 個選択中" : "1 selected"}
+                </div>
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-[76px] px-2 py-0.5 rounded-md bg-foreground/[0.75] text-white text-[8.5px] font-mono whitespace-nowrap hidden sm:block">
+                  {isJa
+                    ? "1 個選択中 · 矢印キー 0.5mm · ⇧+矢印 5mm · ⌘D 複製 · Del 削除"
+                    : "1 selected · arrows 0.5mm · ⇧+arrows 5mm · ⌘D dup · Del delete"}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ───── RIGHT: PROPERTIES PANEL (選択時のみ) ───── */}
+          <div
+            className={`hidden lg:flex w-[208px] shrink-0 flex-col rounded-xl overflow-hidden transition-opacity duration-500 ${
+              isSelected ? "opacity-100" : "opacity-40"
+            }`}
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(245,158,11,0.06) 0%, rgba(255,255,255,0.98) 14%, rgba(255,255,255,1) 100%)",
+              border: "1px solid rgba(245, 158, 11, 0.18)",
+            }}
+          >
+            {/* Title: rect / RECT */}
+            <div className="px-2.5 pt-2 pb-1.5 flex items-center gap-1.5 border-b border-black/[0.05]">
+              <span className="h-5 w-5 rounded border border-foreground/20 bg-white inline-block" />
+              <div className="flex flex-col leading-tight">
+                <span className="text-[10.5px] font-bold text-foreground/80">rect</span>
+                <span className="text-[8.5px] font-mono text-foreground/40">RECT</span>
+              </div>
+            </div>
+
+            {isSelected ? (
+              <div className="flex flex-col gap-2 p-2 overflow-hidden">
+                {/* ラベル */}
+                <div>
+                  <div className="flex items-center gap-1 text-[9.5px] font-bold text-foreground/60 mb-1">
+                    🏷 {isJa ? "ラベル" : "Label"}
+                  </div>
+                  <div className="h-6 rounded border border-foreground/[0.08] bg-white flex items-center px-2 text-[10px] text-foreground/30">
+                    {isJa ? "テキストを入力..." : "Enter text..."}
+                  </div>
+                  <div className="mt-1 grid grid-cols-2 gap-1">
+                    <span className="h-6 rounded bg-blue-500/10 text-blue-700 text-[9px] font-bold flex items-center justify-center ring-1 ring-blue-500/30">
+                      Aa {isJa ? "テキスト" : "Text"}
+                    </span>
+                    <span className="h-6 rounded bg-white text-foreground/50 text-[9px] font-semibold flex items-center justify-center border border-foreground/[0.08]">
+                      𝑥 {isJa ? "数式" : "Math"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 配置 3x3 */}
+                <div>
+                  <div className="text-[9.5px] font-bold text-foreground/60 mb-1">{isJa ? "配置" : "Alignment"}</div>
+                  <div className="grid grid-cols-3 gap-0.5 w-[72px]">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <span key={i}
+                        className={`h-5 w-5 rounded border ${
+                          i === 4
+                            ? "bg-blue-500/80 border-blue-600"
+                            : "bg-white border-foreground/[0.10]"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* 位置・サイズ */}
+                <div>
+                  <div className="text-[9.5px] font-bold text-foreground/60 mb-1">📐 {isJa ? "位置・サイズ" : "Position · Size"}</div>
+                  <div className="grid grid-cols-2 gap-1 text-[9.5px] font-mono">
+                    {[
+                      ["X", "5"], ["Y", "5"], ["W", "3"], ["H", "1"],
+                    ].map(([k, v], i) => (
+                      <div key={i} className="flex items-center gap-1">
+                        <span className="text-foreground/45">{k}</span>
+                        <span className="flex-1 h-5 rounded border border-foreground/[0.08] bg-white text-foreground/75 flex items-center justify-center">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1 text-[9px]">
+                    <span className="text-foreground/45 font-mono">ROT</span>
+                    <span className="flex-1 h-1.5 rounded-full bg-foreground/[0.08] relative">
+                      <span className="absolute left-0 top-0 h-1.5 w-3 rounded-full bg-blue-500" />
+                      <span className="absolute left-3 -top-1 h-3 w-3 rounded-full bg-white ring-2 ring-blue-500" />
+                    </span>
+                    <span className="font-mono text-foreground/50 text-[8.5px]">0°</span>
+                  </div>
+                </div>
+
+                {/* 線の色 palette */}
+                <div>
+                  <div className="text-[9.5px] font-bold text-foreground/60 mb-1">🎨 {isJa ? "線の色" : "Stroke color"}</div>
+                  <div className="grid grid-cols-6 gap-0.5">
+                    {[
+                      "#000000", "#ffffff", "#737373", "#a3a3a3", "#dc2626", "#7f1d1d",
+                      "#fbcfe8", "#f97316", "#fb923c", "#b91c1c", "#fde047", "#fef08a",
+                      "#22c55e", "#166534", "#bbf7d0", "#0d9488", "#67e8f9", "#bfdbfe",
+                    ].map((c, i) => (
+                      <span key={i}
+                        className={`h-3.5 w-3.5 rounded-sm border ${
+                          i === 0 ? "ring-1 ring-blue-500 ring-offset-1" : "border-foreground/10"
+                        }`}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                  <div className="text-[8.5px] font-mono text-foreground/45 mt-0.5">black</div>
+                </div>
+              </div>
+            ) : (
+              // 未選択状態: 実機の空 state
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 px-3 text-center">
+                <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                  <span className="text-[14px]">⚙</span>
+                </div>
+                <div className="text-[10px] font-bold text-foreground/60">{isJa ? "プロパティ" : "Properties"}</div>
+                <p className="text-[9px] text-foreground/45 leading-relaxed px-1">
+                  {isJa
+                    ? "図形を選択すると、ここでラベル・色・サイズなどを編集できます"
+                    : "Select a shape to edit its label, color, and size here."}
+                </p>
+                <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-foreground/[0.08] bg-white/60 text-[8.5px] font-mono text-foreground/50">
+                  V {isJa ? "選択モード" : "Select mode"}
+                </div>
               </div>
             )}
           </div>
