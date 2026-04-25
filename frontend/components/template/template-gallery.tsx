@@ -6,6 +6,8 @@ import { useDocumentStore } from "@/store/document-store";
 import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
 import { loadFromLocalStorage } from "@/lib/storage";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { MobileLanding } from "./mobile-landing";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -2207,6 +2209,21 @@ export function TemplateGallery() {
     ? ["教材を、もっと速く。", "ワークシートを、今夜中に。", "問題集を、AIと一緒に。"]
     : ["Worksheets, faster.", "Answer keys, automatic.", "Variants, one click."],
     [isJa]);
+
+  // ── モバイル分岐 — PC 版 LP には一切手を入れず、こちらは別 LP コンポーネント
+  const isMobile = useIsMobile();
+  if (isMobile) {
+    return (
+      <MobileLanding
+        primaryCta={primaryCta}
+        scrollToPricing={scrollToPricing}
+        scrollToSample={scrollToSample}
+        EditorMockup={EditorMockup}
+        FigureDrawMockup={FigureDrawMockup}
+        onPlanSelect={handlePlanSelect}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
