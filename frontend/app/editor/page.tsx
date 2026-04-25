@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
-import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock, MoreVertical, Plus, ChevronLeft, Trash2, Crown } from "lucide-react";
+import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock, MoreVertical, Plus, ChevronLeft, Trash2, Crown, PanelLeft, SquarePen, AudioLines } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
@@ -297,54 +297,102 @@ export default function EditorPage() {
     };
     return (
       <div className="flex h-[100dvh] flex-col bg-background overflow-hidden">
-        {/* スリムヘッダー — safe-area-inset-top を尊重 */}
+        {/* ヘッダー — ChatGPT モバイル風:
+            AI 画面: [≡ メニュー] [Eddivom pill] ... [✏︎ 新規] [⋮]
+            プレビュー画面: [‹ 戻る] [タイトル] ... [⋮] */}
         <header
-          className="flex items-center gap-1 px-2 h-12 border-b shrink-0 transition-colors duration-300 border-border/20 bg-background/95 backdrop-blur-md"
+          className="flex items-center gap-1 px-2 h-12 shrink-0 transition-colors duration-300 bg-background"
           style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
-          <button
-            onClick={() => router.push("/")}
-            aria-label={locale === "en" ? "Back" : "戻る"}
-            className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/70 hover:bg-foreground/[0.06] active:scale-95 transition"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <div className="flex-1 min-w-0 flex items-center gap-1.5">
-            <span className="text-[14px] font-semibold text-foreground/85 truncate">
-              {doc.metadata.title || t("header.untitled")}
-            </span>
-            {isChatLoading && (
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse shrink-0" aria-hidden />
-            )}
-          </div>
-          <button
-            onClick={handleNewChat}
-            aria-label={locale === "en" ? "New chat" : "新規チャット"}
-            title={locale === "en" ? "New chat" : "新規チャット"}
-            className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/65 hover:bg-foreground/[0.06] active:scale-95 transition"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-          <button
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label={locale === "en" ? "Menu" : "メニュー"}
-            className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/65 hover:bg-foreground/[0.06] active:scale-95 transition"
-          >
-            <MoreVertical className="h-5 w-5" />
-          </button>
+          {mobileTab === "ai" ? (
+            <>
+              {/* ≡ メニュートグル — 添付シート/履歴 (現状はメニューを兼ねる) */}
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label={locale === "en" ? "Menu" : "メニュー"}
+                className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/85 hover:bg-foreground/[0.06] active:scale-95 transition"
+              >
+                <PanelLeft className="h-5 w-5" strokeWidth={1.8} />
+              </button>
+              {/* 中央 pill タイトル — ChatGPT のモデル名 pill 相当 */}
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-foreground/[0.05] hover:bg-foreground/[0.08] active:scale-[0.98] transition"
+                aria-label="Eddivom"
+              >
+                <span className="text-[15px] font-semibold text-foreground/85 tracking-tight">Eddivom</span>
+                {isChatLoading && <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" aria-hidden />}
+              </button>
+              <div className="flex-1" />
+              {/* ✏︎ 新規チャット */}
+              <button
+                onClick={handleNewChat}
+                aria-label={locale === "en" ? "New chat" : "新規チャット"}
+                title={locale === "en" ? "New chat" : "新規チャット"}
+                className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/85 hover:bg-foreground/[0.06] active:scale-95 transition"
+              >
+                <SquarePen className="h-5 w-5" strokeWidth={1.8} />
+              </button>
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label={locale === "en" ? "Menu" : "メニュー"}
+                className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/65 hover:bg-foreground/[0.06] active:scale-95 transition"
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
+            </>
+          ) : (
+            <>
+              {/* プレビューモード: ‹ で AI チャットへ */}
+              <button
+                onClick={() => setMobileTab("ai")}
+                aria-label={locale === "en" ? "Back to chat" : "チャットへ戻る"}
+                className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/85 hover:bg-foreground/[0.06] active:scale-95 transition"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                <FileText className="h-4 w-4 text-sky-500 shrink-0" />
+                <span className="text-[14.5px] font-semibold text-foreground/85 truncate">
+                  {doc.metadata.title || t("header.untitled")}
+                </span>
+              </div>
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label={locale === "en" ? "Menu" : "メニュー"}
+                className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/65 hover:bg-foreground/[0.06] active:scale-95 transition"
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
+            </>
+          )}
         </header>
 
         {/* メイン: AI チャット or PDF プレビュー */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden relative">
           {mobileTab === "ai" ? (
             <div className="h-full overflow-hidden flex flex-col"><AIChatPanel /></div>
           ) : (
-            // 編集 UI はモバイル非表示。クリーンな PDF プレビューだけを出す。
-            // プラン / クオータ判定は plan-store でデバイス共通なので、PC で Pro なら
-            // モバイルでも同じ機能が使える (Stripe 同期済み)。
             <div className="h-full overflow-hidden">
               <MobilePdfPreview onOpenChat={() => setMobileTab("ai")} />
             </div>
+          )}
+
+          {/* AI 画面のときだけ「プレビューを見る」FAB を右下に。
+              チャットを主役、プレビューはトグル。 */}
+          {mobileTab === "ai" && (
+            <button
+              type="button"
+              onClick={() => setMobileTab("preview")}
+              aria-label={locale === "en" ? "Open preview" : "プレビューを開く"}
+              className="absolute right-3 bottom-[5.5rem] z-20 inline-flex items-center gap-1.5 h-10 pl-3 pr-3.5 rounded-full bg-sky-500 text-white shadow-lg shadow-sky-500/30 active:scale-95 transition"
+              style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+            >
+              <Eye className="h-4 w-4" strokeWidth={2} />
+              <span className="text-[12.5px] font-semibold">
+                {locale === "en" ? "Preview" : "プレビュー"}
+              </span>
+            </button>
           )}
         </div>
 
@@ -468,36 +516,8 @@ export default function EditorPage() {
           </>
         )}
 
-        {/* 下部 タブバー — 大きめタップターゲット、safe-area 対応、active を強調 */}
-        <nav
-          className="grid grid-cols-2 border-t border-border/30 bg-background/95 backdrop-blur-md shrink-0"
-          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-          aria-label={locale === "en" ? "Mobile tabs" : "モバイルタブ"}
-        >
-          {(["ai", "preview"] as const).map((tab) => {
-            const isActive = mobileTab === tab;
-            const Icon = tab === "ai" ? Sparkles : FileText;
-            const accentText = tab === "ai" ? "text-violet-600 dark:text-violet-400" : "text-sky-600 dark:text-sky-400";
-            const accentDot = tab === "ai" ? "bg-violet-500" : "bg-sky-500";
-            return (
-              <button
-                key={tab}
-                onClick={() => setMobileTab(tab)}
-                aria-pressed={isActive}
-                className={`relative flex flex-col items-center justify-center gap-1 h-14 text-[10.5px] font-semibold tracking-tight transition-colors active:bg-foreground/[0.04] ${
-                  isActive ? accentText : "text-muted-foreground/55"
-                }`}
-              >
-                {/* active 上にはバー */}
-                {isActive && (
-                  <span className={`absolute top-0 left-1/4 right-1/4 h-[2.5px] rounded-b-full ${accentDot}`} />
-                )}
-                <Icon className="h-5 w-5" strokeWidth={isActive ? 2.4 : 1.8} />
-                <span>{tab === "ai" ? t("mobile.tab.ai") : t("mobile.tab.preview")}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {/* 下部タブバーは撤廃 — Composer の上に「プレビュー」FAB を出して切替する。
+            ChatGPT モバイル風にチャットを主役にし、画面下のスペースを composer に明け渡す。 */}
       </div>
     );
   }

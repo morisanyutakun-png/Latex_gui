@@ -584,37 +584,18 @@ export function AIChatPanel() {
         // モバイルで慣性スクロールを効かせる
         style={isMobile ? { WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } as React.CSSProperties : undefined}
       >
-        {chatMessages.length === 0 && (
-          <div className={`flex flex-col items-center justify-center h-full select-none ${
-            isMobile ? "gap-6 py-8 px-2" : "gap-5 py-6 px-1"
-          }`}>
+        {chatMessages.length === 0 && !isMobile && (
+          // PC の空状態 — 既存 UI を維持
+          <div className="flex flex-col items-center justify-center h-full select-none gap-5 py-6 px-1">
             <div className="relative flex items-center justify-center">
-              <div className={`rounded-2xl chat-empty-orb flex items-center justify-center ${
-                isMobile ? "h-16 w-16" : "h-12 w-12 rounded-xl"
-              }`}>
-                <Sparkles className={isMobile ? "h-8 w-8 text-white" : "h-6 w-6 text-white"} />
+              <div className="h-12 w-12 rounded-xl chat-empty-orb flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-white" />
               </div>
             </div>
-
-            <div className="text-center space-y-1.5">
-              <p className={`font-semibold text-foreground/85 tracking-tight ${
-                isMobile ? "text-[18px]" : "text-[13px] font-medium text-foreground/50"
-              }`}>
-                {isMobile
-                  ? (locale === "en" ? "What can I help with?" : "今日は何を作りますか？")
-                  : t("chat.empty.title")}
-              </p>
-              {isMobile && (
-                <p className="text-[12.5px] text-muted-foreground/65 leading-relaxed max-w-xs mx-auto">
-                  {locale === "en"
-                    ? "Describe your worksheet — I'll draft it, render the PDF, and post the preview here."
-                    : "教材の内容を伝えてください。下書き → PDF 生成 → プレビューをここに表示します。"}
-                </p>
-              )}
-            </div>
-
-            {/* モバイルは大きめのプロンプトカード (アイコン + 文 + 矢印)、PC は既存の細いリスト */}
-            <div className={`w-full ${isMobile ? "grid grid-cols-1 gap-2 max-w-md" : "flex flex-col gap-1.5"}`}>
+            <p className="text-[13px] font-medium text-foreground/50 text-center">
+              {t("chat.empty.title")}
+            </p>
+            <div className="flex flex-col gap-1.5 w-full">
               {([
                 { text: t("chat.suggestion.1"), icon: PenLine },
                 { text: t("chat.suggestion.2"), icon: Calculator },
@@ -622,21 +603,55 @@ export function AIChatPanel() {
                 <button
                   key={text}
                   onClick={() => { setInput(text); textareaRef.current?.focus(); }}
-                  className={`group flex items-center gap-3 text-left transition-all ${
-                    isMobile
-                      ? "px-4 py-3.5 rounded-2xl bg-foreground/[0.03] hover:bg-amber-50 dark:hover:bg-amber-500/10 border border-foreground/[0.05] hover:border-amber-200/60 dark:hover:border-amber-500/25 active:scale-[0.99]"
-                      : "px-3 py-2 rounded-lg text-[12px] text-foreground/55 hover:text-foreground/80 hover:bg-amber-50 dark:hover:bg-amber-500/10 border border-transparent hover:border-amber-200/50 dark:hover:border-amber-500/20"
-                  }`}
+                  className="flex items-center gap-2.5 text-left text-[12px] px-3 py-2 rounded-lg text-foreground/55 hover:text-foreground/80 hover:bg-amber-50 dark:hover:bg-amber-500/10 border border-transparent hover:border-amber-200/50 dark:hover:border-amber-500/20 transition-all"
                 >
-                  <span className={`rounded-xl bg-amber-400/15 dark:bg-amber-500/15 flex items-center justify-center shrink-0 ${
-                    isMobile ? "h-9 w-9" : ""
-                  }`}>
-                    <Icon className={`text-amber-500 shrink-0 ${isMobile ? "h-4 w-4" : "h-3.5 w-3.5"}`} />
-                  </span>
-                  <span className={`flex-1 ${isMobile ? "text-[14px] text-foreground/85 font-medium" : ""}`}>{text}</span>
-                  {isMobile && (
-                    <ChevronDown className="h-4 w-4 text-foreground/30 -rotate-90 shrink-0" />
-                  )}
+                  <Icon className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <span>{text}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {chatMessages.length === 0 && isMobile && (
+          // モバイルの空状態 — ChatGPT モバイル風: 中央は空、画面下のアクション 3 リストだけ
+          // (Composer と一緒に画面下半分にまとまる構成)
+          <div className="flex flex-col h-full select-none">
+            {/* 画面上半分は意図的に余白 */}
+            <div className="flex-1" />
+
+            {/* 下部のアクションリスト */}
+            <div className="flex flex-col gap-0 px-1 pb-2">
+              {([
+                {
+                  textKey: "mobile.action.create" as const,
+                  fallback: locale === "en" ? "Create a worksheet" : "教材を作る",
+                  icon: PenLine,
+                  prompt: t("chat.suggestion.1"),
+                },
+                {
+                  textKey: "mobile.action.edit" as const,
+                  fallback: locale === "en" ? "Edit or rewrite" : "記述または編集",
+                  icon: Calculator,
+                  prompt: t("chat.suggestion.2"),
+                },
+                {
+                  textKey: "mobile.action.research" as const,
+                  fallback: locale === "en" ? "Look something up" : "何かを調べる",
+                  icon: Bug,
+                  prompt: locale === "en"
+                    ? "Find practice problems on quadratic equations"
+                    : "二次方程式の練習問題を調べて",
+                },
+              ]).map(({ fallback, icon: Icon, prompt }) => (
+                <button
+                  key={fallback}
+                  type="button"
+                  onClick={() => { setInput(prompt); textareaRef.current?.focus(); }}
+                  className="flex items-center gap-4 px-3 py-3.5 rounded-2xl text-left active:bg-foreground/[0.04] transition"
+                >
+                  <Icon className="h-5 w-5 text-foreground/70 shrink-0" strokeWidth={1.6} />
+                  <span className="text-[15.5px] text-foreground/85 font-normal">{fallback}</span>
                 </button>
               ))}
             </div>
@@ -677,15 +692,16 @@ export function AIChatPanel() {
         </div>
       )}
 
-      <div className={`shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm ${
-        isMobile ? "px-2.5 pt-1" : "px-3 pt-1.5"
-      }`}>
-        <ModeSwitcher
-          mode={agentMode}
-          onChange={setAgentMode}
-          disabled={isChatLoading}
-        />
-      </div>
+      {/* PC: ModeSwitcher を Composer の上に出す。モバイル: Composer の `[+]` シートに格納する。 */}
+      {!isMobile && (
+        <div className="shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm px-3 pt-1.5">
+          <ModeSwitcher
+            mode={agentMode}
+            onChange={setAgentMode}
+            disabled={isChatLoading}
+          />
+        </div>
+      )}
 
       <InputArea
         input={input}
@@ -696,6 +712,7 @@ export function AIChatPanel() {
         isChatLoading={isChatLoading}
         agentMode={true}
         mode={agentMode}
+        onModeChange={setAgentMode}
         textareaRef={textareaRef}
         // 添付ボタンは読み取り (OMR) SplitView を開く動線に振り替えた。
         // チャットへ画像/PDF の内容を流し込むことはしない。
