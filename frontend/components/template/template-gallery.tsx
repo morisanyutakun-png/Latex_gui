@@ -654,15 +654,16 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   const e = (tick * 80) % CYCLE;
 
   // ── Phase timeline (ms) ──
-  //  A) 0 - 4000 : Rect ツールで矩形 (質量) を描画
-  //  B) 4000 - 8500 : Arrow ツールで力の矢印を描画
-  //  C) 8500 - 12500 : Text ツールで "F" を配置
-  //  D) 12500 - 20000 : 全部の図形が見える完成 showcase (rect が選択された状態)
+  //  A) 0 - 4000   : Rect ツールで質量ブロックを描画
+  //  B) 4000 - 8500 : Arrow ツールで力ベクトルを描画
+  //  C) 8500 - 12500 : Select に切替 → 矢印を選択し、右の Properties パネルで
+  //                   ラベル "F" を入力 (実機: ラベル入力は右サイドバーで行う)
+  //  D) 12500 - 20000 : 完成した図の showcase (質量が選択された状態)
   //  E) 20000 - 22000 : フェードアウト → ループ
   const T = {
-    rectDrawStart:  500,    rectDrawEnd:   4000,
-    arrowToolStart: 4400,   arrowDrawStart: 5000,  arrowDrawEnd:  8500,
-    textToolStart:  8900,   textPlaceAt:   9300,   textTypeStart: 9300,  textTypeEnd: 12500,
+    rectDrawStart:   500,    rectDrawEnd:    4000,
+    arrowToolStart: 4400,    arrowDrawStart: 5000,  arrowDrawEnd:  8500,
+    selectArrowAt:  8900,    labelTypeStart: 9500,  labelTypeEnd: 12500,
     showcaseStart:  12500,
     fadeOut:        20000,
   };
@@ -672,33 +673,35 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
 
   const rectP   = progress(T.rectDrawStart,  T.rectDrawEnd);
   const arrowP  = progress(T.arrowDrawStart, T.arrowDrawEnd);
-  const textP   = progress(T.textTypeStart,  T.textTypeEnd);
+  const labelP  = progress(T.labelTypeStart, T.labelTypeEnd);
 
-  const isDrawingRect  = e >= T.rectDrawStart  && e < T.rectDrawEnd;
-  const isDrawingArrow = e >= T.arrowDrawStart && e < T.arrowDrawEnd;
-  const isTypingText   = e >= T.textTypeStart  && e < T.textTypeEnd;
-  const isShowcase     = e >= T.showcaseStart  && e < T.fadeOut;
-  // 「描画モード」のヒントピルが出ている期間 (どれか描いてる最中)
-  // selection / properties は showcase 中のみ表示する (実機どおり、選択時は properties が出る)
-  const isSelected = isShowcase;
+  const isDrawingRect   = e >= T.rectDrawStart  && e < T.rectDrawEnd;
+  const isDrawingArrow  = e >= T.arrowDrawStart && e < T.arrowDrawEnd;
+  // 矢印を選択中 → Properties パネルが矢印の編集 UI を出す
+  const isArrowSelected = e >= T.selectArrowAt && e < T.showcaseStart;
+  // Properties パネルのラベル入力欄に "F" がタイプされていく期間
+  const isTypingLabel   = e >= T.labelTypeStart && e < T.labelTypeEnd;
+  const isShowcase      = e >= T.showcaseStart  && e < T.fadeOut;
+  // showcase 中は質量 (rect) が選択された状態に切り替わる
+  const isRectSelected  = isShowcase;
 
   // 完成済みの図形はサイクルの後段ではすべて表示を維持
   const rectDone   = e >= T.rectDrawEnd;
   const arrowDone  = e >= T.arrowDrawEnd;
-  const textDone   = e >= T.textTypeEnd;
+  const labelDone  = e >= T.labelTypeEnd;
 
   // 現在 active なツール (toolbar ハイライト + cursor 位置誘導用)
-  const activeTool: "select" | "rect" | "arrow" | "text" =
+  // 実機にない Text ツールフローは廃止 — Arrow 後は Select に直接戻る。
+  const activeTool: "select" | "rect" | "arrow" =
       e < T.arrowToolStart ? "rect"
-    : e < T.textToolStart  ? "arrow"
-    : e < T.showcaseStart  ? "text"
+    : e < T.arrowDrawEnd   ? "arrow"
     : "select";
 
-  // タイピング中のラベル文字列 ("F" → "F⃗" 風)
+  // ラベル: 右サイドバーで "F" を 1 文字ずつタイピング
   const labelFull = "F";
-  const labelTypedLen = isTypingText
-    ? Math.min(labelFull.length, Math.floor(textP * (labelFull.length + 0.5)))
-    : (textDone ? labelFull.length : 0);
+  const labelTypedLen = isTypingLabel
+    ? Math.min(labelFull.length, Math.floor(labelP * (labelFull.length + 0.5)))
+    : (labelDone ? labelFull.length : 0);
 
   const opacity =
     e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1800)
@@ -750,10 +753,10 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
     { ja: "フリーハンド", en: "Free", Ic: () => <PenIcon size={12} /> },
   ] as const;
 
+  // 図形数: 質量(rect) + 力ベクトル(arrow) の 2 つだけ。ラベルは矢印の付属プロパティ。
   const shapeCount =
       (rectP > 0  ? 1 : 0)
-    + (arrowDone || isDrawingArrow ? 1 : 0)
-    + (labelTypedLen > 0 ? 1 : 0);
+    + (arrowDone || isDrawingArrow ? 1 : 0);
 
   // ── Canvas 座標系 (viewBox 480 x 300) ──
   // 質量ブロック: X=4→7cm, Y=4→5cm
@@ -868,7 +871,7 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
             {/* 挿入プレビュー ボタン (teal→cyan) — 選択状態で ring 強調 */}
             <span
               className={`inline-flex items-center gap-1 h-7 px-3 rounded-full text-[10px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md shadow-teal-500/30 transition-all ${
-                isSelected ? "ring-2 ring-teal-300/70 scale-[1.03]" : ""
+                isShowcase ? "ring-2 ring-teal-300/70 scale-[1.03]" : ""
               }`}
             >
               <Eye className="h-3 w-3" />
@@ -880,8 +883,8 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
           </div>
         </div>
 
-        {/* ══════ CAPTION BAR (選択時のみ) ══════ */}
-        {isSelected && (
+        {/* ══════ CAPTION BAR (図形が 1 個以上あれば表示・実機どおり) ══════ */}
+        {(isArrowSelected || isRectSelected) && (
           <div className="hidden sm:flex items-center gap-2 px-3 py-1 border-b border-black/[0.05] bg-gradient-to-r from-teal-50/60 to-cyan-50/30">
             <span className="text-[9px] font-bold uppercase tracking-wider text-teal-700 shrink-0">
               {isJa ? "キャプション" : "Caption"}
@@ -991,7 +994,6 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
                   const itemId =
                       i === 0 ? "rect"
                     : i === 4 ? "arrow"
-                    : i === 5 ? "text"
                     : null;
                   const itemActive = itemId !== null && itemId === activeTool;
                   return (
@@ -1147,35 +1149,44 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
                   fill="white" stroke={arrowDone ? "#0f172a" : "#14b8a6"} strokeWidth="1.4" />
               )}
 
-              {/* ── Text ラベル "F" (タイピング) ── */}
+              {/* ── 矢印のラベル "F" (右パネルで入力された値が反映される) ── */}
               {labelTypedLen > 0 && (
                 <text
                   x={TEXT.x} y={TEXT.y}
                   textAnchor="middle" fontSize="16"
                   fontStyle="italic" fontWeight="700"
                   fill="#0f172a" fontFamily="serif"
-                  opacity={isTypingText ? Math.max(0.6, textP) : 1}
+                  opacity={isTypingLabel ? Math.max(0.6, labelP) : 1}
                 >
                   {labelFull.slice(0, labelTypedLen)}
-                  {/* ベクトル矢印 (̅F⃗ 風の上付き矢印) — 文字確定後にうっすら付く */}
-                  {textDone && (
-                    <tspan dx="-9" dy="-12" fontSize="12" fontStyle="normal" fontWeight="600">→</tspan>
-                  )}
                 </text>
               )}
 
-              {/* ── Text 配置中のキャレット (矩形点滅) ── */}
-              {e >= T.textPlaceAt && isTypingText && labelTypedLen < labelFull.length && (
-                <line
-                  x1={TEXT.x + 8} y1={TEXT.y - 14}
-                  x2={TEXT.x + 8} y2={TEXT.y + 2}
-                  stroke="#3b82f6" strokeWidth="1.4"
-                  opacity={Math.floor(e / 250) % 2 === 0 ? 1 : 0.2}
-                />
+              {/* ── Arrow 選択時の selection outline (矢印を囲む細い破線) ── */}
+              {isArrowSelected && arrowDone && (
+                <>
+                  {(() => {
+                    const minX = Math.min(ARROW.x1, ARROW.x2) - 6;
+                    const minY = Math.min(ARROW.y1, ARROW.y2) - 6;
+                    const w = Math.abs(ARROW.x2 - ARROW.x1) + 12;
+                    const h = Math.abs(ARROW.y2 - ARROW.y1) + 12;
+                    return (
+                      <rect x={minX} y={minY} width={w} height={h}
+                        fill="none" stroke="#3b82f6" strokeWidth="1"
+                        strokeDasharray="4 2" opacity="0.7" />
+                    );
+                  })()}
+                  {/* Arrow の両端ハンドル */}
+                  {[[ARROW.x1, ARROW.y1], [ARROW.x2, ARROW.y2]].map(([hx, hy], i) => (
+                    <rect key={i}
+                      x={hx - 3.5} y={hy - 3.5} width="7" height="7"
+                      fill="#3b82f6" stroke="white" strokeWidth="1.2" rx="0.5" />
+                  ))}
+                </>
               )}
 
-              {/* ── Selection dashed outline + 8 ハンドル (showcase 中、rect が選択された状態) ── */}
-              {isSelected && (
+              {/* ── showcase 中: 質量 (rect) が選択された状態 ── */}
+              {isRectSelected && (
                 <rect
                   x={RECT.x - 3} y={RECT.y - 3}
                   width={RECT.w + 6} height={RECT.h + 6}
@@ -1183,67 +1194,77 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
                   strokeDasharray="4 2" opacity="0.7"
                 />
               )}
-              {isSelected && handles.map(([hx, hy], i) => (
+              {isRectSelected && handles.map(([hx, hy], i) => (
                 <rect key={i}
                   x={hx - 3.5} y={hy - 3.5} width="7" height="7"
                   fill="#3b82f6" stroke="white" strokeWidth="1.2" rx="0.5" />
               ))}
             </svg>
 
-            {/* 描画中ヒントピル (上中央) — フェーズ毎に文言を切替 */}
-            {(isDrawingRect || isDrawingArrow || (isTypingText && labelTypedLen < labelFull.length)) && (
+            {/* 描画中ヒントピル (上中央) — Rect / Arrow 描画中にだけ出す */}
+            {(isDrawingRect || isDrawingArrow) && (
               <div className="absolute left-1/2 -translate-x-1/2 top-2 px-2.5 py-1 rounded-full bg-teal-600/95 text-white text-[10px] font-semibold shadow-md shadow-teal-600/30 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                 {isDrawingRect && (isJa ? "対角の点をクリック" : "Click the opposite corner")}
                 {isDrawingArrow && (isJa ? "終点をクリック" : "Click the arrow end")}
-                {isTypingText && labelTypedLen < labelFull.length && (isJa ? "テキストを入力 (Enter で確定)" : "Type the label (Enter to commit)")}
                 <kbd className="ml-1 text-[8.5px] font-mono bg-white/20 px-1 py-px rounded">Esc</kbd>
               </div>
             )}
 
-            {/* 選択時: バブルツールバー (矩形の上) */}
-            {isSelected && (
+            {/* 選択時: バブルツールバー (選択中の図形の上に表示) */}
+            {(isArrowSelected || isRectSelected) && (() => {
+              const cx = isArrowSelected
+                ? (ARROW.x1 + ARROW.x2) / 2
+                : (RECT.x + RECT.w / 2);
+              const ty = isArrowSelected
+                ? Math.min(ARROW.y1, ARROW.y2) - 30
+                : RECT.y - 30;
+              return (
+                <div
+                  className="absolute flex items-center gap-0 rounded-md bg-white shadow-lg border border-black/10 overflow-hidden"
+                  style={{
+                    left: `${(cx / 480) * 100}%`,
+                    top:  `${(ty / 300) * 100}%`,
+                    transform: "translateX(-50%)",
+                  }}
+                >
+                  {["🎨", "⧉", "↻", "🔓", "🗑"].map((g, i) => (
+                    <span key={i} className="h-6 w-6 flex items-center justify-center text-[11px] text-foreground/60">
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* アニメーション cursor — フェーズに応じて適切な位置に。
+                ラベル入力中は cursor は canvas 外 (右の Properties パネルへ) なので非表示。 */}
+            {!isTypingLabel && (
               <div
-                className="absolute flex items-center gap-0 rounded-md bg-white shadow-lg border border-black/10 overflow-hidden"
+                className="absolute pointer-events-none transition-all duration-500 ease-out"
                 style={{
-                  left: `${((RECT.x + RECT.w / 2) / 480) * 100}%`,
-                  top: `${((RECT.y - 30) / 300) * 100}%`,
-                  transform: "translateX(-50%)",
+                  left: `${(
+                    isDrawingRect    ? (RECT.x + drawW) / 480 :
+                    isDrawingArrow   ? arrowEndX / 480 :
+                    isArrowSelected  ? (ARROW.x1 + ARROW.x2) / 2 / 480 :
+                    isRectSelected   ? (RECT.x + RECT.w - 10) / 480 :
+                    /* idle */         0.22
+                  ) * 100}%`,
+                  top: `${(
+                    isDrawingRect    ? (RECT.y + drawH) / 300 :
+                    isDrawingArrow   ? arrowEndY / 300 :
+                    isArrowSelected  ? (ARROW.y1 + ARROW.y2) / 2 / 300 :
+                    isRectSelected   ? (RECT.y + RECT.h / 2) / 300 :
+                    /* idle */         0.40
+                  ) * 100}%`,
                 }}
               >
-                {["🎨", "⧉", "↻", "🔓", "🗑"].map((g, i) => (
-                  <span key={i} className="h-6 w-6 flex items-center justify-center text-[11px] text-foreground/60 hover:bg-foreground/[0.04]">
-                    {g}
-                  </span>
-                ))}
+                <svg width="18" height="20" viewBox="0 0 20 22">
+                  <path d="M2,2 L2,16 L6,12 L9,18 L11,17 L8,11 L14,11 z"
+                    fill="white" stroke="#0f172a" strokeWidth="1.2" strokeLinejoin="round" />
+                </svg>
               </div>
             )}
-
-            {/* アニメーション cursor — フェーズに応じて適切な位置に */}
-            <div
-              className="absolute pointer-events-none transition-all duration-500 ease-out"
-              style={{
-                left: `${(
-                  isDrawingRect  ? (RECT.x + drawW) / 480 :
-                  isDrawingArrow ? arrowEndX / 480 :
-                  isTypingText   ? (TEXT.x + 8) / 480 :
-                  isSelected     ? (RECT.x + RECT.w - 10) / 480 :
-                  /* idle */       0.22
-                ) * 100}%`,
-                top: `${(
-                  isDrawingRect  ? (RECT.y + drawH) / 300 :
-                  isDrawingArrow ? arrowEndY / 300 :
-                  isTypingText   ? (TEXT.y - 4) / 300 :
-                  isSelected     ? (RECT.y + RECT.h / 2) / 300 :
-                  /* idle */       0.40
-                ) * 100}%`,
-              }}
-            >
-              <svg width="18" height="20" viewBox="0 0 20 22">
-                <path d="M2,2 L2,16 L6,12 L9,18 L11,17 L8,11 L14,11 z"
-                  fill="white" stroke="#0f172a" strokeWidth="1.2" strokeLinejoin="round" />
-              </svg>
-            </div>
 
             {/* 右下 zoom パネル (縦並び) */}
             <div className="absolute right-2 bottom-20 flex flex-col gap-0.5 items-center px-1 py-1 rounded-md bg-white/85 border border-black/[0.06] shadow-sm">
@@ -1256,15 +1277,15 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
             {/* 左下 座標チップ — マウス位置に同期 */}
             <div className="absolute left-2 bottom-2 px-2 py-0.5 rounded-md bg-foreground/[0.75] text-white text-[9.5px] font-mono">
               x {(
-                  isDrawingRect  ? 4 + 3 * rectP
-                : isDrawingArrow ? 7 + 3 * arrowP
-                : isTypingText   ? 8.6
+                  isDrawingRect    ? 4 + 3 * rectP
+                : isDrawingArrow   ? 7 + 3 * arrowP
+                : isArrowSelected  ? 8.6
                 : 7.7
               ).toFixed(1)}{" "}
               y {(
-                  isDrawingRect  ? 5 - rectP
-                : isDrawingArrow ? 4 + 1.2 * arrowP
-                : isTypingText   ? 4.8
+                  isDrawingRect    ? 5 - rectP
+                : isDrawingArrow   ? 4 + 1.2 * arrowP
+                : isArrowSelected  ? 4.4
                 : 5.3
               ).toFixed(1)} cm
             </div>
@@ -1301,16 +1322,7 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
                 </span>
               </div>
             )}
-            {isTypingText && (
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-9 px-2.5 py-1 rounded-full bg-blue-500/95 text-white text-[9.5px] font-semibold shadow-md flex items-center gap-1.5">
-                T {isJa ? "テキストモード" : "Text mode"}
-                <span className="w-px h-3 bg-white/40" />
-                <span className="font-normal opacity-90">
-                  {isJa ? "クリックでラベルを配置" : "Click to drop a text label"}
-                </span>
-              </div>
-            )}
-            {isSelected && (
+            {(isArrowSelected || isRectSelected) && (
               <>
                 <div className="absolute left-1/2 -translate-x-1/2 bottom-9 px-2.5 py-1 rounded-full bg-blue-500/95 text-white text-[9.5px] font-semibold shadow-md flex items-center gap-1.5">
                   ◈ {isJa ? "1 個選択中" : "1 selected"}
@@ -1325,9 +1337,17 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
           </div>
 
           {/* ───── RIGHT: PROPERTIES PANEL (選択時のみ) ───── */}
+          {(() => {
+            const propsActive = isArrowSelected || isRectSelected;
+            const titleLow  = isArrowSelected ? "arrow" : "rect";
+            const titleHigh = isArrowSelected ? "ARROW" : "RECT";
+            const pos = isArrowSelected
+              ? [["X1", "7"], ["Y1", "4"], ["X2", "10"], ["Y2", "5"]] as const
+              : [["X", "5"], ["Y", "5"], ["W", "3"], ["H", "1"]] as const;
+            return (
           <div
             className={`hidden lg:flex w-[208px] shrink-0 flex-col rounded-xl overflow-hidden transition-opacity duration-500 ${
-              isSelected ? "opacity-100" : "opacity-40"
+              propsActive ? "opacity-100" : "opacity-40"
             }`}
             style={{
               background:
@@ -1335,24 +1355,39 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               border: "1px solid rgba(245, 158, 11, 0.18)",
             }}
           >
-            {/* Title: rect / RECT */}
+            {/* Title: 選択中の図形種別を表示 */}
             <div className="px-2.5 pt-2 pb-1.5 flex items-center gap-1.5 border-b border-black/[0.05]">
               <span className="h-5 w-5 rounded border border-foreground/20 bg-white inline-block" />
               <div className="flex flex-col leading-tight">
-                <span className="text-[10.5px] font-bold text-foreground/80">rect</span>
-                <span className="text-[8.5px] font-mono text-foreground/40">RECT</span>
+                <span className="text-[10.5px] font-bold text-foreground/80">{titleLow}</span>
+                <span className="text-[8.5px] font-mono text-foreground/40">{titleHigh}</span>
               </div>
             </div>
 
-            {isSelected ? (
+            {propsActive ? (
               <div className="flex flex-col gap-2 p-2 overflow-hidden">
-                {/* ラベル */}
+                {/* ラベル — 矢印選択中はここに "F" がタイピングされる */}
                 <div>
                   <div className="flex items-center gap-1 text-[9.5px] font-bold text-foreground/60 mb-1">
                     🏷 {isJa ? "ラベル" : "Label"}
                   </div>
-                  <div className="h-6 rounded border border-foreground/[0.08] bg-white flex items-center px-2 text-[10px] text-foreground/30">
-                    {isJa ? "テキストを入力..." : "Enter text..."}
+                  <div className={`h-6 rounded border flex items-center px-2 text-[10px] ${
+                    isArrowSelected
+                      ? "border-blue-500/40 bg-white ring-1 ring-blue-500/30"
+                      : "border-foreground/[0.08] bg-white text-foreground/30"
+                  }`}>
+                    {isArrowSelected && labelTypedLen > 0 ? (
+                      <span className="text-foreground/85 font-mono italic">
+                        {labelFull.slice(0, labelTypedLen)}
+                        {isTypingLabel && labelTypedLen < labelFull.length && (
+                          <span className="ml-px text-blue-500" style={{ opacity: Math.floor(e / 250) % 2 === 0 ? 1 : 0.2 }}>|</span>
+                        )}
+                      </span>
+                    ) : isArrowSelected && isTypingLabel ? (
+                      <span className="text-blue-500" style={{ opacity: Math.floor(e / 250) % 2 === 0 ? 1 : 0.2 }}>|</span>
+                    ) : (
+                      <span className="text-foreground/30">{isJa ? "テキストを入力..." : "Enter text..."}</span>
+                    )}
                   </div>
                   <div className="mt-1 grid grid-cols-2 gap-1">
                     <span className="h-6 rounded bg-blue-500/10 text-blue-700 text-[9px] font-bold flex items-center justify-center ring-1 ring-blue-500/30">
@@ -1364,43 +1399,45 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
                   </div>
                 </div>
 
-                {/* 配置 3x3 */}
-                <div>
-                  <div className="text-[9.5px] font-bold text-foreground/60 mb-1">{isJa ? "配置" : "Alignment"}</div>
-                  <div className="grid grid-cols-3 gap-0.5 w-[72px]">
-                    {Array.from({ length: 9 }).map((_, i) => (
-                      <span key={i}
-                        className={`h-5 w-5 rounded border ${
-                          i === 4
-                            ? "bg-blue-500/80 border-blue-600"
-                            : "bg-white border-foreground/[0.10]"
-                        }`}
-                      />
-                    ))}
+                {/* 配置 3x3 (rect 選択時のみ — arrow には alignment 概念はない) */}
+                {isRectSelected && (
+                  <div>
+                    <div className="text-[9.5px] font-bold text-foreground/60 mb-1">{isJa ? "配置" : "Alignment"}</div>
+                    <div className="grid grid-cols-3 gap-0.5 w-[72px]">
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <span key={i}
+                          className={`h-5 w-5 rounded border ${
+                            i === 4
+                              ? "bg-blue-500/80 border-blue-600"
+                              : "bg-white border-foreground/[0.10]"
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* 位置・サイズ */}
                 <div>
                   <div className="text-[9.5px] font-bold text-foreground/60 mb-1">📐 {isJa ? "位置・サイズ" : "Position · Size"}</div>
                   <div className="grid grid-cols-2 gap-1 text-[9.5px] font-mono">
-                    {[
-                      ["X", "5"], ["Y", "5"], ["W", "3"], ["H", "1"],
-                    ].map(([k, v], i) => (
+                    {pos.map(([k, v], i) => (
                       <div key={i} className="flex items-center gap-1">
                         <span className="text-foreground/45">{k}</span>
                         <span className="flex-1 h-5 rounded border border-foreground/[0.08] bg-white text-foreground/75 flex items-center justify-center">{v}</span>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-1.5 flex items-center gap-1 text-[9px]">
-                    <span className="text-foreground/45 font-mono">ROT</span>
-                    <span className="flex-1 h-1.5 rounded-full bg-foreground/[0.08] relative">
-                      <span className="absolute left-0 top-0 h-1.5 w-3 rounded-full bg-blue-500" />
-                      <span className="absolute left-3 -top-1 h-3 w-3 rounded-full bg-white ring-2 ring-blue-500" />
-                    </span>
-                    <span className="font-mono text-foreground/50 text-[8.5px]">0°</span>
-                  </div>
+                  {isRectSelected && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[9px]">
+                      <span className="text-foreground/45 font-mono">ROT</span>
+                      <span className="flex-1 h-1.5 rounded-full bg-foreground/[0.08] relative">
+                        <span className="absolute left-0 top-0 h-1.5 w-3 rounded-full bg-blue-500" />
+                        <span className="absolute left-3 -top-1 h-3 w-3 rounded-full bg-white ring-2 ring-blue-500" />
+                      </span>
+                      <span className="font-mono text-foreground/50 text-[8.5px]">0°</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 線の色 palette */}
@@ -1441,6 +1478,8 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               </div>
             )}
           </div>
+            );
+          })()}
         </div>
       </div>
     </div>
