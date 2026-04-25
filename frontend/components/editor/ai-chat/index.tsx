@@ -21,9 +21,9 @@ import { UsageBar } from "./usage-bar";
 import { InputArea } from "./input-area";
 import { ModeSwitcher } from "./mode-switcher";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Eye } from "lucide-react";
 
-export function AIChatPanel() {
+export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = {}) {
   const { t, locale } = useI18n();
   const document = useDocumentStore((s) => s.document);
   const applyAiLatex = useDocumentStore((s) => s.applyAiLatex);
@@ -524,7 +524,10 @@ export function AIChatPanel() {
   const showUsageOnMobile = dailyPct >= 60;
 
   return (
-    <div className="flex flex-col h-full chat-aurora-panel">
+    <div
+      className="flex flex-col h-full chat-aurora-panel"
+      data-mobile={isMobile ? "1" : undefined}
+    >
       {/* PC: 既存の internal ヘッダーを維持。モバイル: 上位ページのヘッダーで賄うので
           ここでは非表示にして縦スペースを稼ぐ (ChatGPT モバイル風)。 */}
       {!isMobile && (
@@ -578,8 +581,8 @@ export function AIChatPanel() {
 
       <div
         ref={scrollContainerRef}
-        className={`flex-1 overflow-y-auto min-h-0 scrollbar-thin space-y-4 ${
-          isMobile ? "px-3 py-3" : "px-3.5 py-4"
+        className={`flex-1 overflow-y-auto min-h-0 scrollbar-thin ${
+          isMobile ? "px-4 py-3 space-y-5" : "px-3.5 py-4 space-y-4"
         }`}
         // モバイルで慣性スクロールを効かせる
         style={isMobile ? { WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } as React.CSSProperties : undefined}
@@ -688,6 +691,25 @@ export function AIChatPanel() {
             className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 h-9 w-9 rounded-full bg-foreground/85 text-background shadow-lg shadow-black/20 flex items-center justify-center active:scale-95 transition"
           >
             <ChevronDown className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* モバイル: Composer の直上に「プレビュー」を出す。
+          画面右下に absolute すると Safari の URL バーやホームバーと干渉するので、
+          flex column の一員として配置することで常に Composer の上に来る。 */}
+      {isMobile && onOpenPreview && (
+        <div className="px-3 pt-1 pb-1 shrink-0 flex justify-end">
+          <button
+            type="button"
+            onClick={onOpenPreview}
+            aria-label={locale === "en" ? "Open preview" : "プレビューを開く"}
+            className="inline-flex items-center gap-1.5 h-8 pl-3 pr-3.5 rounded-full bg-foreground/[0.06] hover:bg-foreground/[0.10] text-foreground/80 active:scale-95 transition"
+          >
+            <Eye className="h-3.5 w-3.5" strokeWidth={1.8} />
+            <span className="text-[12px] font-semibold">
+              {locale === "en" ? "Preview" : "プレビュー"}
+            </span>
           </button>
         </div>
       )}

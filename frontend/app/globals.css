@@ -1034,6 +1034,58 @@ html {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
 }
 
+/* ── Mobile-only overrides — ChatGPT モバイル風のクリーンな見た目に統一 ──
+   PC は触らずに、コンテナに data-mobile="1" が付いたときだけ
+   amber 系のクリーム色背景 / メッセージ枠を pure neutral に上書き。 */
+.chat-aurora-panel[data-mobile="1"] {
+  background: #ffffff;
+}
+.dark .chat-aurora-panel[data-mobile="1"] {
+  background: #0b0b0c;
+}
+.chat-aurora-panel[data-mobile="1"] .chat-panel-bar {
+  background: transparent;
+}
+.dark .chat-aurora-panel[data-mobile="1"] .chat-panel-bar {
+  background: transparent;
+}
+/* AI バブル — モバイルでは枠線・影を消してフラットに (ChatGPT 風) */
+.chat-aurora-panel[data-mobile="1"] .chat-msg-ai {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+/* User バブル — グラデーションをやめて単色グレー、左寄せ感をなくす */
+.chat-aurora-panel[data-mobile="1"] .chat-msg-user {
+  background: #f4f4f5;
+  color: #18181b;
+  border: none;
+  box-shadow: none;
+}
+.chat-aurora-panel[data-mobile="1"] .chat-msg-user::after {
+  display: none;
+}
+.chat-aurora-panel[data-mobile="1"] .chat-msg-user span {
+  color: #18181b !important;
+}
+.dark .chat-aurora-panel[data-mobile="1"] .chat-msg-user {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fafafa;
+}
+.dark .chat-aurora-panel[data-mobile="1"] .chat-msg-user span {
+  color: #fafafa !important;
+}
+/* AI アバター — モバイルではよりミニマルな黒丸 (ChatGPT 風) */
+.chat-aurora-panel[data-mobile="1"] .chat-avatar-ai-static {
+  background: #18181b;
+  box-shadow: none;
+}
+.dark .chat-aurora-panel[data-mobile="1"] .chat-avatar-ai-static {
+  background: #fafafa;
+  color: #18181b;
+}
+
 /* ── Message list scroll area ── */
 .chat-message-list {
   background:

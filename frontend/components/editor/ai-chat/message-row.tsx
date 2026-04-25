@@ -79,9 +79,9 @@ export function MessageRow({
   }
 
   return (
-    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
-      {/* Avatar — AI only; user has no avatar (LP style) */}
-      {!isUser && (
+    <div className={`flex ${isMobile ? "gap-2" : "gap-2.5"} ${isUser ? "flex-row-reverse" : ""}`}>
+      {/* Avatar — モバイルは AI も非表示 (ChatGPT モバイル風: 一切なし、左揃え本文だけ) */}
+      {!isUser && !isMobile && (
         <div className="h-7 w-7 rounded-lg chat-avatar-ai-static flex items-center justify-center shrink-0 mt-0.5">
           <Sparkles className="h-3.5 w-3.5 text-white" />
         </div>
@@ -89,19 +89,23 @@ export function MessageRow({
 
       {/* Content */}
       <div className={`flex-1 min-w-0 ${isUser ? "flex flex-col items-end" : ""}`}>
-        {/* AI meta row (streaming indicator / timing) */}
-        {!isUser && (
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11.5px] font-semibold text-foreground/50 tracking-tight">EddivomAI</span>
+        {/* AI meta row — モバイルでは streaming のときだけ控えめに表示 */}
+        {!isUser && (!isMobile || msg.isStreaming) && (
+          <div className={`flex items-center gap-2 ${isMobile ? "mb-0.5" : "mb-1"}`}>
+            {!isMobile && (
+              <span className="text-[11.5px] font-semibold text-foreground/50 tracking-tight">EddivomAI</span>
+            )}
             {msg.isStreaming && (
-              <span className="flex items-center gap-1 text-[11px] text-amber-600/70 dark:text-amber-400/70 font-medium">
+              <span className={`flex items-center gap-1 font-medium ${
+                isMobile ? "text-[11px] text-foreground/45" : "text-[11px] text-amber-600/70 dark:text-amber-400/70"
+              }`}>
                 <span className="thinking-dot-ripple">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
+                  <span className={`h-1.5 w-1.5 rounded-full inline-block ${isMobile ? "bg-foreground/50" : "bg-amber-500"}`} />
                 </span>
                 {t("chat.streaming")}
               </span>
             )}
-            {msg.duration != null && !msg.isStreaming && (
+            {!isMobile && msg.duration != null && !msg.isStreaming && (
               <span className="text-[10px] text-muted-foreground/30 tabular-nums">{formatDuration(msg.duration)}</span>
             )}
           </div>
@@ -109,14 +113,18 @@ export function MessageRow({
 
         {/* Message bubble */}
         {isUser ? (
-          <div className="chat-msg-user rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[88%]">
-            <span className="text-[13.5px] leading-relaxed text-white whitespace-pre-wrap font-medium">{msg.content}</span>
+          <div className={`chat-msg-user rounded-2xl ${isMobile ? "rounded-tr-2xl px-3.5 py-2 max-w-[82%]" : "rounded-tr-sm px-4 py-2.5 max-w-[88%]"}`}>
+            <span className={`whitespace-pre-wrap font-medium text-white ${
+              isMobile ? "text-[15px] leading-[1.5]" : "text-[13.5px] leading-relaxed"
+            }`}>{msg.content}</span>
           </div>
         ) : (
           <div className="max-w-full w-full">
             {msg.isStreaming && !msg.content ? null : aiBody || msg.isStreaming ? (
-              <div className="chat-msg-ai rounded-2xl rounded-tl-sm px-4 py-3.5">
-                <div className="text-[13.5px] leading-[1.75] text-foreground/85 chat-markdown">
+              <div className={`chat-msg-ai ${isMobile ? "" : "rounded-2xl rounded-tl-sm px-4 py-3.5"}`}>
+                <div className={`text-foreground/90 chat-markdown ${
+                  isMobile ? "text-[15.5px] leading-[1.55]" : "text-[13.5px] leading-[1.75]"
+                }`}>
                   <ChatMarkdown content={aiBody || ""} />
                   {msg.isStreaming && <span className="stream-cursor" />}
                 </div>
@@ -125,11 +133,17 @@ export function MessageRow({
           </div>
         )}
 
-        {/* LaTeX applied — compact pill */}
+        {/* LaTeX applied — compact pill。モバイルでは文字数を省略してさらにミニマルに */}
         {!isUser && msg.latex && (
-          <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-500/20 shadow-sm">
+          <div className={`inline-flex items-center gap-1.5 rounded-full font-semibold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-500/20 ${
+            isMobile ? "mt-1.5 px-2 py-0.5 text-[10.5px]" : "mt-2 px-2.5 py-1 text-[11px] shadow-sm"
+          }`}>
             <CheckCircle2 className="h-3 w-3 shrink-0" />
-            <span>{t("chat.applied.label")} — {msg.latex.length.toLocaleString()} {t("chat.applied.suffix")}</span>
+            <span>
+              {isMobile
+                ? t("chat.applied.label")
+                : `${t("chat.applied.label")} — ${msg.latex.length.toLocaleString()} ${t("chat.applied.suffix")}`}
+            </span>
           </div>
         )}
 
@@ -148,21 +162,30 @@ export function MessageRow({
           <ActionTimeline steps={msg.thinkingSteps} />
         )}
 
-        {/* 実施サマリー — 思考ログのさらに下に表示 */}
+        {/* 実施サマリー — 思考ログのさらに下に表示。モバイルではよりフラット & コンパクト */}
         {!isUser && aiSummary && (
           <div
-            className="mt-2.5 rounded-xl border border-emerald-200/55 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50/60 via-white to-amber-50/35 dark:from-emerald-500/[0.05] dark:via-white/[0.01] dark:to-amber-500/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_1px_2px_rgba(6,95,70,0.04)]"
+            className={
+              isMobile
+                ? "mt-2 rounded-xl border border-emerald-200/40 dark:border-emerald-500/15 bg-emerald-50/40 dark:bg-emerald-500/[0.04]"
+                : "mt-2.5 rounded-xl border border-emerald-200/55 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50/60 via-white to-amber-50/35 dark:from-emerald-500/[0.05] dark:via-white/[0.01] dark:to-amber-500/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_1px_2px_rgba(6,95,70,0.04)]"
+            }
             role="region"
             aria-label={locale === "en" ? "Execution summary" : "実施サマリー"}
           >
-            {/* ラベルストリップ */}
-            <div className="flex items-center gap-1.5 px-3.5 pt-2 pb-1 border-b border-emerald-200/40 dark:border-emerald-500/15">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.6)]" aria-hidden />
-              <span className="text-[10.5px] font-bold tracking-[0.08em] uppercase text-emerald-700/80 dark:text-emerald-300/75">
+            <div className={`flex items-center gap-1.5 ${
+              isMobile ? "px-3 pt-1.5 pb-0.5" : "px-3.5 pt-2 pb-1 border-b border-emerald-200/40 dark:border-emerald-500/15"
+            }`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+              <span className={`font-bold tracking-[0.08em] uppercase text-emerald-700/85 dark:text-emerald-300/80 ${
+                isMobile ? "text-[9.5px]" : "text-[10.5px]"
+              }`}>
                 {locale === "en" ? "Summary" : "サマリー"}
               </span>
             </div>
-            <div className="px-4 py-3 text-[13px] leading-[1.7] text-foreground/85 chat-markdown">
+            <div className={`chat-markdown ${
+              isMobile ? "px-3 pb-2.5 pt-1 text-[13.5px] leading-[1.6] text-foreground/85" : "px-4 py-3 text-[13px] leading-[1.7] text-foreground/85"
+            }`}>
               <ChatMarkdown content={aiSummary} />
             </div>
           </div>

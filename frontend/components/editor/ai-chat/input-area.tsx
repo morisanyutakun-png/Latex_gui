@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
   ArrowUp, Loader2, Paperclip, Sparkles, X, Wand2, FileText,
-  Calculator, Table, Square, Plus, Mic, AudioLines,
+  Calculator, Table, Square, Plus, Mic,
   ClipboardList, Layers,
 } from "lucide-react";
 import type { AgentMode } from "@/lib/api";
@@ -148,26 +148,19 @@ export function InputArea({
               }}
             />
 
-            {/* 右側: 入力なし → mic + 黒丸ボイス / 入力あり → 黒丸送信 / ストリーム中 → 黒丸 Stop */}
+            {/* 右側: ChatGPT モバイル相当のクリーンな配置。
+                入力なし → mic 1 つだけ (灰)
+                入力あり → 黒丸送信
+                ストリーム中 → 黒丸 Stop */}
             {!isChatLoading && !hasInput && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => textareaRef.current?.focus()}
-                  aria-label={locale === "en" ? "Voice input" : "音声入力"}
-                  className="h-10 w-10 rounded-full flex items-center justify-center text-foreground/70 hover:bg-foreground/[0.06] active:scale-95 transition shrink-0"
-                >
-                  <Mic className="h-5 w-5" strokeWidth={1.8} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => textareaRef.current?.focus()}
-                  aria-label={locale === "en" ? "Voice mode" : "音声モード"}
-                  className="h-10 w-10 rounded-full flex items-center justify-center bg-foreground text-background active:scale-95 transition shrink-0"
-                >
-                  <AudioLines className="h-5 w-5" strokeWidth={2} />
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => textareaRef.current?.focus()}
+                aria-label={locale === "en" ? "Voice input" : "音声入力"}
+                className="h-10 w-10 rounded-full flex items-center justify-center text-foreground/70 hover:bg-foreground/[0.06] active:scale-95 transition shrink-0"
+              >
+                <Mic className="h-5 w-5" strokeWidth={1.8} />
+              </button>
             )}
             {(hasInput || isChatLoading) && (
               <button

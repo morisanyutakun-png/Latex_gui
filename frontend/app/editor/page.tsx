@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
-import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock, MoreVertical, Plus, ChevronLeft, Trash2, Crown, PanelLeft, SquarePen, AudioLines } from "lucide-react";
+import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock, MoreVertical, Plus, ChevronLeft, Trash2, Crown, PanelLeft, SquarePen } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
@@ -371,29 +371,17 @@ export default function EditorPage() {
         {/* メイン: AI チャット or PDF プレビュー */}
         <div className="flex-1 min-h-0 overflow-hidden relative">
           {mobileTab === "ai" ? (
-            <div className="h-full overflow-hidden flex flex-col"><AIChatPanel /></div>
+            <div className="h-full overflow-hidden flex flex-col">
+              <AIChatPanel onOpenPreview={() => setMobileTab("preview")} />
+            </div>
           ) : (
             <div className="h-full overflow-hidden">
               <MobilePdfPreview onOpenChat={() => setMobileTab("ai")} />
             </div>
           )}
 
-          {/* AI 画面のときだけ「プレビューを見る」FAB を右下に。
-              チャットを主役、プレビューはトグル。 */}
-          {mobileTab === "ai" && (
-            <button
-              type="button"
-              onClick={() => setMobileTab("preview")}
-              aria-label={locale === "en" ? "Open preview" : "プレビューを開く"}
-              className="absolute right-3 bottom-[5.5rem] z-20 inline-flex items-center gap-1.5 h-10 pl-3 pr-3.5 rounded-full bg-sky-500 text-white shadow-lg shadow-sky-500/30 active:scale-95 transition"
-              style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-            >
-              <Eye className="h-4 w-4" strokeWidth={2} />
-              <span className="text-[12.5px] font-semibold">
-                {locale === "en" ? "Preview" : "プレビュー"}
-              </span>
-            </button>
-          )}
+          {/* プレビュー FAB は AIChatPanel 内 (Composer の直上) に配置するので、
+              ここでは出さない。Safari の URL バーと干渉しないようにするため。 */}
         </div>
 
         <PricingModal />
