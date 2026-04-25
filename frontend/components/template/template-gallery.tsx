@@ -51,6 +51,9 @@ import {
   Minus as MinusIcon,
   Type as TypeIcon,
   Pen as PenIcon,
+  ImagePlus,
+  Eye,
+  X,
 } from "lucide-react";
 
 /* ── Floating math formulas background ── */
@@ -624,11 +627,21 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
 }
 
 /* ── Figure Draw Mockup ──
- * 16 秒ループの図形描画モード自動デモ。
- * 左の縦ツールバーに各ツールアイコン、右に格子背景の Canvas。
- * フェーズ毎に「ツール選択 → 図形ドロー」を繰り返し、最後に "Free でも使える" を強調。
+ * 実際の図エディタ画面 (frontend/components/figure-editor) を忠実に再現した
+ * 16 秒ループの自動デモ。
  *
- * 動画ファイルは使わず、CSS の transition と inline style で滑らかな描画演出を作る。
+ * 実機との対応:
+ *  - 上端の rainbow accent strip (blue → violet → pink → amber → emerald)
+ *  - Header: ImagePlus ロゴ + "図エディタ" + 図形数バッジ / 中央: 挿入サイズ S・M・L /
+ *    右: TikZ・Copy・PDF アイコン + teal→cyan グラデの「挿入プレビュー」ボタン + X
+ *  - Caption bar: 図形が出現した後に薄い teal 帯で表示される
+ *  - Left toolbar (256px の card): 検索 → 主要ツール行 (Select/Rect/Circle/Line/Arrow/Text/Pen)
+ *    → アクションバー (Undo/Redo/Dup/Del/Grid/Snap) → 4 列カテゴリタブ (絵文字付)
+ *    → 3 列パレットグリッド
+ *  - Canvas: 白背景 + 細いグリッド (20px) + 太いグリッド (100px)
+ *
+ * 動画ファイルは使わず、CSS の transition と inline style だけで滑らかに描画する。
+ * 実際にあるボタン以外の装飾は付けず、UI を信頼できる形で見せる。
  */
 function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   const [tick, setTick] = useState(0);
@@ -690,16 +703,33 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   const opacity = e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1000)
                 : e < 400 ? e / 400 : 1;
 
-  // ── Tool button ──
+  // ── Primary tools (実機の figure-toolbar.tsx と同じ並び順・ラベル) ──
   const tools = [
-    { id: "select",  Icon: MousePointer2,   label: isJa ? "選択"   : "Select" },
-    { id: "rect",    Icon: Square,          label: isJa ? "四角形" : "Rect" },
-    { id: "circle",  Icon: CircleIcon,      label: isJa ? "円"     : "Circle" },
-    { id: "line",    Icon: MinusIcon,       label: isJa ? "線"     : "Line" },
-    { id: "arrow",   Icon: ArrowRight,      label: isJa ? "矢印"   : "Arrow" },
-    { id: "text",    Icon: TypeIcon,        label: isJa ? "文字"   : "Text" },
-    { id: "freehand",Icon: PenIcon,         label: isJa ? "ペン"   : "Pen" },
+    { id: "select",  Icon: MousePointer2,   label: isJa ? "選択"     : "Select",   kbd: "V" },
+    { id: "rect",    Icon: Square,          label: isJa ? "四角形"   : "Rectangle", kbd: "R" },
+    { id: "circle",  Icon: CircleIcon,      label: isJa ? "円"       : "Circle",   kbd: "C" },
+    { id: "line",    Icon: MinusIcon,       label: isJa ? "直線"     : "Line",     kbd: "L" },
+    { id: "arrow",   Icon: ArrowRight,      label: isJa ? "矢印"     : "Arrow",    kbd: "A" },
+    { id: "text",    Icon: TypeIcon,        label: isJa ? "テキスト" : "Text",     kbd: "T" },
+    { id: "freehand",Icon: PenIcon,         label: isJa ? "フリーハンド" : "Freehand", kbd: "" },
   ] as const;
+
+  // 4 列カテゴリタブ (実機の domain-palettes.ts CATEGORIES と同一)
+  const categories = [
+    { id: "basic",     ja: "基本図形", en: "Basic",     icon: "⬜" },
+    { id: "circuit",   ja: "電気回路", en: "Circuit",   icon: "⚡" },
+    { id: "mechanics", ja: "力学",     en: "Mechanics", icon: "⚙️" },
+    { id: "physics",   ja: "物理",     en: "Physics",   icon: "🔬" },
+    { id: "math",      ja: "数学",     en: "Math",      icon: "📐" },
+    { id: "cs",        ja: "情報",     en: "CS",        icon: "💻" },
+    { id: "chemistry", ja: "化学",     en: "Chemistry", icon: "🧪" },
+    { id: "biology",   ja: "生物",     en: "Biology",   icon: "🧬" },
+  ] as const;
+  const activeCategory = "basic"; // 演出簡潔化のため Basic 固定
+
+  // 図形数 (実機の "N 個" バッジ用)
+  const shapeCount =
+    (rectP > 0 ? 1 : 0) + (circleP > 0 ? 1 : 0) + (arrowP > 0 ? 1 : 0) + (textP > 0 ? 1 : 0);
 
   // Canvas の中の絶対座標 (px)。Canvas を 480 x 280 想定。
   const RECT   = { x: 90,  y: 80,  w: 90,  h: 70  };  // 質量ブロック
@@ -713,69 +743,218 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
 
   return (
     <div className="relative w-full max-w-3xl mx-auto" style={{ opacity }}>
-      <div className="absolute -inset-4 bg-gradient-to-b from-emerald-500/[0.05] to-violet-500/[0.04] rounded-3xl blur-2xl pointer-events-none" />
-      <div className="relative rounded-2xl border border-foreground/[0.08] bg-card/90 backdrop-blur-xl shadow-2xl shadow-foreground/[0.06] overflow-hidden">
+      <div className="absolute -inset-4 bg-gradient-to-b from-teal-500/[0.06] to-cyan-500/[0.04] rounded-3xl blur-2xl pointer-events-none" />
 
-        {/* Title bar */}
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-foreground/[0.06] bg-foreground/[0.02]">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
-            <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/70" />
-            <div className="w-2.5 h-2.5 rounded-full bg-green-400/70" />
-          </div>
-          <PenLine className="h-3.5 w-3.5 text-emerald-500 ml-2" />
-          <span className="text-[11px] text-muted-foreground/70 font-semibold">
-            {isJa ? "図形描画モード" : "Figure mode"}
-          </span>
-          <div className="ml-auto flex items-center gap-1.5">
-            {/* FREE バッジ — 強調 */}
-            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-500/30">
-              <Check className="h-2.5 w-2.5" />
-              {isJa ? "FREEで利用可" : "FREE"}
+      {/* 実機の workspace 背景: 薄いグレー + 青/ピンクの radial アクセント */}
+      <div
+        className="relative rounded-2xl border border-foreground/[0.08] shadow-2xl shadow-foreground/[0.08] overflow-hidden"
+        style={{
+          background:
+            "radial-gradient(circle at 30% 20%, rgba(99,102,241,0.05), transparent 40%), " +
+            "radial-gradient(circle at 80% 90%, rgba(236,72,153,0.04), transparent 50%), " +
+            "linear-gradient(180deg, #e5e7ec 0%, #dfe0e6 100%)",
+        }}
+      >
+        {/* 上端のレインボー accent strip — 実機と同じ */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 via-pink-500 via-amber-500 to-emerald-500 opacity-70 z-10" />
+
+        {/* ══════════ HEADER (h-12 相当) ══════════ */}
+        <div
+          className="flex items-center gap-2 px-3 h-11 border-b border-black/[0.06] backdrop-blur"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(59,130,246,0.06) 0%, rgba(255,255,255,0.95) 30%, rgba(255,255,255,0.95) 70%, rgba(245,158,11,0.06) 100%)",
+          }}
+        >
+          {/* 左: ロゴ + タイトル + 図形数バッジ */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="h-6 w-6 rounded-md bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-sm">
+              <ImagePlus className="h-3.5 w-3.5 text-white" />
+            </div>
+            <span className="text-[12px] font-bold text-foreground/80">
+              {isJa ? "図エディタ" : "Figure Editor"}
             </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-foreground/[0.05] text-muted-foreground/70 font-medium border border-foreground/[0.06]">
-              TikZ
+            <span className="hidden sm:inline-block px-1.5 py-0.5 rounded-full bg-foreground/[0.05] text-[9.5px] font-semibold text-foreground/45 tabular-nums">
+              {shapeCount} {isJa ? "個" : shapeCount === 1 ? "object" : "objects"}
+            </span>
+          </div>
+
+          {/* 中央: 挿入サイズ S / M / L (M を active として固定) — 実機と同じ役割 */}
+          <div className="flex-1 hidden md:flex items-center justify-center gap-1">
+            <span className="text-[9.5px] text-foreground/35 mr-1.5 font-medium">
+              {isJa ? "挿入サイズ" : "Insert size"}:
+            </span>
+            {(["S", "M", "L"] as const).map((s) => (
+              <span
+                key={s}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                  s === "M"
+                    ? "bg-teal-500/15 text-teal-700 dark:text-teal-400 ring-1 ring-teal-500/30"
+                    : "text-foreground/35"
+                }`}
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+
+          {/* 右: TikZ / Copy / PDF / 挿入プレビュー / X (実機と同じ並び順) */}
+          <div className="ml-auto flex items-center gap-1 shrink-0">
+            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45 hover:bg-foreground/[0.04]">
+              <Code2 className="h-3 w-3" /> TikZ
+            </span>
+            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45 hover:bg-foreground/[0.04]">
+              <Copy className="h-3 w-3" /> {isJa ? "コピー" : "Copy"}
+            </span>
+            <span className="hidden lg:inline-flex items-center gap-1 h-6 px-2 rounded-lg text-[9.5px] font-semibold text-foreground/45 hover:bg-foreground/[0.04]">
+              <FileDown className="h-3 w-3" /> PDF
+            </span>
+            <div className="hidden lg:block w-px h-4 bg-foreground/10 mx-0.5" />
+            {/* 末尾の primary CTA: 実機の teal→cyan グラデの「挿入プレビュー」ボタン */}
+            <span
+              className={`inline-flex items-center gap-1 h-7 px-3 rounded-full text-[10px] font-bold bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-md shadow-teal-500/30 transition-transform ${
+                isShowcase ? "scale-[1.08] ring-2 ring-teal-300/60" : ""
+              }`}
+            >
+              <Eye className="h-3 w-3" />
+              {isJa ? "挿入プレビュー" : "Preview insert"}
+            </span>
+            <span className="ml-1 hidden sm:inline-flex h-6 w-6 items-center justify-center rounded-md text-foreground/35">
+              <X className="h-3.5 w-3.5" />
             </span>
           </div>
         </div>
 
-        {/* Body: tool sidebar + canvas */}
-        <div className="flex" style={{ minHeight: "320px" }}>
+        {/* ══════════ CAPTION BAR (実機: 図形が出現したら表示) ══════════ */}
+        {shapeCount > 0 && (
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1 border-b border-black/[0.05] bg-gradient-to-r from-teal-50/60 to-cyan-50/30 dark:from-teal-500/5 dark:to-cyan-500/5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400 shrink-0">
+              {isJa ? "キャプション" : "Caption"}
+            </span>
+            <div className="flex-1 h-5 rounded border border-teal-500/20 bg-white/80 dark:bg-white/5 flex items-center px-2 text-[10px] text-foreground/55 italic truncate">
+              {isJa ? "ニュートンの第二法則 F = ma" : "Newton's second law F = ma"}
+            </div>
+            <span className="hidden md:inline text-[8.5px] text-foreground/40 font-mono shrink-0">
+              fig:ref → <code className="text-teal-600 dark:text-teal-400">fig:abc123</code>
+            </span>
+          </div>
+        )}
 
-          {/* Tool sidebar */}
-          <div className="w-[52px] flex flex-col items-center gap-1.5 py-3 border-r border-foreground/[0.06] bg-foreground/[0.015]">
-            {tools.map(({ id, Icon, label }) => {
-              const isActive = id === activeTool;
-              return (
-                <div
-                  key={id}
-                  title={label}
-                  className={`relative h-9 w-9 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                    isActive
-                      ? "bg-violet-500/15 text-violet-600 dark:text-violet-300 ring-2 ring-violet-500/40 scale-[1.08]"
-                      : "text-foreground/45 hover:text-foreground/70"
-                  }`}
-                >
-                  <Icon size={15} />
-                  {/* active phase で薄いリングアニメーションが走る */}
-                  {isActive && (
-                    <span className="absolute inset-0 rounded-lg ring-1 ring-violet-500/30 animate-ping" />
-                  )}
-                </div>
-              );
-            })}
-            <div className="flex-1" />
-            {/* Domain palette ヒント — 「もっとあるよ」と示すドット */}
-            <div className="flex flex-col gap-1 opacity-50">
-              <div className="h-1 w-1 rounded-full bg-foreground/40" />
-              <div className="h-1 w-1 rounded-full bg-foreground/40" />
-              <div className="h-1 w-1 rounded-full bg-foreground/40" />
+        {/* ══════════ MAIN AREA: toolbar card + canvas ══════════ */}
+        <div className="flex gap-2 p-2" style={{ minHeight: "300px" }}>
+
+          {/* Left: Toolbar card (実機の 256px 幅相当・モバイルでは隠す) */}
+          <div
+            className="hidden sm:flex w-[244px] shrink-0 flex-col rounded-xl overflow-hidden"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(59,130,246,0.06) 0%, rgba(255,255,255,0.98) 14%, rgba(255,255,255,1) 100%)",
+              border: "1px solid rgba(59, 130, 246, 0.18)",
+            }}
+          >
+            {/* Search input */}
+            <div className="px-2 pt-2 pb-1.5">
+              <div className="relative h-6 rounded-md border border-foreground/[0.08] bg-white/70 flex items-center px-2 gap-1.5">
+                <span className="text-foreground/40 text-[11px]">⌕</span>
+                <span className="text-[10px] text-foreground/30">
+                  {isJa ? "図形を検索..." : "Search shapes..."}
+                </span>
+              </div>
+            </div>
+
+            {/* Primary tools (横一列・実機と同じ並び) */}
+            <div className="px-2 pb-1.5 flex items-center gap-0.5 flex-wrap">
+              {tools.map(({ id, Icon, label }, i) => {
+                const isActive = id === activeTool;
+                return (
+                  <React.Fragment key={id}>
+                    {i === 1 && <div className="w-px h-4 bg-foreground/[0.08] mx-0.5" />}
+                    <div
+                      title={label}
+                      className={`relative h-7 w-7 rounded-md flex items-center justify-center transition-all duration-200 ${
+                        isActive
+                          ? "bg-blue-500/15 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/40"
+                          : "text-foreground/55"
+                      }`}
+                    >
+                      <Icon size={13} />
+                      {isActive && (
+                        <span className="absolute inset-0 rounded-md ring-1 ring-blue-500/30 animate-ping pointer-events-none" />
+                      )}
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {/* Action bar (Undo / Redo / Dup / Del / Grid / Snap) */}
+            <div className="mx-2 mb-1.5 h-6 flex items-center gap-0.5 px-1 rounded-md bg-foreground/[0.03] border border-foreground/[0.05]">
+              <span className="text-foreground/35 text-[10px] px-1">↶</span>
+              <span className="text-foreground/35 text-[10px] px-1">↷</span>
+              <div className="w-px h-3 bg-foreground/[0.1] mx-0.5" />
+              <span className="text-foreground/35 text-[10px] px-1">⧉</span>
+              <span className="text-foreground/35 text-[10px] px-1">🗑</span>
+              <div className="flex-1" />
+              <span className="text-foreground/35 text-[10px] px-1">▦</span>
+              <span className="text-foreground/35 text-[10px] px-1">🧲</span>
+            </div>
+
+            {/* 4-col category tabs (実機と同じ並び・絵文字付) */}
+            <div className="px-1.5 py-1.5 border-t border-foreground/[0.06]">
+              <div className="grid grid-cols-4 gap-0.5">
+                {categories.map((c) => {
+                  const isActive = c.id === activeCategory;
+                  return (
+                    <span
+                      key={c.id}
+                      className={`flex flex-col items-center gap-0 py-1 rounded-md text-[8.5px] font-semibold ${
+                        isActive
+                          ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/30"
+                          : "text-foreground/50"
+                      }`}
+                    >
+                      <span className="text-[12px] leading-none mb-0.5">{c.icon}</span>
+                      <span className="truncate max-w-full px-0.5 leading-tight">
+                        {isJa ? c.ja : c.en}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3-col palette grid (Basic カテゴリの代表アイテム) */}
+            <div className="flex-1 px-1.5 py-1.5 border-t border-black/[0.04]">
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  { Icon: Square, label: isJa ? "四角形" : "Rect" },
+                  { Icon: CircleIcon, label: isJa ? "円" : "Circle" },
+                  { Icon: () => <span className="text-[10px]">⬭</span>, label: isJa ? "楕円" : "Ellipse" },
+                  { Icon: MinusIcon, label: isJa ? "直線" : "Line" },
+                  { Icon: ArrowRight, label: isJa ? "矢印" : "Arrow" },
+                  { Icon: TypeIcon, label: isJa ? "文字" : "Text" },
+                  { Icon: () => <span className="text-[10px]">▲</span>, label: isJa ? "三角" : "Tri" },
+                  { Icon: () => <span className="text-[10px]">⌒</span>, label: isJa ? "弧" : "Arc" },
+                  { Icon: PenIcon, label: isJa ? "ペン" : "Free" },
+                ].map((item, i) => {
+                  const Ic = item.Icon as React.ComponentType<{ size?: number }>;
+                  return (
+                    <span
+                      key={i}
+                      className="flex flex-col items-center justify-center gap-0.5 py-1 rounded text-foreground/45 border border-transparent"
+                    >
+                      <Ic size={12} />
+                      <span className="text-[8px] leading-none truncate max-w-full">{item.label}</span>
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Canvas */}
-          <div className="flex-1 relative bg-white dark:bg-zinc-950/40 overflow-hidden">
-            {/* 格子 (TikZ canvas 風) */}
+          {/* Right: Canvas (white, with grid) */}
+          <div className="flex-1 relative bg-white dark:bg-zinc-950/40 rounded-xl overflow-hidden border border-black/[0.06]">
+            {/* 細いグリッド (20px) */}
             <div
               className="absolute inset-0 opacity-[0.55] dark:opacity-[0.20]"
               style={{
@@ -784,7 +963,7 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
                 backgroundSize: "20px 20px",
               }}
             />
-            {/* 強い格子 (5 マスごと) */}
+            {/* 太いグリッド (100px) */}
             <div
               className="absolute inset-0 opacity-[0.45] dark:opacity-[0.18] pointer-events-none"
               style={{
@@ -794,51 +973,38 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               }}
             />
 
-            {/* 図形を描画する SVG レイヤー */}
+            {/* SVG: 図形描画レイヤー */}
             <svg
               className="absolute inset-0 w-full h-full"
               viewBox="0 0 480 280"
               preserveAspectRatio="xMidYMid meet"
             >
-              {/* Rectangle */}
+              {/* Rectangle (mass block) */}
               {rectP > 0 && (
                 <rect
                   x={RECT.x}
                   y={RECT.y}
                   width={RECT.w * rectP}
                   height={RECT.h * rectP}
-                  fill="rgba(99, 102, 241, 0.10)"
-                  stroke="#6366f1"
+                  fill="rgba(59, 130, 246, 0.10)"
+                  stroke="#3b82f6"
                   strokeWidth={2}
                   strokeDasharray={rectP < 1 ? "4 3" : "0"}
-                  rx="4"
-                  className={isShowcase ? "animate-pulse" : ""}
+                  rx="2"
                 />
               )}
-              {/* Rectangle label "m" — 図形が完成したら表示 */}
               {rectP >= 1 && (
-                <text
-                  x={RECT.x + RECT.w / 2}
-                  y={RECT.y + RECT.h / 2 + 5}
-                  textAnchor="middle"
-                  fontSize="14"
-                  fontStyle="italic"
-                  fill="#4338ca"
-                  fontFamily="serif"
-                >
-                  m
-                </text>
+                <text x={RECT.x + RECT.w / 2} y={RECT.y + RECT.h / 2 + 5}
+                  textAnchor="middle" fontSize="14" fontStyle="italic"
+                  fill="#1d4ed8" fontFamily="serif">m</text>
               )}
 
               {/* Circle (pulley) */}
               {circleP > 0 && (
                 <circle
-                  cx={CIRCLE.cx}
-                  cy={CIRCLE.cy}
-                  r={CIRCLE.r * circleP}
+                  cx={CIRCLE.cx} cy={CIRCLE.cy} r={CIRCLE.r * circleP}
                   fill="rgba(236, 72, 153, 0.08)"
-                  stroke="#ec4899"
-                  strokeWidth={2}
+                  stroke="#ec4899" strokeWidth={2}
                   strokeDasharray={circleP < 1 ? "4 3" : "0"}
                 />
               )}
@@ -850,70 +1016,43 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               {arrowP > 0 && (
                 <g>
                   <defs>
-                    <marker
-                      id="fdmHeadActive"
-                      viewBox="0 0 10 10"
-                      refX="8"
-                      refY="5"
-                      markerWidth="6"
-                      markerHeight="6"
-                      orient="auto-start-reverse"
-                    >
+                    <marker id="fdmHeadActive" viewBox="0 0 10 10" refX="8" refY="5"
+                      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                       <path d="M0,0 L10,5 L0,10 z" fill="#16a34a" />
                     </marker>
                   </defs>
                   <line
-                    x1={ARROW.x1}
-                    y1={ARROW.y1}
-                    x2={arrowEndX}
-                    y2={arrowEndY}
-                    stroke="#16a34a"
-                    strokeWidth={2.2}
+                    x1={ARROW.x1} y1={ARROW.y1} x2={arrowEndX} y2={arrowEndY}
+                    stroke="#16a34a" strokeWidth={2.2}
                     markerEnd={arrowP >= 1 ? "url(#fdmHeadActive)" : undefined}
                   />
                 </g>
               )}
 
-              {/* Text label "F" — 文字+下線が typing で出現 */}
+              {/* Text label "F" */}
               {textP > 0 && typedChars > 0 && (
-                <text
-                  x={TEXT.x}
-                  y={TEXT.y - 6}
-                  textAnchor="middle"
-                  fontSize="15"
-                  fontStyle="italic"
-                  fontWeight="700"
-                  fill="#16a34a"
-                  fontFamily="serif"
-                  opacity={textP}
-                >
+                <text x={TEXT.x} y={TEXT.y - 6} textAnchor="middle"
+                  fontSize="15" fontStyle="italic" fontWeight="700"
+                  fill="#16a34a" fontFamily="serif" opacity={textP}>
                   {labelText.slice(0, typedChars)}
                 </text>
               )}
             </svg>
 
-            {/* 床の斜線 (土台) — 質量ブロックの完成後に静かに表示 */}
+            {/* 床のハッチング (mass block 完成後) */}
             {rectP >= 1 && (
-              <svg
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                viewBox="0 0 480 280"
-              >
-                <line x1="60" y1="150" x2="220" y2="150" stroke="rgba(0,0,0,0.45)" strokeWidth="1.5" />
+              <svg className="absolute inset-0 w-full h-full pointer-events-none"
+                viewBox="0 0 480 280">
+                <line x1="60" y1="150" x2="220" y2="150"
+                  stroke="rgba(0,0,0,0.45)" strokeWidth="1.5" />
                 {[...Array(8)].map((_, i) => (
-                  <line
-                    key={i}
-                    x1={70 + i * 20}
-                    y1={150}
-                    x2={62 + i * 20}
-                    y2={160}
-                    stroke="rgba(0,0,0,0.35)"
-                    strokeWidth="1"
-                  />
+                  <line key={i} x1={70 + i * 20} y1={150} x2={62 + i * 20} y2={160}
+                    stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
                 ))}
               </svg>
             )}
 
-            {/* アニメーション中のカーソル (擬似的に右下に表示) */}
+            {/* Animated cursor */}
             <div
               className="absolute pointer-events-none transition-all duration-700 ease-out"
               style={{
@@ -932,37 +1071,22 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               }}
             >
               <svg width="20" height="22" viewBox="0 0 20 22">
-                <path
-                  d="M2,2 L2,16 L6,12 L9,18 L11,17 L8,11 L14,11 z"
-                  fill="white"
-                  stroke="#0f172a"
-                  strokeWidth="1.2"
-                  strokeLinejoin="round"
-                />
+                <path d="M2,2 L2,16 L6,12 L9,18 L11,17 L8,11 L14,11 z"
+                  fill="white" stroke="#0f172a" strokeWidth="1.2" strokeLinejoin="round" />
               </svg>
             </div>
 
-            {/* showcase 中のキャプション */}
+            {/* Showcase 中: 「→ 挿入プレビュー」へ視線誘導する小さなヒント */}
             {isShowcase && (
-              <div className="absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1.5 rounded-full bg-emerald-500/95 text-white text-[10.5px] font-bold shadow-lg shadow-emerald-500/40 flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <div
+                className="absolute right-3 top-2 px-2 py-1 rounded-md bg-teal-500/95 text-white text-[10px] font-bold shadow-lg shadow-teal-500/40 flex items-center gap-1"
+                style={{ animation: "fadeInUp 600ms ease-out" }}
+              >
                 <Check className="h-3 w-3" />
-                {isJa ? "図はそのまま PDF に挿入されます" : "Figure is embedded in the PDF"}
+                {isJa ? "↑ プレビューで PDF に挿入" : "↑ Preview & insert into PDF"}
               </div>
             )}
           </div>
-        </div>
-
-        {/* Status bar */}
-        <div className="flex items-center justify-between px-4 py-1.5 border-t border-foreground/[0.06] bg-foreground/[0.02] text-[10px] text-muted-foreground/60">
-          <span className="font-mono">
-            {isJa ? "ツール:" : "Tool:"}{" "}
-            <span className="text-violet-500 font-semibold">
-              {tools.find((t) => t.id === activeTool)?.label}
-            </span>
-          </span>
-          <span className="hidden sm:inline">
-            {isJa ? "回路図・力学・幾何・化学・生物・フローチャートまで対応" : "Circuits · Mechanics · Geometry · Chemistry · Biology · Flowcharts"}
-          </span>
         </div>
       </div>
     </div>
