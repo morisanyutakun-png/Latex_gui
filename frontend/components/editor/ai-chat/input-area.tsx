@@ -87,26 +87,31 @@ export function InputArea({
   const textareaMinH = isMobile ? 36 : 28;
   const textareaFontSize = isMobile ? 16 : 14; // iOS auto-zoom 防止 (16px 以上で発動しない)
 
-  // ── ChatGPT-mobile 風 Composer ──
-  // 大きな pill / 左 [+] / 中央プレースホルダ / 右 mic + 黒丸送信(ストリーム中は Stop)
+  // ── Eddivom モバイル Composer (ChatGPT 土台 + amber accent) ──
   if (isMobile) {
     return (
       <>
         <div className="px-3 pb-2 pt-1 shrink-0 chat-mobile-safe-bottom">
           <div
-            className="relative flex items-center gap-1 px-1.5 py-1.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.06]"
+            className="relative flex items-center gap-1 px-1.5 py-1.5 rounded-full"
             style={{
-              boxShadow: focused ? `0 0 0 2px ${accent.ring}, 0 1px 4px rgba(0,0,0,0.04)` : "0 1px 2px rgba(0,0,0,0.03)",
-              transition: "box-shadow 0.15s ease",
+              background: focused
+                ? "linear-gradient(135deg, rgba(254,243,199,0.55) 0%, rgba(255,255,255,0.95) 100%)"
+                : "rgba(255,251,235,0.55)",
+              border: focused ? "1px solid rgba(217,119,6,0.30)" : "1px solid rgba(217,119,6,0.14)",
+              boxShadow: focused
+                ? `0 0 0 3px rgba(245,158,11,0.14), 0 1px 6px rgba(217,119,6,0.10)`
+                : "0 1px 2px rgba(217,119,6,0.04)",
+              transition: "box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease",
             }}
           >
-            {/* 左: [+] ボタン → bottom sheet */}
+            {/* 左: [+] ボタン → bottom sheet (hover/active で amber tint) */}
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
               disabled={isChatLoading}
               aria-label={t("chat.attach.tooltip")}
-              className="h-10 w-10 rounded-full flex items-center justify-center text-foreground/70 hover:bg-foreground/[0.06] active:scale-95 transition disabled:opacity-30 shrink-0"
+              className="h-10 w-10 rounded-full flex items-center justify-center text-amber-700/80 dark:text-amber-300/80 hover:bg-amber-500/10 active:scale-95 transition disabled:opacity-30 shrink-0"
             >
               <Plus className="h-5 w-5" strokeWidth={2} />
             </button>
@@ -157,7 +162,7 @@ export function InputArea({
                 type="button"
                 onClick={() => textareaRef.current?.focus()}
                 aria-label={locale === "en" ? "Voice input" : "音声入力"}
-                className="h-10 w-10 rounded-full flex items-center justify-center text-foreground/70 hover:bg-foreground/[0.06] active:scale-95 transition shrink-0"
+                className="h-10 w-10 rounded-full flex items-center justify-center text-amber-700/75 dark:text-amber-300/75 hover:bg-amber-500/10 active:scale-95 transition shrink-0"
               >
                 <Mic className="h-5 w-5" strokeWidth={1.8} />
               </button>
@@ -170,11 +175,13 @@ export function InputArea({
                   else onSend();
                 }}
                 aria-label={isChatLoading ? (t("chat.stop") as string || "Stop") : (t("chat.send") as string)}
-                className="h-10 w-10 rounded-full flex items-center justify-center bg-foreground text-background active:scale-95 transition shrink-0"
+                className={`h-10 w-10 rounded-full flex items-center justify-center text-white active:scale-95 transition shrink-0 ${
+                  isChatLoading ? "eddivom-stop-active" : "eddivom-send-active"
+                }`}
               >
                 {isChatLoading
-                  ? <Square className="h-3.5 w-3.5 fill-current" />
-                  : <ArrowUp className="h-5 w-5" strokeWidth={2.5} />
+                  ? <Square className="h-3.5 w-3.5 fill-current relative z-10" />
+                  : <ArrowUp className="h-5 w-5 relative z-10" strokeWidth={2.5} />
                 }
               </button>
             )}

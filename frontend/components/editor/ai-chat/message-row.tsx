@@ -80,10 +80,17 @@ export function MessageRow({
 
   return (
     <div className={`flex ${isMobile ? "gap-2" : "gap-2.5"} ${isUser ? "flex-row-reverse" : ""}`}>
-      {/* Avatar — モバイルは AI も非表示 (ChatGPT モバイル風: 一切なし、左揃え本文だけ) */}
+      {/* AI アバター
+         · PC: 常時表示 (従来どおり)
+         · モバイル: ストリーミング中だけ amber halo で出して "Eddivom が動いている" を強い識別シグナルに */}
       {!isUser && !isMobile && (
         <div className="h-7 w-7 rounded-lg chat-avatar-ai-static flex items-center justify-center shrink-0 mt-0.5">
           <Sparkles className="h-3.5 w-3.5 text-white" />
+        </div>
+      )}
+      {!isUser && isMobile && msg.isStreaming && (
+        <div className="h-6 w-6 rounded-lg chat-avatar-ai flex items-center justify-center shrink-0 mt-1">
+          <Sparkles className="h-3 w-3 text-white" />
         </div>
       )}
 
@@ -96,11 +103,9 @@ export function MessageRow({
               <span className="text-[11.5px] font-semibold text-foreground/50 tracking-tight">EddivomAI</span>
             )}
             {msg.isStreaming && (
-              <span className={`flex items-center gap-1 font-medium ${
-                isMobile ? "text-[11px] text-foreground/45" : "text-[11px] text-amber-600/70 dark:text-amber-400/70"
-              }`}>
+              <span className="flex items-center gap-1 font-medium text-[11px] text-amber-600 dark:text-amber-400">
                 <span className="thinking-dot-ripple">
-                  <span className={`h-1.5 w-1.5 rounded-full inline-block ${isMobile ? "bg-foreground/50" : "bg-amber-500"}`} />
+                  <span className="h-1.5 w-1.5 rounded-full inline-block bg-amber-500" />
                 </span>
                 {t("chat.streaming")}
               </span>

@@ -617,29 +617,37 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
         )}
 
         {chatMessages.length === 0 && isMobile && (
-          // モバイルの空状態 — ChatGPT モバイル風: 中央は空、画面下のアクション 3 リストだけ
-          // (Composer と一緒に画面下半分にまとまる構成)
+          // Eddivom モバイル空状態: 上半分は余白、下半分にブランドオーブ + 質問・アクション
           <div className="flex flex-col h-full select-none">
             {/* 画面上半分は意図的に余白 */}
             <div className="flex-1" />
 
-            {/* 下部のアクションリスト */}
+            {/* Eddivom ブランドオーブ + 1 行のささやき */}
+            <div className="flex flex-col items-center gap-2 mb-3 px-3">
+              <div className="h-10 w-10 rounded-2xl chat-avatar-ai flex items-center justify-center shadow-md shadow-amber-500/20">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <p className="text-[13px] text-foreground/55 font-medium text-center">
+                {locale === "en"
+                  ? "What can EddivomAI help with?"
+                  : "EddivomAI に何を頼みますか？"}
+              </p>
+            </div>
+
+            {/* 下部のアクションリスト — amber tinted icon chips */}
             <div className="flex flex-col gap-0 px-1 pb-2">
               {([
                 {
-                  textKey: "mobile.action.create" as const,
                   fallback: locale === "en" ? "Create a worksheet" : "教材を作る",
                   icon: PenLine,
                   prompt: t("chat.suggestion.1"),
                 },
                 {
-                  textKey: "mobile.action.edit" as const,
                   fallback: locale === "en" ? "Edit or rewrite" : "記述または編集",
                   icon: Calculator,
                   prompt: t("chat.suggestion.2"),
                 },
                 {
-                  textKey: "mobile.action.research" as const,
                   fallback: locale === "en" ? "Look something up" : "何かを調べる",
                   icon: Bug,
                   prompt: locale === "en"
@@ -651,10 +659,12 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
                   key={fallback}
                   type="button"
                   onClick={() => { setInput(prompt); textareaRef.current?.focus(); }}
-                  className="flex items-center gap-4 px-3 py-3.5 rounded-2xl text-left active:bg-foreground/[0.04] transition"
+                  className="flex items-center gap-3 px-3 py-3 rounded-2xl text-left active:bg-amber-50/60 dark:active:bg-amber-500/10 transition group"
                 >
-                  <Icon className="h-5 w-5 text-foreground/70 shrink-0" strokeWidth={1.6} />
-                  <span className="text-[15.5px] text-foreground/85 font-normal">{fallback}</span>
+                  <span className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400/15 to-orange-400/10 dark:from-amber-500/15 dark:to-orange-500/10 border border-amber-400/20 dark:border-amber-500/20 flex items-center justify-center shrink-0 group-active:scale-95 transition-transform">
+                    <Icon className="h-4 w-4 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
+                  </span>
+                  <span className="text-[15px] text-foreground/85 font-medium">{fallback}</span>
                 </button>
               ))}
             </div>
@@ -695,7 +705,7 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
         </div>
       )}
 
-      {/* モバイル: Composer の直上に「プレビュー」を出す。
+      {/* モバイル: Composer の直上に「プレビュー」を出す (Eddivom amber アクセント付き)。
           画面右下に absolute すると Safari の URL バーやホームバーと干渉するので、
           flex column の一員として配置することで常に Composer の上に来る。 */}
       {isMobile && onOpenPreview && (
@@ -704,10 +714,10 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
             type="button"
             onClick={onOpenPreview}
             aria-label={locale === "en" ? "Open preview" : "プレビューを開く"}
-            className="inline-flex items-center gap-1.5 h-8 pl-3 pr-3.5 rounded-full bg-foreground/[0.06] hover:bg-foreground/[0.10] text-foreground/80 active:scale-95 transition"
+            className="inline-flex items-center gap-1.5 h-8 pl-2.5 pr-3.5 rounded-full bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-500/15 dark:to-orange-500/10 border border-amber-300/45 dark:border-amber-500/30 hover:border-amber-400/65 active:scale-95 transition shadow-sm shadow-amber-500/10"
           >
-            <Eye className="h-3.5 w-3.5" strokeWidth={1.8} />
-            <span className="text-[12px] font-semibold">
+            <Eye className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" strokeWidth={2} />
+            <span className="text-[12px] font-semibold bg-gradient-to-r from-amber-700 to-orange-700 dark:from-amber-300 dark:to-orange-300 bg-clip-text text-transparent">
               {locale === "en" ? "Preview" : "プレビュー"}
             </span>
           </button>

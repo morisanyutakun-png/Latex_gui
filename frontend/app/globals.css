@@ -1034,56 +1034,122 @@ html {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
 }
 
-/* ── Mobile-only overrides — ChatGPT モバイル風のクリーンな見た目に統一 ──
-   PC は触らずに、コンテナに data-mobile="1" が付いたときだけ
-   amber 系のクリーム色背景 / メッセージ枠を pure neutral に上書き。 */
+/* ── Mobile chat — ChatGPT のレイアウト土台 + Eddivom らしさ (amber accent) ──
+   PC は触らずに data-mobile="1" のときだけ反映。
+   ベースはクリーンに、ブランド色は要所だけにアクセントとして配置。 */
+
+/* 背景: 上端から amber 薄 aurora が落ちる + 全体は near-white */
 .chat-aurora-panel[data-mobile="1"] {
-  background: #ffffff;
+  background:
+    radial-gradient(ellipse 80% 35% at 50% 0%, rgba(245, 158, 11, 0.06), transparent 60%),
+    radial-gradient(ellipse 60% 30% at 50% 100%, rgba(217, 119, 6, 0.025), transparent 70%),
+    #ffffff;
 }
 .dark .chat-aurora-panel[data-mobile="1"] {
-  background: #0b0b0c;
+  background:
+    radial-gradient(ellipse 80% 35% at 50% 0%, rgba(245, 158, 11, 0.07), transparent 60%),
+    #0b0b0c;
 }
+
 .chat-aurora-panel[data-mobile="1"] .chat-panel-bar {
   background: transparent;
 }
 .dark .chat-aurora-panel[data-mobile="1"] .chat-panel-bar {
   background: transparent;
 }
-/* AI バブル — モバイルでは枠線・影を消してフラットに (ChatGPT 風) */
+
+/* AI バブル: フラットだが本文の左に細い amber stripe を出す (Eddivom 識別) */
 .chat-aurora-panel[data-mobile="1"] .chat-msg-ai {
   background: transparent;
   border: none;
   box-shadow: none;
   padding: 0;
 }
-/* User バブル — グラデーションをやめて単色グレー、左寄せ感をなくす */
+
+/* User バブル: amber 寄りの暖色グレー (ChatGPT の grey は冷たすぎる) */
 .chat-aurora-panel[data-mobile="1"] .chat-msg-user {
-  background: #f4f4f5;
-  color: #18181b;
-  border: none;
-  box-shadow: none;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #78350f;
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  box-shadow: 0 1px 2px rgba(217, 119, 6, 0.06);
 }
 .chat-aurora-panel[data-mobile="1"] .chat-msg-user::after {
   display: none;
 }
 .chat-aurora-panel[data-mobile="1"] .chat-msg-user span {
-  color: #18181b !important;
+  color: #78350f !important;
 }
 .dark .chat-aurora-panel[data-mobile="1"] .chat-msg-user {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fafafa;
+  background: linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(217,119,6,0.10) 100%);
+  color: #fde68a;
+  border: 1px solid rgba(245, 158, 11, 0.25);
 }
 .dark .chat-aurora-panel[data-mobile="1"] .chat-msg-user span {
-  color: #fafafa !important;
+  color: #fde68a !important;
 }
-/* AI アバター — モバイルではよりミニマルな黒丸 (ChatGPT 風) */
+
+/* AI アバター: モバイルでも復活させる。amber グラデ + halo */
 .chat-aurora-panel[data-mobile="1"] .chat-avatar-ai-static {
-  background: #18181b;
-  box-shadow: none;
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%);
+  box-shadow:
+    0 0 0 2px rgba(245, 158, 11, 0.18),
+    0 1px 4px rgba(217, 119, 6, 0.18);
 }
-.dark .chat-aurora-panel[data-mobile="1"] .chat-avatar-ai-static {
+
+/* Eddivom 送信ボタン: 入力ありのときだけ amber グラデ + ハイライト掃引 */
+.eddivom-send-active {
+  background: linear-gradient(135deg, #b45309 0%, #d97706 50%, #f59e0b 100%);
+  box-shadow:
+    0 2px 8px rgba(217, 119, 6, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  position: relative;
+  overflow: hidden;
+}
+.eddivom-send-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.32) 50%,
+    transparent 70%);
+  transform: translateX(-100%);
+  animation: eddivom-sheen 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes eddivom-sheen {
+  0% { transform: translateX(-100%); }
+  60% { transform: translateX(140%); }
+  100% { transform: translateX(140%); }
+}
+
+/* Stop ボタン: 黒だが amber ring */
+.eddivom-stop-active {
+  background: #18181b;
+  box-shadow:
+    0 0 0 2px rgba(245, 158, 11, 0.45),
+    0 2px 8px rgba(217, 119, 6, 0.18);
+}
+.dark .eddivom-stop-active {
   background: #fafafa;
   color: #18181b;
+}
+
+/* ヘッダー pill の amber underline (active = AI 動作中) */
+.eddivom-pill-active::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -3px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #d97706, #f59e0b, transparent);
+  animation: eddivom-pill-pulse 1.6s ease-in-out infinite;
+}
+@keyframes eddivom-pill-pulse {
+  0%, 100% { opacity: 0.4; transform: scaleX(0.7); }
+  50%      { opacity: 1;   transform: scaleX(1); }
 }
 
 /* ── Message list scroll area ── */

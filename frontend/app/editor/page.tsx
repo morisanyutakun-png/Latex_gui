@@ -314,14 +314,22 @@ export default function EditorPage() {
               >
                 <PanelLeft className="h-5 w-5" strokeWidth={1.8} />
               </button>
-              {/* 中央 pill タイトル — ChatGPT のモデル名 pill 相当 */}
+              {/* 中央 pill タイトル — Eddivom ブランド: 常時 amber ドット + AI active 中は underline がパルス */}
               <button
                 onClick={() => setMobileMenuOpen(true)}
-                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-foreground/[0.05] hover:bg-foreground/[0.08] active:scale-[0.98] transition"
+                className={`relative inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-500/10 dark:to-orange-500/5 border border-amber-300/40 dark:border-amber-500/30 hover:border-amber-400/60 active:scale-[0.98] transition shadow-sm shadow-amber-500/10 ${
+                  isChatLoading ? "eddivom-pill-active" : ""
+                }`}
                 aria-label="Eddivom"
               >
-                <span className="text-[15px] font-semibold text-foreground/85 tracking-tight">Eddivom</span>
-                {isChatLoading && <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" aria-hidden />}
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                  style={{ boxShadow: "0 0 6px rgba(245, 158, 11, 0.6)" }}
+                  aria-hidden
+                />
+                <span className="text-[15px] font-semibold tracking-tight bg-gradient-to-r from-amber-700 to-orange-700 dark:from-amber-300 dark:to-orange-300 bg-clip-text text-transparent">
+                  Eddivom
+                </span>
               </button>
               <div className="flex-1" />
               {/* ✏︎ 新規チャット */}
