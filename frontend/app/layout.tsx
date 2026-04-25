@@ -80,16 +80,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ja_JP",
     alternateLocale: ["en_US"],
-    images: [
-      { url: "/apple-icon.png", width: 180, height: 180, alt: "Eddivom logo" },
-    ],
+    // images は app/opengraph-image.tsx (file-convention) が自動注入する
   },
   twitter: {
     card: "summary_large_image",
     title: "Eddivom — AI教材作成IDE",
     description:
       "AIで問題を生成し、解答付きPDFまで自動。塾・学校・クリエイター向けのLaTeX教材作成IDE。",
-    images: ["/apple-icon.png"],
+    // images は app/twitter-image.tsx (file-convention) が自動注入する
   },
 };
 

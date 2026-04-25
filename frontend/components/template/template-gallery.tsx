@@ -1574,6 +1574,43 @@ export function TemplateGallery() {
         </div>
       </section>
 
+      {/* ━━ Editor Workspace Mockup ━━
+          ヒーローの「依頼するだけで...」を裏付ける 30 秒デモ。
+          流し読み層には HeroFlowStrip で伝え、ここで「実際の見た目」を見せる二段構え。 */}
+      <section className="relative pb-24 pt-10 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,hsl(var(--primary)/0.04),transparent_70%)]" />
+        <div
+          ref={mockupFade.ref}
+          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${mockupFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+        >
+          <div className="text-center mb-10">
+            <p className="inline-flex items-center gap-1.5 text-[12px] text-violet-500/80 font-semibold mb-3">
+              <Play className="h-3.5 w-3.5 fill-current" />
+              {isJa ? "実際の画面を 30 秒で見る" : "Watch the actual app — 30 seconds"}
+            </p>
+            <h2 className="text-[clamp(1.4rem,3.5vw,2.2rem)] font-bold tracking-tight">
+              {isJa ? "AIに頼んで、紙面にすぐ反映。" : "Ask the AI. See it land on the page."}
+            </h2>
+          </div>
+
+          <EditorMockup isJa={isJa} />
+
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
+            {[
+              { icon: <Sparkles className="h-3.5 w-3.5" />, label: isJa ? "AIに指示→即反映" : "Prompt AI → instant result" },
+              { icon: <FileText className="h-3.5 w-3.5" />, label: isJa ? "コンパイル済みPDF表示" : "Compiled PDF on page" },
+              { icon: <Pencil className="h-3.5 w-3.5" />, label: isJa ? "紙面を直接編集" : "Edit directly on page" },
+              { icon: <RefreshCw className="h-3.5 w-3.5" />, label: isJa ? "類題を一瞬で量産" : "Variants in one click" },
+            ].map((chip) => (
+              <div key={chip.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[11px] text-muted-foreground hover:border-foreground/[0.12] transition-colors">
+                <span className="text-primary/70">{chip.icon}</span>
+                {chip.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ━━ Trust signals bar ━━ */}
       <section className="border-y border-foreground/[0.04] bg-foreground/[0.008] dark:bg-white/[0.01] py-5">
         <div className="max-w-5xl mx-auto px-6 flex flex-wrap items-center justify-center gap-3">
@@ -1650,49 +1687,6 @@ export function TemplateGallery() {
                 ? "問題集やドリルを作って配布・販売。印刷品質のPDFを大量に。"
                 : "Build and sell problem sets. Export print-ready PDFs at scale."}
             />
-          </div>
-        </div>
-      </section>
-
-      {/* ━━ Editor Workspace Mockup ━━ */}
-      <section className="relative py-24 overflow-hidden border-t border-foreground/[0.04]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,hsl(var(--primary)/0.04),transparent_70%)]" />
-        <div
-          ref={mockupFade.ref}
-          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${mockupFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
-        >
-          <div className="text-center mb-14">
-            <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
-              {isJa ? "Eddivom のワークスペース" : "The Eddivom workspace"}
-            </p>
-            <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
-              {isJa ? "AIに頼んで、紙面にすぐ反映。" : "Tell the AI what you need. See it on the page."}
-            </h2>
-            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
-              {isJa
-                ? "AIに指示を出すと、コンパイル済みのPDFが紙面にそのまま表示。数式も図もきれいに組版された状態で直接編集できます。"
-                : "Type a prompt, and Eddivom renders the finished PDF right on the page. Equations and layout are print-ready."}
-            </p>
-            <p className="flex items-center justify-center gap-1.5 text-[12px] text-violet-500/70 font-medium mt-5">
-              <Play className="h-3.5 w-3.5 fill-current" />
-              {isJa ? "30秒デモをご覧ください" : "Watch the 30-second demo"}
-            </p>
-          </div>
-
-          <EditorMockup isJa={isJa} />
-
-          <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
-            {[
-              { icon: <Sparkles className="h-3.5 w-3.5" />, label: isJa ? "AIに指示→即反映" : "Prompt AI → instant result" },
-              { icon: <FileText className="h-3.5 w-3.5" />, label: isJa ? "コンパイル済みPDF表示" : "Compiled PDF on page" },
-              { icon: <Pencil className="h-3.5 w-3.5" />, label: isJa ? "紙面を直接編集" : "Edit directly on page" },
-              { icon: <RefreshCw className="h-3.5 w-3.5" />, label: isJa ? "類題を一瞬で量産" : "Variants in one click" },
-            ].map((chip) => (
-              <div key={chip.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[11px] text-muted-foreground hover:border-foreground/[0.12] transition-colors">
-                <span className="text-primary/70">{chip.icon}</span>
-                {chip.label}
-              </div>
-            ))}
           </div>
         </div>
       </section>
