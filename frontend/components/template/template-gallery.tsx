@@ -45,6 +45,12 @@ import {
   Play,
   Plus,
   ClipboardCheck,
+  MousePointer2,
+  Square,
+  Circle as CircleIcon,
+  Minus as MinusIcon,
+  Type as TypeIcon,
+  Pen as PenIcon,
 } from "lucide-react";
 
 /* ── Floating math formulas background ── */
@@ -611,6 +617,352 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
               style={{ width: `${(e / CYCLE) * 100}%` }}
             />
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Figure Draw Mockup ──
+ * 16 秒ループの図形描画モード自動デモ。
+ * 左の縦ツールバーに各ツールアイコン、右に格子背景の Canvas。
+ * フェーズ毎に「ツール選択 → 図形ドロー」を繰り返し、最後に "Free でも使える" を強調。
+ *
+ * 動画ファイルは使わず、CSS の transition と inline style で滑らかな描画演出を作る。
+ */
+function FigureDrawMockup({ isJa }: { isJa: boolean }) {
+  const [tick, setTick] = useState(0);
+  const CYCLE = 16000; // 16 s
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 100);
+    return () => clearInterval(id);
+  }, []);
+  const e = (tick * 100) % CYCLE; // ms in current cycle
+
+  // ── Phase timeline (ms) ──
+  const T = {
+    intro:        0,
+    rectSelect:   1500,
+    rectDraw:     2200,
+    rectDone:     3800,
+    circleSelect: 4400,
+    circleDraw:   5100,
+    circleDone:   6700,
+    arrowSelect:  7200,
+    arrowDraw:    7900,
+    arrowDone:    9300,
+    textSelect:   9700,
+    textType:     10100,
+    textDone:     11800,
+    showcase:     12200,
+    fadeOut:      14800,
+  };
+
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const progress = (start: number, end: number) => clamp((e - start) / (end - start), 0, 1);
+
+  // どのツールが選ばれているか (アイコン強調用)
+  const activeTool: "select" | "rect" | "circle" | "arrow" | "text" =
+    e < T.rectSelect      ? "select"
+    : e < T.circleSelect  ? "rect"
+    : e < T.arrowSelect   ? "circle"
+    : e < T.textSelect    ? "arrow"
+    : e < T.showcase      ? "text"
+    : "select";
+
+  // 図形の出現プログレス (0..1)
+  const rectP   = progress(T.rectDraw, T.rectDone);
+  const circleP = progress(T.circleDraw, T.circleDone);
+  const arrowP  = progress(T.arrowDraw, T.arrowDone);
+  const textP   = progress(T.textType, T.textDone);
+
+  // テキスト「F」のタイピング演出
+  const labelText = "F";
+  const typedChars = e >= T.textType
+    ? Math.min(labelText.length, Math.floor((e - T.textType) / 200))
+    : 0;
+
+  // showcase phase でうっすら全体が脈打つ
+  const isShowcase = e >= T.showcase && e < T.fadeOut;
+
+  // ループ際のフェード
+  const opacity = e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1000)
+                : e < 400 ? e / 400 : 1;
+
+  // ── Tool button ──
+  const tools = [
+    { id: "select",  Icon: MousePointer2,   label: isJa ? "選択"   : "Select" },
+    { id: "rect",    Icon: Square,          label: isJa ? "四角形" : "Rect" },
+    { id: "circle",  Icon: CircleIcon,      label: isJa ? "円"     : "Circle" },
+    { id: "line",    Icon: MinusIcon,       label: isJa ? "線"     : "Line" },
+    { id: "arrow",   Icon: ArrowRight,      label: isJa ? "矢印"   : "Arrow" },
+    { id: "text",    Icon: TypeIcon,        label: isJa ? "文字"   : "Text" },
+    { id: "freehand",Icon: PenIcon,         label: isJa ? "ペン"   : "Pen" },
+  ] as const;
+
+  // Canvas の中の絶対座標 (px)。Canvas を 480 x 280 想定。
+  const RECT   = { x: 90,  y: 80,  w: 90,  h: 70  };  // 質量ブロック
+  const CIRCLE = { cx: 270, cy: 100, r: 30 };          // 滑車
+  const ARROW  = { x1: 180, y1: 115, x2: 260, y2: 105 }; // 力ベクトル
+  const TEXT   = { x: 215, y: 100 }; // ラベル
+
+  // 矢印の進捗描画 — 始点から end までの線分を progress で伸ばす
+  const arrowEndX = ARROW.x1 + (ARROW.x2 - ARROW.x1) * arrowP;
+  const arrowEndY = ARROW.y1 + (ARROW.y2 - ARROW.y1) * arrowP;
+
+  return (
+    <div className="relative w-full max-w-3xl mx-auto" style={{ opacity }}>
+      <div className="absolute -inset-4 bg-gradient-to-b from-emerald-500/[0.05] to-violet-500/[0.04] rounded-3xl blur-2xl pointer-events-none" />
+      <div className="relative rounded-2xl border border-foreground/[0.08] bg-card/90 backdrop-blur-xl shadow-2xl shadow-foreground/[0.06] overflow-hidden">
+
+        {/* Title bar */}
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-foreground/[0.06] bg-foreground/[0.02]">
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
+            <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/70" />
+            <div className="w-2.5 h-2.5 rounded-full bg-green-400/70" />
+          </div>
+          <PenLine className="h-3.5 w-3.5 text-emerald-500 ml-2" />
+          <span className="text-[11px] text-muted-foreground/70 font-semibold">
+            {isJa ? "図形描画モード" : "Figure mode"}
+          </span>
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* FREE バッジ — 強調 */}
+            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-500/30">
+              <Check className="h-2.5 w-2.5" />
+              {isJa ? "FREEで利用可" : "FREE"}
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-foreground/[0.05] text-muted-foreground/70 font-medium border border-foreground/[0.06]">
+              TikZ
+            </span>
+          </div>
+        </div>
+
+        {/* Body: tool sidebar + canvas */}
+        <div className="flex" style={{ minHeight: "320px" }}>
+
+          {/* Tool sidebar */}
+          <div className="w-[52px] flex flex-col items-center gap-1.5 py-3 border-r border-foreground/[0.06] bg-foreground/[0.015]">
+            {tools.map(({ id, Icon, label }) => {
+              const isActive = id === activeTool;
+              return (
+                <div
+                  key={id}
+                  title={label}
+                  className={`relative h-9 w-9 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                    isActive
+                      ? "bg-violet-500/15 text-violet-600 dark:text-violet-300 ring-2 ring-violet-500/40 scale-[1.08]"
+                      : "text-foreground/45 hover:text-foreground/70"
+                  }`}
+                >
+                  <Icon size={15} />
+                  {/* active phase で薄いリングアニメーションが走る */}
+                  {isActive && (
+                    <span className="absolute inset-0 rounded-lg ring-1 ring-violet-500/30 animate-ping" />
+                  )}
+                </div>
+              );
+            })}
+            <div className="flex-1" />
+            {/* Domain palette ヒント — 「もっとあるよ」と示すドット */}
+            <div className="flex flex-col gap-1 opacity-50">
+              <div className="h-1 w-1 rounded-full bg-foreground/40" />
+              <div className="h-1 w-1 rounded-full bg-foreground/40" />
+              <div className="h-1 w-1 rounded-full bg-foreground/40" />
+            </div>
+          </div>
+
+          {/* Canvas */}
+          <div className="flex-1 relative bg-white dark:bg-zinc-950/40 overflow-hidden">
+            {/* 格子 (TikZ canvas 風) */}
+            <div
+              className="absolute inset-0 opacity-[0.55] dark:opacity-[0.20]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px)",
+                backgroundSize: "20px 20px",
+              }}
+            />
+            {/* 強い格子 (5 マスごと) */}
+            <div
+              className="absolute inset-0 opacity-[0.45] dark:opacity-[0.18] pointer-events-none"
+              style={{
+                backgroundImage:
+                  "linear-gradient(to right, rgba(0,0,0,0.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.10) 1px, transparent 1px)",
+                backgroundSize: "100px 100px",
+              }}
+            />
+
+            {/* 図形を描画する SVG レイヤー */}
+            <svg
+              className="absolute inset-0 w-full h-full"
+              viewBox="0 0 480 280"
+              preserveAspectRatio="xMidYMid meet"
+            >
+              {/* Rectangle */}
+              {rectP > 0 && (
+                <rect
+                  x={RECT.x}
+                  y={RECT.y}
+                  width={RECT.w * rectP}
+                  height={RECT.h * rectP}
+                  fill="rgba(99, 102, 241, 0.10)"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  strokeDasharray={rectP < 1 ? "4 3" : "0"}
+                  rx="4"
+                  className={isShowcase ? "animate-pulse" : ""}
+                />
+              )}
+              {/* Rectangle label "m" — 図形が完成したら表示 */}
+              {rectP >= 1 && (
+                <text
+                  x={RECT.x + RECT.w / 2}
+                  y={RECT.y + RECT.h / 2 + 5}
+                  textAnchor="middle"
+                  fontSize="14"
+                  fontStyle="italic"
+                  fill="#4338ca"
+                  fontFamily="serif"
+                >
+                  m
+                </text>
+              )}
+
+              {/* Circle (pulley) */}
+              {circleP > 0 && (
+                <circle
+                  cx={CIRCLE.cx}
+                  cy={CIRCLE.cy}
+                  r={CIRCLE.r * circleP}
+                  fill="rgba(236, 72, 153, 0.08)"
+                  stroke="#ec4899"
+                  strokeWidth={2}
+                  strokeDasharray={circleP < 1 ? "4 3" : "0"}
+                />
+              )}
+              {circleP >= 1 && (
+                <circle cx={CIRCLE.cx} cy={CIRCLE.cy} r="2" fill="#ec4899" />
+              )}
+
+              {/* Arrow (force) */}
+              {arrowP > 0 && (
+                <g>
+                  <defs>
+                    <marker
+                      id="fdmHeadActive"
+                      viewBox="0 0 10 10"
+                      refX="8"
+                      refY="5"
+                      markerWidth="6"
+                      markerHeight="6"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M0,0 L10,5 L0,10 z" fill="#16a34a" />
+                    </marker>
+                  </defs>
+                  <line
+                    x1={ARROW.x1}
+                    y1={ARROW.y1}
+                    x2={arrowEndX}
+                    y2={arrowEndY}
+                    stroke="#16a34a"
+                    strokeWidth={2.2}
+                    markerEnd={arrowP >= 1 ? "url(#fdmHeadActive)" : undefined}
+                  />
+                </g>
+              )}
+
+              {/* Text label "F" — 文字+下線が typing で出現 */}
+              {textP > 0 && typedChars > 0 && (
+                <text
+                  x={TEXT.x}
+                  y={TEXT.y - 6}
+                  textAnchor="middle"
+                  fontSize="15"
+                  fontStyle="italic"
+                  fontWeight="700"
+                  fill="#16a34a"
+                  fontFamily="serif"
+                  opacity={textP}
+                >
+                  {labelText.slice(0, typedChars)}
+                </text>
+              )}
+            </svg>
+
+            {/* 床の斜線 (土台) — 質量ブロックの完成後に静かに表示 */}
+            {rectP >= 1 && (
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                viewBox="0 0 480 280"
+              >
+                <line x1="60" y1="150" x2="220" y2="150" stroke="rgba(0,0,0,0.45)" strokeWidth="1.5" />
+                {[...Array(8)].map((_, i) => (
+                  <line
+                    key={i}
+                    x1={70 + i * 20}
+                    y1={150}
+                    x2={62 + i * 20}
+                    y2={160}
+                    stroke="rgba(0,0,0,0.35)"
+                    strokeWidth="1"
+                  />
+                ))}
+              </svg>
+            )}
+
+            {/* アニメーション中のカーソル (擬似的に右下に表示) */}
+            <div
+              className="absolute pointer-events-none transition-all duration-700 ease-out"
+              style={{
+                left:
+                  activeTool === "rect"   ? "27%"
+                  : activeTool === "circle" ? "55%"
+                  : activeTool === "arrow"  ? "47%"
+                  : activeTool === "text"   ? "44%"
+                  : "20%",
+                top:
+                  activeTool === "rect"   ? "55%"
+                  : activeTool === "circle" ? "38%"
+                  : activeTool === "arrow"  ? "42%"
+                  : activeTool === "text"   ? "38%"
+                  : "30%",
+              }}
+            >
+              <svg width="20" height="22" viewBox="0 0 20 22">
+                <path
+                  d="M2,2 L2,16 L6,12 L9,18 L11,17 L8,11 L14,11 z"
+                  fill="white"
+                  stroke="#0f172a"
+                  strokeWidth="1.2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            {/* showcase 中のキャプション */}
+            {isShowcase && (
+              <div className="absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1.5 rounded-full bg-emerald-500/95 text-white text-[10.5px] font-bold shadow-lg shadow-emerald-500/40 flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <Check className="h-3 w-3" />
+                {isJa ? "図はそのまま PDF に挿入されます" : "Figure is embedded in the PDF"}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Status bar */}
+        <div className="flex items-center justify-between px-4 py-1.5 border-t border-foreground/[0.06] bg-foreground/[0.02] text-[10px] text-muted-foreground/60">
+          <span className="font-mono">
+            {isJa ? "ツール:" : "Tool:"}{" "}
+            <span className="text-violet-500 font-semibold">
+              {tools.find((t) => t.id === activeTool)?.label}
+            </span>
+          </span>
+          <span className="hidden sm:inline">
+            {isJa ? "回路図・力学・幾何・化学・生物・フローチャートまで対応" : "Circuits · Mechanics · Geometry · Chemistry · Biology · Flowcharts"}
+          </span>
         </div>
       </div>
     </div>
@@ -1391,7 +1743,11 @@ export function TemplateGallery() {
 
         <FloatingFormulas />
 
-        {/* Hero content */}
+        {/* Hero content — 配置順:
+            1) Badge / Headline / Subtitle (テキスト訴求)
+            2) EditorMockup (30 秒の実機デモ ─ 説得材料)
+            3) CTAs (続きから編集 等 ─ 説得後にクリック誘導)
+            ──── 動画→ボタンの順にした方がコンバージョン理論的に強い。 */}
         <div className="relative z-10 max-w-5xl mx-auto text-center px-4 sm:px-6">
           <div className={`transition-all duration-1000 ease-out ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
 
@@ -1408,17 +1764,43 @@ export function TemplateGallery() {
               <TypingLine lines={heroTypingLines} />
             </h1>
 
-            <p className="text-muted-foreground text-[14px] sm:text-[16px] leading-relaxed max-w-xl mx-auto mb-6 sm:mb-7 font-light">
+            <p className="text-muted-foreground text-[14px] sm:text-[16px] leading-relaxed max-w-xl mx-auto mb-7 sm:mb-8 font-light">
               {isJa
                 ? "AIが問題を生成し、類題を量産し、解答付きPDFを自動で作成。"
                 : "AI generates problems, multiplies variants, and auto-creates answer-key PDFs."}
             </p>
+          </div>
 
-            {/* CTAs */}
+          {/* 30 秒の実機デモ ─ CTA より先に "どう動くのか" を見せる */}
+          <div className={`relative transition-all duration-1000 delay-200 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+            <p className="inline-flex items-center gap-1.5 text-[11px] text-violet-500/80 font-semibold mb-3">
+              <Play className="h-3 w-3 fill-current" />
+              {isJa ? "30 秒で実際の画面を見る" : "Watch the real app — 30s"}
+            </p>
+            <EditorMockup isJa={isJa} />
+
+            {/* 機能チップ — モバイルでは折り返し */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+              {[
+                { icon: <Sparkles className="h-3 w-3" />, label: isJa ? "AIに指示→即反映" : "Prompt → instant result" },
+                { icon: <FileText className="h-3 w-3" />, label: isJa ? "コンパイル済みPDF" : "Compiled PDF" },
+                { icon: <Pencil className="h-3 w-3" />, label: isJa ? "紙面を直接編集" : "Edit on page" },
+                { icon: <RefreshCw className="h-3 w-3" />, label: isJa ? "類題を一瞬で量産" : "Variants in 1 click" },
+              ].map((chip) => (
+                <div key={chip.label} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[10.5px] text-muted-foreground">
+                  <span className="text-primary/70">{chip.icon}</span>
+                  {chip.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* CTA ─ デモを見せた後に置いて「やってみよう」を誘発する */}
+          <div className={`mt-10 sm:mt-12 transition-all duration-1000 delay-500 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-3">
               <button
                 onClick={primaryCta.onClick}
-                className="group relative flex items-center gap-2.5 px-7 py-3 rounded-full bg-foreground text-background font-bold text-[14px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300 overflow-hidden"
+                className="group relative flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-foreground text-background font-bold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300 overflow-hidden"
               >
                 <span className="absolute inset-0 bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-600 opacity-0 group-hover:opacity-[0.08] transition-opacity duration-300" />
                 {primaryCta.variant === "resume" && <FileText className="h-4 w-4" />}
@@ -1447,37 +1829,10 @@ export function TemplateGallery() {
               {primaryCta.subLabel}
             </p>
 
-            {/* モバイル限定の PC 推奨ヒント — エディタは PC 操作前提なので、
-                スマホ閲覧者にやんわり PC 利用を促す。閉じれない軽微な訴求にとどめる。 */}
-            <div className="sm:hidden mb-6 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-500/25 bg-amber-500/[0.06] text-amber-700 dark:text-amber-300 text-[11px] font-medium">
+            {/* モバイル限定の PC 推奨ヒント */}
+            <div className="sm:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-500/25 bg-amber-500/[0.06] text-amber-700 dark:text-amber-300 text-[11px] font-medium">
               <span aria-hidden="true">💻</span>
               <span>{isJa ? "編集は PC ブラウザを推奨" : "Use a desktop browser to edit"}</span>
-            </div>
-            <div className="hidden sm:block mb-6 sm:mb-7" />
-          </div>
-
-          {/* 30 秒の実機デモ — ファーストビュー内に置いて「どんな見た目で何ができるか」を即伝える。
-              md 以上は full、モバイルは横スクロールで縮小しすぎないようにする。 */}
-          <div className={`relative transition-all duration-1000 delay-300 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <p className="inline-flex items-center gap-1.5 text-[11px] text-violet-500/80 font-semibold mb-3">
-              <Play className="h-3 w-3 fill-current" />
-              {isJa ? "30 秒で実際の画面を見る" : "Watch the real app — 30s"}
-            </p>
-            <EditorMockup isJa={isJa} />
-
-            {/* 機能チップ — モバイルでは折り返し */}
-            <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
-              {[
-                { icon: <Sparkles className="h-3 w-3" />, label: isJa ? "AIに指示→即反映" : "Prompt → instant result" },
-                { icon: <FileText className="h-3 w-3" />, label: isJa ? "コンパイル済みPDF" : "Compiled PDF" },
-                { icon: <Pencil className="h-3 w-3" />, label: isJa ? "紙面を直接編集" : "Edit on page" },
-                { icon: <RefreshCw className="h-3 w-3" />, label: isJa ? "類題を一瞬で量産" : "Variants in 1 click" },
-              ].map((chip) => (
-                <div key={chip.label} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[10.5px] text-muted-foreground">
-                  <span className="text-primary/70">{chip.icon}</span>
-                  {chip.label}
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -1691,6 +2046,51 @@ export function TemplateGallery() {
                 ? "アップロード・画像・テキスト、どれからでもスタートできます。"
                 : "Start from PDF, photo, or plain text — your choice."}
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ━━ Figure Drawing — Free でも使える図形描画 ━━
+          AI 生成だけでは伝わらない「TikZ 図形を直接描ける」差別化ポイント。
+          回路・幾何・力学・化学・生物まで対応する domain palette が無料プランで利用可能。 */}
+      <section className="relative py-24 overflow-hidden border-t border-foreground/[0.04]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(16,185,129,0.06),transparent_70%)]" />
+        <div className="relative max-w-5xl mx-auto px-6">
+          <div className="text-center mb-10">
+            <p className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.22em] uppercase mb-3">
+              <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
+                {isJa ? "図形描画モード" : "Figure mode"}
+              </span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9.5px] font-extrabold tracking-wider shadow-sm shadow-emerald-500/30">
+                <Check className="h-2.5 w-2.5" />
+                FREE
+              </span>
+            </p>
+            <h2 className="text-[clamp(1.5rem,3.6vw,2.4rem)] font-bold tracking-tight mb-3">
+              {isJa ? "図も、Free で描ける。" : "Draw figures, free of charge."}
+            </h2>
+            <p className="text-muted-foreground text-[14px] sm:text-[15px] max-w-xl mx-auto leading-relaxed">
+              {isJa
+                ? "回路図・力学・幾何・化学・生物・フローチャートまで。専用の図形パレットで、TikZ コードを書かずに教材用の図を直感的に描けます。無料プランで制限なく利用可能。"
+                : "Circuits, mechanics, geometry, chemistry, biology, flowcharts. A built-in shape palette lets you draw textbook-quality figures without writing TikZ — and it's all free."}
+            </p>
+          </div>
+
+          <FigureDrawMockup isJa={isJa} />
+
+          {/* 補足チップ — 何が描けるかを列挙 (SEO 兼 ユーザー安心材料) */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-7">
+            {(isJa
+              ? ["回路図 (Circuitikz)", "力学・てこ・ばね", "幾何・座標・関数", "化学式・分子", "生物・細胞", "フローチャート"]
+              : ["Circuits (Circuitikz)", "Mechanics", "Geometry & functions", "Chemistry", "Biology", "Flowcharts"]
+            ).map((label) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/[0.06] border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium"
+              >
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       </section>
