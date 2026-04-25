@@ -236,145 +236,6 @@ function TypingLine({ lines }: { lines: string[] }) {
   );
 }
 
-/* ── Hero Flow Strip ──
- * ヒーロー直下に置く「3秒で意味が伝わる」横並びの可視デモ。
- * Prompt → AI → PDF の流れを順番にハイライトし、流し読み層に
- * 「結局なにが起きるの?」を一目で伝える。
- *
- * 動画ファイルを使わず CSS と KaTeX だけで成立する軽量プレビュー。
- * 6.4 秒で 1 周し、各ステップが 1.6 秒ずつ active になる。
- */
-function HeroFlowStrip({ isJa }: { isJa: boolean }) {
-  // 100ms 刻みの tick から phase / typing を導出する (タイピング途中の再描画を起こすため)。
-  const [tick, setTick] = useState(0);
-  const TICK_MS = 100;
-  const STEP_MS = 1600;
-  const CYCLE_MS = STEP_MS * 4;
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  const elapsed = (tick * TICK_MS) % CYCLE_MS;
-  const phase = Math.floor(elapsed / STEP_MS);
-
-  const promptText = isJa ? "二次関数の問題を10問。難易度高めで" : "10 quadratic problems, harder difficulty";
-  const typedLen = phase === 0
-    ? Math.min(promptText.length, Math.floor((elapsed / STEP_MS) * promptText.length))
-    : promptText.length;
-
-  // KaTeX で描いた小さな数式 (PDF カード内)。生 LaTeX を画面に出さない方針に従い、
-  // SSR / クライアントいずれでも HTML 文字列を直接埋める。
-  const sampleFormula = React.useMemo(
-    () => renderMathHTML("f(x) = ax^2 + bx + c"),
-    []
-  );
-
-  // 静的コンポーネント化を避けるため lowercase 関数で描画する (react-hooks/static-components)
-  const renderStep = (
-    active: boolean,
-    done: boolean,
-    label: string,
-    body: React.ReactNode,
-  ) => (
-    <div
-      className={`relative flex-1 min-w-0 rounded-xl border p-3 transition-all duration-500 ${
-        active
-          ? "border-violet-500/50 bg-gradient-to-br from-violet-500/[0.08] to-fuchsia-500/[0.06] shadow-lg shadow-violet-500/10 scale-[1.02]"
-          : done
-            ? "border-foreground/[0.10] bg-foreground/[0.015]"
-            : "border-foreground/[0.06] bg-foreground/[0.008]"
-      }`}
-    >
-      <div className="flex items-center gap-1.5 mb-2">
-        <div
-          className={`h-1.5 w-1.5 rounded-full transition-colors duration-300 ${
-            active ? "bg-violet-500 animate-pulse" : done ? "bg-emerald-500" : "bg-foreground/20"
-          }`}
-        />
-        <span className="text-[10px] font-bold tracking-wider uppercase text-foreground/55">
-          {label}
-        </span>
-      </div>
-      <div className="min-h-[58px] flex items-center">{body}</div>
-    </div>
-  );
-
-  return (
-    <div
-      className="mx-auto max-w-3xl px-2"
-      role="img"
-      aria-label={isJa
-        ? "AIに依頼すると教材PDFが自動で完成するデモ"
-        : "Demo: ask AI, get a finished worksheet PDF"}
-    >
-      <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-        {/* Step 1: ask */}
-        {renderStep(
-          phase === 0,
-          phase > 0,
-          isJa ? "1. 依頼" : "1. Ask",
-          <div className="w-full">
-            <div className="inline-flex items-start gap-1.5 max-w-full">
-              <span className="text-[10px] sm:text-[11px] text-foreground/85 leading-snug text-left font-medium tracking-tight line-clamp-2">
-                {promptText.slice(0, typedLen)}
-                {phase === 0 && <span className="text-violet-500 animate-pulse">|</span>}
-              </span>
-            </div>
-          </div>,
-        )}
-
-        {/* Connector arrow */}
-        <span className="absolute left-[33%] top-1/2 -translate-y-1/2 hidden sm:block text-foreground/20 text-sm pointer-events-none">→</span>
-
-        {/* Step 2: AI generates */}
-        {renderStep(
-          phase === 1 || phase === 2,
-          phase === 3,
-          isJa ? "2. AI生成" : "2. AI builds",
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-violet-500/12 border border-violet-500/25">
-              <Sparkles className="h-2.5 w-2.5 text-violet-500" />
-              <span className="text-[9px] sm:text-[10px] font-mono text-violet-700 dark:text-violet-300">x²+3x</span>
-            </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-fuchsia-500/10 border border-fuchsia-500/25 text-[9px] sm:text-[10px] font-mono text-fuchsia-700 dark:text-fuchsia-300">
-              ∫f(x)dx
-            </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/25 text-[9px] sm:text-[10px] font-mono text-blue-700 dark:text-blue-300">
-              ax+b
-            </span>
-          </div>,
-        )}
-
-        {/* Connector arrow */}
-        <span className="absolute left-[66%] top-1/2 -translate-y-1/2 hidden sm:block text-foreground/20 text-sm pointer-events-none">→</span>
-
-        {/* Step 3: PDF ready */}
-        {renderStep(
-          phase === 3,
-          false,
-          isJa ? "3. PDF出力" : "3. PDF ready",
-          <div className="w-full">
-            <div className="rounded-md bg-white dark:bg-zinc-900 border border-foreground/10 px-2 py-1.5 shadow-sm">
-              <div className="h-[3px] w-3/4 rounded-full bg-foreground/15 mb-1" />
-              <div className="h-[3px] w-1/2 rounded-full bg-foreground/10 mb-1.5" />
-              <div
-                className="text-[10px] text-foreground/80 katex-mini"
-                dangerouslySetInnerHTML={{ __html: sampleFormula }}
-              />
-            </div>
-          </div>,
-        )}
-      </div>
-      <p className="text-center text-[11px] text-muted-foreground/55 mt-3 font-medium tracking-wide">
-        {isJa
-          ? "依頼するだけで、印刷できる教材ができあがります"
-          : "Just ask. Get a print-ready worksheet."}
-      </p>
-    </div>
-  );
-}
-
 /* ── Editor Workspace Mockup ── */
 /* ── 30-second looping demo ── */
 function EditorMockup({ isJa }: { isJa: boolean }) {
@@ -1286,7 +1147,6 @@ export function TemplateGallery() {
 
 
   const personaFade = useFadeIn(0);
-  const mockupFade = useFadeIn(0);
   const workflowFade = useFadeIn(0);
   const featuresFade = useFadeIn(0);
   const diffFade = useFadeIn(0);
@@ -1486,8 +1346,10 @@ export function TemplateGallery() {
         </div>
       </nav>
 
-      {/* ━━ Hero ━━ */}
-      <section className="relative min-h-[100vh] flex items-center justify-center overflow-hidden">
+      {/* ━━ Hero ━━
+          1 画面目で「何ができるか」を即伝えるため、テキストを圧縮して
+          30 秒の実機デモ (EditorMockup) を上げてある。 */}
+      <section className="relative pt-16 sm:pt-20 pb-10 overflow-hidden">
         {/* Ambient gradient mesh */}
         <div className="absolute inset-0 pointer-events-none">
           <GlowOrb className="top-[-15%] left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-blue-500/[0.06] to-violet-500/[0.06]" />
@@ -1501,44 +1363,43 @@ export function TemplateGallery() {
         <FloatingFormulas />
 
         {/* Hero content */}
-        <div className="relative z-10 max-w-3xl mx-auto text-center px-6 pt-20">
+        <div className="relative z-10 max-w-5xl mx-auto text-center px-4 sm:px-6">
           <div className={`transition-all duration-1000 ease-out ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
 
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-500/[0.08] to-violet-500/[0.08] border border-violet-500/[0.15] mb-8 shadow-sm">
-              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-              <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent text-[12px] font-bold tracking-wide">
+            {/* Badge — タイトな単一行 */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-blue-500/[0.08] to-violet-500/[0.08] border border-violet-500/[0.15] mb-4 sm:mb-5 shadow-sm">
+              <Sparkles className="h-3 w-3 text-violet-500" />
+              <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent text-[11px] font-bold tracking-wide">
                 Eddivom — {isJa ? "AI教材作成IDE" : "AI-powered worksheet IDE"}
               </span>
             </div>
 
-            {/* Headline */}
-            <h1 className="text-[clamp(2rem,5.5vw,4.8rem)] leading-[1.06] font-bold tracking-[-0.035em] mb-8 whitespace-nowrap">
+            {/* Headline — 1 画面に納めるためにスケールを抑制 */}
+            <h1 className="text-[clamp(1.6rem,4.2vw,3.4rem)] leading-[1.08] font-bold tracking-[-0.035em] mb-4 sm:mb-5 whitespace-nowrap">
               <TypingLine lines={heroTypingLines} />
             </h1>
 
-            <p className="text-muted-foreground text-[17px] sm:text-[19px] leading-relaxed max-w-xl mx-auto mb-10 font-light">
+            <p className="text-muted-foreground text-[14px] sm:text-[16px] leading-relaxed max-w-xl mx-auto mb-6 sm:mb-7 font-light">
               {isJa
                 ? "AIが問題を生成し、類題を量産し、解答付きPDFを自動で作成。"
-                : "AI generates problems, multiplies variants,\nand auto-creates answer-key PDFs."}
+                : "AI generates problems, multiplies variants, and auto-creates answer-key PDFs."}
             </p>
 
-            {/* CTAs — プランと保存状態に応じて文言・動作を変える */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+            {/* CTAs */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-3">
               <button
                 onClick={primaryCta.onClick}
-                className="group relative flex items-center gap-3 px-9 py-4 rounded-full bg-foreground text-background font-bold text-[15px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300 overflow-hidden"
+                className="group relative flex items-center gap-2.5 px-7 py-3 rounded-full bg-foreground text-background font-bold text-[14px] shadow-2xl shadow-foreground/10 hover:shadow-foreground/20 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300 overflow-hidden"
               >
                 <span className="absolute inset-0 bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-600 opacity-0 group-hover:opacity-[0.08] transition-opacity duration-300" />
                 {primaryCta.variant === "resume" && <FileText className="h-4 w-4" />}
                 {primaryCta.label}
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
               </button>
-              {/* 有料 + 保存あり の場合は副ボタンに「白紙で始める」も出す */}
               {primaryCta.variant === "resume" && currentPlan !== "free" && (
                 <button
                   onClick={openEditorBlank}
-                  className="group flex items-center gap-3 px-7 py-4 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
+                  className="group flex items-center gap-2.5 px-6 py-3 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[14px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
                 >
                   {isJa ? "白紙で始める" : "Start blank"}
                   <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
@@ -1546,67 +1407,49 @@ export function TemplateGallery() {
               )}
               <button
                 onClick={scrollToSample}
-                className="group flex items-center gap-3 px-8 py-4 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[15px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
+                className="group flex items-center gap-2.5 px-6 py-3 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[14px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
               >
-                {isJa ? "完成イメージを見る" : "See sample output"}
+                {isJa ? "完成イメージを見る" : "See sample"}
                 <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
               </button>
             </div>
 
-            <p className="text-[12px] text-muted-foreground/40">
+            <p className="text-[11px] text-muted-foreground/40 mb-3">
               {primaryCta.subLabel}
             </p>
-          </div>
 
-          {/* 視覚フック: 3秒で意味が伝わる横並びデモ。
-              流し読み層への即時訴求。スクロールしなくても何ができるかが分かる。 */}
-          <div className={`mt-12 transition-all duration-1000 delay-500 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-            <HeroFlowStrip isJa={isJa} />
-          </div>
-
-          {/* Scroll indicator */}
-          <div className={`mt-10 transition-all duration-1000 delay-700 ${heroLoaded ? "opacity-100" : "opacity-0"}`}>
-            <div className="flex flex-col items-center gap-2 text-muted-foreground/25">
-              <span className="text-[9px] tracking-[0.3em] uppercase">scroll</span>
-              <div className="w-px h-10 bg-gradient-to-b from-muted-foreground/20 to-transparent" />
+            {/* モバイル限定の PC 推奨ヒント — エディタは PC 操作前提なので、
+                スマホ閲覧者にやんわり PC 利用を促す。閉じれない軽微な訴求にとどめる。 */}
+            <div className="sm:hidden mb-6 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-500/25 bg-amber-500/[0.06] text-amber-700 dark:text-amber-300 text-[11px] font-medium">
+              <span aria-hidden="true">💻</span>
+              <span>{isJa ? "編集は PC ブラウザを推奨" : "Use a desktop browser to edit"}</span>
             </div>
+            <div className="hidden sm:block mb-6 sm:mb-7" />
           </div>
-        </div>
-      </section>
 
-      {/* ━━ Editor Workspace Mockup ━━
-          ヒーローの「依頼するだけで...」を裏付ける 30 秒デモ。
-          流し読み層には HeroFlowStrip で伝え、ここで「実際の見た目」を見せる二段構え。 */}
-      <section className="relative pb-24 pt-10 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,hsl(var(--primary)/0.04),transparent_70%)]" />
-        <div
-          ref={mockupFade.ref}
-          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${mockupFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
-        >
-          <div className="text-center mb-10">
-            <p className="inline-flex items-center gap-1.5 text-[12px] text-violet-500/80 font-semibold mb-3">
-              <Play className="h-3.5 w-3.5 fill-current" />
-              {isJa ? "実際の画面を 30 秒で見る" : "Watch the actual app — 30 seconds"}
+          {/* 30 秒の実機デモ — ファーストビュー内に置いて「どんな見た目で何ができるか」を即伝える。
+              md 以上は full、モバイルは横スクロールで縮小しすぎないようにする。 */}
+          <div className={`relative transition-all duration-1000 delay-300 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+            <p className="inline-flex items-center gap-1.5 text-[11px] text-violet-500/80 font-semibold mb-3">
+              <Play className="h-3 w-3 fill-current" />
+              {isJa ? "30 秒で実際の画面を見る" : "Watch the real app — 30s"}
             </p>
-            <h2 className="text-[clamp(1.4rem,3.5vw,2.2rem)] font-bold tracking-tight">
-              {isJa ? "AIに頼んで、紙面にすぐ反映。" : "Ask the AI. See it land on the page."}
-            </h2>
-          </div>
+            <EditorMockup isJa={isJa} />
 
-          <EditorMockup isJa={isJa} />
-
-          <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
-            {[
-              { icon: <Sparkles className="h-3.5 w-3.5" />, label: isJa ? "AIに指示→即反映" : "Prompt AI → instant result" },
-              { icon: <FileText className="h-3.5 w-3.5" />, label: isJa ? "コンパイル済みPDF表示" : "Compiled PDF on page" },
-              { icon: <Pencil className="h-3.5 w-3.5" />, label: isJa ? "紙面を直接編集" : "Edit directly on page" },
-              { icon: <RefreshCw className="h-3.5 w-3.5" />, label: isJa ? "類題を一瞬で量産" : "Variants in one click" },
-            ].map((chip) => (
-              <div key={chip.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[11px] text-muted-foreground hover:border-foreground/[0.12] transition-colors">
-                <span className="text-primary/70">{chip.icon}</span>
-                {chip.label}
-              </div>
-            ))}
+            {/* 機能チップ — モバイルでは折り返し */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+              {[
+                { icon: <Sparkles className="h-3 w-3" />, label: isJa ? "AIに指示→即反映" : "Prompt → instant result" },
+                { icon: <FileText className="h-3 w-3" />, label: isJa ? "コンパイル済みPDF" : "Compiled PDF" },
+                { icon: <Pencil className="h-3 w-3" />, label: isJa ? "紙面を直接編集" : "Edit on page" },
+                { icon: <RefreshCw className="h-3 w-3" />, label: isJa ? "類題を一瞬で量産" : "Variants in 1 click" },
+              ].map((chip) => (
+                <div key={chip.label} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[10.5px] text-muted-foreground">
+                  <span className="text-primary/70">{chip.icon}</span>
+                  {chip.label}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
