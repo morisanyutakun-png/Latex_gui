@@ -646,7 +646,7 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
  */
 function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   const [tick, setTick] = useState(0);
-  const CYCLE = 14000; // 14 s
+  const CYCLE = 22000; // 22 s — 物理の力学図を組み立てる長めのループ
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 80);
     return () => clearInterval(id);
@@ -654,29 +654,54 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   const e = (tick * 80) % CYCLE;
 
   // ── Phase timeline (ms) ──
-  //  A) 0-1500 : intro + Rect ツール選択 (cursor が toolbar の rect へ)
-  //  B) 1500-5500 : 矩形を描画中 (破線プレビュー)
-  //  C) 5500-12500 : 矩形が選択された (ハンドル・properties panel・ヒントバー)
-  //  D) 12500-14000 : フェードアウト → ループ
+  //  A) 0 - 4000 : Rect ツールで矩形 (質量) を描画
+  //  B) 4000 - 8500 : Arrow ツールで力の矢印を描画
+  //  C) 8500 - 12500 : Text ツールで "F" を配置
+  //  D) 12500 - 20000 : 全部の図形が見える完成 showcase (rect が選択された状態)
+  //  E) 20000 - 22000 : フェードアウト → ループ
   const T = {
-    introEnd:     1500,
-    drawStart:    1500,
-    drawEnd:      5500,
-    selectStart:  5500,
-    selectEnd:    12500,
-    fadeOut:      12500,
+    rectDrawStart:  500,    rectDrawEnd:   4000,
+    arrowToolStart: 4400,   arrowDrawStart: 5000,  arrowDrawEnd:  8500,
+    textToolStart:  8900,   textPlaceAt:   9300,   textTypeStart: 9300,  textTypeEnd: 12500,
+    showcaseStart:  12500,
+    fadeOut:        20000,
   };
 
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
   const progress = (start: number, end: number) => clamp((e - start) / (end - start), 0, 1);
 
-  const isDrawing  = e >= T.drawStart   && e < T.drawEnd;
-  const isSelected = e >= T.selectStart && e < T.fadeOut;
-  const drawP      = progress(T.drawStart, T.drawEnd);
-  const activeTool: "select" | "rect" = isSelected ? "select" : "rect";
+  const rectP   = progress(T.rectDrawStart,  T.rectDrawEnd);
+  const arrowP  = progress(T.arrowDrawStart, T.arrowDrawEnd);
+  const textP   = progress(T.textTypeStart,  T.textTypeEnd);
+
+  const isDrawingRect  = e >= T.rectDrawStart  && e < T.rectDrawEnd;
+  const isDrawingArrow = e >= T.arrowDrawStart && e < T.arrowDrawEnd;
+  const isTypingText   = e >= T.textTypeStart  && e < T.textTypeEnd;
+  const isShowcase     = e >= T.showcaseStart  && e < T.fadeOut;
+  // 「描画モード」のヒントピルが出ている期間 (どれか描いてる最中)
+  // selection / properties は showcase 中のみ表示する (実機どおり、選択時は properties が出る)
+  const isSelected = isShowcase;
+
+  // 完成済みの図形はサイクルの後段ではすべて表示を維持
+  const rectDone   = e >= T.rectDrawEnd;
+  const arrowDone  = e >= T.arrowDrawEnd;
+  const textDone   = e >= T.textTypeEnd;
+
+  // 現在 active なツール (toolbar ハイライト + cursor 位置誘導用)
+  const activeTool: "select" | "rect" | "arrow" | "text" =
+      e < T.arrowToolStart ? "rect"
+    : e < T.textToolStart  ? "arrow"
+    : e < T.showcaseStart  ? "text"
+    : "select";
+
+  // タイピング中のラベル文字列 ("F" → "F⃗" 風)
+  const labelFull = "F";
+  const labelTypedLen = isTypingText
+    ? Math.min(labelFull.length, Math.floor(textP * (labelFull.length + 0.5)))
+    : (textDone ? labelFull.length : 0);
 
   const opacity =
-    e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1200)
+    e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1800)
     : e < 400      ? e / 400
     : 1;
 
@@ -725,14 +750,28 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
     { ja: "フリーハンド", en: "Free", Ic: () => <PenIcon size={12} /> },
   ] as const;
 
-  const shapeCount = isSelected ? 1 : 0;
+  const shapeCount =
+      (rectP > 0  ? 1 : 0)
+    + (arrowDone || isDrawingArrow ? 1 : 0)
+    + (labelTypedLen > 0 ? 1 : 0);
 
   // ── Canvas 座標系 (viewBox 480 x 300) ──
-  // 矩形は X=4→7cm, Y=4→5cm → viewBox で (x=140, y=120, w=140, h=40)
-  const RECT = { x: 140, y: 120, w: 140, h: 40 };
-  // 描画中の破線矩形は drawP に比例して伸びる
-  const drawW = RECT.w * drawP;
-  const drawH = RECT.h * drawP;
+  // 質量ブロック: X=4→7cm, Y=4→5cm
+  const RECT = { x: 140, y: 130, w: 110, h: 50 };
+  // 力の矢印: 質量の右辺中央から右斜め上に伸びる F ベクトル
+  const ARROW = {
+    x1: RECT.x + RECT.w,      y1: RECT.y + RECT.h / 2,
+    x2: RECT.x + RECT.w + 110, y2: RECT.y + RECT.h / 2 - 36,
+  };
+  // テキスト "F" の配置位置 (矢印の中ほど上)
+  const TEXT = { x: ARROW.x1 + (ARROW.x2 - ARROW.x1) * 0.55, y: ARROW.y1 + (ARROW.y2 - ARROW.y1) * 0.55 - 6 };
+
+  // 描画中の破線矩形は rectP に比例して伸びる
+  const drawW = RECT.w * rectP;
+  const drawH = RECT.h * rectP;
+  // 矢印の進捗描画 — 始点から end までを arrowP で伸ばす
+  const arrowEndX = ARROW.x1 + (ARROW.x2 - ARROW.x1) * arrowP;
+  const arrowEndY = ARROW.y1 + (ARROW.y2 - ARROW.y1) * arrowP;
 
   // 8 個の選択ハンドル位置 (矩形の四隅 + 辺中点)
   const handles = [
@@ -945,16 +984,23 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               </div>
             </div>
 
-            {/* 3 列 パレット (画像に合わせて 9 アイテム) */}
+            {/* 3 列 パレット (画像に合わせて 9 アイテム) — 現在ツールに応じて active を切替 */}
             <div className="flex-1 px-1.5 py-1.5 border-t border-black/[0.04]">
               <div className="grid grid-cols-3 gap-1">
                 {paletteItems.map((item, i) => {
-                  const isRectItem = i === 0 && !isSelected;
+                  const itemId =
+                      i === 0 ? "rect"
+                    : i === 4 ? "arrow"
+                    : i === 5 ? "text"
+                    : null;
+                  const itemActive = itemId !== null && itemId === activeTool;
                   return (
                     <span
                       key={i}
-                      className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded text-foreground/55 ${
-                        isRectItem ? "bg-blue-500/10 ring-1 ring-blue-500/30 text-blue-700" : "border border-transparent"
+                      className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded ${
+                        itemActive
+                          ? "bg-blue-500/10 ring-1 ring-blue-500/30 text-blue-700"
+                          : "text-foreground/55 border border-transparent"
                       }`}
                     >
                       <item.Ic />
@@ -1014,8 +1060,20 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               {/* x-axis baseline (青) */}
               <line x1="0" y1={215} x2="480" y2={215} stroke="#3b82f6" strokeWidth="1" opacity="0.8" />
 
-              {/* ── Phase A: drawing (破線矩形 + 座標コールアウト) ── */}
-              {isDrawing && drawP > 0.02 && (
+              <defs>
+                {/* 矢印の頭 — 描画中 (teal dashed preview) と確定後 (黒) で 2 種類 */}
+                <marker id="fdmHeadDraft" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#14b8a6" />
+                </marker>
+                <marker id="fdmHeadFinal" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#0f172a" />
+                </marker>
+              </defs>
+
+              {/* ── Rect (描画中: 破線、完成後: 実線) ── */}
+              {rectP > 0 && !rectDone && (
                 <>
                   <rect
                     x={RECT.x} y={RECT.y}
@@ -1025,29 +1083,98 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
                     strokeWidth={1.8}
                     strokeDasharray="5 3"
                   />
-                  {/* 対角の終点に小さな teal ドット (ハンドル風) */}
                   <circle cx={RECT.x + drawW} cy={RECT.y + drawH} r="4"
                     fill="white" stroke="#14b8a6" strokeWidth="1.5" />
-                  {/* 座標コールアウト */}
+                  {/* 描画中の座標コールアウト */}
                   <text
                     x={RECT.x + drawW / 2} y={RECT.y - 6}
                     textAnchor="middle" fontSize="10" fontFamily="ui-monospace, monospace"
                     fill="#0f766e">
-                    ({(3 + 3 * drawP).toFixed(2)}, {(5 - drawP).toFixed(2)}) {drawP.toFixed(2)} cm
+                    ({(4 + 3 * rectP).toFixed(2)}, {(5 - rectP).toFixed(2)}) {(rectP * 1.0).toFixed(2)} cm
                   </text>
                 </>
               )}
-
-              {/* ── Phase B: selected (実線矩形) ── */}
-              {isSelected && (
+              {rectDone && (
                 <rect
                   x={RECT.x} y={RECT.y}
                   width={RECT.w} height={RECT.h}
-                  fill="white" stroke="#0f172a" strokeWidth="1.5"
+                  fill="white" stroke="#0f172a" strokeWidth="1.6"
+                />
+              )}
+              {/* 質量ラベル "m" は完成した矩形の中央に */}
+              {rectDone && (
+                <text x={RECT.x + RECT.w / 2} y={RECT.y + RECT.h / 2 + 5}
+                  textAnchor="middle" fontSize="15" fontStyle="italic"
+                  fontWeight="600" fill="#0f172a" fontFamily="serif">m</text>
+              )}
+
+              {/* ── 床のハッチング (質量が完成後に表示) ── */}
+              {rectDone && (
+                <g opacity="0.85">
+                  <line x1={RECT.x - 24} y1={RECT.y + RECT.h}
+                    x2={RECT.x + RECT.w + 24} y2={RECT.y + RECT.h}
+                    stroke="#0f172a" strokeWidth="1.4" />
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <line key={i}
+                      x1={RECT.x - 18 + i * 16} y1={RECT.y + RECT.h}
+                      x2={RECT.x - 24 + i * 16} y2={RECT.y + RECT.h + 8}
+                      stroke="#0f172a" strokeWidth="1" />
+                  ))}
+                </g>
+              )}
+
+              {/* ── Arrow (力ベクトル) ── */}
+              {arrowP > 0 && !arrowDone && (
+                <line
+                  x1={ARROW.x1} y1={ARROW.y1}
+                  x2={arrowEndX} y2={arrowEndY}
+                  stroke="#14b8a6" strokeWidth="2.4"
+                  strokeDasharray="5 3"
+                  markerEnd={arrowP > 0.85 ? "url(#fdmHeadDraft)" : undefined}
+                />
+              )}
+              {arrowDone && (
+                <line
+                  x1={ARROW.x1} y1={ARROW.y1}
+                  x2={ARROW.x2} y2={ARROW.y2}
+                  stroke="#0f172a" strokeWidth="2.4"
+                  markerEnd="url(#fdmHeadFinal)"
+                />
+              )}
+              {/* 矢印の始点ドット (アンカー) */}
+              {(arrowP > 0 || arrowDone) && (
+                <circle cx={ARROW.x1} cy={ARROW.y1} r="3"
+                  fill="white" stroke={arrowDone ? "#0f172a" : "#14b8a6"} strokeWidth="1.4" />
+              )}
+
+              {/* ── Text ラベル "F" (タイピング) ── */}
+              {labelTypedLen > 0 && (
+                <text
+                  x={TEXT.x} y={TEXT.y}
+                  textAnchor="middle" fontSize="16"
+                  fontStyle="italic" fontWeight="700"
+                  fill="#0f172a" fontFamily="serif"
+                  opacity={isTypingText ? Math.max(0.6, textP) : 1}
+                >
+                  {labelFull.slice(0, labelTypedLen)}
+                  {/* ベクトル矢印 (̅F⃗ 風の上付き矢印) — 文字確定後にうっすら付く */}
+                  {textDone && (
+                    <tspan dx="-9" dy="-12" fontSize="12" fontStyle="normal" fontWeight="600">→</tspan>
+                  )}
+                </text>
+              )}
+
+              {/* ── Text 配置中のキャレット (矩形点滅) ── */}
+              {e >= T.textPlaceAt && isTypingText && labelTypedLen < labelFull.length && (
+                <line
+                  x1={TEXT.x + 8} y1={TEXT.y - 14}
+                  x2={TEXT.x + 8} y2={TEXT.y + 2}
+                  stroke="#3b82f6" strokeWidth="1.4"
+                  opacity={Math.floor(e / 250) % 2 === 0 ? 1 : 0.2}
                 />
               )}
 
-              {/* selection dashed outline */}
+              {/* ── Selection dashed outline + 8 ハンドル (showcase 中、rect が選択された状態) ── */}
               {isSelected && (
                 <rect
                   x={RECT.x - 3} y={RECT.y - 3}
@@ -1056,8 +1183,6 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
                   strokeDasharray="4 2" opacity="0.7"
                 />
               )}
-
-              {/* 8 個の選択ハンドル */}
               {isSelected && handles.map(([hx, hy], i) => (
                 <rect key={i}
                   x={hx - 3.5} y={hy - 3.5} width="7" height="7"
@@ -1065,11 +1190,13 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               ))}
             </svg>
 
-            {/* 描画中: 緑の「対角の点をクリック [Esc]」ピル (上中央) */}
-            {isDrawing && (
+            {/* 描画中ヒントピル (上中央) — フェーズ毎に文言を切替 */}
+            {(isDrawingRect || isDrawingArrow || (isTypingText && labelTypedLen < labelFull.length)) && (
               <div className="absolute left-1/2 -translate-x-1/2 top-2 px-2.5 py-1 rounded-full bg-teal-600/95 text-white text-[10px] font-semibold shadow-md shadow-teal-600/30 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                {isJa ? "対角の点をクリック" : "Click the opposite corner"}
+                {isDrawingRect && (isJa ? "対角の点をクリック" : "Click the opposite corner")}
+                {isDrawingArrow && (isJa ? "終点をクリック" : "Click the arrow end")}
+                {isTypingText && labelTypedLen < labelFull.length && (isJa ? "テキストを入力 (Enter で確定)" : "Type the label (Enter to commit)")}
                 <kbd className="ml-1 text-[8.5px] font-mono bg-white/20 px-1 py-px rounded">Esc</kbd>
               </div>
             )}
@@ -1092,20 +1219,24 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               </div>
             )}
 
-            {/* アニメーション cursor */}
+            {/* アニメーション cursor — フェーズに応じて適切な位置に */}
             <div
               className="absolute pointer-events-none transition-all duration-500 ease-out"
               style={{
-                left: isDrawing
-                  ? `${((RECT.x + drawW) / 480) * 100}%`
-                  : isSelected
-                    ? `${((RECT.x + RECT.w - 10) / 480) * 100}%`
-                    : "22%",
-                top: isDrawing
-                  ? `${((RECT.y + drawH) / 300) * 100}%`
-                  : isSelected
-                    ? `${((RECT.y + RECT.h / 2) / 300) * 100}%`
-                    : "40%",
+                left: `${(
+                  isDrawingRect  ? (RECT.x + drawW) / 480 :
+                  isDrawingArrow ? arrowEndX / 480 :
+                  isTypingText   ? (TEXT.x + 8) / 480 :
+                  isSelected     ? (RECT.x + RECT.w - 10) / 480 :
+                  /* idle */       0.22
+                ) * 100}%`,
+                top: `${(
+                  isDrawingRect  ? (RECT.y + drawH) / 300 :
+                  isDrawingArrow ? arrowEndY / 300 :
+                  isTypingText   ? (TEXT.y - 4) / 300 :
+                  isSelected     ? (RECT.y + RECT.h / 2) / 300 :
+                  /* idle */       0.40
+                ) * 100}%`,
               }}
             >
               <svg width="18" height="20" viewBox="0 0 20 22">
@@ -1122,9 +1253,20 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
               <span className="text-[9px] text-foreground/55">⤢</span>
             </div>
 
-            {/* 左下 座標チップ */}
+            {/* 左下 座標チップ — マウス位置に同期 */}
             <div className="absolute left-2 bottom-2 px-2 py-0.5 rounded-md bg-foreground/[0.75] text-white text-[9.5px] font-mono">
-              x {isDrawing ? (3 + 3 * drawP).toFixed(1) : "7.7"} y {isDrawing ? (5 - drawP).toFixed(1) : "5.3"} cm
+              x {(
+                  isDrawingRect  ? 4 + 3 * rectP
+                : isDrawingArrow ? 7 + 3 * arrowP
+                : isTypingText   ? 8.6
+                : 7.7
+              ).toFixed(1)}{" "}
+              y {(
+                  isDrawingRect  ? 5 - rectP
+                : isDrawingArrow ? 4 + 1.2 * arrowP
+                : isTypingText   ? 4.8
+                : 5.3
+              ).toFixed(1)} cm
             </div>
 
             {/* 右下 自由角度 / スナップ / グリッド */}
@@ -1141,12 +1283,30 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
             </div>
 
             {/* 下中央: モード/選択状態のピル */}
-            {isDrawing && (
+            {isDrawingRect && (
               <div className="absolute left-1/2 -translate-x-1/2 bottom-9 px-2.5 py-1 rounded-full bg-blue-500/95 text-white text-[9.5px] font-semibold shadow-md flex items-center gap-1.5">
                 ▦ {isJa ? "領域描画モード" : "Drag-draw mode"}
                 <span className="w-px h-3 bg-white/40" />
                 <span className="font-normal opacity-90">
                   {isJa ? "対角の 2 点をクリックで矩形の大きさを指定" : "Click two opposite corners"}
+                </span>
+              </div>
+            )}
+            {isDrawingArrow && (
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-9 px-2.5 py-1 rounded-full bg-blue-500/95 text-white text-[9.5px] font-semibold shadow-md flex items-center gap-1.5">
+                → {isJa ? "矢印描画モード" : "Arrow mode"}
+                <span className="w-px h-3 bg-white/40" />
+                <span className="font-normal opacity-90">
+                  {isJa ? "始点 → 終点を指定 (Shift で 15° 刻み)" : "Click start, then end (Shift = snap 15°)"}
+                </span>
+              </div>
+            )}
+            {isTypingText && (
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-9 px-2.5 py-1 rounded-full bg-blue-500/95 text-white text-[9.5px] font-semibold shadow-md flex items-center gap-1.5">
+                T {isJa ? "テキストモード" : "Text mode"}
+                <span className="w-px h-3 bg-white/40" />
+                <span className="font-normal opacity-90">
+                  {isJa ? "クリックでラベルを配置" : "Click to drop a text label"}
                 </span>
               </div>
             )}
