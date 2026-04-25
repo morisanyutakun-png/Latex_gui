@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
-import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock } from "lucide-react";
+import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock, MoreVertical, Plus, ChevronLeft, Trash2, Crown } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
@@ -102,6 +102,7 @@ export default function EditorPage() {
   };
 
   const [mobileTab, setMobileTab] = useState<"ai" | "preview">("ai");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // ── URL パラメータを同期的に検出（レンダー中に確定、effect より前） ──
   const skipRedirect = useRef(false);
@@ -278,32 +279,62 @@ export default function EditorPage() {
     }
   };
 
-  /* ══════════ MOBILE ══════════ */
+  /* ══════════ MOBILE (ChatGPT モバイル風) ══════════
+     - スリムなヘッダー (戻る + タイトル + 新規チャット + ⋮ メニュー)
+     - 下部に大きめ 56px tab bar + safe-area 対応
+     - ⋮ メニュー: 言語切替 / クリア / OCR / アップグレード
+     - PC は完全に維持 */
   if (isMobile) {
+    const planNameDisplay = PLANS[currentPlan]?.name || "Free";
+    const handleNewChat = () => {
+      const ok = (typeof window !== "undefined")
+        ? window.confirm(locale === "en" ? "Start a new chat? Current chat history will be cleared." : "新しいチャットを開始しますか? 現在のチャット履歴は削除されます。")
+        : true;
+      if (!ok) return;
+      useUIStore.getState().clearChat();
+      try { localStorage.removeItem("latex-gui-chat-v3"); } catch { /* ignore */ }
+      setMobileTab("ai");
+    };
     return (
-      <div className="flex h-screen flex-col bg-background overflow-hidden">
-        <header className="flex items-center gap-2 px-3 h-12 border-b shrink-0 transition-colors duration-300 border-border/20 bg-background">
+      <div className="flex h-[100dvh] flex-col bg-background overflow-hidden">
+        {/* スリムヘッダー — safe-area-inset-top を尊重 */}
+        <header
+          className="flex items-center gap-1 px-2 h-12 border-b shrink-0 transition-colors duration-300 border-border/20 bg-background/95 backdrop-blur-md"
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+        >
           <button
             onClick={() => router.push("/")}
-            className="text-muted-foreground/60 p-1.5 -ml-1 rounded"
+            aria-label={locale === "en" ? "Back" : "戻る"}
+            className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/70 hover:bg-foreground/[0.06] active:scale-95 transition"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+            <ChevronLeft className="h-5 w-5" />
           </button>
-          <span className="flex-1 text-sm font-medium text-foreground/70 truncate">
-            {doc.metadata.title || t("header.untitled")}
-          </span>
+          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+            <span className="text-[14px] font-semibold text-foreground/85 truncate">
+              {doc.metadata.title || t("header.untitled")}
+            </span>
+            {isChatLoading && (
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse shrink-0" aria-hidden />
+            )}
+          </div>
           <button
-            onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium text-muted-foreground border border-border/30 hover:bg-muted/40 transition-colors"
+            onClick={handleNewChat}
+            aria-label={locale === "en" ? "New chat" : "新規チャット"}
+            title={locale === "en" ? "New chat" : "新規チャット"}
+            className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/65 hover:bg-foreground/[0.06] active:scale-95 transition"
           >
-            <Globe className="h-3.5 w-3.5" />
-            <span className="uppercase font-mono">{locale === "ja" ? "JA" : "EN"}</span>
+            <Plus className="h-5 w-5" />
           </button>
-          {isChatLoading && <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" />}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label={locale === "en" ? "Menu" : "メニュー"}
+            className="h-10 w-10 flex items-center justify-center rounded-full text-foreground/65 hover:bg-foreground/[0.06] active:scale-95 transition"
+          >
+            <MoreVertical className="h-5 w-5" />
+          </button>
         </header>
 
+        {/* メイン: AI チャット or PDF プレビュー */}
         <div className="flex-1 min-h-0 overflow-hidden">
           {mobileTab === "ai" ? (
             <div className="h-full overflow-hidden flex flex-col"><AIChatPanel /></div>
@@ -318,25 +349,155 @@ export default function EditorPage() {
         </div>
 
         <PricingModal />
-        <div className="flex border-t border-border/20 bg-background/95 backdrop-blur-sm shrink-0">
+
+        {/* ⋮ メニュー (bottom sheet) */}
+        {mobileMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] animate-page-fade-in"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-hidden
+            />
+            <div
+              className="fixed left-0 right-0 bottom-0 z-50 bg-background rounded-t-2xl shadow-2xl border-t border-border/40 animate-in slide-in-from-bottom duration-200"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="flex justify-center pt-2 pb-1">
+                <span className="h-1 w-10 rounded-full bg-foreground/15" />
+              </div>
+              <div className="px-4 pt-1 pb-2 flex items-center gap-2">
+                <span className="text-[15px] font-bold text-foreground/85">
+                  {locale === "en" ? "Menu" : "メニュー"}
+                </span>
+                <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10.5px] font-bold uppercase tracking-wider">
+                  <Crown className="h-3 w-3" />
+                  {planNameDisplay}
+                </span>
+              </div>
+              <div className="px-2 pb-1 flex flex-col">
+                {/* Language toggle */}
+                <button
+                  type="button"
+                  onClick={() => { setLocale(locale === "ja" ? "en" : "ja"); setMobileMenuOpen(false); }}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-foreground/85 hover:bg-foreground/[0.06] active:scale-[0.99] transition"
+                >
+                  <span className="h-9 w-9 rounded-full bg-foreground/[0.05] flex items-center justify-center">
+                    <Globe className="h-4 w-4" />
+                  </span>
+                  <span className="flex-1 text-left text-[14px] font-medium">
+                    {locale === "en" ? "Switch to Japanese" : "英語に切り替え"}
+                  </span>
+                  <span className="text-[11px] font-mono text-muted-foreground/60 uppercase">
+                    {locale === "ja" ? "JA → EN" : "EN → JA"}
+                  </span>
+                </button>
+
+                {/* Scan / OCR */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    const check = usePlanStore.getState().checkFeature("ocr");
+                    if (!check.allowed) {
+                      toast.error(check.reason, {
+                        duration: 5000,
+                        action: {
+                          label: locale === "en" ? "Upgrade" : "アップグレード",
+                          onClick: () => usePlanStore.getState().setShowPricing(true),
+                        },
+                      });
+                      return;
+                    }
+                    triggerOMR();
+                  }}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-foreground/85 hover:bg-foreground/[0.06] active:scale-[0.99] transition"
+                >
+                  <span className="h-9 w-9 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                    <ScanLine className="h-4 w-4 text-emerald-600" />
+                  </span>
+                  <span className="flex-1 text-left text-[14px] font-medium">
+                    {locale === "en" ? "Scan PDF or image" : "PDF / 画像を読み取る"}
+                  </span>
+                  {ocrLocked && <Lock className="h-3.5 w-3.5 text-muted-foreground/60" />}
+                </button>
+
+                {/* Clear chat */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ok = window.confirm(locale === "en" ? "Clear chat history?" : "チャット履歴を消去しますか?");
+                    if (!ok) return;
+                    useUIStore.getState().clearChat();
+                    try { localStorage.removeItem("latex-gui-chat-v3"); } catch { /* ignore */ }
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-foreground/85 hover:bg-rose-50 dark:hover:bg-rose-500/15 active:scale-[0.99] transition"
+                >
+                  <span className="h-9 w-9 rounded-full bg-rose-500/15 flex items-center justify-center">
+                    <Trash2 className="h-4 w-4 text-rose-600" />
+                  </span>
+                  <span className="flex-1 text-left text-[14px] font-medium">
+                    {locale === "en" ? "Clear chat history" : "チャット履歴を消去"}
+                  </span>
+                </button>
+
+                {/* Upgrade */}
+                {currentPlan === "free" && (
+                  <button
+                    type="button"
+                    onClick={() => { setMobileMenuOpen(false); usePlanStore.getState().setShowPricing(true); }}
+                    className="mt-1 flex items-center gap-3 px-3 py-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-violet-500/15 border border-amber-500/30 active:scale-[0.99] transition"
+                  >
+                    <span className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-500 to-violet-500 flex items-center justify-center shadow-md">
+                      <Crown className="h-4 w-4 text-white" />
+                    </span>
+                    <span className="flex-1 text-left">
+                      <span className="block text-[14px] font-bold text-foreground/85">
+                        {locale === "en" ? "Upgrade to Pro" : "Pro にアップグレード"}
+                      </span>
+                      <span className="block text-[11px] text-muted-foreground/70">
+                        {locale === "en" ? "More AI requests, unlock OCR & grading" : "AI 回数 UP、OCR・採点を解放"}
+                      </span>
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* 下部 タブバー — 大きめタップターゲット、safe-area 対応、active を強調 */}
+        <nav
+          className="grid grid-cols-2 border-t border-border/30 bg-background/95 backdrop-blur-md shrink-0"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+          aria-label={locale === "en" ? "Mobile tabs" : "モバイルタブ"}
+        >
           {(["ai", "preview"] as const).map((tab) => {
             const isActive = mobileTab === tab;
+            const Icon = tab === "ai" ? Sparkles : FileText;
+            const accentText = tab === "ai" ? "text-violet-600 dark:text-violet-400" : "text-sky-600 dark:text-sky-400";
+            const accentDot = tab === "ai" ? "bg-violet-500" : "bg-sky-500";
             return (
               <button
                 key={tab}
                 onClick={() => setMobileTab(tab)}
-                className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-medium transition-colors ${
-                  isActive
-                    ? tab === "ai" ? "text-violet-500 dark:text-violet-400" : "text-sky-500 dark:text-sky-400"
-                    : "text-muted-foreground/50"
+                aria-pressed={isActive}
+                className={`relative flex flex-col items-center justify-center gap-1 h-14 text-[10.5px] font-semibold tracking-tight transition-colors active:bg-foreground/[0.04] ${
+                  isActive ? accentText : "text-muted-foreground/55"
                 }`}
               >
-                {tab === "ai" ? <Sparkles className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                {/* active 上にはバー */}
+                {isActive && (
+                  <span className={`absolute top-0 left-1/4 right-1/4 h-[2.5px] rounded-b-full ${accentDot}`} />
+                )}
+                <Icon className="h-5 w-5" strokeWidth={isActive ? 2.4 : 1.8} />
                 <span>{tab === "ai" ? t("mobile.tab.ai") : t("mobile.tab.preview")}</span>
               </button>
             );
           })}
-        </div>
+        </nav>
       </div>
     );
   }

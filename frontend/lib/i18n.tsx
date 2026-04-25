@@ -148,6 +148,8 @@ const ja = {
   // Mobile tabs
   "mobile.tab.ai": "AIエージェント",
   "mobile.tab.preview": "プレビュー",
+  "chat.stop": "停止",
+  "chat.input.clear": "入力を消去",
   // Status bar
   "status.blocks": "blocks",
   // Document editor empty state
@@ -661,6 +663,8 @@ const en = {
   // Mobile tabs
   "mobile.tab.ai": "AI Agent",
   "mobile.tab.preview": "Preview",
+  "chat.stop": "Stop",
+  "chat.input.clear": "Clear input",
   // Status bar
   "status.blocks": "blocks",
   // Document editor empty state

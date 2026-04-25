@@ -20,6 +20,8 @@ import { ThinkingIndicator } from "./thinking-indicator";
 import { UsageBar } from "./usage-bar";
 import { InputArea } from "./input-area";
 import { ModeSwitcher } from "./mode-switcher";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { ChevronDown } from "lucide-react";
 
 export function AIChatPanel() {
   const { t, locale } = useI18n();
@@ -48,8 +50,38 @@ export function AIChatPanel() {
   const [currentTool, setCurrentTool] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const isMobile = useIsMobile();
+  // 「下までスクロールして戻る」FAB を出すフラグ (ChatGPT モバイル風)
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+
+  // 停止ボタン: ストリーミング中に押すと AbortController を切り、表示を更新する。
+  const handleStop = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  // スクロール状態を監視: 下から離れたら FAB を表示
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowJumpToBottom(distance > 220);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [chatMessages.length]);
+
+  const scrollToBottom = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   // OMR (画像/PDF → LaTeX) は独立した全画面 SplitView に張り替えた。
   // ここ (チャットパネル) ではファイル入力を持たず、サイドバーの「読み取り」ボタンは
@@ -487,36 +519,47 @@ export function AIChatPanel() {
   // 旧 handleOMRUpload (チャットに画像/PDF 取り込み結果を書き込む実装) は
   // 廃止した。添付ボタンは読み取り (OMR) SplitView を開く動線に張り替えている。
 
+  // モバイルでは usage bar を near-limit (>=60%) のときだけ表示してスペース節約
+  const dailyPct = usagePercent().daily;
+  const showUsageOnMobile = dailyPct >= 60;
+
   return (
     <div className="flex flex-col h-full chat-aurora-panel">
-      <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-black/[0.08] dark:border-white/[0.06] shrink-0 chat-panel-bar dark:bg-white/[0.03] backdrop-blur-sm">
-        <div className="h-7 w-7 rounded-lg chat-avatar-ai-static flex items-center justify-center shrink-0">
-          <Sparkles className="h-3.5 w-3.5 text-white" />
+      {/* PC: 既存の internal ヘッダーを維持。モバイル: 上位ページのヘッダーで賄うので
+          ここでは非表示にして縦スペースを稼ぐ (ChatGPT モバイル風)。 */}
+      {!isMobile && (
+        <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-black/[0.08] dark:border-white/[0.06] shrink-0 chat-panel-bar dark:bg-white/[0.03] backdrop-blur-sm">
+          <div className="h-7 w-7 rounded-lg chat-avatar-ai-static flex items-center justify-center shrink-0">
+            <Sparkles className="h-3.5 w-3.5 text-white" />
+          </div>
+          <span className="flex-1 text-[13.5px] font-bold text-foreground/85 tracking-tight truncate">EddivomAI</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.55)]" title={t("chat.online")} />
+            {chatMessages.length > 0 && (
+              <button
+                onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v3"); } catch { /**/ } }}
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-foreground/25 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/15 transition-all duration-150"
+                title={t("chat.clear")}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
-        <span className="flex-1 text-[13.5px] font-bold text-foreground/85 tracking-tight truncate">EddivomAI</span>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.55)]" title={t("chat.online")} />
-          {chatMessages.length > 0 && (
-            <button
-              onClick={() => { clearChat(); setApiKeyMissing(false); try { localStorage.removeItem("latex-gui-chat-v3"); } catch { /**/ } }}
-              className="h-7 w-7 rounded-lg flex items-center justify-center text-foreground/25 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/15 transition-all duration-150"
-              title={t("chat.clear")}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
-      <UsageBar
-        todayUsage={todayUsage()}
-        dailyLimit={dailyLimit()}
-        monthUsage={monthUsage()}
-        monthlyLimit={monthlyLimit()}
-        planName={PLANS[currentPlan].name}
-        dailyPercent={usagePercent().daily}
-        onUpgrade={() => setShowPricing(true)}
-      />
+      {/* Usage bar — モバイルは 60% 以上のときだけ */}
+      {(!isMobile || showUsageOnMobile) && (
+        <UsageBar
+          todayUsage={todayUsage()}
+          dailyLimit={dailyLimit()}
+          monthUsage={monthUsage()}
+          monthlyLimit={monthlyLimit()}
+          planName={PLANS[currentPlan].name}
+          dailyPercent={dailyPct}
+          onUpgrade={() => setShowPricing(true)}
+        />
+      )}
 
       {apiKeyMissing && (
         <div className="mx-3 mt-2 shrink-0 rounded-xl border border-amber-400/50 dark:border-amber-500/35 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-1.5">
@@ -533,20 +576,45 @@ export function AIChatPanel() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4 min-h-0 scrollbar-thin">
+      <div
+        ref={scrollContainerRef}
+        className={`flex-1 overflow-y-auto min-h-0 scrollbar-thin space-y-4 ${
+          isMobile ? "px-3 py-3" : "px-3.5 py-4"
+        }`}
+        // モバイルで慣性スクロールを効かせる
+        style={isMobile ? { WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } as React.CSSProperties : undefined}
+      >
         {chatMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-5 py-6 px-1 select-none">
+          <div className={`flex flex-col items-center justify-center h-full select-none ${
+            isMobile ? "gap-6 py-8 px-2" : "gap-5 py-6 px-1"
+          }`}>
             <div className="relative flex items-center justify-center">
-              <div className="h-12 w-12 rounded-xl chat-empty-orb flex items-center justify-center">
-                <Sparkles className="h-6 w-6 text-white" />
+              <div className={`rounded-2xl chat-empty-orb flex items-center justify-center ${
+                isMobile ? "h-16 w-16" : "h-12 w-12 rounded-xl"
+              }`}>
+                <Sparkles className={isMobile ? "h-8 w-8 text-white" : "h-6 w-6 text-white"} />
               </div>
             </div>
 
-            <p className="text-[13px] font-medium text-foreground/50 text-center">
-              {t("chat.empty.title")}
-            </p>
+            <div className="text-center space-y-1.5">
+              <p className={`font-semibold text-foreground/85 tracking-tight ${
+                isMobile ? "text-[18px]" : "text-[13px] font-medium text-foreground/50"
+              }`}>
+                {isMobile
+                  ? (locale === "en" ? "What can I help with?" : "今日は何を作りますか？")
+                  : t("chat.empty.title")}
+              </p>
+              {isMobile && (
+                <p className="text-[12.5px] text-muted-foreground/65 leading-relaxed max-w-xs mx-auto">
+                  {locale === "en"
+                    ? "Describe your worksheet — I'll draft it, render the PDF, and post the preview here."
+                    : "教材の内容を伝えてください。下書き → PDF 生成 → プレビューをここに表示します。"}
+                </p>
+              )}
+            </div>
 
-            <div className="flex flex-col gap-1.5 w-full">
+            {/* モバイルは大きめのプロンプトカード (アイコン + 文 + 矢印)、PC は既存の細いリスト */}
+            <div className={`w-full ${isMobile ? "grid grid-cols-1 gap-2 max-w-md" : "flex flex-col gap-1.5"}`}>
               {([
                 { text: t("chat.suggestion.1"), icon: PenLine },
                 { text: t("chat.suggestion.2"), icon: Calculator },
@@ -554,10 +622,21 @@ export function AIChatPanel() {
                 <button
                   key={text}
                   onClick={() => { setInput(text); textareaRef.current?.focus(); }}
-                  className="flex items-center gap-2.5 text-left text-[12px] px-3 py-2 rounded-lg text-foreground/55 hover:text-foreground/80 hover:bg-amber-50 dark:hover:bg-amber-500/10 border border-transparent hover:border-amber-200/50 dark:hover:border-amber-500/20 transition-all"
+                  className={`group flex items-center gap-3 text-left transition-all ${
+                    isMobile
+                      ? "px-4 py-3.5 rounded-2xl bg-foreground/[0.03] hover:bg-amber-50 dark:hover:bg-amber-500/10 border border-foreground/[0.05] hover:border-amber-200/60 dark:hover:border-amber-500/25 active:scale-[0.99]"
+                      : "px-3 py-2 rounded-lg text-[12px] text-foreground/55 hover:text-foreground/80 hover:bg-amber-50 dark:hover:bg-amber-500/10 border border-transparent hover:border-amber-200/50 dark:hover:border-amber-500/20"
+                  }`}
                 >
-                  <Icon className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                  <span>{text}</span>
+                  <span className={`rounded-xl bg-amber-400/15 dark:bg-amber-500/15 flex items-center justify-center shrink-0 ${
+                    isMobile ? "h-9 w-9" : ""
+                  }`}>
+                    <Icon className={`text-amber-500 shrink-0 ${isMobile ? "h-4 w-4" : "h-3.5 w-3.5"}`} />
+                  </span>
+                  <span className={`flex-1 ${isMobile ? "text-[14px] text-foreground/85 font-medium" : ""}`}>{text}</span>
+                  {isMobile && (
+                    <ChevronDown className="h-4 w-4 text-foreground/30 -rotate-90 shrink-0" />
+                  )}
                 </button>
               ))}
             </div>
@@ -584,7 +663,23 @@ export function AIChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="px-3 pt-1.5 shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm">
+      {/* モバイル: スクロールが下から離れたら「最新へ」FAB を出す (ChatGPT 風) */}
+      {isMobile && showJumpToBottom && (
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            aria-label={locale === "en" ? "Jump to latest" : "最新へ移動"}
+            className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 h-9 w-9 rounded-full bg-foreground/85 text-background shadow-lg shadow-black/20 flex items-center justify-center active:scale-95 transition"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      <div className={`shrink-0 border-t border-black/[0.08] dark:border-white/[0.05] chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm ${
+        isMobile ? "px-2.5 pt-1" : "px-3 pt-1.5"
+      }`}>
         <ModeSwitcher
           mode={agentMode}
           onChange={setAgentMode}
@@ -596,6 +691,7 @@ export function AIChatPanel() {
         input={input}
         setInput={setInput}
         onSend={handleSend}
+        onStop={handleStop}
         onKeyDown={handleKeyDown}
         isChatLoading={isChatLoading}
         agentMode={true}

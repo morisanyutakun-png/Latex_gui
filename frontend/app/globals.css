@@ -1029,6 +1029,11 @@ html {
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* モバイルの sticky composer が safe-area (ホームバー) に被らないようにする */
+.chat-mobile-safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
 /* ── Message list scroll area ── */
 .chat-message-list {
   background:
