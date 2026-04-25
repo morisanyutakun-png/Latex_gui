@@ -644,6 +644,34 @@ function TrustBadge({ icon, label }: { icon: React.ReactNode; label: string }) {
   );
 }
 
+/* ── FAQ Accordion Item ──
+ * SEO の FAQPage JSON-LD と完全に対応する Q&A をユーザーに見せる。
+ * Google のリッチリザルトは「JSON-LD と画面の表示が一致していること」を要求するため、
+ * このコンポーネントの Q/A 文字列は app/layout.tsx の ld-faq と必ず揃える。
+ */
+function FAQItem({ question, answer }: { question: string; answer: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="group rounded-xl border border-foreground/[0.06] bg-card/50 backdrop-blur-sm hover:border-foreground/[0.12] transition-colors overflow-hidden"
+      open={open}
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary className="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <span className="text-[14px] sm:text-[15px] font-semibold tracking-tight text-foreground/90 leading-snug">
+          {question}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform duration-300 ${open ? "rotate-180 text-violet-500" : ""}`}
+        />
+      </summary>
+      <div className="px-5 pb-5 pt-1 text-[13px] sm:text-[13.5px] text-muted-foreground leading-relaxed">
+        {answer}
+      </div>
+    </details>
+  );
+}
+
 /* ── Realistic Worksheet Paper Mock ── */
 type PrintVariant = "exam" | "worksheet" | "answer";
 
@@ -1152,6 +1180,7 @@ export function TemplateGallery() {
   const diffFade = useFadeIn(0);
   const pricingFade = useFadeIn(0);
   const powerFade = useFadeIn(0);
+  const faqFade = useFadeIn(0);
   const ctaFade = useFadeIn(0);
 
   const scrollToPricing = () => {
@@ -2172,6 +2201,88 @@ export function TemplateGallery() {
                 : "You don't need to know it. But if you do, Eddivom goes even further."}
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ━━ FAQ ━━
+          ロングテールキーワードでの流入と検索結果のリッチリザルト獲得を狙う。
+          ここに表示している Q&A は app/layout.tsx の FAQPage JSON-LD と完全一致させる必要がある。
+          内容を変更する場合は両方を同時に更新すること。 */}
+      <section className="relative py-24 overflow-hidden border-t border-foreground/[0.04]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,hsl(var(--primary)/0.025),transparent_70%)]" />
+        <div
+          ref={faqFade.ref}
+          className={`relative max-w-3xl mx-auto px-6 transition-all duration-1000 ${faqFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+        >
+          <div className="text-center mb-12">
+            <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-3">
+              {isJa ? "よくある質問" : "FAQ"}
+            </p>
+            <h2 className="text-[clamp(1.5rem,3.6vw,2.4rem)] font-bold tracking-tight">
+              {isJa ? "気になるところに、先にお答えします。" : "Quick answers, before you ask."}
+            </h2>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <FAQItem
+              question={isJa ? "AI で問題集を自動生成できますか？" : "Can AI generate practice problems automatically?"}
+              answer={isJa
+                ? "はい。Eddivom はチャットで「二次関数の問題を10題」のように依頼するだけで、AIがLaTeX組版で問題を自動生成します。難易度や範囲・分野・問題数を自然言語で指定でき、生成と同時にPDFプレビューが更新されます。"
+                : "Yes. Just ask in chat — “10 quadratic equation problems, harder difficulty.” Eddivom generates problems in LaTeX and updates the PDF preview live. You can specify topic, difficulty, count, and scope in plain language."}
+            />
+            <FAQItem
+              question={isJa ? "解答付きPDFは自動で作成されますか？" : "Are answer-key PDFs generated automatically?"}
+              answer={isJa
+                ? "はい。問題ページと解答ページがセットになったPDFを自動で書き出します。模範解答だけでなく略解・配点バッジ・解説の有無も指定でき、A4/B5の印刷に最適化されます。"
+                : "Yes. Eddivom exports a paired PDF with the worksheet and a separate answer key. You can choose between full solutions, brief answers, point-value badges, and explanation toggles. Output is print-ready for A4/B5."}
+            />
+            <FAQItem
+              question={isJa ? "数学プリント作成ソフトとして無料で使えますか？" : "Is it free to use as a math worksheet maker?"}
+              answer={isJa
+                ? "無料プランで会員登録なしに利用を開始できます。AI生成回数とPDF出力数に上限がありますが、数式・図・化学式の組版や直接編集は無料プランでも利用できます。"
+                : "Yes — the free plan needs no signup. AI generations and PDF exports are quota-limited, but math/diagram/chemistry typesetting and direct editing are fully available on the free tier."}
+            />
+            <FAQItem
+              question={isJa ? "Overleaf との違いは何ですか？" : "How is this different from Overleaf?"}
+              answer={isJa
+                ? "Overleafは汎用LaTeXエディタですが、Eddivomは教材作成に特化したIDEです。AIによる問題自動生成・類題量産・解答付きPDFの自動構成・採点など、Overleafにはない教材作成専用フローを最初から備えています。日本語UIと日本語フォント (haranoaji) も初期設定済みです。"
+                : "Overleaf is a general-purpose LaTeX editor; Eddivom is an IDE built specifically for worksheet creation. AI problem generation, variant multiplication, answer-key composition, and grading flows are first-class — none of which exist in Overleaf. Japanese UI and Japanese fonts (haranoaji) are preconfigured."}
+            />
+            <FAQItem
+              question={isJa ? "1つの問題から類題を自動で量産できますか？" : "Can it generate variants from one problem?"}
+              answer={isJa
+                ? "はい。既存の問題にカーソルを当てて「類題を5問」と依頼すると、係数や設定を変えた類題をAIが生成します。難易度を一段上げる・下げるといった指示にも対応しています。"
+                : "Yes. Place the cursor on an existing problem and ask for “5 variants” — the AI rewrites coefficients and parameters while preserving structure. You can also tell it to nudge difficulty up or down."}
+            />
+            <FAQItem
+              question={isJa ? "高校数学の確認テストや塾の教材作成にも使えますか？" : "Is it suitable for high-school quizzes and tutor worksheets?"}
+              answer={isJa
+                ? "はい。共通テスト風レイアウト・国公立二次風・学校用テスト・問題集など、高校数学の確認テスト作成や塾の教材作成に最適化されたテンプレートを多数収録しています。配点バッジや大問ボックスなど、紙に印刷したときに読みやすい体裁を初期設定で実現します。"
+                : "Yes. We ship templates tuned for Japanese national exam style, university second-stage exam style, in-class quizzes, and problem sets. Point-value badges and big-question frames render cleanly on paper out of the box."}
+            />
+            <FAQItem
+              question={isJa ? "ルーブリック採点機能はどう使いますか？" : "How does the rubric grading feature work?"}
+              answer={isJa
+                ? "Pro プランでは、答案画像をアップロードするとAIが採点項目ごとに○×と部分点を提案します。採点基準 (ルーブリック) は教員が編集でき、最終的な点数調整は人が行えます。OMR (マークシート) 採点も同じ画面から実行可能です。"
+                : "On the Pro plan you upload student answer images and the AI scores each rubric item with partial credit. Teachers edit the rubric and make the final call. OMR (multiple-choice bubble) grading is supported from the same screen."}
+            />
+            <FAQItem
+              question={isJa ? "既存のPDFや画像から問題を取り込めますか？" : "Can it import problems from an existing PDF or image?"}
+              answer={isJa
+                ? "はい。OCR機能で既存のテストPDFや教科書画像を読み取り、数式を含めてLaTeXに変換します。読み取った内容をベースに、Eddivom内で類題量産や解答生成までシームレスに行えます。"
+                : "Yes. OCR reads existing exam PDFs and textbook images and converts them — equations included — into LaTeX. From there you can generate variants and answer keys without leaving Eddivom."}
+            />
+          </div>
+
+          <p className="text-center text-[12px] text-muted-foreground/60 mt-10">
+            {isJa
+              ? "他にご質問があれば、"
+              : "Have a different question? "}
+            <a href="/contact" className="text-violet-500 hover:text-violet-600 underline-offset-4 hover:underline font-medium">
+              {isJa ? "お問い合わせ" : "Contact us"}
+            </a>
+            {isJa ? " からお気軽にどうぞ。" : "."}
+          </p>
         </div>
       </section>
 
