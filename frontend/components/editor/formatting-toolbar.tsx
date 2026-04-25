@@ -29,6 +29,7 @@ import {
   Sigma,
   Box,
   ChevronDown,
+  TextCursorInput,
 } from "lucide-react";
 import { useDocumentStore } from "@/store/document-store";
 import { useI18n } from "@/lib/i18n";
@@ -177,6 +178,26 @@ function applyFbox() {
   const span = document.createElement("span");
   span.setAttribute("data-fbox-cmd", "fbox");
   return wrapSelectionWith(span);
+}
+
+// 末尾の常時編集可能段落 (.trailing-editable) にフォーカスを移し、画面内にスクロールする。
+// ツールバーの「テキストを挿入」ボタンから呼ばれる。
+function focusTrailingEditable(): boolean {
+  const trailing = document.querySelector<HTMLElement>(".trailing-editable");
+  if (!trailing) return false;
+  trailing.scrollIntoView({ behavior: "smooth", block: "center" });
+  // smooth scroll の途中で focus すると見失うので少し遅延させる
+  window.setTimeout(() => {
+    trailing.focus();
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.selectNodeContents(trailing);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }, 220);
+  return true;
 }
 
 function insertMathChip() {
@@ -500,6 +521,20 @@ export function FormattingToolbar() {
 
   return (
     <div className="flex items-center gap-0.5 shrink-0" role="toolbar" aria-label={t("fmt.toolbar.label")}>
+      {/* テキストを挿入 — 末尾の編集可能段落にフォーカスを移すラベル付きボタン。
+          書式アイコン群の前に置き、最初に目に入るようにする。 */}
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={focusTrailingEditable}
+        title={t("doc.editor.visual.insert_text.tooltip")}
+        aria-label={t("doc.editor.visual.insert_text")}
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 mr-1 rounded-md bg-violet-500/[0.10] text-violet-700 dark:text-violet-300 hover:bg-violet-500/[0.18] hover:text-violet-800 dark:hover:text-violet-200 transition-colors text-[11px] font-semibold"
+      >
+        <TextCursorInput className="h-3.5 w-3.5" />
+        <span>{t("doc.editor.visual.insert_text")}</span>
+      </button>
+      <div className="w-px h-4 bg-border/30 mx-1 shrink-0" />
       <ToolBtn onClick={applyBold} title={t("fmt.bold")} desc={isJa ? "選択テキストを太字にする" : "Apply bold formatting to selection"}>
         <Bold className="h-3.5 w-3.5" />
       </ToolBtn>

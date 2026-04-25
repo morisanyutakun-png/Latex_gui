@@ -1284,18 +1284,52 @@ html {
   border-left-color: rgba(245, 158, 11, 0.18);
 }
 
-/* ── VisualEditor: 末尾の常時編集可能段落の placeholder ── */
+/* ── VisualEditor: 末尾の常時編集可能段落 ──
+   空のときは「ここに本文を追加」と分かる drop-zone 風の見た目にする。
+   入力中 / フォーカス中はチラつかないように装飾を控えめにする。 */
+.trailing-editable {
+  position: relative;
+}
+.trailing-editable:empty {
+  border: 1.5px dashed hsl(var(--foreground) / 0.18);
+  background: hsl(var(--foreground) / 0.018);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: text;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+.trailing-editable:empty:hover {
+  border-color: hsl(263, 70%, 60% / 0.55);
+  background: hsl(263, 70%, 60% / 0.05);
+  box-shadow: 0 0 0 4px hsl(263, 70%, 60% / 0.06);
+}
 .trailing-editable:empty::before {
-  content: attr(data-placeholder);
-  color: hsl(var(--foreground) / 0.30);
-  font-style: italic;
+  content: "+ " attr(data-placeholder);
+  display: block;
+  color: hsl(var(--foreground) / 0.42);
+  font-style: normal;
+  font-weight: 500;
   pointer-events: none;
   user-select: none;
+  letter-spacing: 0.005em;
+}
+.trailing-editable:empty:hover::before {
+  color: hsl(263, 70%, 50%);
+}
+.dark .trailing-editable:empty:hover::before {
+  color: hsl(263, 70%, 75%);
 }
 /* contentEditable は focus 中に空でも <br> が入って :empty が外れることがある。
    focus 中で本物のテキストが無いケースもプレースホルダを隠すには空時のみ表示すれば十分。 */
+.trailing-editable:focus:empty {
+  border-style: solid;
+  border-color: hsl(263, 70%, 60% / 0.5);
+  background: hsl(263, 70%, 60% / 0.04);
+  box-shadow: 0 0 0 4px hsl(263, 70%, 60% / 0.08);
+}
 .trailing-editable:focus:empty::before {
-  opacity: 0.5;
+  opacity: 0.4;
+  content: attr(data-placeholder);
 }
 
 /* ══════════════════════════════════════════════════════════

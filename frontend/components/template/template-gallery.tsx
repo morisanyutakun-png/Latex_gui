@@ -236,6 +236,145 @@ function TypingLine({ lines }: { lines: string[] }) {
   );
 }
 
+/* ── Hero Flow Strip ──
+ * ヒーロー直下に置く「3秒で意味が伝わる」横並びの可視デモ。
+ * Prompt → AI → PDF の流れを順番にハイライトし、流し読み層に
+ * 「結局なにが起きるの?」を一目で伝える。
+ *
+ * 動画ファイルを使わず CSS と KaTeX だけで成立する軽量プレビュー。
+ * 6.4 秒で 1 周し、各ステップが 1.6 秒ずつ active になる。
+ */
+function HeroFlowStrip({ isJa }: { isJa: boolean }) {
+  // 100ms 刻みの tick から phase / typing を導出する (タイピング途中の再描画を起こすため)。
+  const [tick, setTick] = useState(0);
+  const TICK_MS = 100;
+  const STEP_MS = 1600;
+  const CYCLE_MS = STEP_MS * 4;
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  const elapsed = (tick * TICK_MS) % CYCLE_MS;
+  const phase = Math.floor(elapsed / STEP_MS);
+
+  const promptText = isJa ? "二次関数の問題を10問。難易度高めで" : "10 quadratic problems, harder difficulty";
+  const typedLen = phase === 0
+    ? Math.min(promptText.length, Math.floor((elapsed / STEP_MS) * promptText.length))
+    : promptText.length;
+
+  // KaTeX で描いた小さな数式 (PDF カード内)。生 LaTeX を画面に出さない方針に従い、
+  // SSR / クライアントいずれでも HTML 文字列を直接埋める。
+  const sampleFormula = React.useMemo(
+    () => renderMathHTML("f(x) = ax^2 + bx + c"),
+    []
+  );
+
+  // 静的コンポーネント化を避けるため lowercase 関数で描画する (react-hooks/static-components)
+  const renderStep = (
+    active: boolean,
+    done: boolean,
+    label: string,
+    body: React.ReactNode,
+  ) => (
+    <div
+      className={`relative flex-1 min-w-0 rounded-xl border p-3 transition-all duration-500 ${
+        active
+          ? "border-violet-500/50 bg-gradient-to-br from-violet-500/[0.08] to-fuchsia-500/[0.06] shadow-lg shadow-violet-500/10 scale-[1.02]"
+          : done
+            ? "border-foreground/[0.10] bg-foreground/[0.015]"
+            : "border-foreground/[0.06] bg-foreground/[0.008]"
+      }`}
+    >
+      <div className="flex items-center gap-1.5 mb-2">
+        <div
+          className={`h-1.5 w-1.5 rounded-full transition-colors duration-300 ${
+            active ? "bg-violet-500 animate-pulse" : done ? "bg-emerald-500" : "bg-foreground/20"
+          }`}
+        />
+        <span className="text-[10px] font-bold tracking-wider uppercase text-foreground/55">
+          {label}
+        </span>
+      </div>
+      <div className="min-h-[58px] flex items-center">{body}</div>
+    </div>
+  );
+
+  return (
+    <div
+      className="mx-auto max-w-3xl px-2"
+      role="img"
+      aria-label={isJa
+        ? "AIに依頼すると教材PDFが自動で完成するデモ"
+        : "Demo: ask AI, get a finished worksheet PDF"}
+    >
+      <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+        {/* Step 1: ask */}
+        {renderStep(
+          phase === 0,
+          phase > 0,
+          isJa ? "1. 依頼" : "1. Ask",
+          <div className="w-full">
+            <div className="inline-flex items-start gap-1.5 max-w-full">
+              <span className="text-[10px] sm:text-[11px] text-foreground/85 leading-snug text-left font-medium tracking-tight line-clamp-2">
+                {promptText.slice(0, typedLen)}
+                {phase === 0 && <span className="text-violet-500 animate-pulse">|</span>}
+              </span>
+            </div>
+          </div>,
+        )}
+
+        {/* Connector arrow */}
+        <span className="absolute left-[33%] top-1/2 -translate-y-1/2 hidden sm:block text-foreground/20 text-sm pointer-events-none">→</span>
+
+        {/* Step 2: AI generates */}
+        {renderStep(
+          phase === 1 || phase === 2,
+          phase === 3,
+          isJa ? "2. AI生成" : "2. AI builds",
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-violet-500/12 border border-violet-500/25">
+              <Sparkles className="h-2.5 w-2.5 text-violet-500" />
+              <span className="text-[9px] sm:text-[10px] font-mono text-violet-700 dark:text-violet-300">x²+3x</span>
+            </span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-fuchsia-500/10 border border-fuchsia-500/25 text-[9px] sm:text-[10px] font-mono text-fuchsia-700 dark:text-fuchsia-300">
+              ∫f(x)dx
+            </span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/25 text-[9px] sm:text-[10px] font-mono text-blue-700 dark:text-blue-300">
+              ax+b
+            </span>
+          </div>,
+        )}
+
+        {/* Connector arrow */}
+        <span className="absolute left-[66%] top-1/2 -translate-y-1/2 hidden sm:block text-foreground/20 text-sm pointer-events-none">→</span>
+
+        {/* Step 3: PDF ready */}
+        {renderStep(
+          phase === 3,
+          false,
+          isJa ? "3. PDF出力" : "3. PDF ready",
+          <div className="w-full">
+            <div className="rounded-md bg-white dark:bg-zinc-900 border border-foreground/10 px-2 py-1.5 shadow-sm">
+              <div className="h-[3px] w-3/4 rounded-full bg-foreground/15 mb-1" />
+              <div className="h-[3px] w-1/2 rounded-full bg-foreground/10 mb-1.5" />
+              <div
+                className="text-[10px] text-foreground/80 katex-mini"
+                dangerouslySetInnerHTML={{ __html: sampleFormula }}
+              />
+            </div>
+          </div>,
+        )}
+      </div>
+      <p className="text-center text-[11px] text-muted-foreground/55 mt-3 font-medium tracking-wide">
+        {isJa
+          ? "依頼するだけで、印刷できる教材ができあがります"
+          : "Just ask. Get a print-ready worksheet."}
+      </p>
+    </div>
+  );
+}
+
 /* ── Editor Workspace Mockup ── */
 /* ── 30-second looping demo ── */
 function EditorMockup({ isJa }: { isJa: boolean }) {
@@ -1419,8 +1558,14 @@ export function TemplateGallery() {
             </p>
           </div>
 
+          {/* 視覚フック: 3秒で意味が伝わる横並びデモ。
+              流し読み層への即時訴求。スクロールしなくても何ができるかが分かる。 */}
+          <div className={`mt-12 transition-all duration-1000 delay-500 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <HeroFlowStrip isJa={isJa} />
+          </div>
+
           {/* Scroll indicator */}
-          <div className={`mt-14 transition-all duration-1000 delay-700 ${heroLoaded ? "opacity-100" : "opacity-0"}`}>
+          <div className={`mt-10 transition-all duration-1000 delay-700 ${heroLoaded ? "opacity-100" : "opacity-0"}`}>
             <div className="flex flex-col items-center gap-2 text-muted-foreground/25">
               <span className="text-[9px] tracking-[0.3em] uppercase">scroll</span>
               <div className="w-px h-10 bg-gradient-to-b from-muted-foreground/20 to-transparent" />
