@@ -23,6 +23,7 @@ import {
   Wrench, Crown, BookOpen, Mail,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { PLANS, type PlanId } from "@/lib/plans";
 
 interface PrimaryCta {
   label: string;
@@ -267,7 +268,8 @@ export function MobileLanding({
         </div>
       </section>
 
-      {/* ━━ PRICING (mobile: 縦スタック cards) ━━ */}
+      {/* ━━ PRICING — 必ず PC 版と同じ PLANS データから派生させる
+          (Free / Starter / Pro / Premium の 4 種、価格・特徴は SSOT) ━━ */}
       <section id="pricing" className="px-5 py-9 bg-foreground/[0.015]">
         <div className="text-center mb-5">
           <p className="text-[10.5px] font-bold tracking-[0.22em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-2">
@@ -276,48 +278,91 @@ export function MobileLanding({
           <h2 className="text-[20px] font-bold tracking-tight">
             {isJa ? "用途に合わせて選べる" : "Pick what fits"}
           </h2>
+          <p className="text-[11.5px] text-muted-foreground/65 mt-1">
+            {isJa ? "税込・月額" : "Monthly · tax incl."}
+          </p>
         </div>
         <div className="flex flex-col gap-3">
-          {[
-            { id: "free" as const,    name: "Free",    price: "¥0",    sub: isJa ? "永久" : "forever",    highlight: false, items: [isJa ? "AI生成 (制限あり)" : "AI generation (limited)", isJa ? "PDF出力" : "PDF export", isJa ? "図形描画" : "Figure drawing"] },
-            { id: "starter" as const, name: "Starter", price: "¥780",  sub: isJa ? "/ 月" : "/ mo",         highlight: false, items: [isJa ? "AI生成 増量" : "More AI", isJa ? "全テンプレート" : "All templates", isJa ? "LaTeXエクスポート" : "LaTeX export"] },
-            { id: "pro" as const,     name: "Pro",     price: "¥1,980",sub: isJa ? "/ 月" : "/ mo",         highlight: true,  items: [isJa ? "OCR・画像読取" : "OCR & scan", isJa ? "ルーブリック採点" : "Rubric grading", isJa ? "OMR (マークシート)" : "OMR grading"] },
-          ].map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => onPlanSelect(p.id)}
-              className={`relative text-left rounded-2xl p-4 active:scale-[0.99] transition ${
-                p.highlight
-                  ? "bg-gradient-to-br from-violet-500/[0.06] to-fuchsia-500/[0.04] border-2 border-violet-500/40 shadow-lg shadow-violet-500/10"
-                  : "bg-card border border-foreground/[0.08]"
-              }`}
-            >
-              {p.highlight && (
-                <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[9.5px] font-extrabold tracking-wider shadow-sm">
-                  <Crown className="h-2.5 w-2.5" />
-                  {isJa ? "おすすめ" : "POPULAR"}
-                </span>
-              )}
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-[15px] font-bold tracking-tight">{p.name}</span>
-                <span className="text-[18px] font-bold ml-auto">{p.price}</span>
-                <span className="text-[11px] text-muted-foreground/65">{p.sub}</span>
-              </div>
-              <ul className="space-y-1.5 mb-2">
-                {p.items.map((it) => (
-                  <li key={it} className="flex items-start gap-1.5 text-[12px] text-foreground/75">
-                    <Check className={`h-3 w-3 mt-0.5 shrink-0 ${p.highlight ? "text-violet-500" : "text-emerald-500"}`} />
-                    <span>{it}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className={`flex items-center justify-end gap-1 text-[11.5px] font-semibold ${p.highlight ? "text-violet-600 dark:text-violet-400" : "text-foreground/70"}`}>
-                {isJa ? "選ぶ" : "Choose"}
-                <ChevronRight className="h-3.5 w-3.5" />
-              </div>
-            </button>
-          ))}
+          {(["free", "starter", "pro", "premium"] as const).map((planId: PlanId) => {
+            const def = PLANS[planId];
+            const highlight = !!def.highlight;
+            const features = isJa ? def.features : (def.featuresEn ?? def.features);
+            const tagline = isJa ? def.tagline : (def.taglineEn ?? def.tagline);
+            const sub = planId === "free"
+              ? (isJa ? "永久無料" : "Free forever")
+              : (isJa ? "/ 月" : "/ mo");
+            // モバイルでは特徴を 4 件までに切り詰めて占有面積を抑える
+            const items = features.slice(0, 4);
+            // Premium は紫グラデで差別化、Pro は highlight (PC と同じ扱い)
+            const isPremium = planId === "premium";
+            const cardClass = highlight
+              ? "bg-gradient-to-br from-violet-500/[0.07] to-fuchsia-500/[0.04] border-2 border-violet-500/40 shadow-lg shadow-violet-500/10"
+              : isPremium
+                ? "bg-gradient-to-br from-amber-500/[0.05] to-rose-500/[0.04] border-2 border-amber-500/30"
+                : "bg-card border border-foreground/[0.08]";
+            return (
+              <button
+                key={planId}
+                type="button"
+                onClick={() => onPlanSelect(planId)}
+                className={`relative text-left rounded-2xl p-4 active:scale-[0.99] transition ${cardClass}`}
+              >
+                {highlight && (
+                  <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[9.5px] font-extrabold tracking-wider shadow-sm">
+                    <Crown className="h-2.5 w-2.5" />
+                    {isJa ? (def.badge || "人気 No.1") : "POPULAR"}
+                  </span>
+                )}
+                {isPremium && !highlight && (
+                  <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[9.5px] font-extrabold tracking-wider shadow-sm">
+                    <Crown className="h-2.5 w-2.5" />
+                    {isJa ? "教育機関向け" : "ENTERPRISE"}
+                  </span>
+                )}
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-[15px] font-bold tracking-tight">
+                    {isJa ? def.name : def.nameEn}
+                  </span>
+                  <span className="text-[20px] font-bold ml-auto tabular-nums">
+                    {def.priceLabel}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground/65">{sub}</span>
+                </div>
+                {tagline && (
+                  <p className="text-[11.5px] text-muted-foreground/70 mb-2">{tagline}</p>
+                )}
+                <ul className="space-y-1.5 mb-2">
+                  {items.map((it) => (
+                    <li key={it} className="flex items-start gap-1.5 text-[12px] text-foreground/80 leading-snug">
+                      <Check className={`h-3 w-3 mt-0.5 shrink-0 ${
+                        highlight ? "text-violet-500" : isPremium ? "text-amber-600" : "text-emerald-500"
+                      }`} />
+                      <span>{it}</span>
+                    </li>
+                  ))}
+                  {features.length > items.length && (
+                    <li className="text-[10.5px] text-muted-foreground/55 pl-4.5 ml-3">
+                      {isJa
+                        ? `他 ${features.length - items.length} 件`
+                        : `+${features.length - items.length} more`}
+                    </li>
+                  )}
+                </ul>
+                <div className={`flex items-center justify-end gap-1 text-[11.5px] font-semibold ${
+                  highlight
+                    ? "text-violet-600 dark:text-violet-400"
+                    : isPremium
+                      ? "text-amber-700 dark:text-amber-400"
+                      : "text-foreground/70"
+                }`}>
+                  {planId === "free"
+                    ? (isJa ? "無料で始める" : "Start free")
+                    : (isJa ? "選ぶ" : "Choose")}
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
 
