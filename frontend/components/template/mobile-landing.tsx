@@ -491,13 +491,23 @@ function MockupShrink({ children }: { children: React.ReactNode }) {
     return () => ro.disconnect();
   }, []);
 
+  // CLS 抑制: 初回測定前に最小高さを確保しておく (子の natural h ≈ 480 から逆算)
   return (
-    <div ref={ref} className="w-full overflow-hidden" style={{ height: innerH }}>
+    <div
+      ref={ref}
+      className="w-full overflow-hidden"
+      style={{
+        height: innerH,
+        minHeight: innerH ? undefined : 240,
+        contain: "layout paint" as React.CSSProperties["contain"],
+      }}
+    >
       <div
         style={{
           transform: `scale(${scale})`,
           transformOrigin: "top left",
           width: `${100 / scale}%`,
+          willChange: "transform",
         }}
       >
         {children}

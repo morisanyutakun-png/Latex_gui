@@ -103,10 +103,15 @@ export const metadata: Metadata = {
 // スマホ・タブレットで レイアウトが崩れないよう viewport を明示する。
 // エディタ UI はデスクトップ前提 (README でも PWA/モバイルは TODO) だが、
 // 最低限ランディング・法務ページが読める状態にする。
+// theme-color: モバイル Safari/Chrome のステータスバーをページ色に合わせる (体感速度向上)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0b0c" },
+  ],
 };
 
 export default function RootLayout({
@@ -123,7 +128,7 @@ export default function RootLayout({
         <Script
           id="ld-software-app"
           type="application/ld+json"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
@@ -162,7 +167,7 @@ export default function RootLayout({
         <Script
           id="ld-faq"
           type="application/ld+json"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
@@ -240,9 +245,9 @@ export default function RootLayout({
           <>
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${PRIMARY_GTAG_ID}`}
-              strategy="afterInteractive"
+              strategy="lazyOnload"
             />
-            <Script id="gtag-base" strategy="afterInteractive">
+            <Script id="gtag-base" strategy="lazyOnload">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}

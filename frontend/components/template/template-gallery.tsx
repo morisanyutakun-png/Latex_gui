@@ -7,6 +7,7 @@ import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
 import { loadFromLocalStorage } from "@/lib/storage";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useVisibleInterval } from "@/hooks/use-visible-interval";
 import { MobileLanding } from "./mobile-landing";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
@@ -68,9 +69,42 @@ const FLOAT_FORMULAS = [
 ];
 
 function FloatingFormulas() {
+  // Pause animations off-screen + reduced-motion を尊重 (パフォーマンス + a11y)
+  // モバイル幅では数を半分 (10 個) に削減して DOM サイズと paint コストを抑制
+  const ref = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(true);
+  const [formulas, setFormulas] = useState<typeof FLOAT_FORMULAS>(FLOAT_FORMULAS);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setFormulas(FLOAT_FORMULAS.slice(0, 10));
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) {
+      setPaused(true);
+      return;
+    }
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setPaused(false);
+      return;
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) setPaused(!entry.isIntersecting);
+      },
+      { threshold: 0.01 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
-      {FLOAT_FORMULAS.map((formula, i) => (
+    <div ref={ref} className="absolute inset-0 overflow-hidden pointer-events-none select-none">
+      {formulas.map((formula, i) => (
         <div
           key={i}
           className="absolute animate-float-formula"
@@ -79,6 +113,8 @@ function FloatingFormulas() {
             top: `${(i * 23 + 10) % 88}%`,
             animationDelay: `${i * 0.7}s`,
             animationDuration: `${20 + (i % 6) * 4}s`,
+            animationPlayState: paused ? "paused" : "running",
+            willChange: paused ? "auto" : "transform",
           }}
         >
           <span className="text-[11px] sm:text-[13px] font-mono text-foreground/[0.055] dark:text-white/[0.045] font-medium whitespace-nowrap">
@@ -250,13 +286,10 @@ function TypingLine({ lines }: { lines: string[] }) {
 /* ── Editor Workspace Mockup ── */
 /* ── 30-second looping demo ── */
 function EditorMockup({ isJa }: { isJa: boolean }) {
-  const [tick, setTick] = useState(0);
   const CYCLE = 30000; // 30 s
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 100);
-    return () => clearInterval(id);
-  }, []);
+  // 可視時のみ tick を回す (off-screen / 非表示タブでは完全停止 → TBT を抑える)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [tick] = useVisibleInterval(containerRef, 100);
 
   const e = (tick * 100) % CYCLE; // elapsed ms in current cycle
 
@@ -429,7 +462,7 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
   );
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto" style={{ opacity }}>
+    <div ref={containerRef} className="relative w-full max-w-4xl mx-auto" style={{ opacity }}>
       <div className="absolute -inset-4 bg-gradient-to-b from-violet-500/[0.05] to-fuchsia-500/[0.03] rounded-3xl blur-2xl pointer-events-none" />
       <div className="relative rounded-2xl border border-foreground/[0.08] bg-card/90 backdrop-blur-xl shadow-2xl shadow-foreground/[0.06] overflow-hidden">
 
@@ -647,12 +680,10 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
  *    左下に「x ? y ? cm」の座標チップ + 右下の「自由角度 / スナップ / グリッド」ピル
  */
 function FigureDrawMockup({ isJa }: { isJa: boolean }) {
-  const [tick, setTick] = useState(0);
   const CYCLE = 22000; // 22 s — 物理の力学図を組み立てる長めのループ
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 80);
-    return () => clearInterval(id);
-  }, []);
+  // 可視時のみ tick を回す。off-screen / 非表示タブでは setInterval を完全停止 → TBT 抑制
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [tick] = useVisibleInterval(containerRef, 80);
   const e = (tick * 80) % CYCLE;
 
   // ── Phase timeline (ms) ──
@@ -791,7 +822,7 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   ] as const;
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto" style={{ opacity }}>
+    <div ref={containerRef} className="relative w-full max-w-4xl mx-auto" style={{ opacity }}>
       <div className="absolute -inset-4 bg-gradient-to-b from-teal-500/[0.06] to-cyan-500/[0.04] rounded-3xl blur-2xl pointer-events-none" />
 
       {/* 実機 workspace 背景: 薄グレー + 青/ピンク radial */}
