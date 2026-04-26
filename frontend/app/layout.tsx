@@ -52,18 +52,12 @@ export const metadata: Metadata = {
   applicationName: "Eddivom",
   category: "education",
   alternates: {
-    canonical: SITE_URL,
+    canonical: "/",
     languages: {
-      "ja-JP": SITE_URL,
-      "en-US": SITE_URL,
-      "x-default": SITE_URL,
+      "ja-JP": "/",
+      "en-US": "/",
+      "x-default": "/",
     },
-  },
-  // 検索結果クリック率向上: verification や category 補助
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
   },
   robots: {
     index: true,
@@ -127,20 +121,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Resource hints — DNS / TLS を初期に warm-up して LCP を引き下げる */}
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
-        <link rel="dns-prefetch" href="https://js.stripe.com" />
-        <link rel="dns-prefetch" href="https://accounts.google.com" />
-        {/* Critical CSS — LCP element (Hero h1) を CSS バンドル待たずに描画できるよう最小限 inline。
-            これで FCP / LCP が CSS 取得を待たない (~340ms 短縮)。 */}
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;background:#fff;color:#0a0a0a}@media (prefers-color-scheme:dark){body{background:#0b0b0c;color:#fafafa}}h1{font-weight:700;letter-spacing:-0.025em;line-height:1.12;margin:0}`,
-          }}
-        />
-      </head>
       <body className="antialiased">
         {/* JSON-LD: 検索結果でリッチスニペット (アプリ名・評価・価格) を出すための構造化データ。
             軽量プランは無料、Pro プランは有料という二段構成を Offer で表現する。
