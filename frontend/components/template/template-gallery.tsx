@@ -8,7 +8,20 @@ import { getTemplateLatex } from "@/lib/templates";
 import { loadFromLocalStorage } from "@/lib/storage";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
-import { MobileLanding } from "./mobile-landing";
+import dynamic from "next/dynamic";
+
+// MobileLanding は別 chunk として遅延ロード (PC 初期 bundle に含めない)。
+// 逆に mobile からは PC LP のレンダリング部品が parse されるが、useIsMobile=true で早期 return するため評価コストはほぼゼロ。
+const MobileLanding = dynamic(
+  () => import("./mobile-landing").then((m) => m.MobileLanding),
+  {
+    ssr: false,
+    loading: () => (
+      // SSR / 初期描画用の極小プレースホルダ。CLS を抑えるため最低限の高さだけ確保。
+      <div className="min-h-screen bg-background" aria-hidden />
+    ),
+  },
+);
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -16,7 +29,22 @@ import { UserMenu } from "@/components/auth/user-menu";
 import { toast } from "sonner";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS, type PlanId } from "@/lib/plans";
-import "katex/dist/katex.min.css";
+// katex CSS は LP の hero / 折り上 (above-the-fold) では使わない。
+// Mockup が visible になったときに runtime で <link> 注入する (initial CSS bundle から外す)。
+function ensureKatexCss(): void {
+  if (typeof document === "undefined") return;
+  const id = "katex-css-runtime";
+  if (document.getElementById(id)) return;
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  // Vercel CDN 経由 (KaTeX 公式) — Next の bundler を通さず初期 CSS を膨らませない。
+  link.href = "https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css";
+  link.crossOrigin = "anonymous";
+  link.media = "print";
+  link.onload = () => { link.media = "all"; };
+  document.head.appendChild(link);
+}
 import { renderMathHTML } from "@/lib/katex-render";
 import {
   ArrowRight,
@@ -285,11 +313,16 @@ function TypingLine({ lines }: { lines: string[] }) {
 
 /* ── Editor Workspace Mockup ── */
 /* ── 30-second looping demo ── */
+// __EditorMockup として export し、MobileGate から dynamic import で別 chunk として遅延ロード可能にする。
+// PC LP からは同名関数を直接参照する。
+export { EditorMockup as __EditorMockup };
 function EditorMockup({ isJa }: { isJa: boolean }) {
   const CYCLE = 30000; // 30 s
   // 可視時のみ tick を回す (off-screen / 非表示タブでは完全停止 → TBT を抑える)
   const containerRef = useRef<HTMLDivElement>(null);
   const [tick] = useVisibleInterval(containerRef, 100);
+  // katex の CSS は mockup マウント時に lazy で注入する (initial CSS bundle 削減)
+  useEffect(() => { ensureKatexCss(); }, []);
 
   const e = (tick * 100) % CYCLE; // elapsed ms in current cycle
 
@@ -679,11 +712,13 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
  *  - Canvas: 白 + 細グリッド + cm ruler + 青 x-axis + 右下に縦並びズームパネル +
  *    左下に「x ? y ? cm」の座標チップ + 右下の「自由角度 / スナップ / グリッド」ピル
  */
+export { FigureDrawMockup as __FigureDrawMockup };
 function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   const CYCLE = 22000; // 22 s — 物理の力学図を組み立てる長めのループ
   // 可視時のみ tick を回す。off-screen / 非表示タブでは setInterval を完全停止 → TBT 抑制
   const containerRef = useRef<HTMLDivElement>(null);
   const [tick] = useVisibleInterval(containerRef, 80);
+  useEffect(() => { ensureKatexCss(); }, []);
   const e = (tick * 80) % CYCLE;
 
   // ── Phase timeline (ms) ──

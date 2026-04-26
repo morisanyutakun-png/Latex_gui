@@ -121,6 +121,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Resource hints — DNS / TLS を初期に warm-up して LCP を引き下げる */}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        <link rel="dns-prefetch" href="https://js.stripe.com" />
+        <link rel="dns-prefetch" href="https://accounts.google.com" />
+      </head>
       <body className="antialiased">
         {/* JSON-LD: 検索結果でリッチスニペット (アプリ名・評価・価格) を出すための構造化データ。
             軽量プランは無料、Pro プランは有料という二段構成を Offer で表現する。

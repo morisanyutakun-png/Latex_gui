@@ -8,6 +8,14 @@
     "start": "next start",
     "lint": "eslint"
   },
+  "browserslist": [
+    "Chrome >= 90",
+    "Edge >= 90",
+    "Firefox >= 90",
+    "Safari >= 15",
+    "iOS >= 15",
+    "not dead"
+  ],
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

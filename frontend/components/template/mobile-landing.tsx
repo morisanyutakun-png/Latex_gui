@@ -51,11 +51,8 @@ export function MobileLanding({
 }: Props) {
   const { locale, setLocale } = useI18n();
   const isJa = locale !== "en";
-  const [heroLoaded, setHeroLoaded] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setHeroLoaded(true), 60);
-    return () => clearTimeout(t);
-  }, []);
+  // 旧 heroLoaded の opacity/translate アニメは CLS の原因になるので削除。
+  // 初期から完全表示にする (FCP/LCP 改善)。
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
@@ -91,7 +88,7 @@ export function MobileLanding({
 
       {/* ━━ HERO (mobile compact) ━━ */}
       <section className="relative overflow-hidden pt-8 pb-6 px-5">
-        <div className={`transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+        <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-500/[0.08] to-violet-500/[0.08] border border-violet-500/[0.18] mb-3">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent text-[10.5px] font-bold tracking-wide">
@@ -123,7 +120,7 @@ export function MobileLanding({
         </div>
 
         {/* CTA buttons — full width, ChatGPT-style mobile */}
-        <div className={`flex flex-col gap-2.5 transition-all duration-700 delay-150 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+        <div className="flex flex-col gap-2.5">
           <button
             onClick={primaryCta.onClick}
             className="group flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-bold text-[14.5px] shadow-lg shadow-foreground/15 active:scale-[0.98] transition"
