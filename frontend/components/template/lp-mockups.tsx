@@ -22,10 +22,15 @@ import {
   RefreshCw, FileDown, Pencil, Check, Brain, Wrench, Hammer, Plus,
   MousePointer2, Square, Circle as CircleIcon, Minus as MinusIcon,
   Type as TypeIcon, Pen as PenIcon, ImagePlus, Eye, X, BookOpen,
+  CheckSquare, Play,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
 import { renderMathHTML } from "@/lib/katex-render";
+
+const SERIF: React.CSSProperties = {
+  fontFamily: '"Hiragino Mincho ProN", "Yu Mincho", "Times New Roman", Georgia, serif',
+};
 
 // katex CSS は LP の hero / 折り上では使わない。
 // Mockup が visible になったときに runtime で <link> 注入する (initial CSS bundle から外す)。
