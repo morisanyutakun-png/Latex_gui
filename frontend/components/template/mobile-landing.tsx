@@ -105,24 +105,50 @@ export function MobileLanding({
               {isJa ? "AI 教材作成 IDE" : "AI worksheet IDE"}
             </span>
           </div>
-          {/* LCP 候補のため固有スタイル指定:
-              - clamp で width 確定、min-height 予約 (CLS 防止)
-              - bg-clip-text を 2 行目だけにして system-ui は即座に描画される */}
+          {/* LCP 候補の Hero h1 — Tailwind CSS が届く前でも即時描画されるよう
+              全プロパティを inline style に倒す。以前は bg-clip-text text-transparent が
+              CSS 待ちで透明テキスト → LCP 7s だった。inline で書けば LCP は FCP と同時に発火する。 */}
           <h1
-            className="text-[clamp(1.6rem,7vw,2.2rem)] leading-[1.12] font-bold tracking-[-0.025em] mb-3"
-            style={{ minHeight: "calc(2 * 1.12em)", contain: "layout" as React.CSSProperties["contain"] }}
+            style={{
+              fontSize: "clamp(1.6rem, 7vw, 2.2rem)",
+              lineHeight: 1.12,
+              fontWeight: 700,
+              letterSpacing: "-0.025em",
+              margin: "0 0 0.75rem 0",
+              minHeight: "calc(2 * 1.12em)",
+              contain: "layout",
+              // 1 行目: 通常色 (即時に黒テキストとして描画される)
+              color: "var(--foreground, #0a0a0a)",
+            }}
           >
             {isJa ? (
               <>
                 教材を、<br />
-                <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
+                <span
+                  style={{
+                    backgroundImage: "linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%)",
+                    backgroundClip: "text",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    // フォールバック: WebkitTextFillColor 未対応なら solid violet で見える
+                    color: "#7c3aed",
+                  }}
+                >
                   もっと速く。
                 </span>
               </>
             ) : (
               <>
                 Worksheets,<br />
-                <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
+                <span
+                  style={{
+                    backgroundImage: "linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%)",
+                    backgroundClip: "text",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    color: "#7c3aed",
+                  }}
+                >
                   faster.
                 </span>
               </>

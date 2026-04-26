@@ -133,11 +133,40 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link rel="dns-prefetch" href="https://js.stripe.com" />
         <link rel="dns-prefetch" href="https://accounts.google.com" />
-        {/* Critical CSS — LCP element (Hero h1) を CSS バンドル待たずに描画できるよう最小限 inline。
-            これで FCP / LCP が CSS 取得を待たない (~340ms 短縮)。 */}
+        {/* Critical CSS — LCP element (Hero h1) と above-the-fold を Tailwind CSS バンドル
+            待ちにせず即描画できるよう最小限 inline。これで LCP が FCP と同タイミングに発火する。 */}
         <style
           dangerouslySetInnerHTML={{
-            __html: `body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;background:#fff;color:#0a0a0a}@media (prefers-color-scheme:dark){body{background:#0b0b0c;color:#fafafa}}h1{font-weight:700;letter-spacing:-0.025em;line-height:1.12;margin:0}`,
+            __html: [
+              "*,::before,::after{box-sizing:border-box;border:0 solid #e5e7eb}",
+              "html{line-height:1.5;-webkit-text-size-adjust:100%;tab-size:4;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}",
+              "body{margin:0;line-height:inherit;-webkit-font-smoothing:antialiased;background:#fff;color:#0a0a0a;--foreground:#0a0a0a;--background:#fff}",
+              "@media (prefers-color-scheme:dark){body{background:#0b0b0c;color:#fafafa;--foreground:#fafafa;--background:#0b0b0c}}",
+              "h1,h2,h3{font-size:inherit;font-weight:inherit;margin:0}",
+              "p{margin:0}",
+              "a{color:inherit;text-decoration:inherit}",
+              "button{margin:0;padding:0;font-family:inherit;font-size:100%;line-height:inherit;color:inherit;background:transparent;border:0;cursor:pointer}",
+              "svg{display:block;vertical-align:middle}",
+              // Above-the-fold helpers (Tailwind 等価)
+              ".min-h-screen{min-height:100vh}",
+              ".relative{position:relative}.absolute{position:absolute}.sticky{position:sticky}",
+              ".flex{display:flex}.inline-flex{display:inline-flex}",
+              ".items-center{align-items:center}.justify-center{justify-content:center}.flex-col{flex-direction:column}.flex-1{flex:1 1 0}",
+              ".gap-1\\.5{gap:.375rem}.gap-2\\.5{gap:.625rem}.gap-2{gap:.5rem}",
+              ".w-full{width:100%}.h-12{height:3rem}.h-9{height:2.25rem}.h-7{width:1.75rem;height:1.75rem}.h-4{height:1rem}.h-3{height:.75rem}",
+              ".px-3{padding-left:.75rem;padding-right:.75rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.pt-8{padding-top:2rem}.pb-6{padding-bottom:1.5rem}.pb-4{padding-bottom:1rem}",
+              ".mb-3{margin-bottom:.75rem}.mb-5{margin-bottom:1.25rem}",
+              ".rounded-full{border-radius:9999px}.rounded-2xl{border-radius:1rem}.rounded-lg{border-radius:.5rem}",
+              ".bg-background{background:var(--background)}.text-foreground{color:var(--foreground)}",
+              ".text-center{text-align:center}",
+              ".font-bold{font-weight:700}.font-semibold{font-weight:600}",
+              ".overflow-hidden{overflow:hidden}",
+              ".top-0{top:0}.z-40{z-index:40}",
+              // PC 推奨バナー (above-fold)
+              ".bg-amber-50{background:#fffbeb}",
+              ".text-amber-900{color:#78350f}.text-amber-700\\/85{color:rgba(180,83,9,.85)}",
+              ".border-amber-200\\/60{border-color:rgba(253,230,138,.6)}",
+            ].join(""),
           }}
         />
       </head>
