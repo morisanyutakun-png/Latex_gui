@@ -52,12 +52,18 @@ export const metadata: Metadata = {
   applicationName: "Eddivom",
   category: "education",
   alternates: {
-    canonical: "/",
+    canonical: SITE_URL,
     languages: {
-      "ja-JP": "/",
-      "en-US": "/",
-      "x-default": "/",
+      "ja-JP": SITE_URL,
+      "en-US": SITE_URL,
+      "x-default": SITE_URL,
     },
+  },
+  // 検索結果クリック率向上: verification や category 補助
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
   },
   robots: {
     index: true,
