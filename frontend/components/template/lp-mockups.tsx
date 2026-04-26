@@ -22,17 +22,10 @@ import {
   RefreshCw, FileDown, Pencil, Check, Brain, Wrench, Hammer, Plus,
   MousePointer2, Square, Circle as CircleIcon, Minus as MinusIcon,
   Type as TypeIcon, Pen as PenIcon, ImagePlus, Eye, X, BookOpen,
-  CheckSquare, Play,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
 import { renderMathHTML } from "@/lib/katex-render";
-
-// Worksheet で使う SERIF style — PC LP の WorksheetPaper でも参照されるので export する
-export const SERIF: React.CSSProperties = {
-  fontFamily: '"Hiragino Mincho ProN", "Yu Mincho", "Times New Roman", Georgia, serif',
-};
-
 
 // katex CSS は LP の hero / 折り上では使わない。
 // Mockup が visible になったときに runtime で <link> 注入する (initial CSS bundle から外す)。
@@ -51,7 +44,7 @@ function ensureKatexCss(): void {
 }
 
 /* KaTeX inline math — renders exactly like real LaTeX output. */
-export function M({ t }: { t: string }) {
+function M({ t }: { t: string }) {
   const { html, ok } = renderMathHTML(t, { displayMode: false });
   if (ok) {
     return <span className="align-middle" dangerouslySetInnerHTML={{ __html: html }} />;
@@ -455,6 +448,7 @@ export function EditorMockup({ isJa }: { isJa: boolean }) {
  *  - Canvas: 白 + 細グリッド + cm ruler + 青 x-axis + 右下に縦並びズームパネル +
  *    左下に「x ? y ? cm」の座標チップ + 右下の「自由角度 / スナップ / グリッド」ピル
  */
+export { FigureDrawMockup as __FigureDrawMockup };
 export function FigureDrawMockup({ isJa }: { isJa: boolean }) {
   const CYCLE = 22000; // 22 s — 物理の力学図を組み立てる長めのループ
   // 可視時のみ tick を回す。off-screen / 非表示タブでは setInterval を完全停止 → TBT 抑制

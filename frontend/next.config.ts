@@ -41,45 +41,24 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Route Handler のタイムアウト延長 (PDF生成は時間がかかる)
   serverExternalPackages: [],
-  // standalone: Docker コンテナサイズを ~1.2GB → ~150MB に縮小し cold start を高速化。
-  // Koyeb 等の Container PaaS で TTFB の cold-start 部分が短くなる。
-  output: "standalone",
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
     },
     // lucide-react は ~400KB の barrel export。利用したアイコンだけ tree-shake する。
+    // PageSpeed の "未使用 JS" 警告(171KiB)に直接効く。
     optimizePackageImports: ["lucide-react", "sonner"],
   },
+  // モバイルブラウザ最新化に合わせて legacy polyfill を切る (PageSpeed: 以前の JS 14KiB 削減)
+  // Next 16 はデフォルトで modern build を出すが、明示しておく。
   productionBrowserSourceMaps: false,
+  // gzip on by default; ensure on for compute headers
   compress: true,
-  // 静的ページ (/ と /m) は CDN / 上流プロキシで積極キャッシュ可能にする。
-  // s-maxage=300 (5 分間サーバキャッシュ) + stale-while-revalidate=86400 (24h)
-  // これにより、初回以降のリクエストは TTFB ~50-150ms に短縮される。
   async headers() {
     return [
       {
         source: "/:path*",
         headers: securityHeaders,
-      },
-      {
-        source: "/",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=0, s-maxage=300, stale-while-revalidate=86400" },
-        ],
-      },
-      {
-        source: "/m",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=0, s-maxage=300, stale-while-revalidate=86400" },
-        ],
-      },
-      {
-        // Next.js が吐く immutable 静的アセットは 1 年キャッシュ
-        source: "/_next/static/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
       },
     ];
   },

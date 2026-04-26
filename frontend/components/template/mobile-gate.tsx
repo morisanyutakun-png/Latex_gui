@@ -25,17 +25,16 @@ import { PLANS } from "@/lib/plans";
 import { toast } from "sonner";
 import { MobileLanding } from "./mobile-landing";
 
-// Mockups は専用ファイル lp-mockups から dynamic import。
-// PC LP の重い template-gallery.tsx に依存しないので、モバイル bundle が劇的に軽い。
+// Mockups は別 chunk に分離 (initial bundle に乗せない)
 const EditorMockup = dynamic(
-  () => import("./lp-mockups").then((m) => ({ default: m.EditorMockup })),
+  () => import("./template-gallery").then((m) => ({ default: m.__EditorMockup })),
   {
     ssr: false,
     loading: () => <div className="w-full" style={{ minHeight: 240 }} aria-hidden />,
   },
 );
 const FigureDrawMockup = dynamic(
-  () => import("./lp-mockups").then((m) => ({ default: m.FigureDrawMockup })),
+  () => import("./template-gallery").then((m) => ({ default: m.__FigureDrawMockup })),
   {
     ssr: false,
     loading: () => <div className="w-full" style={{ minHeight: 240 }} aria-hidden />,
