@@ -23,12 +23,15 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
-// Below-the-fold は別 chunk で遅延ロード (initial HTML / JS を最小化 → LCP/TTFB 改善)
+// Below-the-fold は別 chunk で遅延ロード (initial HTML / JS を最小化 → LCP/TTFB 改善)。
+// loading の min-height は実際の below-fold 全体を概算 (Demo 520 + Trust 100 + Figure 500
+// + Persona 380 + Pricing 720 + FAQ 480 + CTA 240 + Footer 160 ≈ 3100px) して大きめに予約。
+// CLS = 0 を狙うために小さくしすぎない。
 const MobileLandingBelow = dynamic(
   () => import("./mobile-landing-below").then((m) => m.MobileLandingBelow),
   {
     ssr: false,
-    loading: () => <div style={{ minHeight: 600 }} aria-hidden />,
+    loading: () => <div style={{ minHeight: 3100 }} aria-hidden />,
   },
 );
 
@@ -102,7 +105,13 @@ export function MobileLanding({
               {isJa ? "AI 教材作成 IDE" : "AI worksheet IDE"}
             </span>
           </div>
-          <h1 className="text-[clamp(1.6rem,7vw,2.2rem)] leading-[1.12] font-bold tracking-[-0.025em] mb-3">
+          {/* LCP 候補のため固有スタイル指定:
+              - clamp で width 確定、min-height 予約 (CLS 防止)
+              - bg-clip-text を 2 行目だけにして system-ui は即座に描画される */}
+          <h1
+            className="text-[clamp(1.6rem,7vw,2.2rem)] leading-[1.12] font-bold tracking-[-0.025em] mb-3"
+            style={{ minHeight: "calc(2 * 1.12em)", contain: "layout" as React.CSSProperties["contain"] }}
+          >
             {isJa ? (
               <>
                 教材を、<br />

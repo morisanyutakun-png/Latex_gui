@@ -133,6 +133,13 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         <link rel="dns-prefetch" href="https://js.stripe.com" />
         <link rel="dns-prefetch" href="https://accounts.google.com" />
+        {/* Critical CSS — LCP element (Hero h1) を CSS バンドル待たずに描画できるよう最小限 inline。
+            これで FCP / LCP が CSS 取得を待たない (~340ms 短縮)。 */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;background:#fff;color:#0a0a0a}@media (prefers-color-scheme:dark){body{background:#0b0b0c;color:#fafafa}}h1{font-weight:700;letter-spacing:-0.025em;line-height:1.12;margin:0}`,
+          }}
+        />
       </head>
       <body className="antialiased">
         {/* JSON-LD: 検索結果でリッチスニペット (アプリ名・評価・価格) を出すための構造化データ。
