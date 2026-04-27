@@ -9,7 +9,6 @@ import { getTemplateLatex } from "@/lib/templates";
 import { loadFromLocalStorage } from "@/lib/storage";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
-import { MobileLanding } from "./mobile-landing";
 import dynamic from "next/dynamic";
 import { hasUsedAnonymousTrial } from "@/lib/anonymous-trial";
 import { trackFreeGenerateLimitReached, trackFreeTrialCtaClick } from "@/lib/gtag";
@@ -20,6 +19,16 @@ import { trackFreeGenerateLimitReached, trackFreeTrialCtaClick } from "@/lib/gta
 // 切り離して LCP/FCP を改善する。
 const AnonymousTrialModal = dynamic(
   () => import("./anonymous-trial-modal").then((m) => m.AnonymousTrialModal),
+  { ssr: false, loading: () => null },
+);
+
+// MobileLanding は完全に別ファイル + 別 LP コンポーネント (PC からは絶対に呼ばれない)。
+// 初期 JS バンドルから切り離すことで PC ユーザの LCP/FCP に影響しないようにする。
+// ssr:false: useIsMobile の判定は client でしか走らないので、SSR 時点ではどちらも
+// 描画されない (= HTML には PC 版のみ載る) のが現状。MobileLanding を ssr:false で
+// dynamic import しても挙動は同じで、初期 JS だけ軽くなる。
+const MobileLanding = dynamic(
+  () => import("./mobile-landing").then((m) => m.MobileLanding),
   { ssr: false, loading: () => null },
 );
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -91,6 +100,48 @@ import {
   X,
 } from "lucide-react";
 
+/**
+ * IdleMount — initial paint には placeholder を出し、ブラウザがアイドルになった
+ * タイミング (or 600ms 後) に重い children をマウントする。
+ *
+ * 効能:
+ *   - SSR HTML の payload が縮む (children の JSX が出力されない)
+ *   - クライアント側でも initial render の hydration コストが下がる (子の長大な JSX を即時に評価しない)
+ *   - placeholder は同サイズの空 div なので CLS を発生させない
+ *
+ * ヒーロー直下の EditorMockup / FigureDrawMockup のような巨大 JSX を包む用途。
+ * SEO 的には文字情報を含まない装飾なので非表示でも影響なし。
+ */
+function IdleMount({
+  children,
+  minHeight = "0",
+  idleTimeoutMs = 600,
+}: {
+  children: React.ReactNode;
+  minHeight?: string;
+  idleTimeoutMs?: number;
+}) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    type IdleWindow = Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+    };
+    const w = window as IdleWindow;
+    const idle = w.requestIdleCallback;
+    if (typeof idle === "function") {
+      idle(() => setShow(true), { timeout: 1500 });
+    } else {
+      const t = window.setTimeout(() => setShow(true), idleTimeoutMs);
+      return () => window.clearTimeout(t);
+    }
+  }, [idleTimeoutMs]);
+  if (!show) {
+    return <div style={{ minHeight }} aria-hidden />;
+  }
+  return <>{children}</>;
+}
+
 /* ── Floating math formulas background ── */
 const FLOAT_FORMULAS = [
   "x²+3x−4=0", "∫₀^π sin x dx", "∑ₙ₌₁^∞ 1/n²", "√(a²+b²)",
@@ -103,9 +154,26 @@ const FLOAT_FORMULAS = [
 function FloatingFormulas() {
   // Pause animations off-screen + reduced-motion を尊重 (パフォーマンス + a11y)
   // モバイル幅では数を半分 (10 個) に削減して DOM サイズと paint コストを抑制
+  // さらに LCP/FCP 改善のため初回マウントを `requestIdleCallback` (or 800ms 後) まで
+  // 遅延する: ヒーローのテキスト・モックアップが先に paint されてから装飾を後追いで挿入。
   const ref = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(true);
   const [formulas, setFormulas] = useState<typeof FLOAT_FORMULAS>(FLOAT_FORMULAS);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    type IdleWindow = Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+    };
+    const w = window as IdleWindow;
+    const idle = w.requestIdleCallback;
+    if (typeof idle === "function") {
+      idle(() => setMounted(true), { timeout: 1500 });
+    } else {
+      const t = window.setTimeout(() => setMounted(true), 800);
+      return () => window.clearTimeout(t);
+    }
+  }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.matchMedia("(max-width: 767px)").matches) {
@@ -134,8 +202,13 @@ function FloatingFormulas() {
     return () => obs.disconnect();
   }, []);
 
+  // mounted=false の間は枠だけ返す (LCP/FCP に影響する DOM ノード生成を後回し)
+  if (!mounted) {
+    return <div ref={ref} className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden />;
+  }
+
   return (
-    <div ref={ref} className="absolute inset-0 overflow-hidden pointer-events-none select-none">
+    <div ref={ref} className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
       {formulas.map((formula, i) => (
         <div
           key={i}
@@ -2435,7 +2508,12 @@ export function TemplateGallery() {
               <Play className="h-3 w-3 fill-current" />
               {isJa ? "30 秒で実際の画面を見る" : "Watch the real app — 30s"}
             </p>
-            <EditorMockup isJa={isJa} />
+            {/* IdleMount: モバイルで FCP/LCP を圧迫する 700+ 行の JSX を idle まで遅らせる。
+                 LCP 候補は上の <h1> に移り、ヒーロー文字が先に paint されるようになる。
+                 placeholder の minHeight でモックアップ表示前後の CLS を抑える。 */}
+            <IdleMount minHeight="360px">
+              <EditorMockup isJa={isJa} />
+            </IdleMount>
 
             {/* 機能チップ — モバイルでは折り返し */}
             <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
@@ -2734,7 +2812,9 @@ export function TemplateGallery() {
             </p>
           </div>
 
-          <FigureDrawMockup isJa={isJa} />
+          <IdleMount minHeight="360px">
+            <FigureDrawMockup isJa={isJa} />
+          </IdleMount>
 
           {/* 補足チップ — 何が描けるかを列挙 (SEO 兼 ユーザー安心材料) */}
           <div className="flex flex-wrap items-center justify-center gap-2 mt-7">
