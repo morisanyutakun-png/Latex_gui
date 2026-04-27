@@ -303,6 +303,33 @@ export function trackFreeGenerateLimitReached(extra?: FreeGenerateEventParams): 
   return fireGa4Event("free_generate_limit_reached", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
 }
 
+/**
+ * LP の「無料で1枚作ってみる / ログインなしで試す」CTA を押した瞬間。
+ * `free_generate_start` (AI 送信時) より上流の指標で、ファネル先頭を計測する。
+ *
+ * @param placement クリックされた CTA の位置 ("hero" | "nav" | "mobile_hero" | "pricing" など)。
+ *                  GA4 の dimension として CTA 別 CTR を切り分けるのに使う。
+ */
+export function trackFreeTrialCtaClick(extra?: FreeGenerateEventParams & { placement?: string }): boolean {
+  return fireGa4Event("free_trial_cta_click", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/**
+ * ゲストモードのエディタを実際に開いた瞬間 (?guest=1 で着地)。
+ * CTA クリック → エディタ到達 の歩留まりを見るための中間指標。
+ */
+export function trackGuestEditorOpen(extra?: FreeGenerateEventParams): boolean {
+  return fireGa4Event("guest_editor_open", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/**
+ * ゲストから無料登録へ進む CTA (Toast / バナー / ロックボタン) を押した瞬間。
+ * 試行から登録への決定打が何かを切り分けるための指標。
+ */
+export function trackGuestSignupClick(extra?: FreeGenerateEventParams & { placement?: string }): boolean {
+  return fireGa4Event("guest_signup_click", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
 
 // ─── Google Ads pageview conversion ───────────────────────────────────────
 //

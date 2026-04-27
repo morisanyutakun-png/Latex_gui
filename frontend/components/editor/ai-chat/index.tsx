@@ -20,6 +20,7 @@ import {
   trackFreeGenerateComplete,
   trackFreeGenerateError,
   trackFreeGenerateLimitReached,
+  trackGuestSignupClick,
 } from "@/lib/gtag";
 
 import { MessageRow } from "./message-row";
@@ -244,6 +245,7 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
           action: {
             label: locale === "en" ? "Sign up free" : "無料登録",
             onClick: () => {
+              trackGuestSignupClick({ placement: "chat_toast" });
               import("next-auth/react").then(({ signIn }) =>
                 signIn("google", { callbackUrl: "/editor" }),
               );

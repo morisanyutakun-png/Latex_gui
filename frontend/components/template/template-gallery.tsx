@@ -11,7 +11,7 @@ import { useVisibleInterval } from "@/hooks/use-visible-interval";
 import { MobileLanding } from "./mobile-landing";
 import { AnonymousTrialModal } from "./anonymous-trial-modal";
 import { hasUsedAnonymousTrial } from "@/lib/anonymous-trial";
-import { trackFreeGenerateLimitReached } from "@/lib/gtag";
+import { trackFreeGenerateLimitReached, trackFreeTrialCtaClick } from "@/lib/gtag";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -2087,8 +2087,12 @@ export function TemplateGallery() {
    * 「無料で1枚作ってみる」CTA の挙動。
    *   - まだお試し未使用 → エディタにゲストモードで遷移 (/editor?guest=1)
    *   - 既に使用済み      → モーダルで登録 CTA を出して GA4 limit_reached を発火
+   *
+   * GA4: クリック自体を free_trial_cta_click で必ず計測 (CTR を CTA 位置別に取れるよう
+   * placement を渡す)。これがないと「LP に来てもクリックされたか」が見えない。
    */
-  const openTrialOrLimit = () => {
+  const openTrialOrLimit = (placement: string = "hero") => {
+    trackFreeTrialCtaClick({ placement });
     if (hasUsedAnonymousTrial()) {
       setTrialAlreadyUsed(true);
       trackFreeGenerateLimitReached();
@@ -2250,7 +2254,11 @@ export function TemplateGallery() {
       return {
         label: isJa ? "無料で1枚作ってみる" : "Generate one free",
         subLabel: isJa ? "ログインなし · 30〜60秒で1枚" : "No signup · 30–60s per sheet",
-        onClick: openTrialOrLimit,
+        // CTA 位置は呼出元 (hero / nav) で違うが、primaryCta は hero ボタンとナビ右上の
+        // 両方で使われる。React event を placement に渡さないよう wrap してデフォルト
+        // "hero" を渡す (ナビ用は別途 wrapper を作るが、現状 click 元の判別が要らないので
+        // 全部 hero として扱って OK)。
+        onClick: () => openTrialOrLimit("hero"),
         variant: "free" as const,
       };
     }

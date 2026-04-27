@@ -19,6 +19,7 @@ import { useSession } from "next-auth/react";
 import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
 import { hasUsedAnonymousTrial } from "@/lib/anonymous-trial";
+import { trackGuestEditorOpen, trackGuestSignupClick } from "@/lib/gtag";
 import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock, MoreVertical, Plus, ChevronLeft, Trash2, Crown, PanelLeft, SquarePen } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
@@ -151,6 +152,9 @@ export default function EditorPage() {
         createDefaultDocument("blank", getTemplateLatex("blank")),
       );
     }
+    // GA4: ゲストエディタに到着した瞬間を計測。CTA クリック数との比で
+    // ナビゲーション失敗 (回線断 / blocker / 履歴戻り) の歩留まりを把握する。
+    trackGuestEditorOpen();
   }, [session.status, setGuest, setGuestTrialUsed]);
 
   // ログイン成立を検知したら自動でゲストモード解除
@@ -618,6 +622,7 @@ export default function EditorPage() {
           </span>
           <button
             onClick={() => {
+              trackGuestSignupClick({ placement: "guest_banner" });
               import("next-auth/react").then(({ signIn }) =>
                 signIn("google", { callbackUrl: "/editor" }),
               );
