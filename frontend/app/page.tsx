@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { headers } from "next/headers";
-import { TemplateGallery } from "@/components/template/template-gallery";
+import { LandingRouter } from "@/components/template/landing-router";
 
 // LP は User-Agent ヘッダから isMobile を判定するため動的レンダリングが必要。
 // 純粋に静的化すると mobile 端末に PC レイアウトの HTML を送ってしまい、ハイドレーション
@@ -108,7 +108,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSONLD) }}
       />
       <Suspense>
-        <TemplateGallery initialIsMobile={initialIsMobile} />
+        <LandingRouter initialIsMobile={initialIsMobile} />
       </Suspense>
     </>
   );

@@ -2386,6 +2386,8 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
     [isJa]);
 
   // ── モバイル分岐 — PC 版 LP には一切手を入れず、こちらは別 LP コンポーネント
+  // 通常は app/page.tsx が UA で MobileLandingShell を直接 dynamic import するので
+  // ここに来るのは「PC で SSR された後にウィンドウを縮めた」エッジケースのみ。
   const isMobile = useIsMobile(initialIsMobile);
   if (isMobile) {
     return (
@@ -2394,8 +2396,6 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           primaryCta={primaryCta}
           scrollToPricing={scrollToPricing}
           scrollToSample={scrollToSample}
-          EditorMockup={EditorMockup}
-          FigureDrawMockup={FigureDrawMockup}
           onPlanSelect={handlePlanSelect}
         />
         <AnonymousTrialModal

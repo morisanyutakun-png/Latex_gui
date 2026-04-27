@@ -25,6 +25,10 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { IdleMount } from "./idle-mount";
+// Mockup は lp-mockups.tsx にある共有実装を直接 import する。
+// props で受け取る形だと、親 (TemplateGallery) の chunk が必ずモバイル bundle に
+// 引きずり込まれて 3554 行の PC LP コードがモバイル初期 JS に乗ってしまうため。
+import { EditorMockup, FigureDrawMockup } from "./lp-mockups";
 
 interface PrimaryCta {
   label: string;
@@ -37,8 +41,6 @@ interface Props {
   primaryCta: PrimaryCta;
   scrollToPricing: () => void;
   scrollToSample: () => void;
-  EditorMockup: React.ComponentType<{ isJa: boolean }>;
-  FigureDrawMockup: React.ComponentType<{ isJa: boolean }>;
   onPlanSelect: (planId: "free" | "starter" | "pro" | "premium") => void;
 }
 
@@ -46,8 +48,6 @@ export function MobileLanding({
   primaryCta,
   scrollToPricing,
   scrollToSample,
-  EditorMockup,
-  FigureDrawMockup,
   onPlanSelect,
 }: Props) {
   const { locale, setLocale } = useI18n();
