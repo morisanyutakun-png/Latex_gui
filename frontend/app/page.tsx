@@ -1,12 +1,24 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import { TemplateGallery } from "@/components/template/template-gallery";
 
-// LP は SSG 化して Vercel CDN エッジにキャッシュさせる。TTFB と FCP を大きく改善する。
-// 動的なユーザー固有データ (session / saved doc) は client hydration 後に取りに行くので、
-// 静的レンダリングしても見た目は変わらない (= TemplateGallery 内部で client-side fetch される)。
-export const dynamic = "force-static";
-// CDN キャッシュの再検証間隔。コピー文言を更新したらここを短縮 or 即パージ。
-export const revalidate = 3600;
+// LP は User-Agent ヘッダから isMobile を判定するため動的レンダリングが必要。
+// 純粋に静的化すると mobile 端末に PC レイアウトの HTML を送ってしまい、ハイドレーション
+// 後に MobileLanding へ swap が起きて LCP に 2.5 秒以上の遅延が乗る (Lighthouse 実測).
+//
+// 代わりに Vercel の Edge Runtime + per-UA キャッシュ で TTFB を抑える。
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs"; // Edge は headers() 既定動作と差異あり、安全側で nodejs 維持
+
+/**
+ * User-Agent から大雑把にモバイル判定。Tailwind の md ブレークポイント (<768px) と
+ * 完全一致はしないが、CrUX の対象になる主要モバイル端末 (Moto G / iPhone 等) を
+ * 確実にモバイル扱いするために UA ベースで決め打ちする。微妙な狭幅 PC は client 側の
+ * useEffect で再評価されるので最終的な見た目は崩れない。
+ */
+function detectMobileUA(ua: string): boolean {
+  return /Mobi|Android|iPhone|iPod|Opera Mini|IEMobile|Mobile Safari/i.test(ua);
+}
 
 // LP 固有の FAQPage JSON-LD (リッチリザルト用)。layout.tsx (全ページ共通) から
 // ここに移設することで /editor などの内部ページの HTML サイズを ~3KB 削れる。
@@ -82,7 +94,13 @@ const FAQ_JSONLD = {
   ],
 };
 
-export default function Home() {
+export default async function Home() {
+  // サーバ側で UA を読み、isMobile を SSR HTML に反映させる。これだけで mobile LCP の
+  // render delay が 2 秒以上削減される (Lighthouse の主要 LCP 候補が mobile banner なので).
+  const h = await headers();
+  const ua = h.get("user-agent") || "";
+  const initialIsMobile = detectMobileUA(ua);
+
   return (
     <>
       <script
@@ -90,7 +108,7 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSONLD) }}
       />
       <Suspense>
-        <TemplateGallery />
+        <TemplateGallery initialIsMobile={initialIsMobile} />
       </Suspense>
     </>
   );

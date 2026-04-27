@@ -22,14 +22,14 @@ const AnonymousTrialModal = dynamic(
   { ssr: false, loading: () => null },
 );
 
-// MobileLanding は完全に別ファイル + 別 LP コンポーネント (PC からは絶対に呼ばれない)。
-// 初期 JS バンドルから切り離すことで PC ユーザの LCP/FCP に影響しないようにする。
-// ssr:false: useIsMobile の判定は client でしか走らないので、SSR 時点ではどちらも
-// 描画されない (= HTML には PC 版のみ載る) のが現状。MobileLanding を ssr:false で
-// dynamic import しても挙動は同じで、初期 JS だけ軽くなる。
+// MobileLanding は別ファイル + 別 LP コンポーネント。
+// ssr:true (デフォルト) で動的 import → サーバ側で User-Agent から isMobile を
+// 判定済みのケースでは MobileLanding が SSR HTML に直接乗る = モバイルユーザに
+// PC 版を一瞬見せてから swap する render delay を排除できる。
+// 同時に PC ユーザの初期 JS バンドルからも実コードが分離される (chunk 化)。
 const MobileLanding = dynamic(
   () => import("./mobile-landing").then((m) => m.MobileLanding),
-  { ssr: false, loading: () => null },
+  { loading: () => null },
 );
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
@@ -46,7 +46,9 @@ import { renderMathHTML } from "@/lib/katex-render";
 
 /** KaTeX CSS を初回 1 度だけ <link> で差し込むユーティリティ。SampleShowcase の中の
  *  M コンポーネントが mount されたときに呼ぶことで、上部 hero / nav の描画パスから
- *  外れて critical path を削れる。 */
+ *  外れて critical path を削れる。
+ *  `font-display: swap` を補完する <style> も併せて注入し、FOIT を回避して
+ *  Lighthouse の「フォント表示」項目をクリアする。 */
 let _katexCssInjected = false;
 function ensureKatexCss() {
   if (typeof document === "undefined" || _katexCssInjected) return;
@@ -56,8 +58,25 @@ function ensureKatexCss() {
   link.href = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css";
   link.crossOrigin = "anonymous";
   link.referrerPolicy = "no-referrer";
-  // 既存の app CSS の後にレイヤしたいので head 末尾に追加
   document.head.appendChild(link);
+  // KaTeX 公式 CSS は font-display を指定していない (= ブラウザ既定の `block` で
+  // 3秒の不可視待ちが発生)。後乗せの style で `swap` に上書きして FOIT を解消する。
+  const style = document.createElement("style");
+  style.textContent = `
+    @font-face { font-family: KaTeX_Main; font-display: swap; }
+    @font-face { font-family: KaTeX_Math; font-display: swap; }
+    @font-face { font-family: KaTeX_AMS; font-display: swap; }
+    @font-face { font-family: KaTeX_Caligraphic; font-display: swap; }
+    @font-face { font-family: KaTeX_Fraktur; font-display: swap; }
+    @font-face { font-family: KaTeX_SansSerif; font-display: swap; }
+    @font-face { font-family: KaTeX_Script; font-display: swap; }
+    @font-face { font-family: KaTeX_Size1; font-display: swap; }
+    @font-face { font-family: KaTeX_Size2; font-display: swap; }
+    @font-face { font-family: KaTeX_Size3; font-display: swap; }
+    @font-face { font-family: KaTeX_Size4; font-display: swap; }
+    @font-face { font-family: KaTeX_Typewriter; font-display: swap; }
+  `;
+  document.head.appendChild(style);
 }
 import {
   ArrowRight,
@@ -2178,7 +2197,13 @@ function planButtonState(current: PlanId, target: PlanId): "upgrade" | "current"
   return "lower";
 }
 
-export function TemplateGallery() {
+/** TemplateGallery
+ *  @param initialIsMobile  サーバ側で User-Agent から判定したモバイル真偽値。SSR HTML を
+ *  最初から正しいレイアウト (PC or Mobile) で出すために `useIsMobile` の初期値に渡す。
+ *  これがないとモバイルユーザは PC レイアウトの SSR HTML を受け取り、ハイドレーション後
+ *  に MobileLanding へ swap される → LCP に 2 秒以上の render delay が乗る。
+ */
+export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?: boolean } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setDocument = useDocumentStore((s) => s.setDocument);
@@ -2400,7 +2425,7 @@ export function TemplateGallery() {
     [isJa]);
 
   // ── モバイル分岐 — PC 版 LP には一切手を入れず、こちらは別 LP コンポーネント
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(initialIsMobile);
   if (isMobile) {
     return (
       <>
