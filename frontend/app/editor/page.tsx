@@ -275,11 +275,29 @@ export default function EditorPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // doc がない場合は LP へ（ただし checkout/new リダイレクト中はスキップ）
+  // doc がない場合は LP へ（ただし checkout/new/guest リダイレクト中はスキップ）。
+  //
+  // skipRedirect.current は render 内で同期的に立てているが、React 19 の
+  // Strict / NextAuth の SessionProvider が status="loading" → "unauthenticated"
+  // 移行で再レンダー → setDocument 反映前のタイミングで先にこの effect が回ると
+  // doc=null のまま LP へ蹴られていた (= 1 回目だけ LP に戻る症状)。
+  //
+  // 防御を 3 段にする:
+  //   1) skipRedirect.current ref (render 内で設定)
+  //   2) URL に ?guest=1 / ?new=1 / ?checkout=success が乗っているか毎回再チェック
+  //   3) ui-store.isGuest が立っている間は無条件で残す
   useEffect(() => {
     if (skipRedirect.current) return;
+    if (isGuest) return;
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("guest") === "1" || p.get("new") === "1" || p.get("checkout") === "success") {
+        skipRedirect.current = true;
+        return;
+      }
+    }
     if (!doc) router.push("/");
-  }, [doc, router]);
+  }, [doc, router, isGuest]);
 
   useEffect(() => {
     fetch("/api/health", { signal: AbortSignal.timeout(15000) }).catch(() => {});
