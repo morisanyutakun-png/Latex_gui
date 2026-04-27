@@ -8,7 +8,7 @@ import { HtmlLangSync } from "@/components/html-lang-sync";
 import { SessionProvider } from "@/components/auth/session-provider";
 import { SubscriptionInitializer } from "@/components/subscription-initializer";
 import { PageviewConversion } from "@/components/pageview-conversion";
-import { GuestSignupOverlay } from "@/components/guest-signup-overlay";
+import { GuestSignupOverlayMount } from "@/components/guest-signup-overlay-mount";
 import { Suspense } from "react";
 import "./globals.css";
 
@@ -133,6 +133,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* preconnect: TLS ハンドシェイクを先回りして実行することで、gtag.js / GA4 ビーコン /
+            Ads conversion の初回送信時間を短縮する (LCP・FCP に効く)。`crossOrigin` は
+            CORS 付きフェッチに必要 (gtag.js は CORS 越しの動的 import を行う)。 */}
+        <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="" />
+        <link rel="preconnect" href="https://www.google-analytics.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://googleads.g.doubleclick.net" />
+        <link rel="dns-prefetch" href="https://www.googleadservices.com" />
+      </head>
       <body className="antialiased">
         {/* JSON-LD: 検索結果でリッチスニペット (アプリ名・評価・価格) を出すための構造化データ。
             軽量プランは無料、Pro プランは有料という二段構成を Offer で表現する。
@@ -338,8 +347,9 @@ export default function RootLayout({
               </TooltipProvider>
               <Toaster richColors position="bottom-center" />
               {/* 全画面 signup overlay — どのページからでも openSignupOverlay() で呼び出せる。
-                  z-index 100 で他の UI より上に重なる。 */}
-              <GuestSignupOverlay />
+                  実体は dynamic import で初期 JS バンドルから外し、ストアが open=true に
+                  なった瞬間に初めてロードされる (LP の LCP/FCP を悪化させない)。 */}
+              <GuestSignupOverlayMount />
             </I18nProvider>
           </ThemeProvider>
         </SessionProvider>

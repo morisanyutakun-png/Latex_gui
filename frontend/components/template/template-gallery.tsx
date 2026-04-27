@@ -10,9 +10,18 @@ import { loadFromLocalStorage } from "@/lib/storage";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
 import { MobileLanding } from "./mobile-landing";
-import { AnonymousTrialModal } from "./anonymous-trial-modal";
+import dynamic from "next/dynamic";
 import { hasUsedAnonymousTrial } from "@/lib/anonymous-trial";
 import { trackFreeGenerateLimitReached, trackFreeTrialCtaClick } from "@/lib/gtag";
+
+// AnonymousTrialModal は radix-ui Dialog + 大量の lucide アイコン + i18n の翻訳まわりを
+// 抱える重いコンポーネントだが、open=true になるのは「お試し済みユーザが CTA を再度
+// 押した時」の極めてレアなケースのみ。LP 初期描画には不要なので dynamic import で
+// 切り離して LCP/FCP を改善する。
+const AnonymousTrialModal = dynamic(
+  () => import("./anonymous-trial-modal").then((m) => m.AnonymousTrialModal),
+  { ssr: false, loading: () => null },
+);
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -20,8 +29,27 @@ import { UserMenu } from "@/components/auth/user-menu";
 import { toast } from "sonner";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS, type PlanId } from "@/lib/plans";
-import "katex/dist/katex.min.css";
+// KaTeX の CSS (~25KB + woff2 フォント数本) は LP 初回描画のクリティカルパスに乗ると
+// FCP/LCP を悪化させる。LP では SampleShowcase 内のサンプル数式描画でしか使わないので、
+// その節がビューに入った瞬間に動的に <link rel="stylesheet"> を差し込む方式にする。
+// ※ 旧 import "katex/dist/katex.min.css" は CSS チャンクとして必ず先に読まれてしまうため撤去。
 import { renderMathHTML } from "@/lib/katex-render";
+
+/** KaTeX CSS を初回 1 度だけ <link> で差し込むユーティリティ。SampleShowcase の中の
+ *  M コンポーネントが mount されたときに呼ぶことで、上部 hero / nav の描画パスから
+ *  外れて critical path を削れる。 */
+let _katexCssInjected = false;
+function ensureKatexCss() {
+  if (typeof document === "undefined" || _katexCssInjected) return;
+  _katexCssInjected = true;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css";
+  link.crossOrigin = "anonymous";
+  link.referrerPolicy = "no-referrer";
+  // 既存の app CSS の後にレイヤしたいので head 末尾に追加
+  document.head.appendChild(link);
+}
 import {
   ArrowRight,
   ChevronRight,
@@ -1595,6 +1623,12 @@ const PaperFooter = () => (
 /* KaTeX inline math — renders exactly like real LaTeX output.
  * 中央集約レンダラを通すことで生 LaTeX 漏れを防ぐ。 */
 function M({ t }: { t: string }) {
+  // 初回マウント時に katex.min.css を CDN から非同期注入。LP の critical CSS から外して
+  // FCP/LCP を改善する。SampleShowcase は below-the-fold なので大半のユーザは見る前に
+  // FCP が確定する。
+  useEffect(() => {
+    ensureKatexCss();
+  }, []);
   const { html, ok } = renderMathHTML(t, { displayMode: false });
   if (ok) {
     return <span className="align-middle" dangerouslySetInnerHTML={{ __html: html }} />;
