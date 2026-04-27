@@ -8,6 +8,7 @@ import { HtmlLangSync } from "@/components/html-lang-sync";
 import { SessionProvider } from "@/components/auth/session-provider";
 import { SubscriptionInitializer } from "@/components/subscription-initializer";
 import { PageviewConversion } from "@/components/pageview-conversion";
+import { GuestSignupOverlay } from "@/components/guest-signup-overlay";
 import { Suspense } from "react";
 import "./globals.css";
 
@@ -312,6 +313,9 @@ export default function RootLayout({
                 </div>
               </TooltipProvider>
               <Toaster richColors position="bottom-center" />
+              {/* 全画面 signup overlay — どのページからでも openSignupOverlay() で呼び出せる。
+                  z-index 100 で他の UI より上に重なる。 */}
+              <GuestSignupOverlay />
             </I18nProvider>
           </ThemeProvider>
         </SessionProvider>

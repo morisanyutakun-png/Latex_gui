@@ -623,9 +623,10 @@ export default function EditorPage() {
           <button
             onClick={() => {
               trackGuestSignupClick({ placement: "guest_banner" });
-              import("next-auth/react").then(({ signIn }) =>
-                signIn("google", { callbackUrl: "/editor" }),
-              );
+              useUIStore.getState().openSignupOverlay({
+                reason: guestTrialUsed ? "trial_limit" : "manual",
+                placement: "guest_banner",
+              });
             }}
             className="ml-auto shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-foreground text-background text-[11.5px] font-bold hover:opacity-90 transition"
           >

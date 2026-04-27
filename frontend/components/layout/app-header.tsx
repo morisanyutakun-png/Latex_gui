@@ -33,22 +33,11 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
   const promptGuestSignIn = () => {
-    toast.info(
-      locale === "en"
-        ? "Sign up free to save, export and download PDF."
-        : "保存・エクスポート・PDF ダウンロードには無料登録 (30秒) が必要です。",
-      {
-        duration: 6000,
-        action: {
-          label: locale === "en" ? "Sign up free" : "無料登録",
-          onClick: () => {
-            import("next-auth/react").then(({ signIn }) =>
-              signIn("google", { callbackUrl: "/editor" }),
-            );
-          },
-        },
-      },
-    );
+    // 全画面 signup overlay を即起動 — Toast より強い CVR シグナル。
+    useUIStore.getState().openSignupOverlay({
+      reason: "feature_locked",
+      placement: "header_save_export",
+    });
   };
 
   useEffect(() => {

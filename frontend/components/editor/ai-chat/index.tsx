@@ -20,7 +20,6 @@ import {
   trackFreeGenerateComplete,
   trackFreeGenerateError,
   trackFreeGenerateLimitReached,
-  trackGuestSignupClick,
 } from "@/lib/gtag";
 
 import { MessageRow } from "./message-row";
@@ -235,24 +234,14 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
       setGuestTrialUsed(true);
       trackFreeGenerateComplete({ duration_ms: duration });
 
-      // 続けたい人向けのフォロー toast (登録 CTA を即座に見せる)
-      toast.success(
-        locale === "en"
-          ? "AI generation complete. Sign up free to keep editing, save, and download PDF."
-          : "AI 生成が完了しました。続けて編集・保存・PDF ダウンロードするには無料登録 (30秒) を。",
-        {
-          duration: 9000,
-          action: {
-            label: locale === "en" ? "Sign up free" : "無料登録",
-            onClick: () => {
-              trackGuestSignupClick({ placement: "chat_toast" });
-              import("next-auth/react").then(({ signIn }) =>
-                signIn("google", { callbackUrl: "/editor" }),
-              );
-            },
-          },
-        },
-      );
+      // 全画面 signup overlay を 1 拍遅れて起動 (PDF プレビュー差し込みアニメと
+      // 重ならないよう 800ms 待つ — 結果を一瞬見せてから登録誘導が乗る方が CVR が上がる)。
+      window.setTimeout(() => {
+        useUIStore.getState().openSignupOverlay({
+          reason: "trial_complete",
+          placement: "chat_after_complete",
+        });
+      }, 800);
     } catch (err) {
       const status = (err as { status?: number })?.status;
       const reason = err instanceof Error ? err.message : "unknown";
@@ -282,22 +271,11 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
     if (isGuest) {
       if (guestTrialUsed || hasUsedAnonymousTrial()) {
         trackFreeGenerateLimitReached();
-        toast.error(
-          locale === "en"
-            ? "Free trial complete. Sign up free to keep editing with AI."
-            : "無料お試しは完了しました。続けて AI を使うには無料登録 (30秒) をお願いします。",
-          {
-            duration: 8000,
-            action: {
-              label: locale === "en" ? "Sign up free" : "無料登録",
-              onClick: () => {
-                import("next-auth/react").then(({ signIn }) =>
-                  signIn("google", { callbackUrl: "/editor" }),
-                );
-              },
-            },
-          },
-        );
+        // Toast より強い CVR シグナルを出すため全画面 overlay を即起動。
+        useUIStore.getState().openSignupOverlay({
+          reason: "trial_limit",
+          placement: "chat_send_blocked",
+        });
         return;
       }
       await runGuestSingleShot(text);

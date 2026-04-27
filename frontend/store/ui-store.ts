@@ -183,6 +183,19 @@ interface UIState {
   guestTrialUsed: boolean;
   setGuest: (v: boolean) => void;
   setGuestTrialUsed: (v: boolean) => void;
+
+  /** 全画面 signup overlay の状態。Toast より強い CVR シグナルを出すため。
+   *  `reason` で見出しコピーを切り替え、`placement` で GA4 計測に使う。 */
+  signupOverlay: {
+    open: boolean;
+    reason: "trial_complete" | "trial_limit" | "feature_locked" | "manual";
+    placement: string;
+  };
+  openSignupOverlay: (opts: {
+    reason: "trial_complete" | "trial_limit" | "feature_locked" | "manual";
+    placement: string;
+  }) => void;
+  closeSignupOverlay: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -380,4 +393,11 @@ export const useUIStore = create<UIState>((set) => ({
   guestTrialUsed: false,
   setGuest: (v) => set({ isGuest: v }),
   setGuestTrialUsed: (v) => set({ guestTrialUsed: v }),
+
+  // 全画面 signup overlay
+  signupOverlay: { open: false, reason: "manual", placement: "" },
+  openSignupOverlay: ({ reason, placement }) =>
+    set({ signupOverlay: { open: true, reason, placement } }),
+  closeSignupOverlay: () =>
+    set((s) => ({ signupOverlay: { ...s.signupOverlay, open: false } })),
 }));
