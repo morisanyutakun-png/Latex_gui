@@ -141,6 +141,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://www.google-analytics.com" crossOrigin="" />
         <link rel="dns-prefetch" href="https://googleads.g.doubleclick.net" />
         <link rel="dns-prefetch" href="https://www.googleadservices.com" />
+        {/* KaTeX CSS は jsdelivr から動的注入する (LP critical CSS から外している)。
+            preconnect で TLS ハンドシェイクを先回りさせ、SampleShowcase が viewport に
+            入った瞬間の数式描画をスムーズにする。 */}
+        <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
       </head>
       <body className="antialiased">
         {/* JSON-LD: 検索結果でリッチスニペット (アプリ名・評価・価格) を出すための構造化データ。
