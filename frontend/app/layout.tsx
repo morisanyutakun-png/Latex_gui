@@ -7,6 +7,8 @@ import { I18nProvider } from "@/lib/i18n";
 import { HtmlLangSync } from "@/components/html-lang-sync";
 import { SessionProvider } from "@/components/auth/session-provider";
 import { SubscriptionInitializer } from "@/components/subscription-initializer";
+import { PageviewConversion } from "@/components/pageview-conversion";
+import { Suspense } from "react";
 import "./globals.css";
 
 // gtag.js は「1 スクリプト + 複数 config」で GA4 と Google Ads の両方を扱える。
@@ -257,10 +259,43 @@ export default function RootLayout({
                 ${GOOGLE_ADS_ID && GOOGLE_ADS_ID !== GA4_ID ? `gtag('config', '${GOOGLE_ADS_ID}');` : ""}
               `}
             </Script>
+            {/* Google Ads ページビュー conversion を全ルートで発火する。
+                Ads 管理画面の検出スパイダーが見つけられるよう、初回ロードは静的にも
+                書いておく (afterInteractive で 1 回 + SPA 遷移は <PageviewConversion/> が拾う)。 */}
+            <Script id="ads-pageview-conv" strategy="afterInteractive">
+              {`
+                (function(){
+                  var sent = false;
+                  function fire(){
+                    if (sent) return;
+                    if (typeof window.gtag !== 'function') return;
+                    window.gtag('event', 'conversion', {
+                      'send_to': 'AW-17966887751/tQ-PCOuO6JEcEMfmo_dC'
+                    });
+                    sent = true;
+                  }
+                  // gtag 本体が lazyOnload で遅れて来るので、polling で確実に拾う
+                  if (typeof window.gtag === 'function') { fire(); }
+                  else {
+                    var tries = 0;
+                    var t = setInterval(function(){
+                      tries++;
+                      if (typeof window.gtag === 'function') { fire(); clearInterval(t); }
+                      else if (tries > 50) { clearInterval(t); }
+                    }, 200);
+                  }
+                })();
+              `}
+            </Script>
           </>
         ) : null}
         <SessionProvider>
           <SubscriptionInitializer />
+          {/* SPA ナビゲーションごとに Ads pageview conversion を再発火する。
+              useSearchParams() を使うので Suspense で囲む必要がある (Next 15)。 */}
+          <Suspense fallback={null}>
+            <PageviewConversion />
+          </Suspense>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <I18nProvider>
               <HtmlLangSync />

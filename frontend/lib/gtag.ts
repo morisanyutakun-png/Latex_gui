@@ -297,3 +297,52 @@ export function trackFreeGenerateError(extra?: FreeGenerateEventParams & {
 export function trackFreeGenerateLimitReached(extra?: FreeGenerateEventParams): boolean {
   return fireGa4Event("free_generate_limit_reached", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
 }
+
+
+// ─── Google Ads pageview conversion ───────────────────────────────────────
+//
+// Ads 管理画面で配布される「ページビュー conversion」スニペット
+//   gtag('event', 'conversion', {'send_to': 'AW-XXXX/YYYY'})
+// を、Next.js App Router (CSR ナビゲーション) でも毎ページ着実に発火させる。
+//
+// 静的タグ検出のために必ずスニペット相当の event を 1 回呼んでおかないと
+// Google Ads 側が「タグが見つかりません」と警告を出す。
+//
+// 二重発火は問題ない (Ads 側で重複削減してくれる) が、同一 URL で連発するのは
+// 無駄なので URL ベースで in-memory dedupe する。
+
+// Hardcoded send_to: Ads 管理画面のスニペットそのもの。env で上書き可能。
+const PAGEVIEW_DEFAULT_SEND_TO = "AW-17966887751/tQ-PCOuO6JEcEMfmo_dC";
+const _pageviewSentUrls = new Set<string>();
+
+/**
+ * Google Ads ページビュー conversion を発火する。
+ *
+ * @param url 計測対象 URL (省略時は `location.href`)。SPA ナビゲーションのたびに呼ぶ。
+ * @returns 実際に発火したら true、未発火 (gtag 未ロード / 同一 URL 直近重複) は false
+ */
+export function sendPageviewConversion(url?: string): boolean {
+  if (typeof window === "undefined") return false;
+
+  const sendTo = process.env.NEXT_PUBLIC_GOOGLE_ADS_PAGEVIEW_SEND_TO || PAGEVIEW_DEFAULT_SEND_TO;
+  const targetUrl = url ?? window.location.href;
+
+  // 同一 URL の連続発火 (StrictMode の effect 二重呼び・popstate ノイズ等) を抑制
+  if (_pageviewSentUrls.has(targetUrl)) return false;
+
+  const gtag = window.gtag;
+  if (typeof gtag !== "function") {
+    // gtag 未ロード (NEXT_PUBLIC_GA4_ID も NEXT_PUBLIC_GOOGLE_ADS_ID も未設定 or 広告ブロック)。
+    // 静かに失敗 — UI に影響しない。
+    return false;
+  }
+
+  try {
+    gtag("event", "conversion", { send_to: sendTo });
+    _pageviewSentUrls.add(targetUrl);
+    return true;
+  } catch (e) {
+    console.warn("[pageview-conv] gtag('event','conversion') failed", e);
+    return false;
+  }
+}
