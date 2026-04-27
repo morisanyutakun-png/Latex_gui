@@ -2239,10 +2239,14 @@ export function TemplateGallery() {
           variant: "resume" as const,
         };
       }
+      // 未ログイン (= プラン未取得時の既定 free) のヒーロー CTA は
+      // 「ログインなしお試しモーダル」を直接開く。以前は handlePlanSelect("free") 経由で
+      // signIn → Stripe Free checkout に飛ばしていたが、広告流入ユーザにはここで
+      // 触らせることが先 (CVR 検証用)。登録動線は結果画面の登録 CTA に集約する。
       return {
-        label: isJa ? "無料で始める" : "Get started free",
-        subLabel: isJa ? "カード不要 · 30秒で最初の1枚" : "No credit card · First sheet in 30s",
-        onClick: () => handlePlanSelect("free"),
+        label: isJa ? "無料で1枚作ってみる" : "Generate one free",
+        subLabel: isJa ? "ログインなし · 30〜60秒で1枚" : "No signup · 30–60s per sheet",
+        onClick: openTrialOrLimit,
         variant: "free" as const,
       };
     }
@@ -2281,8 +2285,6 @@ export function TemplateGallery() {
           EditorMockup={EditorMockup}
           FigureDrawMockup={FigureDrawMockup}
           onPlanSelect={handlePlanSelect}
-          onTrialClick={openTrialOrLimit}
-          showTrialCta={currentPlan === "free" && !saved}
         />
         <AnonymousTrialModal
           open={trialOpen}
@@ -2427,20 +2429,6 @@ export function TemplateGallery() {
                 <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
               </button>
             </div>
-
-            {/* セカンダリ: ログインなしで 1 回だけ試せる CTA。広告流入の離脱対策 (CVR 検証用)。
-                すでにログイン or 保存ありのユーザには出さない (体験が薄まるため)。 */}
-            {currentPlan === "free" && !saved && (
-              <div className="flex items-center justify-center mb-3">
-                <button
-                  onClick={openTrialOrLimit}
-                  className="group inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors"
-                >
-                  <Sparkles className="h-3 w-3 text-violet-500" />
-                  {isJa ? "ログインなしで1枚だけ試す" : "Try one free, no signup"}
-                </button>
-              </div>
-            )}
 
             <p className="text-[11px] text-muted-foreground/40 mb-3">
               {primaryCta.subLabel}
