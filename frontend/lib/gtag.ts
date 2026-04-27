@@ -253,7 +253,8 @@ const DEFAULT_FREE_GENERATE_PARAMS: FreeGenerateEventParams = {
   auth_state: "anonymous",
 };
 
-/** 内部ヘルパー: gtag が無い環境でも安全に no-op で返す。 */
+/** 内部ヘルパー: gtag が無い環境でも安全に no-op で返す。
+ *  GA4 DebugView を有効にするため (デバッグ環境では) 自動で debug_mode: true を付与する。 */
 function fireGa4Event(name: string, params: Record<string, unknown>): boolean {
   if (typeof window === "undefined") return false;
   const gtag = window.gtag;
@@ -262,7 +263,11 @@ function fireGa4Event(name: string, params: Record<string, unknown>): boolean {
     return false;
   }
   try {
-    gtag("event", name, params);
+    const debug =
+      (typeof process !== "undefined" &&
+        (process.env.NEXT_PUBLIC_GA4_DEBUG === "1" ||
+          process.env.NODE_ENV !== "production")) || false;
+    gtag("event", name, debug ? { ...params, debug_mode: true } : params);
     return true;
   } catch (e) {
     console.warn(`[ga4] event '${name}' failed`, e);
@@ -315,11 +320,29 @@ export function trackFreeGenerateLimitReached(extra?: FreeGenerateEventParams): 
 const PAGEVIEW_DEFAULT_SEND_TO = "AW-17966887751/tQ-PCOuO6JEcEMfmo_dC";
 const _pageviewSentUrls = new Set<string>();
 
+// GA4 DebugView は `debug_mode: true` が乗った event しか拾わない。
+// 開発 (vercel preview / next dev) は常に true、本番でも一時的に DebugView を見たい
+// ときは NEXT_PUBLIC_GA4_DEBUG=1 を設定すれば true になる。
+const GA4_DEBUG_MODE_FLAG =
+  (typeof process !== "undefined" &&
+    (process.env.NEXT_PUBLIC_GA4_DEBUG === "1" ||
+      process.env.NODE_ENV !== "production")) || false;
+
+function withDebug<T extends Record<string, unknown>>(params: T): T & { debug_mode?: true } {
+  return GA4_DEBUG_MODE_FLAG ? { ...params, debug_mode: true } : params;
+}
+
 /**
- * Google Ads ページビュー conversion を発火する。
+ * Google Ads ページビュー conversion + GA4 page_view を発火する。
  *
- * @param url 計測対象 URL (省略時は `location.href`)。SPA ナビゲーションのたびに呼ぶ。
- * @returns 実際に発火したら true、未発火 (gtag 未ロード / 同一 URL 直近重複) は false
+ * - GA4 側: `page_view` イベント (page_location/path/title)。DebugView 用に
+ *   `debug_mode: true` を自動付与 (上記 GA4_DEBUG_MODE_FLAG が true のとき)。
+ * - Ads 側: `conversion` イベント (`send_to` = ページビュー conversion ID)。
+ *
+ * SPA ナビゲーション (router.push) のたびに呼ぶ。
+ *
+ * @param url 計測対象 URL (省略時は `location.href`)。
+ * @returns 実際に発火したら true、未発火 (gtag 未ロード / 同一 URL 重複) は false
  */
 export function sendPageviewConversion(url?: string): boolean {
   if (typeof window === "undefined") return false;
@@ -338,11 +361,18 @@ export function sendPageviewConversion(url?: string): boolean {
   }
 
   try {
+    // GA4 page_view (DebugView 表示には debug_mode が必須)
+    gtag("event", "page_view", withDebug({
+      page_location: typeof window !== "undefined" ? window.location.href : targetUrl,
+      page_path: targetUrl,
+      page_title: typeof document !== "undefined" ? document.title : "",
+    }));
+    // Google Ads ページビュー conversion
     gtag("event", "conversion", { send_to: sendTo });
     _pageviewSentUrls.add(targetUrl);
     return true;
   } catch (e) {
-    console.warn("[pageview-conv] gtag('event','conversion') failed", e);
+    console.warn("[pageview-conv] gtag event failed", e);
     return false;
   }
 }

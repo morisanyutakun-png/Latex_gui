@@ -16,6 +16,11 @@ import "./globals.css";
 const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID;
 const GOOGLE_ADS_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID;
 const PRIMARY_GTAG_ID = GA4_ID || GOOGLE_ADS_ID;
+// GA4 DebugView は `debug_mode: true` が付いた event しか表示しない。
+// 開発環境 (vercel preview / NODE_ENV !== "production") は常に true、
+// 本番でも一時的に DebugView を見たいときは NEXT_PUBLIC_GA4_DEBUG=1 で有効化できる。
+const GA4_DEBUG_MODE =
+  process.env.NEXT_PUBLIC_GA4_DEBUG === "1" || process.env.NODE_ENV !== "production";
 
 // SEO: 本番ドメインを env で受け取り、未設定時は eddivom.com に倒す。
 // metadataBase があると Next が OG / Twitter 画像を絶対 URL に解決してくれる。
@@ -245,45 +250,43 @@ export default function RootLayout({
         />
         {PRIMARY_GTAG_ID ? (
           <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${PRIMARY_GTAG_ID}`}
-              strategy="lazyOnload"
-            />
-            <Script id="gtag-base" strategy="lazyOnload">
+            {/* gtag stub: window.gtag を最速で定義し、後から来る event 呼び出しを
+                dataLayer に積む。これがないと <PageviewConversion/> や Ads conversion が
+                早すぎるタイミングで gtag を呼んで no-op で消える。
+                beforeInteractive は SSR HTML に <script> として直接インライン展開される。 */}
+            <Script id="gtag-stub" strategy="beforeInteractive">
               {`
                 window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                window.gtag = window.gtag || gtag;
-                gtag('js', new Date());
-                ${GA4_ID ? `gtag('config', '${GA4_ID}');` : ""}
-                ${GOOGLE_ADS_ID && GOOGLE_ADS_ID !== GA4_ID ? `gtag('config', '${GOOGLE_ADS_ID}');` : ""}
+                window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
+                window.gtag('js', new Date());
+                ${GA4_ID ? `window.gtag('config', '${GA4_ID}', { send_page_view: false${GA4_DEBUG_MODE ? `, debug_mode: true` : ``} });` : ""}
+                ${GOOGLE_ADS_ID && GOOGLE_ADS_ID !== GA4_ID ? `window.gtag('config', '${GOOGLE_ADS_ID}');` : ""}
               `}
             </Script>
-            {/* Google Ads ページビュー conversion を全ルートで発火する。
-                Ads 管理画面の検出スパイダーが見つけられるよう、初回ロードは静的にも
-                書いておく (afterInteractive で 1 回 + SPA 遷移は <PageviewConversion/> が拾う)。 */}
+            {/* gtag.js 本体。afterInteractive で hydration 直後にロード — lazyOnload は
+                アイドルまで待つため、短いセッションでイベントを取りこぼす原因になる。 */}
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${PRIMARY_GTAG_ID}`}
+              strategy="afterInteractive"
+            />
+            {/* Google Ads ページビュー conversion + GA4 page_view を全ルートで発火する。
+                Ads 管理画面のタグ検出スパイダーが見つけられるよう、初回ロードは静的にも
+                書いておく (afterInteractive で 1 回 + SPA 遷移は <PageviewConversion/> が拾う)。
+                send_page_view は config 側で false にしてあるので、ここで明示的に 1 回送る。 */}
             <Script id="ads-pageview-conv" strategy="afterInteractive">
               {`
                 (function(){
-                  var sent = false;
-                  function fire(){
-                    if (sent) return;
-                    if (typeof window.gtag !== 'function') return;
-                    window.gtag('event', 'conversion', {
-                      'send_to': 'AW-17966887751/tQ-PCOuO6JEcEMfmo_dC'
-                    });
-                    sent = true;
-                  }
-                  // gtag 本体が lazyOnload で遅れて来るので、polling で確実に拾う
-                  if (typeof window.gtag === 'function') { fire(); }
-                  else {
-                    var tries = 0;
-                    var t = setInterval(function(){
-                      tries++;
-                      if (typeof window.gtag === 'function') { fire(); clearInterval(t); }
-                      else if (tries > 50) { clearInterval(t); }
-                    }, 200);
-                  }
+                  if (typeof window.gtag !== 'function') return;
+                  // GA4 page_view (DebugView は debug_mode が必須)
+                  window.gtag('event', 'page_view', {
+                    page_location: window.location.href,
+                    page_path: window.location.pathname + window.location.search,
+                    page_title: document.title${GA4_DEBUG_MODE ? `,\n                    debug_mode: true` : ``}
+                  });
+                  // Google Ads pageview conversion
+                  window.gtag('event', 'conversion', {
+                    'send_to': 'AW-17966887751/tQ-PCOuO6JEcEMfmo_dC'
+                  });
                 })();
               `}
             </Script>
