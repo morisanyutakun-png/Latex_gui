@@ -255,46 +255,70 @@ export default function RootLayout({
         />
         {PRIMARY_GTAG_ID ? (
           <>
+            {/* gtag.js 本体。Google 公式の <script async src=".../gtag/js?id=AW-..."> 形と
+                完全一致させるため、Next/Script ではなく素の <script> タグで書く。これだと
+                Tag Assistant のスパイダー (HTML 静的検査) が確実に検出できる。
+                async + 上に置くことで gtag-stub と並行してすぐにロードが始まる。 */}
+            <script
+              async
+              src={`https://www.googletagmanager.com/gtag/js?id=${PRIMARY_GTAG_ID}`}
+            />
             {/* gtag stub: window.gtag を最速で定義し、後から来る event 呼び出しを
-                dataLayer に積む。これがないと <PageviewConversion/> や Ads conversion が
-                早すぎるタイミングで gtag を呼んで no-op で消える。
-                beforeInteractive は SSR HTML に <script> として直接インライン展開される。 */}
+                dataLayer に積む。Google 推奨スニペットと同じ形にしておくことで Tag
+                Assistant が「正規の Google tag」として認識する。 */}
             <Script id="gtag-stub" strategy="beforeInteractive">
               {`
                 window.dataLayer = window.dataLayer || [];
-                window.gtag = window.gtag || function(){ window.dataLayer.push(arguments); };
-                window.gtag('js', new Date());
-                ${GA4_ID ? `window.gtag('config', '${GA4_ID}', { send_page_view: false${GA4_DEBUG_MODE ? `, debug_mode: true` : ``} });` : ""}
-                ${GOOGLE_ADS_ID && GOOGLE_ADS_ID !== GA4_ID ? `window.gtag('config', '${GOOGLE_ADS_ID}');` : ""}
+                function gtag(){ dataLayer.push(arguments); }
+                window.gtag = window.gtag || gtag;
+                gtag('js', new Date());
+                ${GOOGLE_ADS_ID ? `gtag('config', '${GOOGLE_ADS_ID}');` : ""}
+                ${GA4_ID && GA4_ID !== GOOGLE_ADS_ID ? `gtag('config', '${GA4_ID}', { send_page_view: false${GA4_DEBUG_MODE ? `, debug_mode: true` : ``} });` : ""}
               `}
             </Script>
-            {/* gtag.js 本体。afterInteractive で hydration 直後にロード — lazyOnload は
-                アイドルまで待つため、短いセッションでイベントを取りこぼす原因になる。 */}
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${PRIMARY_GTAG_ID}`}
-              strategy="afterInteractive"
+            {/* Google Ads ページビュー conversion (Google 配布スニペットそのもの).
+                Ads スパイダーは正規表現で `gtag('event', 'conversion'` + send_to ID を
+                文字列マッチで探すため、Next/Script のラッパー無しで素の <script> に
+                するのが最も確実。 */}
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+                  if (typeof window !== 'undefined') {
+                    (window.dataLayer = window.dataLayer || []);
+                    var _eddivomFireConv = function(){
+                      if (typeof window.gtag !== 'function') return false;
+                      window.gtag('event', 'conversion', {'send_to': 'AW-17966887751/tQ-PCOuO6JEcEMfmo_dC'});
+                      window.gtag('event', 'page_view', {
+                        page_location: window.location.href,
+                        page_path: window.location.pathname + window.location.search,
+                        page_title: document.title${GA4_DEBUG_MODE ? `,
+                        debug_mode: true` : ``}
+                      });
+                      return true;
+                    };
+                    // gtag.js の async ロードが終わるまで polling で待つ (最大 10s)
+                    if (!_eddivomFireConv()) {
+                      var _tries = 0;
+                      var _t = setInterval(function(){
+                        _tries++;
+                        if (_eddivomFireConv() || _tries > 50) clearInterval(_t);
+                      }, 200);
+                    }
+                  }
+                `,
+              }}
             />
-            {/* Google Ads ページビュー conversion + GA4 page_view を全ルートで発火する。
-                Ads 管理画面のタグ検出スパイダーが見つけられるよう、初回ロードは静的にも
-                書いておく (afterInteractive で 1 回 + SPA 遷移は <PageviewConversion/> が拾う)。
-                send_page_view は config 側で false にしてあるので、ここで明示的に 1 回送る。 */}
-            <Script id="ads-pageview-conv" strategy="afterInteractive">
-              {`
-                (function(){
-                  if (typeof window.gtag !== 'function') return;
-                  // GA4 page_view (DebugView は debug_mode が必須)
-                  window.gtag('event', 'page_view', {
-                    page_location: window.location.href,
-                    page_path: window.location.pathname + window.location.search,
-                    page_title: document.title${GA4_DEBUG_MODE ? `,\n                    debug_mode: true` : ``}
-                  });
-                  // Google Ads pageview conversion
-                  window.gtag('event', 'conversion', {
-                    'send_to': 'AW-17966887751/tQ-PCOuO6JEcEMfmo_dC'
-                  });
-                })();
-              `}
-            </Script>
+            {/* JS 無効環境向け 1x1 ピクセルフォールバック (Google 推奨パターン).
+                CSP の img-src に doubleclick.net を許可済。 */}
+            <noscript>
+              <img
+                height="1"
+                width="1"
+                style={{ borderStyle: "none" }}
+                alt=""
+                src="https://www.googletagmanager.com/td?id=AW-17966887751&l=dataLayer&cx=c"
+              />
+            </noscript>
           </>
         ) : null}
         <SessionProvider>

@@ -14,18 +14,25 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // Stripe.js と Google OAuth の外部スクリプトを許可。Next.js の inline hydration で unsafe-inline が必要。
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://www.googletagmanager.com",
+      // Stripe.js + Google OAuth + GTM/GA + Google Ads 系。Next.js の inline hydration で unsafe-inline が必要。
+      // Google 広告のコンバージョンは gtag.js が googleads.g.doubleclick.net / www.google.com /
+      // www.googleadservices.com から追加スクリプトを動的に読み込んでビーコンを送るため、
+      // これらが script-src にないと Tag Assistant が「タグ未発火」と判定して conversion が "無効" 扱いになる。
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://www.googletagmanager.com https://www.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com",
       // Tailwind / KaTeX / Next.js の inline style
       "style-src 'self' 'unsafe-inline'",
-      // Google profile 画像、Stripe logo、base64 data URL (KaTeX SVG)、blob URL (PDF preview)
-      "img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.stripe.com https://www.googletagmanager.com https://www.google-analytics.com",
+      // 画像: Google profile / Stripe logo / KaTeX SVG / blob プレビュー +
+      // Google Ads conversion ピクセル (1x1 GIF が doubleclick.net / google.com に飛ぶ)
+      "img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://*.doubleclick.net https://www.google.com https://www.google.co.jp",
       "font-src 'self' data:",
-      // 自身の API + Stripe API + Google OAuth + Analytics + blob (URL.createObjectURL 由来)
-      "connect-src 'self' blob: https://api.stripe.com https://accounts.google.com https://www.google-analytics.com https://www.googletagmanager.com",
+      // XHR / sendBeacon の宛先: 自前 API + Stripe + Google OAuth + GA4 (region1.google-analytics.com 系) +
+      // Google Ads conversion endpoint (googleads.g.doubleclick.net / www.google.com/pagead)。
+      // ここを抜くと gtag が「fire」しても実際のビーコンが net::ERR_BLOCKED_BY_CSP になる = Ads 側で "未検出"。
+      "connect-src 'self' blob: https://api.stripe.com https://accounts.google.com https://*.google-analytics.com https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://*.doubleclick.net https://www.google.com https://www.google.co.jp https://stats.g.doubleclick.net",
       // blob: は PdfPreviewPanel が生成する <iframe src="blob:..."> のため必須。
       // 抜けていると同一オリジンでも CSP violation でプレビューが真っ白になる。
-      "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://accounts.google.com",
+      // td.doubleclick.net / googleads.g.doubleclick.net は Ads conversion linker の iframe 計測に使われる。
+      "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://accounts.google.com https://td.doubleclick.net https://*.doubleclick.net https://www.googletagmanager.com",
       // PDF / PNG プレビューなどの media / object 系でも blob: を許可
       "media-src 'self' blob: data:",
       "frame-ancestors 'none'",
