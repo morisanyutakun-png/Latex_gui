@@ -14,7 +14,11 @@ import "./globals.css";
 // gtag.js は「1 スクリプト + 複数 config」で GA4 と Google Ads の両方を扱える。
 // ここでは GA4 を主 (purchase event 送信先)、Ads ID は任意追加とする。
 const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID;
-const GOOGLE_ADS_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID;
+// Google 広告 (ページビュー conversion / コンバージョンキャンペーン用)。
+// env で上書き可能。未設定時は morisan.yutakun@gmail.com の AW アカウント ID を
+// ハードコードしておくことで、Vercel に env を入れ忘れていても確実にタグが出る。
+// 広告アカウント切替時は NEXT_PUBLIC_GOOGLE_ADS_ID で上書き。
+const GOOGLE_ADS_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "AW-17966887751";
 const PRIMARY_GTAG_ID = GA4_ID || GOOGLE_ADS_ID;
 // GA4 DebugView は `debug_mode: true` が付いた event しか表示しない。
 // 開発環境 (vercel preview / NODE_ENV !== "production") は常に true、
