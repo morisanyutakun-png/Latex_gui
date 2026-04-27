@@ -61,6 +61,15 @@ export interface PlanState {
   setShowPricing: (v: boolean) => void;
   initFromStorage: () => void;
   fetchSubscription: () => Promise<void>;
+  /**
+   * ログアウトに伴うストアリセット。
+   * - currentPlan を free に戻す
+   * - サーバ取得済みフラグを下ろして「未認証扱い」に揃える
+   * - 利用量カウンタも 0 に戻す (前ユーザの quota を引きずらない)
+   * これがないとログアウト後も plan/subscription がキャッシュされ、TemplateGallery が
+   * 「続きから編集」CTA を出して新規ゲスト体験に入れない。
+   */
+  resetForLogout: () => void;
 }
 
 export const usePlanStore = create<PlanState>((set, get) => ({
@@ -245,5 +254,22 @@ export const usePlanStore = create<PlanState>((set, get) => ({
     } finally {
       set({ isLoadingSubscription: false });
     }
+  },
+
+  resetForLogout: () => {
+    const def = PLANS.free;
+    set({
+      currentPlan: "free",
+      aiUsedDay: 0,
+      aiUsedMonth: 0,
+      aiLimitDay: def.requestsPerDay,
+      aiLimitMonth: def.requestsPerMonth,
+      pdfUsedMonth: 0,
+      pdfLimitMonth: def.pdfPerMonth,
+      batchMaxRows: def.batchMaxRows,
+      subscriptionFetched: false,
+      usageFetched: false,
+      isLoadingSubscription: false,
+    });
   },
 }));

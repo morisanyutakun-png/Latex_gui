@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useDocumentStore } from "@/store/document-store";
 import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
@@ -2220,7 +2221,13 @@ export function TemplateGallery() {
   };
 
   const { locale } = useI18n();
-  const saved = typeof window !== "undefined" ? loadFromLocalStorage() : null;
+  // 未認証 (status="unauthenticated") の間は localStorage の保存ドキュメントを
+  // 「無いもの」として扱う。 これがないとログアウト直後でも前ユーザの保存物が
+  // 残り、「続きから編集」CTA が出てしまい、新規ゲスト体験 (= 「無料で1枚作ってみる」)
+  // に入れない。 status="loading" は session 解決待ちなので saved を覗かない。
+  const { status: sessionStatus } = useSession();
+  const savedRaw = typeof window !== "undefined" ? loadFromLocalStorage() : null;
+  const saved = sessionStatus === "authenticated" ? savedRaw : null;
   const isJa = locale !== "en";
 
   /**
@@ -2278,7 +2285,7 @@ export function TemplateGallery() {
       variant: "paid-new" as const,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPlan, saved, isJa]);
+  }, [currentPlan, saved, isJa, sessionStatus]);
 
   const heroTypingLines = React.useMemo(() => isJa
     ? ["教材を、もっと速く。", "ワークシートを、今夜中に。", "問題集を、AIと一緒に。"]
