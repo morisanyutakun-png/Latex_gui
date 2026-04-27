@@ -9,6 +9,9 @@ import { loadFromLocalStorage } from "@/lib/storage";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
 import { MobileLanding } from "./mobile-landing";
+import { AnonymousTrialModal } from "./anonymous-trial-modal";
+import { hasUsedAnonymousTrial } from "@/lib/anonymous-trial";
+import { trackFreeGenerateLimitReached } from "@/lib/gtag";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -2074,6 +2077,31 @@ export function TemplateGallery() {
   const currentPlan = usePlanStore((s) => s.currentPlan);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [powerOpen, setPowerOpen] = useState(false);
+  // 「ログインなしで試す」モーダル。CTA から開く。
+  // alreadyUsed は CTA を押したそのフレームで評価して固定する (モーダル中に書き込まれた
+  // localStorage の影響をモーダル UI 側に再注入しない設計)。
+  const [trialOpen, setTrialOpen] = useState(false);
+  const [trialAlreadyUsed, setTrialAlreadyUsed] = useState(false);
+
+  /**
+   * 「ログインなしで試す」CTA の挙動。
+   * すでに本ブラウザで試行済み (= 1 回使い切り) の場合は CTA 押下時点で
+   * GA4 の `free_generate_limit_reached` を発火し、モーダル側で登録誘導を出す。
+   */
+  const openTrialOrLimit = () => {
+    const used = hasUsedAnonymousTrial();
+    setTrialAlreadyUsed(used);
+    if (used) {
+      trackFreeGenerateLimitReached();
+    }
+    setTrialOpen(true);
+  };
+
+  const handleTrialLoginRequested = () => {
+    setTrialOpen(false);
+    // 既存のプラン選択フロー (Google サインインへ) に乗せる。
+    handlePlanSelect("free");
+  };
 
 
   const personaFade = useFadeIn(0);
@@ -2245,14 +2273,24 @@ export function TemplateGallery() {
   const isMobile = useIsMobile();
   if (isMobile) {
     return (
-      <MobileLanding
-        primaryCta={primaryCta}
-        scrollToPricing={scrollToPricing}
-        scrollToSample={scrollToSample}
-        EditorMockup={EditorMockup}
-        FigureDrawMockup={FigureDrawMockup}
-        onPlanSelect={handlePlanSelect}
-      />
+      <>
+        <MobileLanding
+          primaryCta={primaryCta}
+          scrollToPricing={scrollToPricing}
+          scrollToSample={scrollToSample}
+          EditorMockup={EditorMockup}
+          FigureDrawMockup={FigureDrawMockup}
+          onPlanSelect={handlePlanSelect}
+          onTrialClick={openTrialOrLimit}
+          showTrialCta={currentPlan === "free" && !saved}
+        />
+        <AnonymousTrialModal
+          open={trialOpen}
+          onOpenChange={setTrialOpen}
+          onLoginRequested={handleTrialLoginRequested}
+          alreadyUsed={trialAlreadyUsed}
+        />
+      </>
     );
   }
 
@@ -2389,6 +2427,20 @@ export function TemplateGallery() {
                 <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
               </button>
             </div>
+
+            {/* セカンダリ: ログインなしで 1 回だけ試せる CTA。広告流入の離脱対策 (CVR 検証用)。
+                すでにログイン or 保存ありのユーザには出さない (体験が薄まるため)。 */}
+            {currentPlan === "free" && !saved && (
+              <div className="flex items-center justify-center mb-3">
+                <button
+                  onClick={openTrialOrLimit}
+                  className="group inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors"
+                >
+                  <Sparkles className="h-3 w-3 text-violet-500" />
+                  {isJa ? "ログインなしで1枚だけ試す" : "Try one free, no signup"}
+                </button>
+              </div>
+            )}
 
             <p className="text-[11px] text-muted-foreground/40 mb-3">
               {primaryCta.subLabel}
@@ -3383,6 +3435,13 @@ export function TemplateGallery() {
           </p>
         </div>
       </footer>
+
+      <AnonymousTrialModal
+        open={trialOpen}
+        onOpenChange={setTrialOpen}
+        onLoginRequested={handleTrialLoginRequested}
+        alreadyUsed={trialAlreadyUsed}
+      />
     </div>
   );
 }

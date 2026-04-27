@@ -152,6 +152,84 @@ async function buildCompileError(res: Response, fallback: string): Promise<Compi
   });
 }
 
+/**
+ * ログインなし無料お試し生成 — 匿名 PDF を生成する。
+ *
+ * フロントの localStorage で 1 回に絞った上で、Next.js proxy の cookie + バックエンドの
+ * IP rate limit が二重ガードする。GA4 イベントは UI 層 (呼び出し側) で発火する。
+ */
+export interface AnonymousTrialResponse {
+  /** 生成された PDF Blob (inline 表示用)。 */
+  pdf: Blob;
+  /** 生成にかかった時間 (ms)。GA4 `duration_ms` に渡す。 */
+  durationMs: number;
+}
+
+export interface AnonymousTrialErrorDetail {
+  code?: string;
+  message: string;
+  status: number;
+}
+
+export class AnonymousTrialError extends Error {
+  readonly code?: string;
+  readonly status: number;
+  constructor(detail: AnonymousTrialErrorDetail) {
+    super(detail.message);
+    this.name = "AnonymousTrialError";
+    this.code = detail.code;
+    this.status = detail.status;
+  }
+}
+
+export async function generateAnonymousTrialPDF(
+  topic: string,
+  locale: AILocale = "ja",
+): Promise<AnonymousTrialResponse> {
+  const t0 = Date.now();
+  let res: Response;
+  try {
+    res = await fetch(`/api/anonymous-trial/generate-pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic, locale }),
+      signal: AbortSignal.timeout(58000),
+    });
+  } catch (err) {
+    const isTimeout = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+    throw new AnonymousTrialError({
+      code: isTimeout ? "trial_timeout" : "trial_network",
+      message: isTimeout
+        ? "生成サーバの応答が遅延しています。もう一度お試しください。"
+        : "生成サーバに接続できませんでした。",
+      status: 0,
+    });
+  }
+
+  if (!res.ok) {
+    let detailMsg = `生成に失敗しました (HTTP ${res.status})`;
+    let detailCode: string | undefined;
+    try {
+      const body = await res.json();
+      const detail = body?.detail;
+      if (detail && typeof detail === "object") {
+        if (typeof detail.message === "string") detailMsg = detail.message;
+        if (typeof detail.code === "string") detailCode = detail.code;
+      }
+    } catch {
+      /* 非 JSON レスポンス: フォールバックメッセージを使う */
+    }
+    throw new AnonymousTrialError({
+      code: detailCode,
+      message: detailMsg,
+      status: res.status,
+    });
+  }
+
+  return { pdf: await res.blob(), durationMs: Date.now() - t0 };
+}
+
+
 export async function generatePDF(doc: DocumentModel): Promise<Blob> {
   const maxAttempts = 2;
   let lastError: Error | null = null;

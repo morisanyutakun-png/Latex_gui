@@ -39,6 +39,10 @@ interface Props {
   EditorMockup: React.ComponentType<{ isJa: boolean }>;
   FigureDrawMockup: React.ComponentType<{ isJa: boolean }>;
   onPlanSelect: (planId: "free" | "starter" | "pro" | "premium") => void;
+  /** ログインなし無料お試しモーダルを開く。Free + 保存なしの未ログイン時のみ表示する。 */
+  onTrialClick?: () => void;
+  /** お試し CTA を表示するかどうか (有料プラン or 保存ありなら隠す)。 */
+  showTrialCta?: boolean;
 }
 
 export function MobileLanding({
@@ -48,6 +52,8 @@ export function MobileLanding({
   EditorMockup,
   FigureDrawMockup,
   onPlanSelect,
+  onTrialClick,
+  showTrialCta,
 }: Props) {
   const { locale, setLocale } = useI18n();
   const isJa = locale !== "en";
@@ -139,6 +145,15 @@ export function MobileLanding({
             <Play className="h-3.5 w-3.5" />
             {isJa ? "デモを見る" : "Watch demo"}
           </button>
+          {showTrialCta && onTrialClick && (
+            <button
+              onClick={onTrialClick}
+              className="flex items-center justify-center gap-1.5 w-full h-10 rounded-full text-[12.5px] font-medium text-muted-foreground hover:text-foreground active:scale-[0.98] transition"
+            >
+              <Sparkles className="h-3 w-3 text-violet-500" />
+              {isJa ? "ログインなしで1枚だけ試す" : "Try one free, no signup"}
+            </button>
+          )}
           <p className="text-center text-[11px] text-muted-foreground/55 mt-1">
             {primaryCta.subLabel}
           </p>

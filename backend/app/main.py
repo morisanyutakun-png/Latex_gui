@@ -37,6 +37,7 @@ from .batch_service import (
     create_batch_zip, parse_csv_variables, parse_json_variables,
 )
 from .ai_service import chat as ai_chat, chat_stream as ai_chat_stream
+from .anonymous_trial import generate_anonymous_pdf
 from .omr_service import analyze_image as omr_analyze_image, analyze_image_stream as omr_analyze_image_stream
 from .routers.subscription import router as subscription_router
 from .routers.grading import router as grading_router
@@ -434,6 +435,57 @@ async def generate_pdf(
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}",
         },
+    )
+
+
+class AnonymousTrialRequest(pydantic.BaseModel):
+    topic: str = ""
+    locale: str = "ja"
+
+
+@app.post("/api/anonymous/generate-pdf")
+async def anonymous_trial_generate(req: AnonymousTrialRequest, request: Request):
+    """ログインなし無料お試し PDF 生成。
+
+    認証なし。サーバ側 rate limit を IP / 匿名 cookie 別で強めにかける:
+      - 同一 IP: 60 秒に 3 回まで (バースト保護)
+      - 同一 IP: 1 日に 10 回まで (DoS 保護)
+    cookie 単位の制御はフロント側 Next.js proxy 側で 1 アカウント=1 試行に
+    寄せる。サーバ側は CVR を阻害しない範囲の一般的な濫用対策に絞る。
+    """
+    enforce_rate_limit(request, "anon-trial-burst", limit=3, window_seconds=60)
+    enforce_rate_limit(request, "anon-trial-day", limit=10, window_seconds=86400)
+
+    locale = "en" if (req.locale or "").lower().startswith("en") else "ja"
+    topic = (req.topic or "").strip()
+
+    try:
+        pdf_bytes, _latex = await generate_anonymous_pdf(topic, locale=locale)
+    except ValueError as e:
+        # API キー未設定など環境系
+        raise HTTPException(status_code=503, detail={
+            "code": "AI_UNAVAILABLE",
+            "message": str(e),
+        })
+    except PDFGenerationError as e:
+        logger.warning("[anon-trial] compile failed: %s", e.detail)
+        raise HTTPException(status_code=422, detail={
+            "code": e.code or "trial_compile_failed",
+            "message": e.user_message,
+            "violations": e.violations or None,
+        })
+    except Exception as e:
+        logger.exception("[anon-trial] unexpected error")
+        raise HTTPException(status_code=500, detail={
+            "code": "trial_failed",
+            "message": "生成に失敗しました。少し待ってから再度お試しください。" if locale == "ja"
+                       else "Generation failed. Please try again in a moment.",
+        })
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="eddivom-trial.pdf"'},
     )
 
 

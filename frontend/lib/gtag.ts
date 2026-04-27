@@ -226,3 +226,74 @@ export async function sendPurchaseEvent(payload: GA4PurchasePayload): Promise<bo
     return false;
   }
 }
+
+
+// ─── GA4 「ログインなし無料お試し生成」イベント ────────────────────────────
+// 広告流入ユーザーが登録前で離脱している仮説の検証用。
+// start / complete / error / limit_reached の 4 段ファネルで CVR を測る。
+
+/** 無料お試し生成 GA4 イベントの共通パラメータ。 */
+export interface FreeGenerateEventParams {
+  /** 製品名 (将来別ツール展開時の識別用)。固定で "eddivom"。 */
+  tool_name?: string;
+  /** 生成成果物の種別。"worksheet" 等。 */
+  content_type?: string;
+  /** 流入元のラベル。匿名お試しは "anonymous_trial"。 */
+  source?: string;
+  /** 認証状態。匿名は "anonymous"、ログイン済は "authenticated"。 */
+  auth_state?: "anonymous" | "authenticated";
+  /** 任意: GA4 の dimensions に流したい追加情報。 */
+  [key: string]: unknown;
+}
+
+const DEFAULT_FREE_GENERATE_PARAMS: FreeGenerateEventParams = {
+  tool_name: "eddivom",
+  content_type: "worksheet",
+  source: "anonymous_trial",
+  auth_state: "anonymous",
+};
+
+/** 内部ヘルパー: gtag が無い環境でも安全に no-op で返す。 */
+function fireGa4Event(name: string, params: Record<string, unknown>): boolean {
+  if (typeof window === "undefined") return false;
+  const gtag = window.gtag;
+  if (typeof gtag !== "function") {
+    // gtag 未ロード (NEXT_PUBLIC_GA4_ID 未設定 / 広告ブロック) — UI を阻害したくないので静かに失敗
+    return false;
+  }
+  try {
+    gtag("event", name, params);
+    return true;
+  } catch (e) {
+    console.warn(`[ga4] event '${name}' failed`, e);
+    return false;
+  }
+}
+
+/** お試し生成を「開始した」瞬間に呼ぶ (送信ボタン押下直後)。 */
+export function trackFreeGenerateStart(extra?: FreeGenerateEventParams): boolean {
+  return fireGa4Event("free_generate_start", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/** 生成 API が成功し、結果を表示できる状態になった瞬間に呼ぶ。 */
+export function trackFreeGenerateComplete(extra?: FreeGenerateEventParams & {
+  /** 任意: 生成にかかった時間 (ms)。GA4 で平均生成時間を見る用。 */
+  duration_ms?: number;
+}): boolean {
+  return fireGa4Event("free_generate_complete", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/** 生成 API が失敗したときに呼ぶ。reason は "timeout" / "5xx" / "validation" 等の短いラベル。 */
+export function trackFreeGenerateError(extra?: FreeGenerateEventParams & {
+  /** 失敗種別の短いラベル。GA4 で原因別に分けるためのカスタム dimension。 */
+  reason?: string;
+  /** HTTP ステータス (取得できれば)。 */
+  status?: number;
+}): boolean {
+  return fireGa4Event("free_generate_error", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/** 未ログインお試しの試行回数上限に達したときに呼ぶ (CTA で弾いた瞬間)。 */
+export function trackFreeGenerateLimitReached(extra?: FreeGenerateEventParams): boolean {
+  return fireGa4Event("free_generate_limit_reached", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
