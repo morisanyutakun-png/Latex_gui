@@ -438,6 +438,113 @@ async def generate_pdf(
     )
 
 
+# ═══ 匿名ゲスト用エンドポイント (ログインなし無料お試し) ═══
+#
+# 設計方針:
+#   - フロントの「無料で1枚作ってみる」CTA からエディタに入った未ログイン
+#     ユーザに、AI 1 回 + LaTeX プレビュー (compile-raw) + プレビュー LaTeX 取得
+#     を許す。保存・PDF ダウンロード・OMR・採点はフロント側で UI ロックし、
+#     サーバ側もそれらは require_user で塞いだまま。
+#   - quota / プラン管理を持たない代わりに IP rate limit を厳しくかける。
+#     CVR 検証用なので、不正対策の精度より「広告流入 → AI 1 回体験 → 登録」の
+#     摩擦を最小化する方を優先する。
+
+class AnonymousAIChatRequest(pydantic.BaseModel):
+    messages: list[dict] = []
+    document: dict = {}
+    locale: str = "ja"
+    mode: str = "edit"
+
+
+@app.post("/api/anonymous/ai-chat")
+async def anonymous_ai_chat(
+    req: AnonymousAIChatRequest,
+    http_request: Request,
+):
+    """ゲスト用 AI チャット (非ストリーミング, 単発)。
+
+    - 認証なし
+    - IP あたり 60 秒に 3 回 / 24 時間に 5 回まで
+    - エージェントの内部ターン上限はそのまま使うが、フロント側で「1 回だけ」
+      制御するので実質単発
+    """
+    enforce_rate_limit(http_request, "anon-ai-chat-burst", limit=3, window_seconds=60)
+    enforce_rate_limit(http_request, "anon-ai-chat-day", limit=5, window_seconds=86400)
+
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        raise HTTPException(status_code=503, detail={
+            "message": "AI 機能を一時的にご利用いただけません。",
+            "code": "MISSING_API_KEY",
+        })
+
+    if not req.messages:
+        raise HTTPException(status_code=400, detail={"message": "messages が空です"})
+
+    try:
+        result = await ai_chat(
+            req.messages, req.document,
+            locale=req.locale, mode=req.mode,
+        )
+        return {"success": True, **result}
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail={"message": str(e)})
+    except Exception as e:
+        logger.exception("[anon-ai-chat] unexpected error")
+        raise HTTPException(status_code=500, detail={
+            "message": f"AI エラー: {type(e).__name__}: {str(e)[:200]}",
+        })
+
+
+@app.post("/api/anonymous/preview-latex")
+async def anonymous_preview_latex(doc: DocumentModel, http_request: Request):
+    """ゲスト用 LaTeX プレビュー (raw LaTeX をそのまま返す軽量エンドポイント)。"""
+    enforce_rate_limit(http_request, "anon-preview", limit=120, window_seconds=60)
+    try:
+        return {"success": True, "latex": generate_latex(doc)}
+    except Exception as e:
+        logger.error("[anon-preview] error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail={
+            "message": "プレビューの生成に失敗しました。",
+        })
+
+
+@app.post("/api/anonymous/compile-raw")
+async def anonymous_compile_raw(req: "RawLatexRequest", http_request: Request):  # type: ignore[name-defined]
+    """ゲスト用ライブプレビュー (LuaLaTeX コンパイル)。
+
+    通常の compile-raw は require_user で守られているが、ここはゲスト編集中の
+    PDF プレビューを動かすために認証を外す。代わりに IP 単位で厳しめに絞る。
+    """
+    # ゲストは AI 1 回 + その後の手編集プレビュー数回を想定。
+    # 60s に 30 回 / 1 日に 60 回までで濫用を抑える (LuaLaTeX は重いリソース)。
+    enforce_rate_limit(http_request, "anon-compile-raw-burst", limit=30, window_seconds=60)
+    enforce_rate_limit(http_request, "anon-compile-raw-day", limit=60, window_seconds=86400)
+    try:
+        pdf_bytes = await compile_raw_latex(req.latex)
+    except PDFGenerationError as e:
+        raise HTTPException(status_code=422, detail={
+            "success": False,
+            "message": e.user_message,
+            "code": e.code,
+            "params": e.params or None,
+            "violations": e.violations or None,
+        })
+    except Exception as e:
+        logger.exception("[anon-compile-raw] unexpected error")
+        raise HTTPException(status_code=500, detail={
+            "success": False,
+            "message": f"コンパイルエラー: {str(e)[:200]}",
+        })
+    from urllib.parse import quote
+    safe_filename = quote((req.filename or "document").replace(" ", "_") + ".pdf", safe="")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}"},
+    )
+
+
+# ── 旧 single-shot トライアル: PC LP のお試しモーダルから来る場合のフォールバック ──
 class AnonymousTrialRequest(pydantic.BaseModel):
     topic: str = ""
     locale: str = "ja"
@@ -445,14 +552,7 @@ class AnonymousTrialRequest(pydantic.BaseModel):
 
 @app.post("/api/anonymous/generate-pdf")
 async def anonymous_trial_generate(req: AnonymousTrialRequest, request: Request):
-    """ログインなし無料お試し PDF 生成。
-
-    認証なし。サーバ側 rate limit を IP / 匿名 cookie 別で強めにかける:
-      - 同一 IP: 60 秒に 3 回まで (バースト保護)
-      - 同一 IP: 1 日に 10 回まで (DoS 保護)
-    cookie 単位の制御はフロント側 Next.js proxy 側で 1 アカウント=1 試行に
-    寄せる。サーバ側は CVR を阻害しない範囲の一般的な濫用対策に絞る。
-    """
+    """ログインなし単発 PDF 生成 (旧モーダル経路用)。エディタ経由が主導線。"""
     enforce_rate_limit(request, "anon-trial-burst", limit=3, window_seconds=60)
     enforce_rate_limit(request, "anon-trial-day", limit=10, window_seconds=86400)
 
@@ -462,13 +562,11 @@ async def anonymous_trial_generate(req: AnonymousTrialRequest, request: Request)
     try:
         pdf_bytes, _latex = await generate_anonymous_pdf(topic, locale=locale)
     except ValueError as e:
-        # API キー未設定など環境系
         raise HTTPException(status_code=503, detail={
             "code": "AI_UNAVAILABLE",
             "message": str(e),
         })
     except PDFGenerationError as e:
-        logger.warning("[anon-trial] compile failed: %s", e.detail)
         raise HTTPException(status_code=422, detail={
             "code": e.code or "trial_compile_failed",
             "message": e.user_message,

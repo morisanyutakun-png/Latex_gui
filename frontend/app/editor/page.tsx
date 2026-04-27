@@ -15,8 +15,10 @@ import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { createDefaultDocument } from "@/lib/types";
 import { getTemplateLatex } from "@/lib/templates";
+import { hasUsedAnonymousTrial } from "@/lib/anonymous-trial";
 import { Sparkles, Globe, FileText, ClipboardCheck, ScanLine, Eye, Braces, PenTool, Lock, MoreVertical, Plus, ChevronLeft, Trash2, Crown, PanelLeft, SquarePen } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
@@ -68,9 +70,13 @@ export default function EditorPage() {
   // 使えないプランでは視覚的にロック表示する (クリックは pricing 誘導に回す)。
   // `currentPlan` の変化で再レンダリングされるよう、subscribe してから canUseFeature で判定する。
   const currentPlan = usePlanStore((s) => s.currentPlan);
-  const ocrLocked = !canUseFeature(currentPlan, "ocr");
-  const gradingLocked = !canUseFeature(currentPlan, "grading");
-  const latexExportLocked = !canUseFeature(currentPlan, "latexExport");
+  // ゲスト (ログインなしお試し) は OMR / 採点 / LaTeX エクスポートも全部ロック扱いにする。
+  // プラン判定は currentPlan が初期値 "free" のままなのでロック判定はそもそも true だが、
+  // 将来 free に解禁された場合でもゲストはロックを維持したいので明示的に OR を取る。
+  const _guestLocks = useUIStore((s) => s.isGuest);
+  const ocrLocked = _guestLocks || !canUseFeature(currentPlan, "ocr");
+  const gradingLocked = _guestLocks || !canUseFeature(currentPlan, "grading");
+  const latexExportLocked = _guestLocks || !canUseFeature(currentPlan, "latexExport");
   // 必要プラン名を動的に (OMR/採点は Pro に昇格したので、tooltip も Pro を指すようにする)
   const ocrRequired = PLANS[requiredPlanFor("ocr")].name;
   const gradingRequired = PLANS[requiredPlanFor("grading")].name;
@@ -108,10 +114,51 @@ export default function EditorPage() {
   const skipRedirect = useRef(false);
   if (typeof window !== "undefined" && !skipRedirect.current) {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") === "success" || params.get("new") === "1") {
+    if (params.get("checkout") === "success" || params.get("new") === "1" || params.get("guest") === "1") {
       skipRedirect.current = true;
     }
   }
+
+  // ── ゲストモード (?guest=1) ────────────────────────────────────
+  // 「無料で1枚作ってみる」CTA から来た未ログインユーザは、ログインせずに
+  // AI 1 回 + プレビュー編集ができる。session が確立されたらゲストモードを解く。
+  const session = useSession();
+  const isGuest = useUIStore((s) => s.isGuest);
+  const guestTrialUsed = useUIStore((s) => s.guestTrialUsed);
+  const setGuest = useUIStore((s) => s.setGuest);
+  const setGuestTrialUsed = useUIStore((s) => s.setGuestTrialUsed);
+
+  // ?guest=1 で来たら ui-store のゲストフラグを立てる + 空ドキュメントを用意。
+  // すでに別タブで login 済みなら通常モードに遷移させる。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("guest") !== "1") return;
+
+    // 認証済みならゲスト遷移はキャンセル → 通常エディタに任せる
+    if (session.status === "authenticated") {
+      setGuest(false);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("guest");
+      window.history.replaceState({}, "", url.pathname + url.search);
+      return;
+    }
+
+    setGuest(true);
+    setGuestTrialUsed(hasUsedAnonymousTrial());
+    if (!useDocumentStore.getState().document) {
+      useDocumentStore.getState().setDocument(
+        createDefaultDocument("blank", getTemplateLatex("blank")),
+      );
+    }
+  }, [session.status, setGuest, setGuestTrialUsed]);
+
+  // ログイン成立を検知したら自動でゲストモード解除
+  useEffect(() => {
+    if (session.status === "authenticated" && isGuest) {
+      setGuest(false);
+    }
+  }, [session.status, isGuest, setGuest]);
 
   // Handle ?new=1 from login redirect — create blank document
   useEffect(() => {
@@ -536,6 +583,33 @@ export default function EditorPage() {
       />
       <OMRSplitView />
       {figureEditorMode && <FigureEditor />}
+
+      {/* ゲストモード帯: 「ログインなしで体験中」の状態を常時提示し、
+          AI 1 回 + 編集 + ライブプレビューだけが解放されている事を伝える。 */}
+      {isGuest && (
+        <div className="flex items-center gap-2 px-4 py-1.5 text-[12px] bg-gradient-to-r from-violet-500/[0.10] via-fuchsia-500/[0.08] to-blue-500/[0.10] border-b border-violet-500/25 text-foreground/85">
+          <Sparkles className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+          <span className="font-medium truncate">
+            {locale === "en"
+              ? guestTrialUsed
+                ? "Free trial used. Sign up free to keep editing with AI, save, and download PDF."
+                : "Guest mode — 1 free AI generation. Save, download, and more AI need a free signup."
+              : guestTrialUsed
+                ? "無料お試しは使用済み。AI・保存・PDF ダウンロードを続けるには無料登録 (30秒) を。"
+                : "ゲストモード — AI は 1 回まで体験可。保存・PDF ダウンロード・追加 AI は無料登録 (30秒) で解放。"}
+          </span>
+          <button
+            onClick={() => {
+              import("next-auth/react").then(({ signIn }) =>
+                signIn("google", { callbackUrl: "/editor" }),
+              );
+            }}
+            className="ml-auto shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-foreground text-background text-[11.5px] font-bold hover:opacity-90 transition"
+          >
+            {locale === "en" ? "Sign up free" : "無料登録"}
+          </button>
+        </div>
+      )}
 
       <AppHeader isAIActive={isAIActive} />
 

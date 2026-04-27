@@ -292,9 +292,14 @@ export async function generatePDF(doc: DocumentModel): Promise<Blob> {
   });
 }
 
-export async function previewLatex(doc: DocumentModel): Promise<string> {
-  // 認証必須のため Next.js プロキシ経由で呼ぶ
-  const res = await fetch(`/api/preview-latex`, {
+/** 共通オプション: ゲストモード時は認証不要の `/api/anonymous/...` プロキシを使う。 */
+export interface AnonymousOption {
+  anonymous?: boolean;
+}
+
+export async function previewLatex(doc: DocumentModel, opts: AnonymousOption = {}): Promise<string> {
+  const url = opts.anonymous ? `/api/anonymous/preview-latex` : `/api/preview-latex`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(doc),
@@ -308,9 +313,13 @@ export async function previewLatex(doc: DocumentModel): Promise<string> {
   return data.latex;
 }
 
-export async function compileRawLatex(latex: string, filename?: string): Promise<Blob> {
-  // 認証必須のため Next.js プロキシ経由で呼ぶ (バックエンドの require_user を通す)
-  const res = await fetch(`/api/compile-raw`, {
+export async function compileRawLatex(
+  latex: string,
+  filename?: string,
+  opts: AnonymousOption = {},
+): Promise<Blob> {
+  const url = opts.anonymous ? `/api/anonymous/compile-raw` : `/api/compile-raw`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ latex, filename: filename ?? "document" }),
@@ -408,10 +417,13 @@ export async function sendAIMessage(
   doc: DocumentModel,
   locale: AILocale = "ja",
   mode: AgentMode = "edit",
+  opts: AnonymousOption = {},
 ): Promise<AIChatResponse> {
-  const url = AI_BACKEND_URL
-    ? `${AI_BACKEND_URL}/api/ai/chat`
-    : `${API_BASE}/api/ai/chat`;
+  // ゲストモードは Next.js プロキシ (同一オリジン) 経由で必ず呼ぶ。直結すると
+  // CORS と INTERNAL_API_SECRET の取り回しで詰まる。
+  const url = opts.anonymous
+    ? `/api/anonymous/ai-chat`
+    : (AI_BACKEND_URL ? `${AI_BACKEND_URL}/api/ai/chat` : `${API_BASE}/api/ai/chat`);
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

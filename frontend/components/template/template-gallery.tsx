@@ -2077,24 +2077,28 @@ export function TemplateGallery() {
   const currentPlan = usePlanStore((s) => s.currentPlan);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [powerOpen, setPowerOpen] = useState(false);
-  // 「ログインなしで試す」モーダル。CTA から開く。
-  // alreadyUsed は CTA を押したそのフレームで評価して固定する (モーダル中に書き込まれた
-  // localStorage の影響をモーダル UI 側に再注入しない設計)。
+  // 「ログインなしで試す」モーダル。すでに使い切ったときだけ「上限到達」UI として表示する。
+  // 未使用なら直接 /editor?guest=1 に飛ばす — モーダルで JS 入力させるより
+  // 本物のエディタで触らせる方が CVR が上がる。
   const [trialOpen, setTrialOpen] = useState(false);
   const [trialAlreadyUsed, setTrialAlreadyUsed] = useState(false);
 
   /**
-   * 「ログインなしで試す」CTA の挙動。
-   * すでに本ブラウザで試行済み (= 1 回使い切り) の場合は CTA 押下時点で
-   * GA4 の `free_generate_limit_reached` を発火し、モーダル側で登録誘導を出す。
+   * 「無料で1枚作ってみる」CTA の挙動。
+   *   - まだお試し未使用 → エディタにゲストモードで遷移 (/editor?guest=1)
+   *   - 既に使用済み      → モーダルで登録 CTA を出して GA4 limit_reached を発火
    */
   const openTrialOrLimit = () => {
-    const used = hasUsedAnonymousTrial();
-    setTrialAlreadyUsed(used);
-    if (used) {
+    if (hasUsedAnonymousTrial()) {
+      setTrialAlreadyUsed(true);
       trackFreeGenerateLimitReached();
+      setTrialOpen(true);
+      return;
     }
-    setTrialOpen(true);
+    setTrialAlreadyUsed(false);
+    // 即エディタへ。doc は editor 側の useEffect が ?guest=1 を検出した瞬間に
+    // 空白テンプレートで埋める。
+    router.push("/editor?guest=1");
   };
 
   const handleTrialLoginRequested = () => {

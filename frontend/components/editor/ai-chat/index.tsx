@@ -14,6 +14,13 @@ import { compressHistory } from "@/lib/chat-compression";
 import { buildDocumentContext } from "@/lib/document-context";
 import { buildLastAIAction } from "./utils";
 import { toast } from "sonner";
+import { hasUsedAnonymousTrial, markAnonymousTrialUsed } from "@/lib/anonymous-trial";
+import {
+  trackFreeGenerateStart,
+  trackFreeGenerateComplete,
+  trackFreeGenerateError,
+  trackFreeGenerateLimitReached,
+} from "@/lib/gtag";
 
 import { MessageRow } from "./message-row";
 import { ThinkingIndicator } from "./thinking-indicator";
@@ -43,6 +50,10 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
     canMakeRequest, incrementUsage, setShowPricing,
     todayUsage, dailyLimit, monthUsage, monthlyLimit, currentPlan, usagePercent,
   } = usePlanStore();
+
+  const isGuest = useUIStore((s) => s.isGuest);
+  const guestTrialUsed = useUIStore((s) => s.guestTrialUsed);
+  const setGuestTrialUsed = useUIStore((s) => s.setGuestTrialUsed);
 
   const [input, setInput] = useState("");
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
@@ -165,10 +176,131 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
     }
   }, [applyAiLatex, setLastAIAction, t]);
 
+  /**
+   * ゲスト単発 AI コール (ログインなしお試し)。
+   * 通常のストリーミング flow の代わりに anonymous プロキシで非ストリーミング呼出を 1 回だけ行う。
+   * 成功時は localStorage と ui-store の両方に「使用済み」を記録 → 次回以降は登録 CTA に切り替わる。
+   */
+  const runGuestSingleShot = async (text: string) => {
+    if (!document) return;
+    const requestId = crypto.randomUUID();
+    const userMsgId = crypto.randomUUID();
+    const userMsg: ChatMessage = { id: userMsgId, role: "user", content: text, timestamp: Date.now() };
+    addChatMessage(userMsg);
+    setInput("");
+    setChatLoading(true);
+    setLiveSteps([]);
+    setCurrentTool(null);
+
+    chatLog.send(requestId, text);
+    const startTime = Date.now();
+    trackFreeGenerateStart();
+
+    const assistantMsgId = crypto.randomUUID();
+    addChatMessage({
+      id: assistantMsgId,
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+      requestId,
+      timestamp: Date.now(),
+    });
+
+    try {
+      const docContext = buildDocumentContext(document, locale);
+      const enhanced: ChatMessage = {
+        ...userMsg,
+        content: docContext ? `${docContext}\n\n${userMsg.content}` : userMsg.content,
+      };
+      const history = compressHistory(chatMessages, enhanced);
+      const result = await sendAIMessage(history, document, locale, agentMode, { anonymous: true });
+      const duration = Date.now() - startTime;
+
+      if (result.latex) {
+        applyLatex(result.latex);
+      }
+
+      updateChatMessage(assistantMsgId, {
+        content: result.message || (locale === "en" ? "Done." : "完了しました。"),
+        latex: result.latex,
+        thinkingSteps: result.thinking as ThinkingStep[],
+        isStreaming: false,
+        duration,
+        usage: result.usage,
+      });
+
+      // お試し消費を確定 (localStorage + store)
+      markAnonymousTrialUsed();
+      setGuestTrialUsed(true);
+      trackFreeGenerateComplete({ duration_ms: duration });
+
+      // 続けたい人向けのフォロー toast (登録 CTA を即座に見せる)
+      toast.success(
+        locale === "en"
+          ? "AI generation complete. Sign up free to keep editing, save, and download PDF."
+          : "AI 生成が完了しました。続けて編集・保存・PDF ダウンロードするには無料登録 (30秒) を。",
+        {
+          duration: 9000,
+          action: {
+            label: locale === "en" ? "Sign up free" : "無料登録",
+            onClick: () => {
+              import("next-auth/react").then(({ signIn }) =>
+                signIn("google", { callbackUrl: "/editor" }),
+              );
+            },
+          },
+        },
+      );
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      const reason = err instanceof Error ? err.message : "unknown";
+      trackFreeGenerateError({ reason, status });
+      updateChatMessage(assistantMsgId, {
+        content: locale === "en"
+          ? `Generation failed: ${reason}`
+          : `生成に失敗しました: ${reason}`,
+        isStreaming: false,
+        error: reason,
+      });
+      toast.error(
+        locale === "en" ? "Trial generation failed. Please try again." : "お試し生成に失敗しました。もう一度お試しください。",
+      );
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const handleSend = async (overrideText?: string) => {
     const raw = typeof overrideText === "string" ? overrideText : input;
     const text = raw.trim();
     if (!text || isChatLoading || !document) return;
+
+    // ── ゲスト (ログインなしお試し) 経路 ───────────────────────────
+    // 1 回だけ AI を叩ける。すでに使い切っていれば登録 CTA を出す。
+    if (isGuest) {
+      if (guestTrialUsed || hasUsedAnonymousTrial()) {
+        trackFreeGenerateLimitReached();
+        toast.error(
+          locale === "en"
+            ? "Free trial complete. Sign up free to keep editing with AI."
+            : "無料お試しは完了しました。続けて AI を使うには無料登録 (30秒) をお願いします。",
+          {
+            duration: 8000,
+            action: {
+              label: locale === "en" ? "Sign up free" : "無料登録",
+              onClick: () => {
+                import("next-auth/react").then(({ signIn }) =>
+                  signIn("google", { callbackUrl: "/editor" }),
+                );
+              },
+            },
+          },
+        );
+        return;
+      }
+      await runGuestSingleShot(text);
+      return;
+    }
 
     const limitCheck = canMakeRequest();
     if (!limitCheck.allowed) {

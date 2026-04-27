@@ -12,6 +12,7 @@ import {
   Redo2,
   FileDown,
   Sparkles,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
@@ -22,12 +23,33 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ isAIActive = false }: AppHeaderProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const { document: doc, updateMetadata, undo, redo, past, future } = useDocumentStore();
   const { lastAIAction, isChatLoading } = useUIStore();
+  // ゲストモードでは保存・エクスポートをロックして登録誘導に倒す。
+  const isGuest = useUIStore((s) => s.isGuest);
   const [indicatorVisible, setIndicatorVisible] = useState(false);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+
+  const promptGuestSignIn = () => {
+    toast.info(
+      locale === "en"
+        ? "Sign up free to save, export and download PDF."
+        : "保存・エクスポート・PDF ダウンロードには無料登録 (30秒) が必要です。",
+      {
+        duration: 6000,
+        action: {
+          label: locale === "en" ? "Sign up free" : "無料登録",
+          onClick: () => {
+            import("next-auth/react").then(({ signIn }) =>
+              signIn("google", { callbackUrl: "/editor" }),
+            );
+          },
+        },
+      },
+    );
+  };
 
   useEffect(() => {
     if (!lastAIAction) return;
@@ -146,23 +168,29 @@ export function AppHeader({ isAIActive = false }: AppHeaderProps) {
         ) : null}
       </div>
 
-      {/* Save / Export */}
+      {/* Save / Export — ゲスト時はクリック時にロック表示で登録誘導 */}
       <div className="flex items-center gap-0.5 shrink-0">
         <button
-          onClick={handleSave}
-          className="btn-icon h-8 w-8"
-          title={t("header.save.short")}
+          onClick={isGuest ? promptGuestSignIn : handleSave}
+          className="btn-icon h-8 w-8 relative"
+          title={isGuest
+            ? (locale === "en" ? "Sign up free to save" : "保存は無料登録で利用可能")
+            : t("header.save.short")}
           aria-label={t("header.save.short")}
         >
           <Save className="h-4 w-4" aria-hidden="true" />
+          {isGuest && <Lock className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-violet-500" aria-hidden="true" />}
         </button>
         <button
-          onClick={handleExportJSON}
-          className="btn-icon h-8 w-8"
-          title={t("header.export.json.short")}
+          onClick={isGuest ? promptGuestSignIn : handleExportJSON}
+          className="btn-icon h-8 w-8 relative"
+          title={isGuest
+            ? (locale === "en" ? "Sign up free to export" : "エクスポートは無料登録で利用可能")
+            : t("header.export.json.short")}
           aria-label={t("header.export.json.short")}
         >
           <FileDown className="h-4 w-4" aria-hidden="true" />
+          {isGuest && <Lock className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-violet-500" aria-hidden="true" />}
         </button>
       </div>
 

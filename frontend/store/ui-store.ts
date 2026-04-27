@@ -169,6 +169,20 @@ interface UIState {
   // 図エディタ actions
   openFigureEditor: () => void;
   closeFigureEditor: () => void;
+
+  // ─── ゲストモード (ログインなし無料お試し) ─────────────────────────
+  /** ?guest=1 でエディタに入った匿名ユーザフラグ。
+   *  - AI チャット: 1 回だけ送信可 (anonymousTrialUsed と組み合わせて gate)
+   *  - PDF プレビュー: anonymous プロキシで動かす
+   *  - 保存・ダウンロード・OMR・採点・LaTeXエクスポート: UI ロック
+   *  認証が成立した瞬間 (session.status==='authenticated') に親が false に戻す。 */
+  isGuest: boolean;
+  /** お試しの AI 1 回をすでに使ったかどうか。
+   *  localStorage の hasUsedAnonymousTrial と同期するが、メモリ上のキャッシュとして
+   *  状態変化を React に通知する目的で持つ。 */
+  guestTrialUsed: boolean;
+  setGuest: (v: boolean) => void;
+  setGuestTrialUsed: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -360,4 +374,10 @@ export const useUIStore = create<UIState>((set) => ({
   // 図エディタ
   openFigureEditor: () => set({ figureEditorMode: true }),
   closeFigureEditor: () => set({ figureEditorMode: false }),
+
+  // ゲストモード (ログインなし無料お試し)
+  isGuest: false,
+  guestTrialUsed: false,
+  setGuest: (v) => set({ isGuest: v }),
+  setGuestTrialUsed: (v) => set({ guestTrialUsed: v }),
 }));

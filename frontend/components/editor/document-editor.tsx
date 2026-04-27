@@ -171,6 +171,7 @@ interface CompileErrorView {
 
 function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps) {
   const { t } = useI18n();
+  const isGuest = useUIStore((s) => s.isGuest);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [compileError, setCompileError] = useState<CompileErrorView | null>(null);
@@ -185,6 +186,10 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
   titleRef.current = title;
   const tRef = useRef(t);
   tRef.current = t;
+  // ゲスト時は認証なしの compile-raw プロキシ (/api/anonymous/compile-raw) に切り替える。
+  // ref で保持して runCompile の deps を空のまま維持する (毎回再生成すると debounce が壊れる)。
+  const isGuestRef = useRef(isGuest);
+  isGuestRef.current = isGuest;
 
   const runCompile = useCallback(async (source: string) => {
     if (!source.trim()) {
@@ -197,7 +202,7 @@ function PdfPreviewPanel({ latex, title, width, onClose }: PdfPreviewPanelProps)
     setCompiling(true);
     setCompileError(null);
     try {
-      const blob = await compileRawLatex(source, titleRef.current);
+      const blob = await compileRawLatex(source, titleRef.current, { anonymous: isGuestRef.current });
       if (seq !== compileSeqRef.current) return;
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {

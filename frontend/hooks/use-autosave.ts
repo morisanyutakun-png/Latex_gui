@@ -9,20 +9,26 @@ import { toast } from "sonner";
 export function useAutosave(intervalMs = 10000) {
   const document = useDocumentStore((s) => s.document);
   const isChatLoading = useUIStore((s) => s.isChatLoading);
+  // ゲストモード (ログインなしお試し) は autosave を完全にスキップする。
+  // 本来のユーザの保存ドキュメントを上書きしないため、また「保存はログイン必須」
+  // という UI 表記との整合のため。
+  const isGuest = useUIStore((s) => s.isGuest);
   const timer = useRef<ReturnType<typeof setInterval>>(null);
   const lastConflictAlertRef = useRef<number>(0);
 
   useEffect(() => {
+    if (isGuest) return;
     timer.current = setInterval(() => {
       const doc = useDocumentStore.getState().document;
       if (doc) saveToLocalStorage(doc);
     }, intervalMs);
     return () => { if (timer.current) clearInterval(timer.current); };
-  }, [intervalMs]);
+  }, [intervalMs, isGuest]);
 
   useEffect(() => {
+    if (isGuest) return;
     if (document) saveToLocalStorage(document);
-  }, [document]);
+  }, [document, isGuest]);
 
   // タブクローズ警告: 進行中の AI ストリームがある間はブラウザ標準の確認ダイアログを表示する。
   // 通常の編集内容は本フック冒頭の immediate autosave で localStorage に随時保存済みだが、
