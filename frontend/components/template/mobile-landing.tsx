@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { PLANS, type PlanId } from "@/lib/plans";
+import { IdleMount } from "./idle-mount";
 
 interface PrimaryCta {
   label: string;
@@ -183,9 +184,14 @@ export function MobileLanding({
         </div>
 
         {/* MockupShrink: 端末幅から逆算して transform: scale で縮小 */}
-        <MockupShrink>
-          <EditorMockup isJa={isJa} />
-        </MockupShrink>
+        {/* IdleMount: モバイル LCP/TBT を圧迫していた 394 行の EditorMockup JSX を idle まで
+            遅延マウント。LCP 候補がヒーロー headline に移り、ハイドレーション直後の
+            Style & Layout 12 秒スパイクを解消する。CLS 抑止のため minHeight を確保。 */}
+        <IdleMount minHeight="320px">
+          <MockupShrink>
+            <EditorMockup isJa={isJa} />
+          </MockupShrink>
+        </IdleMount>
 
         <div className="flex flex-wrap items-center justify-center gap-1.5 mt-5 px-3">
           {[
@@ -239,9 +245,11 @@ export function MobileLanding({
           </p>
         </div>
 
-        <MockupShrink>
-          <FigureDrawMockup isJa={isJa} />
-        </MockupShrink>
+        <IdleMount minHeight="320px">
+          <MockupShrink>
+            <FigureDrawMockup isJa={isJa} />
+          </MockupShrink>
+        </IdleMount>
       </section>
 
       {/* ━━ WHO IS THIS FOR ━━ */}

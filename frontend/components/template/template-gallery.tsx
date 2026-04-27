@@ -10,6 +10,7 @@ import { loadFromLocalStorage } from "@/lib/storage";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
 import dynamic from "next/dynamic";
+import { IdleMount } from "./idle-mount";
 import { hasUsedAnonymousTrial } from "@/lib/anonymous-trial";
 import { trackFreeGenerateLimitReached, trackFreeTrialCtaClick } from "@/lib/gtag";
 
@@ -119,47 +120,7 @@ import {
   X,
 } from "lucide-react";
 
-/**
- * IdleMount — initial paint には placeholder を出し、ブラウザがアイドルになった
- * タイミング (or 600ms 後) に重い children をマウントする。
- *
- * 効能:
- *   - SSR HTML の payload が縮む (children の JSX が出力されない)
- *   - クライアント側でも initial render の hydration コストが下がる (子の長大な JSX を即時に評価しない)
- *   - placeholder は同サイズの空 div なので CLS を発生させない
- *
- * ヒーロー直下の EditorMockup / FigureDrawMockup のような巨大 JSX を包む用途。
- * SEO 的には文字情報を含まない装飾なので非表示でも影響なし。
- */
-function IdleMount({
-  children,
-  minHeight = "0",
-  idleTimeoutMs = 600,
-}: {
-  children: React.ReactNode;
-  minHeight?: string;
-  idleTimeoutMs?: number;
-}) {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    type IdleWindow = Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
-    };
-    const w = window as IdleWindow;
-    const idle = w.requestIdleCallback;
-    if (typeof idle === "function") {
-      idle(() => setShow(true), { timeout: 1500 });
-    } else {
-      const t = window.setTimeout(() => setShow(true), idleTimeoutMs);
-      return () => window.clearTimeout(t);
-    }
-  }, [idleTimeoutMs]);
-  if (!show) {
-    return <div style={{ minHeight }} aria-hidden />;
-  }
-  return <>{children}</>;
-}
+// IdleMount は ./idle-mount.tsx に分離 (mobile-landing と共有するため)。
 
 /* ── Floating math formulas background ── */
 const FLOAT_FORMULAS = [
