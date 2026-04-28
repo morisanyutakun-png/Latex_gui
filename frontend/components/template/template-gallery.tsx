@@ -3536,9 +3536,19 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
             </a>
           </nav>
 
-          {/* コピーライト */}
+          {/* コピーライト + 開発者サイトへの控えめリンク (権威性向上 / 副次扱い)。
+              footer 最下段の copyright 行に inline で混ぜることで主動線 (CTA) に
+              影響しない位置に置き、target="_blank" で現在のタブから離脱しない。 */}
           <p className="text-center text-[10.5px] text-muted-foreground/30 tracking-wide">
-            © {new Date().getFullYear()} Eddivom. All rights reserved.
+            © {new Date().getFullYear()} Eddivom. All rights reserved. ·{" "}
+            <a
+              href="https://yuta-eng.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline-offset-2 hover:underline hover:text-muted-foreground/60 transition-colors"
+            >
+              {isJa ? "開発者について" : "About the developer"}
+            </a>
           </p>
         </div>
       </footer>

@@ -445,8 +445,19 @@ export function MobileLanding({
           <Mail className="h-3 w-3" />
           {isJa ? "お問い合わせ" : "Contact"}
         </a>
+        {/* 権威性向上のための開発者サイトへの控えめリンク。
+            副次扱いに徹するため: footer の「© 」行に inline で混ぜる / 小さいフォント /
+            target="_blank" + rel="noopener noreferrer" で離脱を最小化。 */}
         <p className="text-[10px] text-muted-foreground/35 mt-3">
-          © {new Date().getFullYear()} Eddivom
+          © {new Date().getFullYear()} Eddivom ·{" "}
+          <a
+            href="https://yuta-eng.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline hover:text-muted-foreground/70 transition-colors"
+          >
+            {isJa ? "開発者について" : "About the developer"}
+          </a>
         </p>
       </footer>
     </div>
