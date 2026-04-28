@@ -74,8 +74,9 @@ export function UserMenu() {
         </span>
       </button>
 
-      {/* Dropdown */}
-      <div className="absolute right-0 top-full mt-1 w-56 py-1 rounded-xl border border-foreground/[0.06] bg-popover/95 backdrop-blur-xl shadow-xl shadow-black/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+      {/* Dropdown — hover (PC) と focus-within (タップで button が focus する
+          モバイル) の両方で開く。タップ → 外側タップで閉じる挙動が成立する。 */}
+      <div className="absolute right-0 top-full mt-1 w-56 py-1 rounded-xl border border-foreground/[0.06] bg-popover/95 backdrop-blur-xl shadow-xl shadow-black/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
         <div className="px-3 py-2 border-b border-foreground/[0.04]">
           <p className="text-xs font-medium text-foreground/70 truncate">{session.user?.name}</p>
           <p className="text-[11px] text-muted-foreground/40 truncate">{session.user?.email}</p>

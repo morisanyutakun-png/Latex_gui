@@ -25,6 +25,7 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { IdleMount } from "./idle-mount";
+import { UserMenu } from "@/components/auth/user-menu";
 // Mockup は lp-mockups.tsx にある共有実装を直接 import する。
 // props で受け取る形だと、親 (TemplateGallery) の chunk が必ずモバイル bundle に
 // 引きずり込まれて 3554 行の PC LP コードがモバイル初期 JS に乗ってしまうため。
@@ -88,6 +89,12 @@ export function MobileLanding({
         >
           {isJa ? "料金" : "Pricing"}
         </button>
+        {/* PC 版 nav と同じく UserMenu を出してログイン状態 (アバター + プラン
+            バッジ / 未ログイン時はログイン CTA) を視認できるようにする。
+            UserMenu の dropdown は hover ベースだが、モバイル Safari/Chrome の
+            sticky-hover で初回タップ → ドロップダウン表示 → 外側タップで閉じる
+            という操作が一応成立する。 */}
+        <UserMenu />
       </nav>
 
       {/* ━━ HERO (mobile compact) ━━ */}
