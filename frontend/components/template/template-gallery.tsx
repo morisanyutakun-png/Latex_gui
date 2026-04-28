@@ -2345,17 +2345,12 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
    */
   const primaryCta = React.useMemo(() => {
     const planName = PLANS[currentPlan]?.name ?? "";
-    // 「有料プラン契約者」だけ resume/start blank 動線を出し、それ以外 (Free /
-    // 未ログイン / プラン未取得) は常に「無料で1枚作ってみる」CTA を出す。
-    //   - 未ログインや stale な session cookie で saved があると「続きから編集」が
-    //     出てしまい広告流入のゲストが混乱する → ここでは出さない。
-    //   - LP の主目的は CVR を上げること。Free 系には触らせる動線が必要。
-    //   - クリック時の挙動はログイン状態を見て分岐する (`openTrialOrLimit`):
-    //     authenticated → /editor?new=1 で本人セッションのまま新規ドキュメント
-    //     unauthenticated → /editor?guest=1 のゲスト動線
-    const isPaid = currentPlan === "starter" || currentPlan === "pro" || currentPlan === "premium";
 
-    if (isPaid) {
+    // ログイン済み (Free 含む全プラン): 必ず /editor 動線を出す。
+    //   - saved あり → 「続きから編集 (planName)」 → /editor
+    //   - saved なし → 「白紙で始める (planName)」 → /editor?new=1
+    // ゲスト動線 (/editor?guest=1) はログイン済みには絶対に見せない。
+    if (sessionStatus === "authenticated") {
       if (saved) {
         return {
           label: isJa ? `続きから編集 (${planName})` : `Resume editing (${planName})`,
@@ -2365,20 +2360,19 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
         };
       }
       return {
-        label: isJa ? "白紙で始める" : "Start a new worksheet",
-        subLabel: isJa ? `${planName}プランでエディタへ` : `Open editor on ${planName}`,
+        label: isJa ? `白紙で始める (${planName})` : `Start a new worksheet (${planName})`,
+        subLabel: isJa ? `${planName}プランでエディタを開く` : `Open editor on ${planName}`,
         onClick: openEditorBlank,
         variant: "paid-new" as const,
       };
     }
 
-    // Free / 未ログイン / プラン未取得: 共通のヒーロー CTA
+    // 未ログイン (status="unauthenticated" or "loading"): ヒーロー CTA は
+    // 「ログインなしお試しモーダル」を直接開く。広告流入ユーザにはここで
+    // 触らせることが先 (CVR 検証用)。登録動線は結果画面の登録 CTA に集約する。
     return {
       label: isJa ? "無料で1枚作ってみる" : "Generate one free",
       subLabel: isJa ? "ログインなし · 30〜60秒で1枚" : "No signup · 30–60s per sheet",
-      // CTA 位置は呼出元 (hero / nav) で違うが、primaryCta は hero ボタンとナビ右上の
-      // 両方で使われる。React event を placement に渡さないよう wrap してデフォルト
-      // "hero" を渡す。
       onClick: () => openTrialOrLimit("hero"),
       variant: "free" as const,
     };

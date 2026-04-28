@@ -1,12 +1,14 @@
 "use client";
 
+import React, { useEffect, useRef, useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { LogIn, LogOut, User, CreditCard, Crown } from "lucide-react";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n";
 
-// プラン別のバッジ配色。アバターの左に表示する。
+// プラン別のバッジ配色。アバターの左に表示する。Free を含めて全プランに表示する
+// (モバイル幅でもユーザが「自分が今 Free か Starter か」を確実に把握できるようにする)。
 const PLAN_BADGE_STYLE: Record<PlanId, { cls: string; icon: boolean }> = {
   free:    { cls: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700", icon: false },
   starter: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60", icon: false },
@@ -18,7 +20,7 @@ function PlanBadge({ plan }: { plan: PlanId }) {
   const style = PLAN_BADGE_STYLE[plan];
   return (
     <span
-      className={`hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] font-bold tracking-wide uppercase ${style.cls}`}
+      className={`inline-flex items-center gap-1 h-6 px-1.5 sm:px-2 rounded-md border text-[10px] font-bold tracking-wide uppercase ${style.cls}`}
       title={`Current plan: ${PLANS[plan].name}`}
     >
       {style.icon && <Crown className="h-3 w-3" />}
@@ -32,10 +34,40 @@ export function UserMenu() {
   const { data: session, status } = useSession();
   const currentPlan = usePlanStore((s) => s.currentPlan);
 
+  // ドロップダウンは state で開閉管理する。以前は CSS hover 依存だったが、
+  // モバイル Safari/Chrome では hover が「初回タップで sticky → 二度目タップで click」
+  // と曖昧で、ログアウトや「契約管理」がタップ 1 回で起動しないケースがあった。
+  // state ベースなら PC (click) でもモバイル (tap) でも完全に同一挙動になる。
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // 外側タップ / Escape で閉じる
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   const handleManageSubscription = async () => {
+    setOpen(false);
     const { createPortalSession } = await import("@/lib/subscription-api");
     const url = await createPortalSession();
     if (url) window.location.href = url;
+  };
+
+  const handleSignOut = () => {
+    setOpen(false);
+    void signOut();
   };
 
   if (status === "loading") {
@@ -55,9 +87,15 @@ export function UserMenu() {
   }
 
   return (
-    <div className="relative group flex items-center gap-2">
+    <div ref={wrapRef} className="relative flex items-center gap-2">
       <PlanBadge plan={currentPlan} />
-      <button className="flex items-center gap-2 h-8 px-1.5 rounded-lg hover:bg-foreground/[0.04] transition-all duration-200">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 h-8 px-1.5 rounded-lg hover:bg-foreground/[0.04] transition-all duration-200"
+      >
         {session.user?.image ? (
           <img
             src={session.user.image}
@@ -74,30 +112,43 @@ export function UserMenu() {
         </span>
       </button>
 
-      {/* Dropdown — hover (PC) と focus-within (タップで button が focus する
-          モバイル) の両方で開く。タップ → 外側タップで閉じる挙動が成立する。 */}
-      <div className="absolute right-0 top-full mt-1 w-56 py-1 rounded-xl border border-foreground/[0.06] bg-popover/95 backdrop-blur-xl shadow-xl shadow-black/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
-        <div className="px-3 py-2 border-b border-foreground/[0.04]">
-          <p className="text-xs font-medium text-foreground/70 truncate">{session.user?.name}</p>
-          <p className="text-[11px] text-muted-foreground/40 truncate">{session.user?.email}</p>
-        </div>
-        {currentPlan !== "free" && (
-          <button
-            onClick={handleManageSubscription}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/50 hover:text-indigo-500 hover:bg-indigo-500/5 transition-colors"
-          >
-            <CreditCard className="h-3.5 w-3.5" />
-            {t("user.menu.subscription")}
-          </button>
-        )}
-        <button
-          onClick={() => signOut()}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/50 hover:text-red-500 hover:bg-red-500/5 transition-colors"
+      {/* Dropdown — state ベースで開閉。タップ 1 回で必ず開き、外側タップ /
+          Escape / 内部の項目クリックで閉じる。 */}
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1 w-60 py-1 rounded-xl border border-foreground/[0.08] bg-popover/95 backdrop-blur-xl shadow-xl shadow-black/10 z-50"
         >
-          <LogOut className="h-3.5 w-3.5" />
-          {t("user.menu.logout")}
-        </button>
-      </div>
+          <div className="px-3 py-2 border-b border-foreground/[0.04]">
+            <p className="text-xs font-medium text-foreground/70 truncate">{session.user?.name}</p>
+            <p className="text-[11px] text-muted-foreground/40 truncate">{session.user?.email}</p>
+            {/* dropdown 内にもプラン表示を出して「現在 Free です」が確実に分かるようにする */}
+            <div className="mt-1.5">
+              <PlanBadge plan={currentPlan} />
+            </div>
+          </div>
+          {currentPlan !== "free" && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleManageSubscription}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/60 hover:text-indigo-500 hover:bg-indigo-500/5 active:bg-indigo-500/10 transition-colors"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              {t("user.menu.subscription")}
+            </button>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/60 hover:text-red-500 hover:bg-red-500/5 active:bg-red-500/10 transition-colors"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            {t("user.menu.logout")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
