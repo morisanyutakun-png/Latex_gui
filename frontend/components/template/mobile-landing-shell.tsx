@@ -173,35 +173,40 @@ export function MobileLandingShell() {
 
   const primaryCta = React.useMemo(() => {
     const planName = PLANS[currentPlan]?.name ?? "";
-    if (currentPlan === "free") {
+
+    // ログイン済みユーザにはゲストお試し動線 (/editor?guest=1) を一切見せない。
+    //   - saved あり → 「続きから編集」 (/editor)
+    //   - saved なし → 「白紙で始める」  (/editor?new=1)
+    // (以前は currentPlan==="free" だと saved 無しで「無料で1枚作ってみる」が
+    //  出てしまい、ログイン済みでも guest=1 動線に飛ばされていた。)
+    if (sessionStatus === "authenticated") {
       if (saved) {
+        const label = currentPlan === "free"
+          ? (isJa ? "続きから編集" : "Resume editing")
+          : (isJa ? `続きから編集 (${planName})` : `Resume editing (${planName})`);
         return {
-          label: isJa ? "続きから編集" : "Resume editing",
-          subLabel: isJa ? saved.metadata.title || "無題の教材" : saved.metadata.title || "Untitled",
+          label,
+          subLabel: saved.metadata.title || (isJa ? "無題の教材" : "Untitled"),
           onClick: handleResume,
           variant: "resume" as const,
         };
       }
       return {
-        label: isJa ? "無料で1枚作ってみる" : "Generate one free",
-        subLabel: isJa ? "ログインなし · 30〜60秒で1枚" : "No signup · 30–60s per sheet",
-        onClick: () => openTrialOrLimit("hero"),
-        variant: "free" as const,
+        label: isJa ? "白紙で始める" : "Start a new worksheet",
+        subLabel: currentPlan === "free"
+          ? (isJa ? "エディタを開く" : "Open the editor")
+          : (isJa ? `${planName}プランでエディタへ` : `Open editor on ${planName}`),
+        onClick: openEditorBlank,
+        variant: "paid-new" as const,
       };
     }
-    if (saved) {
-      return {
-        label: isJa ? `続きから編集 (${planName})` : `Resume editing (${planName})`,
-        subLabel: isJa ? saved.metadata.title || "無題の教材" : saved.metadata.title || "Untitled",
-        onClick: handleResume,
-        variant: "resume" as const,
-      };
-    }
+
+    // 未ログイン (status="unauthenticated" or "loading"): ゲストお試し CTA
     return {
-      label: isJa ? "白紙で始める" : "Start a new worksheet",
-      subLabel: isJa ? `${planName}プランでエディタへ` : `Open editor on ${planName}`,
-      onClick: openEditorBlank,
-      variant: "paid-new" as const,
+      label: isJa ? "無料で1枚作ってみる" : "Generate one free",
+      subLabel: isJa ? "ログインなし · 30〜60秒で1枚" : "No signup · 30–60s per sheet",
+      onClick: () => openTrialOrLimit("hero"),
+      variant: "free" as const,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPlan, saved, isJa, sessionStatus]);
