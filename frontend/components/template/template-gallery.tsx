@@ -2187,6 +2187,13 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
    */
   const openTrialOrLimit = (placement: string = "hero") => {
     trackFreeTrialCtaClick({ placement });
+    // ログイン済み (有効な next-auth セッション cookie あり) なら guest=1 動線を踏まずに、
+    // 本人のセッションのまま /editor?new=1 へ。ゲストモード扱いを避ける。
+    if (sessionStatus === "authenticated") {
+      setDocument(createDefaultDocument("blank", getTemplateLatex("blank")));
+      router.push("/editor?new=1");
+      return;
+    }
     if (hasUsedAnonymousTrial()) {
       setTrialAlreadyUsed(true);
       trackFreeGenerateLimitReached();
@@ -2338,19 +2345,20 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
    */
   const primaryCta = React.useMemo(() => {
     const planName = PLANS[currentPlan]?.name ?? "";
+    // 「有料プラン契約者」だけ resume/start blank 動線を出し、それ以外 (Free /
+    // 未ログイン / プラン未取得) は常に「無料で1枚作ってみる」CTA を出す。
+    //   - 未ログインや stale な session cookie で saved があると「続きから編集」が
+    //     出てしまい広告流入のゲストが混乱する → ここでは出さない。
+    //   - LP の主目的は CVR を上げること。Free 系には触らせる動線が必要。
+    //   - クリック時の挙動はログイン状態を見て分岐する (`openTrialOrLimit`):
+    //     authenticated → /editor?new=1 で本人セッションのまま新規ドキュメント
+    //     unauthenticated → /editor?guest=1 のゲスト動線
+    const isPaid = currentPlan === "starter" || currentPlan === "pro" || currentPlan === "premium";
 
-    // ログイン済みユーザにはゲストお試し動線 (/editor?guest=1) を一切見せない。
-    //   - saved あり → 「続きから編集」 (/editor)
-    //   - saved なし → 「白紙で始める」  (/editor?new=1)
-    // (以前は currentPlan==="free" だと saved 無しで「無料で1枚作ってみる」が
-    //  出てしまい、ログイン済みでも guest=1 動線に飛ばされていた。)
-    if (sessionStatus === "authenticated") {
+    if (isPaid) {
       if (saved) {
-        const label = currentPlan === "free"
-          ? (isJa ? "続きから編集" : "Resume editing")
-          : (isJa ? `続きから編集 (${planName})` : `Resume editing (${planName})`);
         return {
-          label,
+          label: isJa ? `続きから編集 (${planName})` : `Resume editing (${planName})`,
           subLabel: saved.metadata.title || (isJa ? "無題の教材" : "Untitled"),
           onClick: handleResume,
           variant: "resume" as const,
@@ -2358,18 +2366,13 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
       }
       return {
         label: isJa ? "白紙で始める" : "Start a new worksheet",
-        subLabel: currentPlan === "free"
-          ? (isJa ? "エディタを開く" : "Open the editor")
-          : (isJa ? `${planName}プランでエディタへ` : `Open editor on ${planName}`),
+        subLabel: isJa ? `${planName}プランでエディタへ` : `Open editor on ${planName}`,
         onClick: openEditorBlank,
         variant: "paid-new" as const,
       };
     }
 
-    // 未ログイン (status="unauthenticated" or "loading"): ヒーロー CTA は
-    // 「ログインなしお試しモーダル」を直接開く。以前は handlePlanSelect("free") 経由で
-    // signIn → Stripe Free checkout に飛ばしていたが、広告流入ユーザにはここで
-    // 触らせることが先 (CVR 検証用)。登録動線は結果画面の登録 CTA に集約する。
+    // Free / 未ログイン / プラン未取得: 共通のヒーロー CTA
     return {
       label: isJa ? "無料で1枚作ってみる" : "Generate one free",
       subLabel: isJa ? "ログインなし · 30〜60秒で1枚" : "No signup · 30–60s per sheet",
