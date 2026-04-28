@@ -26,7 +26,17 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useVisibleInterval } from "@/hooks/use-visible-interval";
-import { renderMathHTML } from "@/lib/katex-render";
+
+// katex 本体 (~250 KiB) を動的 import で別 chunk に逃がす。LP 初期 chunk から完全に外す。
+// `M` がマウントされた時点 (= mockup が IdleMount から出てくる頃) に初めて load される。
+type RenderMathHTML = (latex: string, opts?: { displayMode?: boolean }) => { html: string; ok: boolean };
+let _katexRenderLoader: Promise<RenderMathHTML> | null = null;
+function loadKatexRenderer(): Promise<RenderMathHTML> {
+  if (!_katexRenderLoader) {
+    _katexRenderLoader = import("@/lib/katex-render").then((m) => m.renderMathHTML);
+  }
+  return _katexRenderLoader;
+}
 
 const SERIF: React.CSSProperties = {
   fontFamily: '"Hiragino Mincho ProN", "Yu Mincho", "Times New Roman", Georgia, serif',
@@ -48,13 +58,24 @@ function ensureKatexCss(): void {
   document.head.appendChild(link);
 }
 
-/* KaTeX inline math — renders exactly like real LaTeX output. */
+/* KaTeX inline math — katex 本体は動的 import 後にだけ描画される。
+ *  ロード完了までは placeholder。Mockup は IdleMount で遅らせているので
+ *  ユーザがスクロールして見る頃には katex は既に load 済みになる。 */
 function M({ t }: { t: string }) {
-  const { html, ok } = renderMathHTML(t, { displayMode: false });
+  const [renderer, setRenderer] = useState<RenderMathHTML | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadKatexRenderer().then((fn) => { if (!cancelled) setRenderer(() => fn); });
+    return () => { cancelled = true; };
+  }, []);
+  if (!renderer) {
+    return <span className="text-muted-foreground/70 text-[0.85em]">{"〈 math 〉"}</span>;
+  }
+  const { html, ok } = renderer(t, { displayMode: false });
   if (ok) {
     return <span className="align-middle" dangerouslySetInnerHTML={{ __html: html }} />;
   }
-  return <span className="text-muted-foreground/70 text-[0.85em]">{"\u2329 math \u232A"}</span>;
+  return <span className="text-muted-foreground/70 text-[0.85em]">{"〈 math 〉"}</span>;
 }
 
 export function EditorMockup({ isJa }: { isJa: boolean }) {

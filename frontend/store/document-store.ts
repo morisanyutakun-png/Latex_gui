@@ -7,7 +7,17 @@ import {
   DocumentMetadata,
   createDefaultDocument,
 } from "@/lib/types";
-import { getTemplateLatex } from "@/lib/templates";
+// `@/lib/templates` (LaTeX テンプレ集 ~5800 行 / minify 後 ~213 KiB) は LP では使わない。
+// document-store を import するだけで初期 JS に巻き込まれていたため、本ストアからは
+// 静的 import を撤去し、必要な箇所 (editor / 各 CTA handler) で動的 import する。
+type GetTemplateLatex = (templateId: string) => string;
+let _templatesLoader: Promise<GetTemplateLatex> | null = null;
+function loadTemplates(): Promise<GetTemplateLatex> {
+  if (!_templatesLoader) {
+    _templatesLoader = import("@/lib/templates").then((m) => m.getTemplateLatex);
+  }
+  return _templatesLoader;
+}
 
 interface DocumentState {
   document: DocumentModel | null;
@@ -15,7 +25,7 @@ interface DocumentState {
   // Document management
   setDocument: (doc: DocumentModel) => void;
   clearDocument: () => void;
-  initBlankDocument: () => void;
+  initBlankDocument: () => Promise<void>;
   updateMetadata: (updates: Partial<DocumentMetadata>) => void;
   updateSettings: (updates: Partial<DocumentSettings>) => void;
 
@@ -54,9 +64,10 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   setDocument: (doc) => set({ document: doc, past: [], future: [] }),
   clearDocument: () => set({ document: null, past: [], future: [] }),
-  initBlankDocument: () => {
+  initBlankDocument: async () => {
     const { document } = get();
     if (document) return;
+    const getTemplateLatex = await loadTemplates();
     set({ document: createDefaultDocument("blank", getTemplateLatex("blank")), past: [], future: [] });
   },
 

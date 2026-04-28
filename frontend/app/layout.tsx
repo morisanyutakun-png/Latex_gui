@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { ThemeProvider } from "next-themes";
-import { Toaster } from "sonner";
+import { LazyToaster } from "@/components/lazy-toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/lib/i18n";
 import { HtmlLangSync } from "@/components/html-lang-sync";
@@ -192,18 +192,21 @@ export default function RootLayout({
             HTML サイズが膨らんで TTFB / FCP に効くため。 */}
         {PRIMARY_GTAG_ID ? (
           <>
-            {/* gtag.js 本体。Google 公式の <script async src=".../gtag/js?id=AW-..."> 形と
-                完全一致させるため、Next/Script ではなく素の <script> タグで書く。これだと
-                Tag Assistant のスパイダー (HTML 静的検査) が確実に検出できる。
-                async + 上に置くことで gtag-stub と並行してすぐにロードが始まる。 */}
-            <script
-              async
+            {/* gtag.js 本体。Next/Script の strategy="lazyOnload" で window.load 後に
+                注入する。これで初期ロードのクリティカルパス (FCP/LCP/TBT) から
+                ~303 KiB の gtag.js とそれが消費する 447 ms の CPU 時間を完全に外す。
+                Tag Assistant の Chrome 拡張は DOM に挿入された時点で検出するので、
+                lazyOnload でも会話 (ads conversion / page_view) は通常通り発火する。 */}
+            <Script
+              id="gtag-js"
+              strategy="lazyOnload"
               src={`https://www.googletagmanager.com/gtag/js?id=${PRIMARY_GTAG_ID}`}
             />
             {/* gtag stub: window.gtag を最速で定義し、後から来る event 呼び出しを
-                dataLayer に積む。Google 推奨スニペットと同じ形にしておくことで Tag
-                Assistant が「正規の Google tag」として認識する。 */}
-            <Script id="gtag-stub" strategy="beforeInteractive">
+                dataLayer に積む。`afterInteractive` に下げることで hydration を
+                ブロックしないが、Tag Assistant は dataLayer/gtag の存在を検出する
+                ので「正規の Google tag」判定は維持される。 */}
+            <Script id="gtag-stub" strategy="afterInteractive">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){ dataLayer.push(arguments); }
@@ -271,7 +274,7 @@ export default function RootLayout({
                   {children}
                 </div>
               </TooltipProvider>
-              <Toaster richColors position="bottom-center" />
+              <LazyToaster />
               {/* 全画面 signup overlay — どのページからでも openSignupOverlay() で呼び出せる。
                   実体は dynamic import で初期 JS バンドルから外し、ストアが open=true に
                   なった瞬間に初めてロードされる (LP の LCP/FCP を悪化させない)。 */}
