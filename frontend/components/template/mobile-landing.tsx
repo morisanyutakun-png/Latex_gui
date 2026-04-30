@@ -22,14 +22,23 @@ import {
   Play, Monitor, Zap, Shield, Printer, FileText, Pencil, RefreshCw,
   Wrench, Crown, BookOpen, Mail, Smartphone, FileSignature,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useI18n } from "@/lib/i18n";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { IdleMount } from "./idle-mount";
 import { UserMenu } from "@/components/auth/user-menu";
-// Mockup は lp-mockups.tsx にある共有実装を直接 import する。
-// props で受け取る形だと、親 (TemplateGallery) の chunk が必ずモバイル bundle に
-// 引きずり込まれて 3554 行の PC LP コードがモバイル初期 JS に乗ってしまうため。
-import { EditorMockup, FigureDrawMockup } from "./lp-mockups";
+// Mockup は lp-mockups.tsx (1300+ 行) を別 chunk に切り出して dynamic import する。
+// 静的 import すると EditorMockup の重い JSX + setInterval 駆動コードがモバイル初期
+// JS に乗ってしまい TBT/LCP が悪化する。IdleMount でビューポート接近を待ってから
+// マウントするので、ヒーロー読み込み中は import すら走らない。
+const EditorMockup = dynamic(
+  () => import("./lp-mockups").then((m) => ({ default: m.EditorMockup })),
+  { ssr: false, loading: () => null },
+);
+const FigureDrawMockup = dynamic(
+  () => import("./lp-mockups").then((m) => ({ default: m.FigureDrawMockup })),
+  { ssr: false, loading: () => null },
+);
 
 interface PrimaryCta {
   label: string;
@@ -136,16 +145,22 @@ export function MobileLanding({
           </div>
         )}
 
-        {/* CTA buttons — full width, ChatGPT-style mobile */}
+        {/* CTA buttons — full width, ChatGPT-style mobile
+            CVR の「無料」ボタンが画面内で連続するとノイズになるため、free フローでは
+            プロンプト入力の "Create" ボタン + 画面下の固定 CTA に役割を集約し、
+            ここではセカンダリの「デモを見る」だけ残してリズムを整える。
+            ログイン済み (resume / paid-new) はプロンプト CTA を出さないので primary を残す。 */}
         <div className={`flex flex-col gap-2.5 transition-all duration-700 delay-150 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
-          <button
-            onClick={primaryCta.onClick}
-            className="group flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-bold text-[14.5px] shadow-lg shadow-foreground/15 active:scale-[0.98] transition"
-          >
-            {primaryCta.variant === "resume" && <FileText className="h-4 w-4" />}
-            <span>{primaryCta.label}</span>
-            <ArrowRight className="h-4 w-4 group-active:translate-x-0.5 transition-transform" />
-          </button>
+          {primaryCta.variant !== "free" && (
+            <button
+              onClick={primaryCta.onClick}
+              className="group flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-bold text-[14.5px] shadow-lg shadow-foreground/15 active:scale-[0.98] transition"
+            >
+              {primaryCta.variant === "resume" && <FileText className="h-4 w-4" />}
+              <span>{primaryCta.label}</span>
+              <ArrowRight className="h-4 w-4 group-active:translate-x-0.5 transition-transform" />
+            </button>
+          )}
           <button
             onClick={scrollToSample}
             className="flex items-center justify-center gap-2 w-full h-12 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[13.5px] active:scale-[0.98] active:bg-foreground/[0.04] transition"
