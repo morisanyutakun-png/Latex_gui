@@ -2501,7 +2501,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-blue-500/[0.08] to-violet-500/[0.08] border border-violet-500/[0.15] mb-4 sm:mb-5 shadow-sm">
               <Sparkles className="h-3 w-3 text-violet-500" />
               <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent text-[11px] font-bold tracking-wide">
-                Eddivom — {isJa ? "AI教材作成IDE" : "AI-powered worksheet IDE"}
+                Eddivom — {isJa ? "数学・理科の AI 教材ジェネレーター" : "AI worksheet generator for math and science"}
               </span>
             </div>
 
@@ -3049,6 +3049,40 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "教材ワークフロー非対応" : "Way more power than you need"}</li>
               </ul>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ━━ 開発者紹介 ━━
+           Pricing 直前で「誰が作っているか」を示して、課金前の信頼感を底上げする。
+           既存の構成 / 計測 / CTA には触らず、独立セクションで挟む形にしている。 */}
+      <section className="relative py-20 border-t border-foreground/[0.04] bg-foreground/[0.012] dark:bg-white/[0.015] overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_50%,hsl(var(--primary)/0.025),transparent_70%)]" />
+        <div className="relative max-w-3xl mx-auto px-6">
+          <p className="text-center text-[11px] font-bold tracking-[0.22em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
+            {isJa ? "開発者について" : "About the developer"}
+          </p>
+          <h2 className="text-center text-[clamp(1.4rem,3.4vw,2rem)] font-bold tracking-tight mb-7 leading-snug">
+            {isJa
+              ? "ソフトウェアだけでなく、STEM教材を実際に作ってきた人間が設計しています。"
+              : "Built by someone who creates STEM materials, not just software."}
+          </h2>
+          <div className="space-y-4 text-[14px] sm:text-[15px] leading-relaxed text-foreground/80">
+            <p>
+              {isJa
+                ? "Eddivom は、名古屋大学工学部の学生で、物理の学習教材も自作している森 祐太によって開発されています。"
+                : "Eddivom is developed by Yuta Mori, an engineering student at Nagoya University and creator of physics learning materials."}
+            </p>
+            <p>
+              {isJa
+                ? "「教材は手早く作れるべき。でもその裏側にある考え方は、ちゃんと残るべき」── そんなシンプルな信念のもとで作られています。"
+                : "The product is built around a simple belief: worksheets should be easy to create, but the reasoning behind them should stay clear."}
+            </p>
+            <p>
+              {isJa
+                ? "だから Eddivom は、汎用 AI チャットで終わらせず、数式・解答・印刷可能な PDF・問題単位で編集できるワークフローに集中しています。"
+                : "That is why Eddivom focuses on equations, answer keys, printable PDFs, and editable problem-by-problem workflows — not just generic AI chat."}
+            </p>
           </div>
         </div>
       </section>

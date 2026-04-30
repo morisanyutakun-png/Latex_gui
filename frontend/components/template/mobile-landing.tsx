@@ -107,7 +107,7 @@ export function MobileLanding({
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-500/[0.08] to-violet-500/[0.08] border border-violet-500/[0.18] mb-3">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent text-[10.5px] font-bold tracking-wide">
-              {isJa ? "AI 教材作成 IDE" : "AI worksheet IDE"}
+              {isJa ? "数学・理科の AI 教材ジェネレーター" : "AI worksheet generator for math and science"}
             </span>
           </div>
           <h1 className="text-[clamp(1.6rem,7vw,2.2rem)] leading-[1.12] font-bold tracking-[-0.025em] mb-3">
@@ -288,6 +288,35 @@ export function MobileLanding({
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ━━ 開発者紹介 — Pricing 直前で「誰が作っているか」を見せて信頼感を底上げ ━━ */}
+      <section className="px-5 py-8 border-t border-foreground/[0.05] bg-foreground/[0.012]">
+        <p className="text-center text-[10.5px] font-bold tracking-[0.22em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-3">
+          {isJa ? "開発者について" : "About the developer"}
+        </p>
+        <h2 className="text-center text-[17px] font-bold tracking-tight mb-4 leading-snug">
+          {isJa
+            ? "ソフトウェアだけでなく、STEM教材を実際に作ってきた人間が設計。"
+            : "Built by someone who creates STEM materials, not just software."}
+        </h2>
+        <div className="space-y-3 text-[12.5px] leading-relaxed text-foreground/80">
+          <p>
+            {isJa
+              ? "Eddivom は、名古屋大学工学部の学生で、物理の学習教材も自作している森 祐太によって開発されています。"
+              : "Eddivom is developed by Yuta Mori, an engineering student at Nagoya University and creator of physics learning materials."}
+          </p>
+          <p>
+            {isJa
+              ? "「教材は手早く作れるべき。でもその裏側にある考え方は、ちゃんと残るべき」── そんな信念のもとで作られています。"
+              : "The product is built around a simple belief: worksheets should be easy to create, but the reasoning behind them should stay clear."}
+          </p>
+          <p>
+            {isJa
+              ? "だから Eddivom は、汎用 AI チャットで終わらせず、数式・解答・印刷可能な PDF・問題単位で編集できるワークフローに集中しています。"
+              : "That is why Eddivom focuses on equations, answer keys, printable PDFs, and editable problem-by-problem workflows — not just generic AI chat."}
+          </p>
         </div>
       </section>
 
