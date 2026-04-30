@@ -20,7 +20,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowRight, Sparkles, Check, ChevronRight, ChevronDown,
   Play, Monitor, Zap, Shield, Printer, FileText, Pencil, RefreshCw,
-  Wrench, Crown, BookOpen, Mail,
+  Wrench, Crown, BookOpen, Mail, Smartphone, FileSignature,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { PLANS, type PlanId } from "@/lib/plans";
@@ -43,6 +43,9 @@ interface Props {
   scrollToPricing: () => void;
   scrollToSample: () => void;
   onPlanSelect: (planId: "free" | "starter" | "pro" | "premium") => void;
+  /** LP プロンプト入力 CTA: variant === "free" のときだけ実装される。
+   *  prompt を sessionStorage に預けてエディタへ遷移する。 */
+  onPromptSubmit?: (prompt: string) => void;
 }
 
 export function MobileLanding({
@@ -50,6 +53,7 @@ export function MobileLanding({
   scrollToPricing,
   scrollToSample,
   onPlanSelect,
+  onPromptSubmit,
 }: Props) {
   const { locale, setLocale } = useI18n();
   const isJa = locale !== "en";
@@ -107,28 +111,30 @@ export function MobileLanding({
             </span>
           </div>
           <h1 className="text-[clamp(1.6rem,7vw,2.2rem)] leading-[1.12] font-bold tracking-[-0.025em] mb-3">
-            {isJa ? (
-              <>
-                教材を、<br />
-                <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
-                  もっと速く。
-                </span>
-              </>
-            ) : (
-              <>
-                Worksheets,<br />
-                <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
-                  faster.
-                </span>
-              </>
-            )}
-          </h1>
-          <p className="text-muted-foreground text-[14px] leading-relaxed mb-5">
             {isJa
-              ? "AIが問題を生成し、類題を量産し、解答付きPDFを自動で作成。"
-              : "AI generates problems, multiplies variants, and auto-creates answer-key PDFs."}
+              ? "AIで印刷できるプリントを作成。"
+              : "Create printable worksheets with AI."}
+          </h1>
+          <p className="text-foreground/80 text-[14px] leading-relaxed mb-2 font-medium">
+            {isJa
+              ? "数学・理科の問題を、解答付きPDFで60秒で生成。"
+              : "Generate math and science quizzes with answer-key PDFs in 60 seconds."}
+          </p>
+          <p className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 text-[12px] font-semibold mb-4">
+            <Check className="h-3.5 w-3.5" />
+            {isJa
+              ? "登録なしで、まず1枚お試し。"
+              : "Try 1 sheet for free — no sign-up required."}
           </p>
         </div>
+
+        {/* プロンプト入力 CTA — 未ログイン free フローでのみ出す */}
+        {primaryCta.variant === "free" && onPromptSubmit && (
+          <div className={`mb-3 transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+            <MobilePromptCta isJa={isJa} onSubmit={onPromptSubmit} />
+            <MobileFlowStrip isJa={isJa} />
+          </div>
+        )}
 
         {/* CTA buttons — full width, ChatGPT-style mobile */}
         <div className={`flex flex-col gap-2.5 transition-all duration-700 delay-150 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
@@ -153,20 +159,22 @@ export function MobileLanding({
         </div>
       </section>
 
-      {/* ━━ PC 推奨バナー — discreet, dismissible-feel ━━ */}
+      {/* ━━ モバイル / PC バナー — 「モバイルでも動く」を先に伝えて離脱防止 ━━ */}
       <section className="px-5 pb-4">
-        <div className="flex items-start gap-2.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-500/10 dark:to-orange-500/5 border border-amber-200/60 dark:border-amber-500/25 p-3">
-          <div className="h-8 w-8 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
-            <Monitor className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+        <div className="flex items-start gap-2.5 rounded-2xl bg-foreground/[0.025] dark:bg-white/[0.03] border border-foreground/[0.08] p-3">
+          <div className="h-8 w-8 rounded-full bg-foreground/[0.05] flex items-center justify-center shrink-0">
+            <Smartphone className="h-4 w-4 text-foreground/70" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12.5px] font-semibold text-amber-900 dark:text-amber-200 mb-0.5">
-              {isJa ? "PC ブラウザでのご利用を強く推奨" : "Best experienced on a desktop browser"}
-            </p>
-            <p className="text-[11.5px] text-amber-700/85 dark:text-amber-300/75 leading-snug">
+            <p className="text-[12.5px] font-semibold text-foreground/85 mb-0.5">
               {isJa
-                ? "モバイルでは AI チャット + PDF プレビューに機能を絞っています。図エディタ・採点・OCRなどフル機能は PC をご利用ください。"
-                : "Mobile is limited to AI chat + PDF preview. Use a desktop browser for the full editor, figure editor, OCR, and grading."}
+                ? "モバイル対応 · 編集は PC が快適"
+                : "Works on mobile · Best editing experience on desktop"}
+            </p>
+            <p className="text-[11.5px] text-muted-foreground leading-snug">
+              {isJa
+                ? "AI チャット + PDF プレビューはモバイルで動きます。図エディタ・採点・OCR などフル編集は PC ブラウザを推奨。"
+                : "AI chat + PDF preview work on mobile. Open on a desktop browser for the full editor, figure editor, OCR, and grading."}
             </p>
           </div>
         </div>
@@ -434,6 +442,30 @@ export function MobileLanding({
         </p>
       </section>
 
+      {/* ━━ 下部固定 CTA ━━
+           CVR 改善: ヒーロー CTA を見逃したユーザがスクロール途中でも戻れるよう、
+           常時表示の固定バーを置く。free フロー (= 未ログイン) のときだけ出して、
+           ログイン済みは邪魔にならないよう非表示。フッター末尾の余白は本バー分を見越して足す。 */}
+      {primaryCta.variant === "free" && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 px-3 pt-2 border-t border-foreground/[0.08] bg-background/95 backdrop-blur-md"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
+        >
+          <button
+            onClick={primaryCta.onClick}
+            className="flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-bold text-[14.5px] shadow-lg shadow-foreground/20 active:scale-[0.98] transition"
+            aria-label={primaryCta.label}
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>{primaryCta.label}</span>
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 固定 CTA で隠れる分、ページ末尾に下駄を履かせる */}
+      {primaryCta.variant === "free" && <div aria-hidden style={{ height: "calc(env(safe-area-inset-bottom, 0px) + 4.5rem)" }} />}
+
       {/* ━━ Footer ━━ */}
       <footer
         className="px-5 py-6 border-t border-foreground/[0.06] bg-foreground/[0.015] text-center"
@@ -488,6 +520,63 @@ const FAQ_EN = [
   { q: "Can it generate variants from one problem?", a: "Yes. Place the cursor on a problem and ask for '5 variants' — the AI rewrites coefficients while preserving structure." },
   { q: "Is it suitable for high-school quizzes and tutor worksheets?", a: "Yes. Templates tuned for Japanese national exam, university second-stage, in-class quizzes, and problem sets." },
 ];
+
+/* ── モバイル: プロンプト入力風 CTA ── */
+function MobilePromptCta({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt: string) => void }) {
+  const [value, setValue] = useState("");
+  const placeholder = isJa
+    ? "二次方程式の問題を10問、解答付きで作って"
+    : "Create 10 quadratic equation problems with answers";
+  const submit = () => onSubmit(value);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-stretch gap-1.5 p-1.5 pl-3 rounded-2xl border-2 border-foreground/[0.08] bg-card/80 shadow-sm focus-within:border-violet-500/40 transition">
+        <Sparkles className="h-3.5 w-3.5 text-violet-500 self-center shrink-0" aria-hidden />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+          placeholder={placeholder}
+          aria-label={isJa ? "AIに作成内容を伝える" : "Tell the AI what to make"}
+          className="flex-1 min-w-0 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/50 text-foreground"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={submit}
+        className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-foreground text-background font-bold text-[14px] shadow-md shadow-foreground/15 active:scale-[0.98] transition"
+      >
+        {isJa ? "無料で1枚作る" : "Create 1 free worksheet"}
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/* ── モバイル: Prompt → Worksheet PDF → Answer Key PDF フロー帯 ── */
+function MobileFlowStrip({ isJa }: { isJa: boolean }) {
+  const items = [
+    { icon: <Sparkles className="h-3 w-3" />, label: isJa ? "プロンプト" : "Prompt", tone: "from-blue-500 to-violet-500" },
+    { icon: <FileText className="h-3 w-3" />, label: isJa ? "問題 PDF" : "Worksheet", tone: "from-emerald-500 to-teal-500" },
+    { icon: <FileSignature className="h-3 w-3" />, label: isJa ? "解答 PDF" : "Answer key", tone: "from-amber-500 to-orange-500" },
+  ];
+  return (
+    <div className="mt-3 flex items-center justify-center gap-1 text-[10.5px] text-muted-foreground">
+      {items.map((it, i) => (
+        <React.Fragment key={it.label}>
+          <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.06]">
+            <span className={`inline-flex items-center justify-center h-4 w-4 rounded-full bg-gradient-to-br ${it.tone} text-white`}>
+              {it.icon}
+            </span>
+            <span className="font-medium text-foreground/80">{it.label}</span>
+          </span>
+          {i < items.length - 1 && <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" aria-hidden />}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
 
 /* ── MockupShrink ──
  * モバイル幅 (<768px) で max-w-3xl/4xl 想定の Mockup を等比縮小して収める。

@@ -118,6 +118,8 @@ import {
   ImagePlus,
   Eye,
   X,
+  Smartphone,
+  FileSignature,
 } from "lucide-react";
 
 // IdleMount は ./idle-mount.tsx に分離 (mobile-landing と共有するため)。
@@ -242,26 +244,14 @@ function useFadeIn(delay = 0) {
   return { ref, isVisible };
 }
 
-/* ── Animated counter ── */
+/* ── Counter (旧 AnimatedCounter) ──
+ * 旧実装は IntersectionObserver の発火を待って count を 0→value にカウントアップしていたが、
+ * 初期描画時 / オフスクリーン時 / 観察失敗時は count=0 のまま表示され、
+ * 「0s / 0 click / 0%」が出て CVR を損ねていた。
+ * カウントアップ演出より「常に正しい数値が見えていること」の方が CVR 上は重要なので、
+ * value を素のまま静的に出すだけのコンポーネントに置き換えた。 */
 function AnimatedCounter({ value, suffix = "" }: { value: number; suffix?: string }) {
-  const [count, setCount] = useState(0);
-  const { ref, isVisible } = useFadeIn(0);
-  useEffect(() => {
-    if (!isVisible) return;
-    let start = 0;
-    const step = value / 40;
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= value) { setCount(value); clearInterval(timer); }
-      else setCount(Math.floor(start));
-    }, 30);
-    return () => clearInterval(timer);
-  }, [isVisible, value]);
-  return (
-    <span ref={ref}>
-      {count.toLocaleString()}{suffix}
-    </span>
-  );
+  return <span>{value.toLocaleString()}{suffix}</span>;
 }
 
 /* ── Step card ──
@@ -322,49 +312,85 @@ function ProWorkflowCard({
   );
 }
 
-/* ── Typing animation for hero subtitle ── */
-function TypingLine({ lines }: { lines: string[] }) {
-  const [lineIdx, setLineIdx] = useState(0);
-  const [charIdx, setCharIdx] = useState(0);
-  const [deleting, setDeleting] = useState(false);
-  // Adjust state during render when `lines` changes (language switch) —
-  // official React pattern that avoids a useEffect-triggered extra render.
-  const [prevLines, setPrevLines] = useState(lines);
-  if (prevLines !== lines) {
-    setPrevLines(lines);
-    setLineIdx(0);
-    setCharIdx(0);
-    setDeleting(false);
-  }
-
-  // lineIdx が範囲外にならないよう安全にクランプ
-  const safeLineIdx = lineIdx < lines.length ? lineIdx : 0;
-  const current = lines[safeLineIdx] ?? "";
-
-  useEffect(() => {
-    const delay = deleting ? 30 : charIdx === current.length ? 2200 : 45;
-    const t = setTimeout(() => {
-      if (!deleting && charIdx < current.length) {
-        setCharIdx((c) => c + 1);
-      } else if (!deleting && charIdx === current.length) {
-        setDeleting(true);
-      } else if (deleting && charIdx > 0) {
-        setCharIdx((c) => c - 1);
-      } else {
-        setDeleting(false);
-        setLineIdx((i) => (i + 1) % lines.length);
-      }
-    }, delay);
-    return () => clearTimeout(t);
-  }, [charIdx, deleting, current, lines, safeLineIdx]);
-
+/* ── Hero: プロンプト入力風 CTA ──
+ * Free 無料お試し動線専用。ユーザの prompt を sessionStorage に預けてエディタへ遷移し、
+ * エディタ側 (app/editor/page.tsx) がマウント時に拾って AI チャットに即流す。
+ * 入力が空でもボタンは押せる (空のままでも /editor?guest=1 に遷移できるよう)。 */
+function HeroPromptCta({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt: string) => void }) {
+  const [value, setValue] = React.useState("");
+  const placeholder = isJa
+    ? "二次方程式の問題を10問、解答付きで作って"
+    : "Create 10 quadratic equation problems with answers";
+  const submit = () => onSubmit(value);
   return (
-    <span className="inline-block">
-      <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent font-semibold">
-        {current.slice(0, charIdx)}
-      </span>
-      <span className="animate-pulse text-violet-400">|</span>
-    </span>
+    <div className="group relative flex items-stretch gap-2 p-2 pl-3 sm:pl-4 rounded-2xl border-2 border-foreground/[0.08] bg-card/80 backdrop-blur-md shadow-xl shadow-foreground/[0.04] focus-within:border-violet-500/40 focus-within:shadow-violet-500/[0.08] transition-all">
+      <Sparkles className="h-4 w-4 text-violet-500 self-center shrink-0" aria-hidden />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+        placeholder={placeholder}
+        aria-label={isJa ? "AIに作成内容を伝える" : "Tell the AI what to make"}
+        className="flex-1 min-w-0 bg-transparent text-[14px] sm:text-[15px] outline-none placeholder:text-muted-foreground/50 text-foreground"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        className="shrink-0 inline-flex items-center gap-1.5 px-4 sm:px-5 h-10 sm:h-11 rounded-xl bg-foreground text-background font-bold text-[13px] sm:text-[14px] hover:opacity-90 active:scale-[0.98] transition"
+      >
+        <span className="hidden sm:inline">
+          {isJa ? "無料で1枚作る" : "Create 1 free worksheet"}
+        </span>
+        <span className="sm:hidden">{isJa ? "作る" : "Create"}</span>
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/* ── Hero: Prompt → Worksheet PDF → Answer Key PDF の出力フロー帯 ──
+ * 何が出てくるかを 3 ステップで一目見せる。CTA の説得補助。 */
+function HeroFlowStrip({ isJa }: { isJa: boolean }) {
+  const items = [
+    {
+      icon: <Sparkles className="h-4 w-4" />,
+      label: isJa ? "プロンプト" : "Prompt",
+      sub: isJa ? "「二次方程式10問」" : "\"10 quadratic problems\"",
+      tone: "from-blue-500 to-violet-500",
+    },
+    {
+      icon: <FileText className="h-4 w-4" />,
+      label: isJa ? "問題 PDF" : "Worksheet PDF",
+      sub: isJa ? "A4 / B5 印刷対応" : "A4 / B5 print-ready",
+      tone: "from-emerald-500 to-teal-500",
+    },
+    {
+      icon: <FileSignature className="h-4 w-4" />,
+      label: isJa ? "解答 PDF" : "Answer-key PDF",
+      sub: isJa ? "自動生成" : "Generated automatically",
+      tone: "from-amber-500 to-orange-500",
+    },
+  ];
+  return (
+    <div className="mt-3 flex items-stretch justify-center gap-1.5 sm:gap-2 text-[11px] sm:text-[12px]">
+      {items.map((it, i) => (
+        <React.Fragment key={it.label}>
+          <div className="flex-1 flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-xl border border-foreground/[0.08] bg-background/50 backdrop-blur-sm min-w-0">
+            <div className={`h-7 w-7 rounded-lg bg-gradient-to-br ${it.tone} flex items-center justify-center text-white shadow-sm shrink-0`}>
+              {it.icon}
+            </div>
+            <div className="min-w-0 text-left">
+              <p className="font-semibold tracking-tight truncate">{it.label}</p>
+              <p className="text-muted-foreground/70 text-[10px] sm:text-[10.5px] truncate">{it.sub}</p>
+            </div>
+          </div>
+          {i < items.length - 1 && (
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 self-center shrink-0" aria-hidden />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
   );
 }
 
@@ -2185,8 +2211,16 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
    * GA4: クリック自体を free_trial_cta_click で必ず計測 (CTR を CTA 位置別に取れるよう
    * placement を渡す)。これがないと「LP に来てもクリックされたか」が見えない。
    */
-  const openTrialOrLimit = (placement: string = "hero") => {
+  const openTrialOrLimit = (placement: string = "hero", initialPrompt?: string) => {
     trackFreeTrialCtaClick({ placement });
+    // LP 上のプロンプト入力 CTA を踏んだ場合は、ユーザの prompt を sessionStorage に
+    // 預けてからエディタに遷移する。エディタ側がマウント時にこの値を拾って
+    // pendingChatMessage に流し込み、AI チャット欄が即その prompt を実行する。
+    if (typeof window !== "undefined") {
+      const trimmed = initialPrompt?.trim();
+      if (trimmed) sessionStorage.setItem("lp_initial_prompt", trimmed);
+      else sessionStorage.removeItem("lp_initial_prompt");
+    }
     // ログイン済み (有効な next-auth セッション cookie あり) なら guest=1 動線を踏まずに、
     // 本人のセッションのまま /editor?new=1 へ。ゲストモード扱いを避ける。
     if (sessionStatus === "authenticated") {
@@ -2371,18 +2405,13 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
     // 「ログインなしお試しモーダル」を直接開く。広告流入ユーザにはここで
     // 触らせることが先 (CVR 検証用)。登録動線は結果画面の登録 CTA に集約する。
     return {
-      label: isJa ? "無料で1枚作ってみる" : "Generate one free",
-      subLabel: isJa ? "ログインなし · 30〜60秒で1枚" : "No signup · 30–60s per sheet",
+      label: isJa ? "無料で1枚作ってみる" : "Create 1 free worksheet",
+      subLabel: isJa ? "登録不要 · 30〜60秒で1枚" : "No sign-up required · 30–60s per sheet",
       onClick: () => openTrialOrLimit("hero"),
       variant: "free" as const,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPlan, saved, isJa, sessionStatus]);
-
-  const heroTypingLines = React.useMemo(() => isJa
-    ? ["教材を、もっと速く。", "ワークシートを、今夜中に。", "問題集を、AIと一緒に。"]
-    : ["Worksheets, faster.", "Answer keys, automatic.", "Variants, one click."],
-    [isJa]);
 
   // ── モバイル分岐 — PC 版 LP には一切手を入れず、こちらは別 LP コンポーネント
   // 通常は app/page.tsx が UA で MobileLandingShell を直接 dynamic import するので
@@ -2396,6 +2425,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           scrollToPricing={scrollToPricing}
           scrollToSample={scrollToSample}
           onPlanSelect={handlePlanSelect}
+          onPromptSubmit={(prompt) => openTrialOrLimit("hero_prompt", prompt)}
         />
         <AnonymousTrialModal
           open={trialOpen}
@@ -2475,17 +2505,36 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               </span>
             </div>
 
-            {/* Headline — 1 画面に納めるためにスケールを抑制 */}
-            <h1 className="text-[clamp(1.6rem,4.2vw,3.4rem)] leading-[1.08] font-bold tracking-[-0.035em] mb-4 sm:mb-5 whitespace-nowrap">
-              <TypingLine lines={heroTypingLines} />
+            {/* Headline — 1 行 1 メッセージで CVR 訴求を「できること → 出力 → リスク無し」に整理 */}
+            <h1 className="text-[clamp(1.6rem,4.2vw,3.4rem)] leading-[1.08] font-bold tracking-[-0.035em] mb-3 sm:mb-4">
+              {isJa
+                ? "AIで印刷できるプリントを作成。"
+                : "Create printable worksheets with AI."}
             </h1>
 
-            <p className="text-muted-foreground text-[14px] sm:text-[16px] leading-relaxed max-w-xl mx-auto mb-7 sm:mb-8 font-light">
+            <p className="text-foreground/80 text-[15px] sm:text-[17px] leading-relaxed max-w-xl mx-auto mb-3 font-medium">
               {isJa
-                ? "AIが問題を生成し、類題を量産し、解答付きPDFを自動で作成。"
-                : "AI generates problems, multiplies variants, and auto-creates answer-key PDFs."}
+                ? "数学・理科の問題を、解答付きPDFで60秒で生成。"
+                : "Generate math and science quizzes with answer-key PDFs in 60 seconds."}
+            </p>
+
+            <p className="inline-flex items-center gap-1.5 text-[12.5px] sm:text-[13.5px] text-emerald-700 dark:text-emerald-300 font-semibold mb-7 sm:mb-8">
+              <Check className="h-3.5 w-3.5" />
+              {isJa
+                ? "登録なしで、まず1枚お試しできます。"
+                : "Try 1 sheet for free — no sign-up required."}
             </p>
           </div>
+
+          {/* ── プロンプト入力 CTA + 出力プレビュー ──
+               未ログインユーザだけに見せる (ログイン済みは「続きから編集 / 白紙で始める」が
+               メイン CTA なので、prompt 入力欄を出すと動線が分散する)。 */}
+          {primaryCta.variant === "free" && (
+            <div className={`relative max-w-2xl mx-auto mb-9 sm:mb-10 transition-all duration-1000 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+              <HeroPromptCta isJa={isJa} onSubmit={(p) => openTrialOrLimit("hero_prompt", p)} />
+              <HeroFlowStrip isJa={isJa} />
+            </div>
+          )}
 
           {/* 30 秒の実機デモ ─ CTA より先に "どう動くのか" を見せる */}
           <div className={`relative transition-all duration-1000 delay-200 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
@@ -2550,10 +2599,14 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               {primaryCta.subLabel}
             </p>
 
-            {/* モバイル限定の PC 推奨ヒント */}
-            <div className="sm:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-500/25 bg-amber-500/[0.06] text-amber-700 dark:text-amber-300 text-[11px] font-medium">
-              <span aria-hidden="true">💻</span>
-              <span>{isJa ? "編集は PC ブラウザを推奨" : "Use a desktop browser to edit"}</span>
+            {/* モバイル限定の PC 推奨ヒント — 「モバイルでも動く」を先に伝えて離脱を防ぐ */}
+            <div className="sm:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-foreground/[0.1] bg-foreground/[0.03] text-foreground/75 text-[11px] font-medium">
+              <Smartphone className="h-3 w-3" aria-hidden />
+              <span>
+                {isJa
+                  ? "モバイル対応 · 編集は PC が快適"
+                  : "Works on mobile · Best editing experience on desktop"}
+              </span>
             </div>
           </div>
         </div>
@@ -2648,14 +2701,18 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { value: 30, suffix: isJa ? "秒" : "s",   label: isJa ? "で問題セットを生成" : "to generate a problem set" },
-              { value: 1,  suffix: isJa ? "クリック" : " click", label: isJa ? "で類題を量産" : "to spin up variants" },
-              { value: 500, suffix: isJa ? "ページ" : "p",    label: isJa ? "まで対応" : "max document size" },
-              { value: 100, suffix: "%",  label: isJa ? "ブラウザだけで完結" : "browser-based, no install" },
+              // 数値はカウントアップ、文字列値は静的に出す。"0s / 0p" のようなプレースホルダ
+              // が一瞬でも見えると CVR を損ねるので、display を持つ stat は AnimatedCounter を経由しない。
+              { display: isJa ? "30〜60秒" : "30–60 sec",     label: isJa ? "で1枚を生成"           : "to generate a worksheet" },
+              { value: 1,  suffix: isJa ? "クリック" : " click", label: isJa ? "で類題を作成"           : "to create variants" },
+              { display: "A4 / B5",                              label: isJa ? "印刷対応 PDF"            : "print-ready PDFs" },
+              { value: 100, suffix: "%",                         label: isJa ? "ブラウザ完結 · インストール不要" : "browser-based, no install" },
             ].map((s) => (
               <div key={s.label} className="group">
                 <p className="text-[clamp(2rem,5vw,3rem)] font-black tracking-tight bg-gradient-to-b from-foreground to-foreground/50 bg-clip-text text-transparent">
-                  <AnimatedCounter value={s.value} suffix={s.suffix} />
+                  {"display" in s
+                    ? <span>{s.display}</span>
+                    : <AnimatedCounter value={s.value} suffix={s.suffix} />}
                 </p>
                 <p className="text-[12px] text-muted-foreground mt-1.5 leading-snug">{s.label}</p>
               </div>

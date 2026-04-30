@@ -125,8 +125,15 @@ export function MobileLandingShell() {
     await redirectToCheckout(planId);
   };
 
-  const openTrialOrLimit = async (placement: string = "hero") => {
+  const openTrialOrLimit = async (placement: string = "hero", initialPrompt?: string) => {
     trackFreeTrialCtaClick({ placement });
+    // LP プロンプト入力 CTA を踏んだ場合は prompt を sessionStorage に預けてからエディタへ。
+    // エディタ側がマウント時にこれを拾って AI チャット欄を即実行する。
+    if (typeof window !== "undefined") {
+      const trimmed = initialPrompt?.trim();
+      if (trimmed) sessionStorage.setItem("lp_initial_prompt", trimmed);
+      else sessionStorage.removeItem("lp_initial_prompt");
+    }
     // ログイン済み (有効な next-auth セッション cookie あり) なら guest=1 動線を踏まずに、
     // 本人のセッションのまま /editor?new=1 に直行する。これで「ログイン保たれているのに
     // 無料で1枚作ってみる」を押したユーザがゲスト扱いになって混乱するのを避ける。
@@ -206,8 +213,8 @@ export function MobileLandingShell() {
 
     // 未ログイン (status="unauthenticated" or "loading"): ゲストお試し CTA
     return {
-      label: isJa ? "無料で1枚作ってみる" : "Generate one free",
-      subLabel: isJa ? "ログインなし · 30〜60秒で1枚" : "No signup · 30–60s per sheet",
+      label: isJa ? "無料で1枚作ってみる" : "Create 1 free worksheet",
+      subLabel: isJa ? "登録不要 · 30〜60秒で1枚" : "No sign-up required · 30–60s per sheet",
       onClick: () => { void openTrialOrLimit("hero"); },
       variant: "free" as const,
     };
@@ -221,6 +228,7 @@ export function MobileLandingShell() {
         scrollToPricing={scrollToPricing}
         scrollToSample={scrollToSample}
         onPlanSelect={handlePlanSelect}
+        onPromptSubmit={(prompt) => { void openTrialOrLimit("hero_prompt", prompt); }}
       />
       <AnonymousTrialModal
         open={trialOpen}

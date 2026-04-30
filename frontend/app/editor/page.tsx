@@ -34,6 +34,23 @@ import type { PlanId } from "@/lib/plans";
 
 type SidebarTab = "ai";
 
+/**
+ * LP の「無料で1枚作る」プロンプト入力 CTA から来たときに、sessionStorage に
+ * 預けられた prompt を ui-store の pendingChatMessage にコピーして消費する。
+ * AI チャット側が pendingChatMessage を購読していて、見つけたら自動で送信する仕組み。
+ * 何度も流し込まないよう、必ず読み出し直後に sessionStorage をクリアする。
+ */
+function consumeLpInitialPrompt() {
+  if (typeof window === "undefined") return;
+  let prompt: string | null = null;
+  try { prompt = sessionStorage.getItem("lp_initial_prompt"); } catch { return; }
+  if (!prompt) return;
+  try { sessionStorage.removeItem("lp_initial_prompt"); } catch { /* ignore */ }
+  const trimmed = prompt.trim();
+  if (!trimmed) return;
+  useUIStore.getState().setPendingChatMessage(trimmed);
+}
+
 export default function EditorPage() {
   useKeyboardShortcuts();
   useAutosave();
@@ -152,6 +169,9 @@ export default function EditorPage() {
         createDefaultDocument("blank", getTemplateLatex("blank")),
       );
     }
+    // LP プロンプト入力 CTA から渡された prompt を AI チャットに流し込む。
+    // 入力が空でも CTA を押せるので、値があるときだけ実行する。
+    consumeLpInitialPrompt();
     // GA4: ゲストエディタに到着した瞬間を計測。CTA クリック数との比で
     // ナビゲーション失敗 (回線断 / blocker / 履歴戻り) の歩留まりを把握する。
     trackGuestEditorOpen();
@@ -171,6 +191,8 @@ export default function EditorPage() {
     if (params.get("new") === "1" && !doc) {
       setDocument(createDefaultDocument("blank", getTemplateLatex("blank")));
       window.history.replaceState({}, "", "/editor");
+      // ログイン済みで LP プロンプト入力 CTA から来た場合の prompt を流し込む。
+      consumeLpInitialPrompt();
     }
   }, [doc, setDocument]);
 
