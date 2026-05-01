@@ -52,6 +52,10 @@ export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const compiledOnceRef = useRef(false);
   const seqRef = useRef(0);
+  // unmount で最新 blob URL を revoke するための ref (旧実装は空 deps の closure
+  // で初回 null を捕まえてしまい revoke できていなかった)。
+  const previewUrlRef = useRef<string | null>(null);
+  previewUrlRef.current = previewUrl;
 
   const runCompile = useCallback(async () => {
     if (!latex.trim()) return;
@@ -68,6 +72,29 @@ export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
       });
     } catch (e) {
       if (seq !== seqRef.current) return;
+      // ── ゲスト (1 枚無料お試し) 自己修復 ──
+      // チャット内の thumbnail でも「プレビュー失敗」のエラー UI を見せないため、
+      // MobilePdfPreview と同じく ULTRA_MINIMAL に差し替えて再コンパイル。
+      // 「無料 1 枚体験ではエラーを絶対見せない」を全プレビューで担保する。
+      if (isGuestRef.current) {
+        try {
+          const fallback = String.raw`\documentclass{article}
+\begin{document}
+Worksheet ready --- ask the AI to refine the content.
+\end{document}
+`;
+          const blob = await compileRawLatex(fallback, title, { anonymous: true });
+          if (seq !== seqRef.current) return;
+          const url = URL.createObjectURL(blob);
+          setPreviewUrl((old) => {
+            if (old) URL.revokeObjectURL(old);
+            return url;
+          });
+          return; // 成功 — エラー表示は出さない
+        } catch {
+          /* fallback も NG なら通常エラー UI */
+        }
+      }
       if (e instanceof CompileError) {
         setError(formatCompileError(e, t));
       } else if (e instanceof Error) {
@@ -98,12 +125,11 @@ export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
     return () => obs.disconnect();
   }, [runCompile]);
 
-  // unmount で blob URL を revoke
+  // unmount で最新の blob URL を revoke
   useEffect(() => {
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // フルスクリーン表示中は body スクロールを止める

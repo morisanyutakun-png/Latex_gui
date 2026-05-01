@@ -43,6 +43,11 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
 
   const seqRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 旧実装は `useEffect(() => () => revoke(previewUrl), [])` で blob URL を revoke
+  // していたが、空 deps の closure は初回 render の null を掴むため、unmount 時に
+  // 実際の blob URL が revoke されず memory leak していた。ref で常に最新を追って unmount 時に revoke する。
+  const previewUrlRef = useRef<string | null>(null);
+  previewUrlRef.current = previewUrl;
   const titleRef = useRef("");
   titleRef.current = document?.metadata.title || "";
 
@@ -115,12 +120,11 @@ Worksheet ready --- ask the AI to refine the content.
     };
   }, [document?.latex, runCompile]);
 
-  // unmount で blob URL を revoke
+  // unmount で最新の blob URL を revoke (タブ切替で頻繁に mount/unmount するので地味に効く)
   useEffect(() => {
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRetry = () => {
