@@ -66,6 +66,29 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
       });
     } catch (e) {
       if (seq !== seqRef.current) return;
+      // ── ゲスト (1 枚無料お試し) で compile が失敗した場合の自己修復 ──
+      // 「無料の 1 枚体験で必ず PDF を見せる」ため、文書 latex がコンパイル不能な状態でも
+      // 確実に通る最小テンプレ (LuaLaTeX が起動できれば必ず通る ASCII 文書) で
+      // プレビューだけは確保する。エラーカードは出さず、PDF を表示し続ける。
+      if (isGuestRef.current) {
+        try {
+          const fallback = String.raw`\documentclass{article}
+\begin{document}
+Worksheet ready --- ask the AI to refine the content.
+\end{document}
+`;
+          const blob = await compileRawLatex(fallback, titleRef.current, { anonymous: true });
+          if (seq !== seqRef.current) return;
+          const url = URL.createObjectURL(blob);
+          setPreviewUrl((old) => {
+            if (old) URL.revokeObjectURL(old);
+            return url;
+          });
+          return; // 成功 — エラー表示は出さない
+        } catch {
+          /* fallback もダメな場合は通常のエラー UI に進む (バックエンドダウン等) */
+        }
+      }
       if (e instanceof CompileError) {
         setCompileError(formatCompileError(e, t));
       } else if (e instanceof Error) {
