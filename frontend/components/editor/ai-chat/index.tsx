@@ -323,24 +323,25 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
       const history = compressHistory(chatMessages, enhanced);
       let result = await sendAIMessage(history, doc, locale, agentMode, { anonymous: true });
 
-      // フロントでもコンパイル成功を担保するため、anonymous compile-raw に投げて
-      // 422 が返ったら最大 2 回まで AI に修正依頼を送る。それでも通らなければ
-      // 「絶対にコンパイルする最小テンプレ」にユーザのプロンプトを差し込んで返す。
-      // バックエンドの compile_check は agent 内部の自己検証で autofix までするが、
-      // 公開 compile-raw は autofix を通さないので食い違うケースがある。ここで実物の
-      // 公開エンドポイントに通して「ユーザがプレビューで見るのと同じ条件」を保証する。
-      // 上限 5/min の anon-ai-chat-burst にぶつからないよう retry 数は 2 までに抑える。
-      const MAX_FIX_ATTEMPTS = 2;
+      // 「PDF プレビューが完了するまでがタスク」を AI のチャット側でも担保する。
+      // 公開 compile-raw でコンパイル成功を確認するまで、最大 4 回まで AI に修正依頼を
+      // 送り続ける (= 1 初回 + 4 fix = 5 コール / trial)。バックエンド anon-ai-chat-burst
+      // は 7/min まで上げてあるので余裕を持ってループできる。
+      // それでも全部失敗した場合のみ「絶対に通る最小テンプレ」に置換して、ユーザが
+      // プレビューでエラーを見ない状態を保証する。
+      const MAX_FIX_ATTEMPTS = 4;
       if (result.latex) {
         let lastError: string | null = null;
         for (let attempt = 0; attempt < MAX_FIX_ATTEMPTS; attempt++) {
           const err = await guestCompileError(result.latex || "", doc.metadata.title || "document");
           if (!err) { lastError = null; break; }
           lastError = err;
+          // 1 行目のエラー要約を取り出してユーザにも見せる (透明性 + 進捗体感)。
+          const errSummary = err.split("\n").map((l) => l.trim()).filter(Boolean)[0] || err;
           updateChatMessage(assistantMsgId, {
             content: locale === "en"
-              ? `Verifying compilation (attempt ${attempt + 2}/${MAX_FIX_ATTEMPTS + 1})…`
-              : `コンパイルを検証中… (${attempt + 2}/${MAX_FIX_ATTEMPTS + 1} 回目)`,
+              ? `Verifying preview… attempt ${attempt + 2}/${MAX_FIX_ATTEMPTS + 1}\n> ${errSummary.slice(0, 160)}`
+              : `プレビュー検証中… ${attempt + 2}/${MAX_FIX_ATTEMPTS + 1} 回目\n> ${errSummary.slice(0, 160)}`,
             isStreaming: true,
             requestId,
             timestamp: Date.now(),
@@ -350,14 +351,16 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
             content:
               `${enhanced.content}\n\n` +
               (locale === "en"
-                ? `Previous LaTeX failed to compile via LuaLaTeX. Error log:\n\`\`\`\n${err.slice(0, 1500)}\n\`\`\`\n` +
-                  `Return a CORRECTED, fully self-contained LaTeX document that compiles cleanly. ` +
-                  `Avoid uncommon packages — stick to amsmath / amssymb / enumitem / graphicx / xcolor / hyperref. ` +
-                  `Run compile_check before finishing.`
-                : `直前の LaTeX は LuaLaTeX でコンパイルに失敗しました。エラーログ:\n\`\`\`\n${err.slice(0, 1500)}\n\`\`\`\n` +
-                  `**完全な** LaTeX を、コンパイルが通る形で返してください。` +
-                  `珍しいパッケージは避け、amsmath / amssymb / enumitem / graphicx / xcolor / hyperref のみで構成してください。` +
-                  `最後に compile_check を必ず通してください。`),
+                ? `Attempt ${attempt + 1} failed to compile via LuaLaTeX. Full error log:\n\`\`\`\n${err.slice(0, 2000)}\n\`\`\`\n` +
+                  `Return a CORRECTED, fully self-contained LaTeX document that compiles cleanly through LuaLaTeX. ` +
+                  `Stick to standard packages only: amsmath / amssymb / amsthm / mathtools / enumitem / graphicx / xcolor / hyperref / booktabs. ` +
+                  `Avoid: tcolorbox, pgfplots, exotic fonts, custom commands referencing missing packages. ` +
+                  `Run compile_check before finishing — this is non-negotiable.`
+                : `${attempt + 1} 回目の LaTeX は LuaLaTeX でコンパイルに失敗しました。エラーログ全文:\n\`\`\`\n${err.slice(0, 2000)}\n\`\`\`\n` +
+                  `**完全な** LaTeX を、必ずコンパイルが通る形で返してください。` +
+                  `使用可能なパッケージは標準のみ: amsmath / amssymb / amsthm / mathtools / enumitem / graphicx / xcolor / hyperref / booktabs。` +
+                  `避けるべきもの: tcolorbox, pgfplots, 特殊フォント, 未定義パッケージへの依存コマンド。` +
+                  `最後に compile_check を必ず通してください — これは絶対条件です。`),
           });
           try {
             const fixed = await sendAIMessage(
@@ -376,10 +379,12 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
             // 通信失敗 / rate limit。これ以上の AI コールはしない。
             break;
           }
+          // burst limit (7/min) を撃ち抜かないよう attempt 間に短いディレイ。
+          await new Promise((r) => setTimeout(r, 500));
         }
         // 全リトライ尽きてもまだコンパイル NG なら、確実に通る最小テンプレに置換する。
         // 「無料 1 枚」の体験を守るため、ユーザは少なくとも自分のプロンプトをタイトルに
-        // 含む有効な PDF を必ず受け取れるようにする。
+        // 含む有効な PDF を必ず受け取れるようにする (= プレビューでエラーは絶対見せない)。
         if (lastError) {
           const finalErr = await guestCompileError(result.latex || "", doc.metadata.title || "document");
           if (finalErr) {
@@ -687,6 +692,63 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
         // Final apply (in case "done" carried latex but no live "latex" event)
         if (finalLatex && docNow.latex !== finalLatex) {
           applyLatex(finalLatex);
+        }
+
+        // ── 認証ユーザでも「PDF プレビューが完了するまで」を AI のタスクに含める。
+        //    streaming agent の compile_check は autofix を経由するが、公開 compile-raw は
+        //    autofix を通さないので食い違うことがある。ここで実物の compile-raw に投げて
+        //    422 が返ったら sync の sendAIMessage で最大 2 回まで修正リトライする。
+        //    ※ 認証フローは plan quota を消費するので retry 数は guest より控えめに。
+        const AUTH_MAX_FIX = 2;
+        for (let attempt = 0; attempt < AUTH_MAX_FIX && finalLatex; attempt++) {
+          let err: string | null = null;
+          try {
+            await compileRawLatex(finalLatex, docNow.metadata.title || "document");
+            break; // 成功
+          } catch (ce) {
+            if (ce instanceof CompileError) {
+              const parts = [ce.code ? `code=${ce.code}` : null, ce.message].filter(Boolean) as string[];
+              err = parts.join(" — ");
+            } else if (ce instanceof Error) {
+              err = ce.message;
+            } else {
+              err = "compile failed";
+            }
+          }
+          if (!err) break;
+          const errSummary = err.split("\n").map((l) => l.trim()).filter(Boolean)[0] || err;
+          updateChatMessage(assistantMsgId, {
+            content: locale === "en"
+              ? `Verifying preview… attempt ${attempt + 2}/${AUTH_MAX_FIX + 1}\n> ${errSummary.slice(0, 160)}`
+              : `プレビュー検証中… ${attempt + 2}/${AUTH_MAX_FIX + 1} 回目\n> ${errSummary.slice(0, 160)}`,
+            isStreaming: true,
+          });
+          const fixHistory = compressHistory(chatMessages, {
+            ...enhancedUserMsg,
+            content: `${enhancedUserMsg.content}\n\n` + (locale === "en"
+              ? `Previous LaTeX failed to compile via LuaLaTeX:\n\`\`\`\n${err.slice(0, 1500)}\n\`\`\`\n` +
+                `Return a CORRECTED, fully self-contained LaTeX document that compiles cleanly. Run compile_check before finishing.`
+              : `直前の LaTeX は LuaLaTeX でコンパイルに失敗しました:\n\`\`\`\n${err.slice(0, 1500)}\n\`\`\`\n` +
+                `**完全な** LaTeX をコンパイルが通る形で返してください。最後に compile_check を必ず通してください。`),
+          });
+          try {
+            const fixed = await sendAIMessage(
+              fixHistory,
+              { ...docNow, latex: finalLatex },
+              locale,
+              agentMode,
+            );
+            if (fixed.latex) {
+              finalLatex = fixed.latex;
+              applyLatex(finalLatex);
+              if (fixed.message) finalMessage = fixed.message;
+            } else {
+              break;
+            }
+          } catch {
+            break; // セッション切れ等。既存 latex でユーザに見せる。
+          }
+          await new Promise((r) => setTimeout(r, 400));
         }
 
         const mergedSteps: ThinkingStep[] = accumulatedSteps.length > 0
