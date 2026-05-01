@@ -376,21 +376,21 @@ Worksheet ready --- ask the AI to refine the content.
             </div>
           </div>
         )}
+      </div>
 
-        {/* ── ゲスト用 CV カード ──
-             プレビューが出てユーザが「実物を見た」直後の最高熱量タイミングで:
-              1) 大きな「無料登録」CTA — ここで体験を打ち切らせない
-              2) 控えめな有料アップセル — 「もっと使う人」へ Pro / Premium を提示
-             プレビュー本体の上に absolute sticky で重ねる。PDF を完全に隠さないよう
-             下端に bottom-sheet 風で配置し、内側スクロール可能。 */}
-        {isGuest && previewUrl && !compiling && (
+      {/* ── ゲスト用 CV カード ──
+           プレビュー本体の **下** に flex 兄弟として配置し、
+           PDF 領域は CTA 高さぶん縮んで全ページがちゃんと見える + スクロール可能。
+           絶対配置 (absolute) で PDF に重ねていた旧実装は最終ページが隠れてしまっていた。 */}
+      {isGuest && previewUrl && !compiling && (
+        <div className="shrink-0 border-t border-foreground/[0.06] bg-background/95">
           <GuestPreviewCta
             isJa={isJa}
             onSignup={() => handleGuestSignup("preview_cta_signup")}
             onUpgrade={() => handleGuestUpgrade("preview_cta_upgrade")}
           />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -411,75 +411,78 @@ function GuestPreviewCta({
   onSignup: () => void;
   onUpgrade: () => void;
 }) {
-  const benefits = isJa
-    ? ["保存・PDFダウンロード", "AI で類題量産・解答付き", "図エディタ・採点モード"]
-    : ["Save & download PDF", "AI variants + answer keys", "Figure editor + grading"];
+  // 「展開」状態でベネフィット 3 行 + 有料アップセルを出す。デフォルトは折り畳み。
+  // PDF を見ながら登録判断したいユーザのため、初期は最小占有 (主 CTA + ▼) に倒す。
+  const [expanded, setExpanded] = React.useState(false);
   return (
     <div
-      className="absolute inset-x-0 bottom-0 z-20 px-3 pb-3 pointer-events-none"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
+      className="px-3 pt-2"
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
     >
-      <div className="pointer-events-auto rounded-2xl border border-violet-400/30 bg-background/95 dark:bg-neutral-900/95 backdrop-blur-md shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] overflow-hidden">
-        {/* ヘッダ: 達成感 + ロック理由 */}
-        <div className="flex items-start gap-2.5 px-3.5 pt-3 pb-2 bg-gradient-to-r from-violet-500/[0.08] via-fuchsia-500/[0.06] to-blue-500/[0.08]">
-          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-md shadow-violet-500/30">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-bold tracking-tight">
-              {isJa ? "教材ができました 🎉" : "Your worksheet is ready 🎉"}
-            </div>
-            <div className="text-[11.5px] text-muted-foreground leading-snug">
-              {isJa
-                ? "保存・ダウンロード・続きの編集には 30 秒の無料登録が必要です。"
-                : "Save, download, and keep editing — free signup takes 30s."}
-            </div>
-          </div>
-        </div>
-
-        {/* ベネフィット 3 行 */}
-        <ul className="px-3.5 pt-2 pb-2 space-y-1">
-          {benefits.map((b) => (
-            <li key={b} className="flex items-center gap-1.5 text-[11.5px] text-foreground/85">
-              <Check className="h-3 w-3 text-emerald-500 shrink-0" />
-              <span>{b}</span>
-            </li>
-          ))}
-        </ul>
-
-        {/* 主 CTA: 無料登録 */}
-        <div className="px-3 pb-2">
-          <button
-            type="button"
-            onClick={onSignup}
-            className="flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-bold text-[14px] shadow-lg shadow-foreground/20 active:scale-[0.98] transition"
-          >
-            <Lock className="h-3.5 w-3.5" />
-            <span>{isJa ? "無料登録して保存" : "Sign up free to save"}</span>
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* 副 CTA: 有料アップセル */}
+      {/* コンパクト 1 行: 「無料登録」CTA + アップセル展開トグル */}
+      <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={onUpgrade}
-          className="w-full px-3.5 py-2.5 flex items-center gap-2 text-left border-t border-foreground/[0.06] active:bg-foreground/[0.03] transition"
+          onClick={onSignup}
+          className="flex-1 flex items-center justify-center gap-2 h-11 rounded-full bg-foreground text-background font-bold text-[13.5px] shadow-md shadow-foreground/20 active:scale-[0.98] transition"
         >
-          <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="text-[12px] font-semibold tracking-tight">
-              {isJa ? "Pro / Premium で本格運用" : "Go Pro / Premium for daily use"}
-            </div>
-            <div className="text-[10.5px] text-muted-foreground leading-snug">
-              {isJa
-                ? "回数無制限・類題量産・透かし無し PDF・採点モード"
-                : "Unlimited AI · variants · watermark-free PDF · grading"}
-            </div>
-          </div>
-          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Lock className="h-3.5 w-3.5" />
+          <span>{isJa ? "無料登録して保存・編集を続ける" : "Sign up free to save & continue"}</span>
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={isJa ? "プラン詳細" : "Plan details"}
+          className="h-11 w-11 shrink-0 rounded-full border border-amber-400/40 bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center active:scale-95 transition"
+        >
+          <Crown className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         </button>
       </div>
+
+      {/* 展開時: ベネフィット + 有料プラン誘導 */}
+      {expanded && (
+        <div className="mt-2 rounded-xl border border-violet-400/25 bg-violet-500/[0.05] dark:bg-violet-500/[0.08] overflow-hidden">
+          <div className="flex items-start gap-2 px-3 py-2.5">
+            <Sparkles className="h-3.5 w-3.5 text-violet-500 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[12px] font-semibold tracking-tight">
+                {isJa ? "登録すると解放されること" : "What you unlock by signing up"}
+              </div>
+              <ul className="mt-1 space-y-0.5">
+                {(isJa
+                  ? ["保存・PDFダウンロード", "AI で類題量産・解答付き", "図エディタ・採点モード"]
+                  : ["Save & download PDF", "AI variants + answer keys", "Figure editor + grading"]
+                ).map((b) => (
+                  <li key={b} className="flex items-center gap-1.5 text-[11px] text-foreground/85">
+                    <Check className="h-3 w-3 text-emerald-500 shrink-0" />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onUpgrade}
+            className="w-full px-3 py-2 flex items-center gap-2 text-left border-t border-violet-400/20 active:bg-foreground/[0.03] transition"
+          >
+            <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11.5px] font-semibold tracking-tight">
+                {isJa ? "Pro / Premium で本格運用" : "Go Pro / Premium for daily use"}
+              </div>
+              <div className="text-[10px] text-muted-foreground leading-snug">
+                {isJa
+                  ? "回数無制限・透かし無し PDF・採点モード"
+                  : "Unlimited AI · watermark-free PDF · grading"}
+              </div>
+            </div>
+            <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
