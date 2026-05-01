@@ -468,11 +468,11 @@ async def anonymous_ai_chat(
     - エージェントの内部ターン上限はそのまま使うが、フロント側で「1 回だけ」
       制御するので実質単発
     """
-    # フロントは「お試し 1 枚」あたり最大 2 コール (本生成 + コンパイル失敗時の修正リトライ) を
-    # 投げるので、burst は 3 だと 1 枚の trial を完走できないことがある。5/min まで広げる。
-    # day は abuse 抑止のため据え置き 5/24h (= 2-3 回の trial 試行に相当)。
-    enforce_rate_limit(http_request, "anon-ai-chat-burst", limit=5, window_seconds=60)
-    enforce_rate_limit(http_request, "anon-ai-chat-day", limit=5, window_seconds=86400)
+    # フロントは「お試し 1 枚」あたり最大 3 コール (本生成 + コンパイル失敗時の修正 2 回) を
+    # 投げる。burst を 7/min にして「コンパイル成功させる」検証ループに余裕を持たせる。
+    # day は abuse 抑止のため少し緩めの 8/24h (= 2 回程度の trial 試行に相当)。
+    enforce_rate_limit(http_request, "anon-ai-chat-burst", limit=7, window_seconds=60)
+    enforce_rate_limit(http_request, "anon-ai-chat-day", limit=8, window_seconds=86400)
 
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(status_code=503, detail={

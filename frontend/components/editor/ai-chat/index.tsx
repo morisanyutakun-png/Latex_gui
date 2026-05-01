@@ -31,6 +31,78 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ChevronDown, Eye } from "lucide-react";
 
 /**
+ * 安全網テンプレ: AI が何度修正しても compile-raw を通せなかった場合に、
+ * ユーザが少なくとも 1 枚の有効な PDF を受け取れるよう、確実に通る最小テンプレを返す。
+ * BLANK 同等の preamble + ユーザのプロンプトをタイトル/本文として埋め込む。
+ */
+function buildSafeFallbackLatex(userPrompt: string, locale: "ja" | "en"): string {
+  // LaTeX 内に裸で埋めると壊れるエスケープ対象記号だけ最小限にエスケープ。
+  const esc = (s: string) =>
+    s
+      .replace(/\\/g, "\\textbackslash{}")
+      .replace(/[#$%&_{}]/g, (m) => `\\${m}`)
+      .replace(/\^/g, "\\^{}")
+      .replace(/~/g, "\\~{}");
+  const safe = esc(userPrompt.slice(0, 600));
+  const heading = locale === "en" ? "Worksheet Draft" : "教材ドラフト";
+  const note = locale === "en"
+    ? "We weren't able to fully compile the AI's first output. Here's a starting draft you can refine in the editor or by asking the AI again."
+    : "AI の初回出力をそのままコンパイルできなかったため、ベースとなるドラフトを表示しています。紙面で編集するか、AI に再依頼してください。";
+  if (locale === "en") {
+    return String.raw`\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{margin=22mm}
+\usepackage{amsmath, amssymb}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{hidelinks}
+\begin{document}
+\begin{center}
+  {\Large\bfseries ${esc(heading)}}\\[2mm]
+  {\small\itshape ${esc(note)}}
+\end{center}
+\vspace{4mm}
+\noindent\textbf{Your request:}\\
+${safe}
+\vspace{6mm}
+\noindent\textbf{Problem 1.}\quad (Edit this on the page or ask the AI for variants.)
+\vspace{20mm}
+\noindent\textbf{Problem 2.}\quad
+\vspace{20mm}
+\noindent\textbf{Problem 3.}\quad
+\end{document}
+`;
+  }
+  return String.raw`\documentclass[11pt,a4paper]{article}
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{geometry}
+\geometry{margin=22mm}
+\usepackage{amsmath, amssymb}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{hidelinks}
+\begin{document}
+\begin{center}
+  {\Large\bfseries ${esc(heading)}}\\[2mm]
+  {\small\itshape ${esc(note)}}
+\end{center}
+\vspace{4mm}
+\noindent\textbf{ご依頼内容:}\\
+${safe}
+\vspace{6mm}
+\noindent\textbf{問題 1.}\quad （紙面で編集するか、AI に追加で依頼できます。）
+\vspace{20mm}
+\noindent\textbf{問題 2.}\quad
+\vspace{20mm}
+\noindent\textbf{問題 3.}\quad
+\end{document}
+`;
+}
+
+/**
  * ゲストお試しフロー専用: AI が返した LaTeX をサーバ側 LuaLaTeX で実コンパイル試行する。
  * - 成功 → null
  * - 失敗 → エラーメッセージ (AI に渡して再生成させる材料)
@@ -252,17 +324,23 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
       let result = await sendAIMessage(history, doc, locale, agentMode, { anonymous: true });
 
       // フロントでもコンパイル成功を担保するため、anonymous compile-raw に投げて
-      // 422 が返ったら 1 回だけ AI に修正依頼。anon-ai-chat-burst は 3/min なので
-      // リトライ 1 回までに留める (ユーザの自発的リトライ余地を残す)。
-      // バックエンドの compile_check は agent 内部の自己検証で、ここはサーバ側 LuaLaTeX が
-      // 実際に PDF に通るかの最終確認 — 両方やって初めて「成功する 1 枚」を保証できる。
+      // 422 が返ったら最大 2 回まで AI に修正依頼を送る。それでも通らなければ
+      // 「絶対にコンパイルする最小テンプレ」にユーザのプロンプトを差し込んで返す。
+      // バックエンドの compile_check は agent 内部の自己検証で autofix までするが、
+      // 公開 compile-raw は autofix を通さないので食い違うケースがある。ここで実物の
+      // 公開エンドポイントに通して「ユーザがプレビューで見るのと同じ条件」を保証する。
+      // 上限 5/min の anon-ai-chat-burst にぶつからないよう retry 数は 2 までに抑える。
+      const MAX_FIX_ATTEMPTS = 2;
       if (result.latex) {
-        const firstError = await guestCompileError(result.latex, doc.metadata.title || "document");
-        if (firstError) {
+        let lastError: string | null = null;
+        for (let attempt = 0; attempt < MAX_FIX_ATTEMPTS; attempt++) {
+          const err = await guestCompileError(result.latex || "", doc.metadata.title || "document");
+          if (!err) { lastError = null; break; }
+          lastError = err;
           updateChatMessage(assistantMsgId, {
             content: locale === "en"
-              ? "Verifying compilation… fixing a small error."
-              : "コンパイルを検証中… 小さなエラーを修正しています。",
+              ? `Verifying compilation (attempt ${attempt + 2}/${MAX_FIX_ATTEMPTS + 1})…`
+              : `コンパイルを検証中… (${attempt + 2}/${MAX_FIX_ATTEMPTS + 1} 回目)`,
             isStreaming: true,
             requestId,
             timestamp: Date.now(),
@@ -272,25 +350,46 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
             content:
               `${enhanced.content}\n\n` +
               (locale === "en"
-                ? `Previous attempt failed to compile. LuaLaTeX error:\n\`\`\`\n${firstError.slice(0, 1200)}\n\`\`\`\n` +
-                  `Return a corrected full LaTeX that compiles cleanly. Use compile_check before finishing.`
-                : `前回の出力はコンパイルに失敗しました。LuaLaTeX エラー:\n\`\`\`\n${firstError.slice(0, 1200)}\n\`\`\`\n` +
-                  `修正済みの完全な LaTeX を返してください。compile_check で最終検証してから完了してください。`),
+                ? `Previous LaTeX failed to compile via LuaLaTeX. Error log:\n\`\`\`\n${err.slice(0, 1500)}\n\`\`\`\n` +
+                  `Return a CORRECTED, fully self-contained LaTeX document that compiles cleanly. ` +
+                  `Avoid uncommon packages — stick to amsmath / amssymb / enumitem / graphicx / xcolor / hyperref. ` +
+                  `Run compile_check before finishing.`
+                : `直前の LaTeX は LuaLaTeX でコンパイルに失敗しました。エラーログ:\n\`\`\`\n${err.slice(0, 1500)}\n\`\`\`\n` +
+                  `**完全な** LaTeX を、コンパイルが通る形で返してください。` +
+                  `珍しいパッケージは避け、amsmath / amssymb / enumitem / graphicx / xcolor / hyperref のみで構成してください。` +
+                  `最後に compile_check を必ず通してください。`),
           });
           try {
             const fixed = await sendAIMessage(
               fixHistory,
-              { ...doc, latex: result.latex },
+              { ...doc, latex: result.latex || "" },
               locale,
               agentMode,
               { anonymous: true },
             );
             if (fixed.latex) {
               result = { ...result, latex: fixed.latex, message: fixed.message || result.message };
+            } else {
+              break; // AI が latex を返さなくなったらループ終了
             }
           } catch {
-            // 修正リトライが失敗してもオリジナルの latex を出す。プレビュー側でも
-            // エラーカードが出るので、ユーザは「AI に修正を依頼」ボタンから手動で進めるた。
+            // 通信失敗 / rate limit。これ以上の AI コールはしない。
+            break;
+          }
+        }
+        // 全リトライ尽きてもまだコンパイル NG なら、確実に通る最小テンプレに置換する。
+        // 「無料 1 枚」の体験を守るため、ユーザは少なくとも自分のプロンプトをタイトルに
+        // 含む有効な PDF を必ず受け取れるようにする。
+        if (lastError) {
+          const finalErr = await guestCompileError(result.latex || "", doc.metadata.title || "document");
+          if (finalErr) {
+            result = {
+              ...result,
+              latex: buildSafeFallbackLatex(text, locale === "en" ? "en" : "ja"),
+              message: locale === "en"
+                ? "Generated a simple version of your worksheet. You can edit it on the page or ask the AI to refine."
+                : "シンプル版の教材を生成しました。紙面で編集するか、AI に追加で依頼できます。",
+            };
           }
         }
       }
