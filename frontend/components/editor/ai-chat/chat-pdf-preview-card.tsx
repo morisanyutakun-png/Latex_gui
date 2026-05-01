@@ -16,6 +16,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
+import { buildClientFallbackPdf } from "@/lib/client-fallback-pdf";
 import { useI18n } from "@/lib/i18n";
 import { useUIStore } from "@/store/ui-store";
 import { FileText, Loader2, AlertTriangle, Maximize2, X, RefreshCw } from "lucide-react";
@@ -88,16 +89,24 @@ Worksheet ready --- ask the AI to refine the content.
           if (seq !== seqRef.current) return;
           const url = URL.createObjectURL(blob);
           setPreviewUrl((old) => {
-            if (old) URL.revokeObjectURL(old);
+            if (old && old !== useUIStore.getState().guestPreviewBlobUrl) URL.revokeObjectURL(old);
             return url;
           });
-          return; // 成功
+          return;
         } catch {
-          /* バックエンドが完全に落ちている等 — それでもゲストにエラー UI は出さない */
+          /* サーバ完全停止 — クライアント生成 PDF にフォールバック */
         }
-        // ★ ゲストはここに到達してもエラーカードを出さない (CVR 死守) ★
-        // setError は呼ばず、previewUrl も null のまま放置 → 描画は「empty / 準備中」状態に。
-        // UI 側で isGuest && !previewUrl && !compiling のときに「準備中」表示を出す。
+        // ★ クライアント生成 PDF を blob 化して必ず PDF サムネを表示 ★
+        const clientBlob = buildClientFallbackPdf(
+          "Worksheet ready",
+          "Open the AI chat for content",
+        );
+        if (seq !== seqRef.current) return;
+        const url = URL.createObjectURL(clientBlob);
+        setPreviewUrl((old) => {
+          if (old && old !== useUIStore.getState().guestPreviewBlobUrl) URL.revokeObjectURL(old);
+          return url;
+        });
         return;
       }
       if (e instanceof CompileError) {

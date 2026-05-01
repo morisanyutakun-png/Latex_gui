@@ -14,6 +14,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
+import { buildClientFallbackPdf } from "@/lib/client-fallback-pdf";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useI18n } from "@/lib/i18n";
@@ -89,14 +90,26 @@ Worksheet ready --- ask the AI to refine the content.
           if (seq !== seqRef.current) return;
           const url = URL.createObjectURL(blob);
           setPreviewUrl((old) => {
-            if (old) URL.revokeObjectURL(old);
+            if (old && old !== useUIStore.getState().guestPreviewBlobUrl) URL.revokeObjectURL(old);
             return url;
           });
-          return; // 成功
+          return; // サーバ側 fallback 成功
         } catch {
-          /* fallback もダメ — それでもエラーカードは出さない */
+          /* サーバ完全停止 — クライアント生成 PDF にフォールバック */
         }
-        // ★ ゲストはここに到達しても compileError は触らない → ポジティブ UI を表示 ★
+        // ★ クライアント生成 PDF を blob 化して必ず PDF ビューを出す ★
+        // バックエンドが完全に死んでいてもユーザは PDF プレビュー (1 ページの白紙 + テキスト)
+        // を必ず見られる。「教材の準備ができました」プレースホルダではなく実際の PDF。
+        const clientBlob = buildClientFallbackPdf(
+          isJa ? "Worksheet ready" : "Worksheet ready",
+          isJa ? "Open the AI chat for content" : "Open the AI chat for content",
+        );
+        if (seq !== seqRef.current) return;
+        const url = URL.createObjectURL(clientBlob);
+        setPreviewUrl((old) => {
+          if (old && old !== useUIStore.getState().guestPreviewBlobUrl) URL.revokeObjectURL(old);
+          return url;
+        });
         return;
       }
       if (e instanceof CompileError) {
