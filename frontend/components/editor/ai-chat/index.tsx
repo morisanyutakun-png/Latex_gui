@@ -7,7 +7,7 @@ import { useUIStore } from "@/store/ui-store";
 import { useDocumentStore } from "@/store/document-store";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS } from "@/lib/plans";
-import { sendAIMessage, streamAIMessage, StreamEvent, StreamDiagnostics } from "@/lib/api";
+import { sendAIMessage, streamAIMessage, StreamEvent, StreamDiagnostics, compileRawLatex, CompileError } from "@/lib/api";
 import { ChatMessage, ThinkingStep } from "@/lib/types";
 import { chatLog } from "@/lib/logger";
 import { compressHistory } from "@/lib/chat-compression";
@@ -29,6 +29,34 @@ import { InputArea } from "./input-area";
 import { ModeSwitcher } from "./mode-switcher";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ChevronDown, Eye } from "lucide-react";
+
+/**
+ * ゲストお試しフロー専用: AI が返した LaTeX をサーバ側 LuaLaTeX で実コンパイル試行する。
+ * - 成功 → null
+ * - 失敗 → エラーメッセージ (AI に渡して再生成させる材料)
+ * バックエンド agent の compile_check は内部チェックなので、ここで「公開エンドポイントで
+ * 通る = ユーザがプレビューに進める状態か」を最終確認する。
+ */
+async function guestCompileError(latex: string, filename: string): Promise<string | null> {
+  try {
+    await compileRawLatex(latex, filename, { anonymous: true });
+    return null;
+  } catch (e) {
+    if (e instanceof CompileError) {
+      // security_violation 系は params から package/command 名を拾い、それ以外は素の message。
+      const parts: string[] = [];
+      if (e.code) parts.push(`code=${e.code}`);
+      if (e.violations.length > 0) {
+        for (const v of e.violations) {
+          parts.push(`${v.code}: ${v.package ?? v.library ?? v.command ?? ""}`);
+        }
+      }
+      if (e.message) parts.push(e.message);
+      return parts.join("\n") || "compile failed";
+    }
+    return e instanceof Error ? e.message : "compile failed";
+  }
+}
 
 export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = {}) {
   const { t, locale } = useI18n();
@@ -210,12 +238,63 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
 
     try {
       const docContext = buildDocumentContext(doc, locale);
+      // 「コンパイル成功すること」も AI のタスクに含めるよう、ゲスト経路では prompt に
+      // 強制条件を追記する。バックエンドの edit mode は compile_check ツールを持っており、
+      // ここで明示的に「失敗時は修正してから返す」と命じることで初回応答の品質を上げる。
+      const guestCompileGuard = locale === "en"
+        ? "\n\nIMPORTANT (free trial): the worksheet you return MUST compile without LaTeX errors. After writing the content, run compile_check at least once and fix any errors before finishing."
+        : "\n\n重要 (お試し生成): 返す教材は LaTeX エラーなくコンパイルできる状態にしてください。書き終えたら compile_check を最低 1 回呼び、エラーがあれば修正してから完了してください。";
       const enhanced: ChatMessage = {
         ...userMsg,
-        content: docContext ? `${docContext}\n\n${userMsg.content}` : userMsg.content,
+        content: (docContext ? `${docContext}\n\n${userMsg.content}` : userMsg.content) + guestCompileGuard,
       };
       const history = compressHistory(chatMessages, enhanced);
-      const result = await sendAIMessage(history, doc, locale, agentMode, { anonymous: true });
+      let result = await sendAIMessage(history, doc, locale, agentMode, { anonymous: true });
+
+      // フロントでもコンパイル成功を担保するため、anonymous compile-raw に投げて
+      // 422 が返ったら 1 回だけ AI に修正依頼。anon-ai-chat-burst は 3/min なので
+      // リトライ 1 回までに留める (ユーザの自発的リトライ余地を残す)。
+      // バックエンドの compile_check は agent 内部の自己検証で、ここはサーバ側 LuaLaTeX が
+      // 実際に PDF に通るかの最終確認 — 両方やって初めて「成功する 1 枚」を保証できる。
+      if (result.latex) {
+        const firstError = await guestCompileError(result.latex, doc.metadata.title || "document");
+        if (firstError) {
+          updateChatMessage(assistantMsgId, {
+            content: locale === "en"
+              ? "Verifying compilation… fixing a small error."
+              : "コンパイルを検証中… 小さなエラーを修正しています。",
+            isStreaming: true,
+            requestId,
+            timestamp: Date.now(),
+          });
+          const fixHistory = compressHistory(chatMessages, {
+            ...enhanced,
+            content:
+              `${enhanced.content}\n\n` +
+              (locale === "en"
+                ? `Previous attempt failed to compile. LuaLaTeX error:\n\`\`\`\n${firstError.slice(0, 1200)}\n\`\`\`\n` +
+                  `Return a corrected full LaTeX that compiles cleanly. Use compile_check before finishing.`
+                : `前回の出力はコンパイルに失敗しました。LuaLaTeX エラー:\n\`\`\`\n${firstError.slice(0, 1200)}\n\`\`\`\n` +
+                  `修正済みの完全な LaTeX を返してください。compile_check で最終検証してから完了してください。`),
+          });
+          try {
+            const fixed = await sendAIMessage(
+              fixHistory,
+              { ...doc, latex: result.latex },
+              locale,
+              agentMode,
+              { anonymous: true },
+            );
+            if (fixed.latex) {
+              result = { ...result, latex: fixed.latex, message: fixed.message || result.message };
+            }
+          } catch {
+            // 修正リトライが失敗してもオリジナルの latex を出す。プレビュー側でも
+            // エラーカードが出るので、ユーザは「AI に修正を依頼」ボタンから手動で進めるた。
+          }
+        }
+      }
+
       const duration = Date.now() - startTime;
 
       if (result.latex) {
