@@ -44,6 +44,10 @@ export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
   const isGuest = useUIStore((s) => s.isGuest);
   const isGuestRef = useRef(isGuest);
   isGuestRef.current = isGuest;
+  // AI チャット側でプリコンパイル済みの blob URL があり、latex が一致するならそれを使う。
+  // バックエンドを再度叩かないので、不安定で 422 が返るリスクがゼロになる。
+  const guestPreviewBlobUrl = useUIStore((s) => s.guestPreviewBlobUrl);
+  const guestPreviewBlobLatex = useUIStore((s) => s.guestPreviewBlobLatex);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [error, setError] = useState<CompileErrorView | null>(null);
@@ -67,7 +71,7 @@ export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
       if (seq !== seqRef.current) return;
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {
-        if (old) URL.revokeObjectURL(old);
+        if (old && old !== useUIStore.getState().guestPreviewBlobUrl) URL.revokeObjectURL(old);
         return url;
       });
     } catch (e) {
@@ -108,6 +112,20 @@ Worksheet ready --- ask the AI to refine the content.
     }
   }, [latex, title, t]);
 
+  // ゲスト経路の最重要分岐: AI チャット側で既に compile 済みの blob URL があり
+  // 同じ latex なら、それをそのまま表示する。バックエンドへの再コールはしない。
+  useEffect(() => {
+    if (
+      isGuestRef.current &&
+      guestPreviewBlobUrl &&
+      guestPreviewBlobLatex === latex &&
+      !previewUrl
+    ) {
+      compiledOnceRef.current = true;
+      setPreviewUrl(guestPreviewBlobUrl);
+    }
+  }, [guestPreviewBlobUrl, guestPreviewBlobLatex, latex, previewUrl]);
+
   // 初回: viewport に入ったらコンパイル開始 (オフスクリーンでは走らせない)
   useEffect(() => {
     const el = containerRef.current;
@@ -126,10 +144,13 @@ Worksheet ready --- ask the AI to refine the content.
     return () => obs.disconnect();
   }, [runCompile]);
 
-  // unmount で最新の blob URL を revoke
+  // unmount で最新の blob URL を revoke (ただし store オーナーの URL は触らない)
   useEffect(() => {
     return () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      const url = previewUrlRef.current;
+      if (!url) return;
+      const ownedByStore = useUIStore.getState().guestPreviewBlobUrl;
+      if (url !== ownedByStore) URL.revokeObjectURL(url);
     };
   }, []);
 

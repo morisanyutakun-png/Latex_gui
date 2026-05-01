@@ -87,6 +87,15 @@ interface UIState {
   // Programmatic chat message (e.g. from 類題作成)
   pendingChatMessage: string | null;
 
+  // ── ゲスト 1 枚お試し用「プリコンパイル済み PDF blob URL」 ──
+  // runGuestSingleShot が AI 出力 (or fallback) を実コンパイルした blob URL を
+  // ここに置き、プレビュー系コンポーネント (MobilePdfPreview / ChatPdfPreviewCard) が
+  // そのまま表示する。これでプレビューが二重に compile-raw を叩かなくて済むため
+  // バックエンドの不安定で 422 が返るリスクを排除できる。
+  guestPreviewBlobUrl: string | null;
+  /** 上記 blob URL に紐づく latex のスナップショット (キャッシュ無効化判定用)。 */
+  guestPreviewBlobLatex: string | null;
+
   // OMR (画像/PDF → raw LaTeX) split-view
   omrMode: boolean;
   omrSourceUrl: string | null;
@@ -140,6 +149,8 @@ interface UIState {
   updateStreamingContent: (id: string, content: string) => void;
   setStreamingComplete: (id: string) => void;
   setPendingChatMessage: (msg: string | null) => void;
+  /** ゲスト用プリコンパイル PDF を保存。url=null で無効化 (前の URL は revoke される)。 */
+  setGuestPreviewBlob: (url: string | null, latex: string | null) => void;
 
   // OMR actions
   openOMR: (sourceUrl: string, sourceName: string) => void;
@@ -198,7 +209,7 @@ interface UIState {
   closeSignupOverlay: () => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
   isGenerating: false,
   zoom: 1,
   zoomFitMode: true,
@@ -213,6 +224,8 @@ export const useUIStore = create<UIState>((set) => ({
   isChatLoading: false,
   streamingMessageId: null,
   pendingChatMessage: null,
+  guestPreviewBlobUrl: null,
+  guestPreviewBlobLatex: null,
 
   agentMode: loadInitialAgentMode(),
   setAgentMode: (m) => {
@@ -299,6 +312,13 @@ export const useUIStore = create<UIState>((set) => ({
     streamingMessageId: null,
   })),
   setPendingChatMessage: (msg) => set({ pendingChatMessage: msg }),
+  setGuestPreviewBlob: (url, latex) => {
+    const prev = get().guestPreviewBlobUrl;
+    if (prev && prev !== url) {
+      try { URL.revokeObjectURL(prev); } catch { /* ignore */ }
+    }
+    set({ guestPreviewBlobUrl: url, guestPreviewBlobLatex: latex });
+  },
 
   openOMR: (sourceUrl, sourceName) => set({
     omrMode: true,

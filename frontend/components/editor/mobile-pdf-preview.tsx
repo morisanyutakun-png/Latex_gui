@@ -36,6 +36,10 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
   const isGuest = useUIStore((s) => s.isGuest);
   const isGuestRef = useRef(isGuest);
   isGuestRef.current = isGuest;
+  // ゲスト用プリコンパイル PDF の URL — runGuestSingleShot で stash 済み。
+  // doc.latex がこれと一致する間は backend を叩かず blob URL をそのまま表示する。
+  const guestPreviewBlobUrl = useUIStore((s) => s.guestPreviewBlobUrl);
+  const guestPreviewBlobLatex = useUIStore((s) => s.guestPreviewBlobLatex);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
@@ -66,7 +70,7 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
       if (seq !== seqRef.current) return;
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {
-        if (old) URL.revokeObjectURL(old);
+        if (old && old !== useUIStore.getState().guestPreviewBlobUrl) URL.revokeObjectURL(old);
         return url;
       });
     } catch (e) {
@@ -111,6 +115,23 @@ Worksheet ready --- ask the AI to refine the content.
   const compiledOnceRef = useRef(false);
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    // ゲスト経路の最重要分岐: AI チャット側で既に compile 済みの blob URL があれば
+    // それをそのまま表示する。バックエンドへの再コールをスキップ → 422 リスク 0。
+    if (
+      isGuestRef.current &&
+      guestPreviewBlobUrl &&
+      guestPreviewBlobLatex &&
+      document?.latex === guestPreviewBlobLatex
+    ) {
+      compiledOnceRef.current = true;
+      setPreviewUrl((old) => {
+        if (old && old !== guestPreviewBlobUrl) URL.revokeObjectURL(old);
+        return guestPreviewBlobUrl;
+      });
+      setCompiling(false);
+      setCompileError(null);
+      return;
+    }
     const delay = compiledOnceRef.current ? 600 : 0;
     debounceRef.current = setTimeout(() => {
       compiledOnceRef.current = true;
@@ -119,12 +140,16 @@ Worksheet ready --- ask the AI to refine the content.
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [document?.latex, runCompile]);
+  }, [document?.latex, runCompile, guestPreviewBlobUrl, guestPreviewBlobLatex]);
 
   // unmount で最新の blob URL を revoke (タブ切替で頻繁に mount/unmount するので地味に効く)
+  // ただし ui-store がオーナーのゲスト用 blob URL は revoke しない (他で使っている可能性あり)。
   useEffect(() => {
     return () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      const url = previewUrlRef.current;
+      if (!url) return;
+      const ownedByStore = useUIStore.getState().guestPreviewBlobUrl;
+      if (url !== ownedByStore) URL.revokeObjectURL(url);
     };
   }, []);
 
