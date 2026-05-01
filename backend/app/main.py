@@ -487,7 +487,6 @@ async def anonymous_ai_chat(
             req.messages, req.document,
             locale=req.locale, mode=req.mode,
         )
-        return {"success": True, **result}
     except ValueError as e:
         raise HTTPException(status_code=503, detail={"message": str(e)})
     except Exception as e:
@@ -495,6 +494,35 @@ async def anonymous_ai_chat(
         raise HTTPException(status_code=500, detail={
             "message": f"AI エラー: {type(e).__name__}: {str(e)[:200]}",
         })
+
+    # ── サーバ側で 1 回だけコンパイルして PDF を base64 で返す ──
+    # フロントが再度 /api/anonymous/compile-raw を叩く必要が無いので、
+    # cold-start や Vercel proxy timeout でフロントが PDF を取りこぼす問題が消える。
+    # 失敗しても AI 応答 (latex) は必ず返す: フロント側の retry に任せる。
+    final_latex = (result.get("latex") if isinstance(result, dict) else None) or ""
+    pdf_b64: str | None = None
+    if final_latex:
+        # autofix を先に当てて、フロントに返す latex と コンパイルする latex を一致させる。
+        # こうしないと PDF は通っても、フロントが「未修正の latex」で再 compile を試みた
+        # 際に失敗するパターンが残る。
+        try:
+            from .latex_autofix import autofix_latex
+            fixed_latex = autofix_latex(final_latex)
+        except Exception:
+            fixed_latex = final_latex
+
+        try:
+            from base64 import b64encode
+            doc_for_pdf = DocumentModel(template="blank", latex=fixed_latex)
+            pdf_bytes = await compile_pdf(doc_for_pdf)
+            pdf_b64 = b64encode(pdf_bytes).decode("ascii")
+            # フロントには「実際に PDF が出た latex」を返す
+            if isinstance(result, dict):
+                result["latex"] = fixed_latex
+        except Exception as compile_err:
+            logger.warning("[anon-ai-chat] post-agent compile failed: %s", compile_err)
+
+    return {"success": True, **result, "pdf_base64": pdf_b64}
 
 
 @app.post("/api/anonymous/preview-latex")

@@ -451,6 +451,10 @@ export interface AIChatResponse {
   latex: string | null;
   thinking: Array<{ type: string; text: string; tool?: string; duration?: number }>;
   usage: { inputTokens: number; outputTokens: number };
+  /** Anonymous flow: server-side compiled PDF as base64. Allows the client to
+   *  display the PDF without a second compile-raw round-trip. May be null
+   *  (older backends, compile failed, no latex). */
+  pdfBase64?: string | null;
 }
 
 /**
@@ -479,9 +483,9 @@ export async function sendAIMessage(
   const url = opts.anonymous
     ? `/api/anonymous/ai-chat`
     : (AI_BACKEND_URL ? `${AI_BACKEND_URL}/api/ai/chat` : `${API_BASE}/api/ai/chat`);
-  // ゲストお試しは「分析中…」のまま 3 分待たされると離脱するので 90s で打ち切る。
-  // 通常認証フローは複雑な編集タスクで 180s ぎりぎりまで使うことがあるので従来通り。
-  const timeoutMs = opts.anonymous ? 90000 : 180000;
+  // ゲストお試しは AI 出力 + サーバ側 PDF コンパイルまでが一連で含まれるので、
+  // 単発 chat (90s) よりも長めに取る (LuaLaTeX cold start で +30〜45s 余分)。
+  const timeoutMs = opts.anonymous ? 140000 : 180000;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -504,7 +508,21 @@ export async function sendAIMessage(
     latex: data.latex ?? null,
     thinking: data.thinking || [],
     usage: data.usage || { inputTokens: 0, outputTokens: 0 },
+    // 匿名フローのみサーバから渡ってくる。base64 のままフロントへ。
+    pdfBase64: typeof data.pdf_base64 === "string" ? data.pdf_base64 : null,
   };
+}
+
+/**
+ * base64 → Blob (PDF) 変換。匿名 AI チャットがサーバ側で組版した PDF を
+ * フロントが直接ビューアに渡せる Blob にする。
+ */
+export function pdfBase64ToBlob(b64: string): Blob {
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: "application/pdf" });
 }
 
 // ═══ AI チャット SSE ストリーミング ═══
