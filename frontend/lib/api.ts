@@ -424,11 +424,14 @@ export async function sendAIMessage(
   const url = opts.anonymous
     ? `/api/anonymous/ai-chat`
     : (AI_BACKEND_URL ? `${AI_BACKEND_URL}/api/ai/chat` : `${API_BASE}/api/ai/chat`);
+  // ゲストお試しは「分析中…」のまま 3 分待たされると離脱するので 90s で打ち切る。
+  // 通常認証フローは複雑な編集タスクで 180s ぎりぎりまで使うことがあるので従来通り。
+  const timeoutMs = opts.anonymous ? 90000 : 180000;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, document: doc, locale, mode }),
-    signal: AbortSignal.timeout(180000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (!res.ok) {

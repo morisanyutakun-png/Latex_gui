@@ -2195,7 +2195,10 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
   const searchParams = useSearchParams();
   const setDocument = useDocumentStore((s) => s.setDocument);
   const currentPlan = usePlanStore((s) => s.currentPlan);
-  const [heroLoaded, setHeroLoaded] = useState(false);
+  // 旧: false → 60ms 後に true へ flip (フェードイン)。だが LCP 要素 (h1) が
+  // opacity-0 で paint されないため、低速回線では「element render delay」が 3 秒以上に
+  // なる。CVR 訴求のフェードよりパフォーマンス影響の方が重いので初期から表示済みに。
+  const [heroLoaded] = useState(true);
   const [powerOpen, setPowerOpen] = useState(false);
   // 「ログインなしで試す」モーダル。すでに使い切ったときだけ「上限到達」UI として表示する。
   // 未使用なら直接 /editor?guest=1 に飛ばす — モーダルで JS 入力させるより
@@ -2262,11 +2265,6 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
   const scrollToSample = () => {
     document.getElementById("sample-output")?.scrollIntoView({ behavior: "smooth" });
   };
-
-  useEffect(() => {
-    const t = setTimeout(() => setHeroLoaded(true), 60);
-    return () => clearTimeout(t);
-  }, []);
 
   const handlePlanSelect = async (planId: "free" | "starter" | "pro" | "premium") => {
     // 認証チェック → 未ログインならログインへ

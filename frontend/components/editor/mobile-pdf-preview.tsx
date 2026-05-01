@@ -30,6 +30,12 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
   const isJa = locale !== "en";
   const document = useDocumentStore((s) => s.document);
   const isChatLoading = useUIStore((s) => s.isChatLoading);
+  // ゲスト (ログインなしお試し) は /api/compile-raw が 401 になるので、
+  // PC 版の DocumentEditor と同じく anonymous プロキシ (/api/anonymous/compile-raw) に切り替える。
+  // ref で保持して runCompile の closure を再生成しないようにする。
+  const isGuest = useUIStore((s) => s.isGuest);
+  const isGuestRef = useRef(isGuest);
+  isGuestRef.current = isGuest;
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
@@ -51,7 +57,7 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
     setCompiling(true);
     setCompileError(null);
     try {
-      const blob = await compileRawLatex(source, titleRef.current);
+      const blob = await compileRawLatex(source, titleRef.current, { anonymous: isGuestRef.current });
       if (seq !== seqRef.current) return;
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {
@@ -195,7 +201,28 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
           <object data={previewUrl} type="application/pdf" className="w-full h-full">
             <iframe src={previewUrl} className="w-full h-full" title={isJa ? "PDF プレビュー" : "PDF preview"} />
           </object>
-        ) : !compiling && !compileError ? (
+        ) : compiling ? (
+          // 初回コンパイル中の中央表示 — 「セッションが進行中」を体感させる UI。
+          // 旧実装では blank になり「壊れているのでは?」と感じさせていた。
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+              <Loader2 className="h-5 w-5 text-white animate-spin" />
+            </div>
+            <div className="space-y-1">
+              <div className="text-[14px] font-semibold text-foreground/85">
+                {isJa ? "PDF を組版しています…" : "Typesetting your PDF…"}
+              </div>
+              <p className="text-[11.5px] text-muted-foreground leading-relaxed max-w-xs">
+                {isJa
+                  ? "数秒で完成します。閉じずにお待ちください。"
+                  : "Done in a few seconds — please keep this screen open."}
+              </p>
+            </div>
+            <div className="w-40 h-[3px] rounded-full bg-foreground/[0.06] overflow-hidden">
+              <div className="h-full w-full bg-gradient-to-r from-violet-400 to-fuchsia-500 animate-pulse" />
+            </div>
+          </div>
+        ) : !compileError ? (
           // 空状態 — まだ何もない / コンパイル待ち
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
             <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">

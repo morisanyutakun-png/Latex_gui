@@ -43,9 +43,9 @@
     "typescript": "^5"
   },
   "browserslist": [
-    "chrome >= 92",
-    "edge >= 92",
-    "firefox >= 90",
+    "chrome >= 94",
+    "edge >= 94",
+    "firefox >= 93",
     "safari >= 15.4"
   ]
 }

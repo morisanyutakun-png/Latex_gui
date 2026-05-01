@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { formatDuration } from "./utils";
 import { useI18n } from "@/lib/i18n";
+import { useUIStore } from "@/store/ui-store";
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
   read_latex: BookOpen,
@@ -33,12 +34,22 @@ export function ThinkingIndicator({
   liveSteps?: ThinkingStep[];
   currentTool?: string | null;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isJa = locale !== "en";
+  // ゲスト (LP からのお試し) は streaming endpoint を使えないので、
+  // 「分析中」しか出ない時間が長く「壊れている」と誤解されやすい。
+  // store-fresh で読んでゲスト時のみ「30〜60秒で完成します」のヒントを足す。
+  const isGuest = useUIStore((s) => s.isGuest);
   const [elapsed, setElapsed] = React.useState(0);
   const logEndRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    // 100ms 刻みで小数の経過時間を保持して progress bar を滑らかに動かす。
+    // 表示用の整数秒は Math.floor で別途算出する。
+    const start = Date.now();
+    const id = setInterval(() => {
+      setElapsed((Date.now() - start) / 1000);
+    }, 100);
     return () => clearInterval(id);
   }, []);
 
@@ -47,12 +58,54 @@ export function ThinkingIndicator({
   }, [liveSteps, currentTool]);
 
   const hasSteps = liveSteps && liveSteps.length > 0;
-  const isLongWait = elapsed >= 15;
+  const elapsedSec = Math.floor(elapsed);
+  const isLongWait = elapsedSec >= 30;
+
+  /**
+   * 段階ベースの進捗フェーズ。
+   * ─────────────────────────
+   * 非ストリーミング経路 (ゲストお試し / sync fallback) では SSE による live progress が
+   * 取れないため、ユーザに「セッションが進行中」を体感させる目的で時間ベースの
+   * 疑似フェーズを出す。経験則的なワークシート生成タイムライン (60s 想定) を
+   * もとに、phase / 進捗率 / メッセージを返す。
+   * 進捗率は 95% で頭打ちにして、完了前に 100% にしないことで「あと少し」感を保つ。
+   */
+  function syntheticPhase(sec: number) {
+    const phases = isJa
+      ? [
+          { until: 3,  label: "リクエスト送信中…",         pct: 0.05 },
+          { until: 10, label: "AI が問題を構成中…",        pct: 0.20 },
+          { until: 25, label: "問題と解答を生成中…",       pct: 0.45 },
+          { until: 45, label: "LaTeX を組版しています…",   pct: 0.70 },
+          { until: 60, label: "もう少しで完成します…",     pct: 0.85 },
+          { until: 999, label: "サーバが混雑しています。お待ちください…", pct: 0.95 },
+        ]
+      : [
+          { until: 3,  label: "Sending request…",                 pct: 0.05 },
+          { until: 10, label: "AI is structuring the problems…",  pct: 0.20 },
+          { until: 25, label: "Generating problems & answers…",   pct: 0.45 },
+          { until: 45, label: "Typesetting LaTeX…",               pct: 0.70 },
+          { until: 60, label: "Almost done…",                      pct: 0.85 },
+          { until: 999, label: "Server is busy. Hang tight…",      pct: 0.95 },
+        ];
+    for (const p of phases) {
+      if (sec < p.until) return p;
+    }
+    return phases[phases.length - 1];
+  }
+  const phase = syntheticPhase(elapsed);
+  // ステップ / ツール実行が始まったら現実の進捗が見えるので、合成ヘッダはそちらに譲る。
+  const useSynthetic = !hasSteps && !currentTool;
   const statusText = currentTool
     ? getToolLabel(currentTool, t)
     : hasSteps
     ? t("chat.thinking.processing")
+    : useSynthetic
+    ? phase.label
     : t("chat.thinking.thinking");
+  // progress bar 表示用 (0..1)。実 progress が見えるストリーミング時もインジケータとして
+  // フェーズ推定を流用する (= 「何秒かかってる」を体感してもらう)。
+  const progressFraction = Math.min(0.95, Math.max(0.04, elapsed / 60));
 
   return (
     <div className="flex gap-3">
@@ -65,13 +118,29 @@ export function ThinkingIndicator({
         {/* Name + status */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className="text-[12px] font-semibold tracking-wide text-foreground/60 uppercase">Eddivom AI</span>
-          <span className="flex items-center gap-1.5 text-[11px] text-amber-600/75 dark:text-amber-400/75 font-medium">
-            <span className="thinking-dot-ripple">
+          <span className="flex items-center gap-1.5 text-[11px] text-amber-600/75 dark:text-amber-400/75 font-medium min-w-0 truncate">
+            <span className="thinking-dot-ripple shrink-0">
               <span className="h-1.5 w-1.5 rounded-full inline-block bg-amber-500" />
             </span>
-            {statusText}
+            <span className="truncate">{statusText}</span>
           </span>
-          <span className="text-[10px] text-muted-foreground/30 tabular-nums ml-auto">{elapsed}s</span>
+          <span className="text-[10px] text-muted-foreground/30 tabular-nums ml-auto shrink-0">{elapsedSec}s</span>
+        </div>
+        {/* Progress bar — 「セッションが生きている」ことを伝える主要シグナル。
+            非ストリーミング (ゲスト) でも live phase 推定で滑らかに伸びる。
+            完了前に 100% にしないため上限は 95%。 */}
+        <div
+          className="h-[3px] rounded-full bg-foreground/[0.06] overflow-hidden mb-2"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progressFraction * 100)}
+          aria-label={isJa ? "AI 生成の進行状況" : "AI generation progress"}
+        >
+          <div
+            className="h-full bg-gradient-to-r from-amber-400 via-violet-500 to-fuchsia-500 transition-[width] duration-300 ease-out"
+            style={{ width: `${progressFraction * 100}%` }}
+          />
         </div>
 
         {/* Activity log card */}
@@ -133,20 +202,38 @@ export function ThinkingIndicator({
               </div>
             )}
 
-            {/* Generic thinking */}
-            {!hasSteps && !currentTool && (
-              <div className="flex items-center gap-2.5">
-                <div className="h-5 w-5 rounded-md bg-amber-100/60 dark:bg-amber-500/10 flex items-center justify-center shrink-0">
-                  <Brain className="h-3 w-3 text-amber-500/70 dark:text-amber-400/60 animate-pulse" />
+            {/* Generic thinking — 段階フェーズ + 想定タイム + 安心フッター */}
+            {useSynthetic && (
+              <>
+                <div className="flex items-center gap-2.5">
+                  <div className="h-5 w-5 rounded-md bg-amber-100/60 dark:bg-amber-500/10 flex items-center justify-center shrink-0">
+                    <Brain className="h-3 w-3 text-amber-500/70 dark:text-amber-400/60 animate-pulse" />
+                  </div>
+                  <span className="text-foreground/70">{phase.label}</span>
+                  <span className="ml-auto text-[10.5px] text-muted-foreground/50 tabular-nums shrink-0">
+                    {Math.min(99, Math.round(progressFraction * 100))}%
+                  </span>
                 </div>
-                <span className="text-muted-foreground/45">{t("chat.thinking.analyzing")}</span>
-              </div>
+                <p className="text-[11px] text-muted-foreground/55 leading-snug">
+                  {isGuest
+                    ? (isJa
+                        ? "ログインなしで生成中。通常 30〜60 秒で完成し、自動でプレビューに切り替わります。"
+                        : "Generating without sign-in. Typically completes in 30–60s and auto-opens the preview.")
+                    : (isJa
+                        ? "セッション接続中です。完了するまでこの画面のままお待ちください。"
+                        : "Session is alive — please keep this screen open until completion.")}
+                </p>
+              </>
             )}
 
             {isLongWait && (
-              <div className="flex items-center gap-2 pt-0.5 text-[11px] text-amber-500/60 border-t border-amber-200/20 dark:border-amber-500/10">
-                <span className="h-1 w-1 rounded-full bg-amber-400 animate-pulse" />
-                {t("chat.thinking.api_wait")}
+              <div className="flex items-center gap-2 pt-0.5 text-[11px] text-amber-500/70 border-t border-amber-200/20 dark:border-amber-500/10">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                <span className="leading-snug">
+                  {isJa
+                    ? `${elapsedSec} 秒経過 — AI サーバとの接続は維持されています。途中で閉じないでください。`
+                    : `${elapsedSec}s elapsed — connection to the AI server is alive. Please keep this tab open.`}
+                </span>
               </div>
             )}
 

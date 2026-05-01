@@ -182,7 +182,9 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
    * 成功時は localStorage と ui-store の両方に「使用済み」を記録 → 次回以降は登録 CTA に切り替わる。
    */
   const runGuestSingleShot = async (text: string) => {
-    if (!document) return;
+    // pendingChatMessage 経路だと closure の document が null のままになり得るため store-fresh で。
+    const doc = useDocumentStore.getState().document ?? document;
+    if (!doc) return;
     const requestId = crypto.randomUUID();
     const userMsgId = crypto.randomUUID();
     const userMsg: ChatMessage = { id: userMsgId, role: "user", content: text, timestamp: Date.now() };
@@ -207,13 +209,13 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
     });
 
     try {
-      const docContext = buildDocumentContext(document, locale);
+      const docContext = buildDocumentContext(doc, locale);
       const enhanced: ChatMessage = {
         ...userMsg,
         content: docContext ? `${docContext}\n\n${userMsg.content}` : userMsg.content,
       };
       const history = compressHistory(chatMessages, enhanced);
-      const result = await sendAIMessage(history, document, locale, agentMode, { anonymous: true });
+      const result = await sendAIMessage(history, doc, locale, agentMode, { anonymous: true });
       const duration = Date.now() - startTime;
 
       if (result.latex) {
@@ -234,27 +236,52 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
       setGuestTrialUsed(true);
       trackFreeGenerateComplete({ duration_ms: duration });
 
-      // 全画面 signup overlay を 1 拍遅れて起動 (PDF プレビュー差し込みアニメと
-      // 重ならないよう 800ms 待つ — 結果を一瞬見せてから登録誘導が乗る方が CVR が上がる)。
-      window.setTimeout(() => {
-        useUIStore.getState().openSignupOverlay({
-          reason: "trial_complete",
-          placement: "chat_after_complete",
-        });
-      }, 800);
+      // 旧実装は 800ms 後に全画面 signup overlay を強制表示していたが、
+      // 「無料1枚」の約束を破って "ログインしないと使えない" と誤解されていたため撤去。
+      // 2 回目以降の生成試行時に handleSend の guard で同じ overlay が出る (= 自然な誘導)
+      // ので、1 回目の成功体験は遮らない方針に倒す。
+
+      // 完了したことを明示的にトーストで知らせる。
+      // 「セッションが完了したのか」を体感できないと「ログインしないと作れないのでは?」
+      // という誤解の温床になるため、ゲストの 1 枚体験では特に重要。
+      toast.success(
+        result.latex
+          ? (locale === "en" ? "Worksheet generated. Opening preview…" : "教材を生成しました。プレビューを開きます…")
+          : (locale === "en" ? "AI response received." : "AI の応答が返りました。"),
+        { duration: 3500 },
+      );
+
+      // モバイルゲストはチャットタブに留まったままだと「結果が出てこない」と感じるため、
+      // latex がついていればプレビュータブに自動切替して成果物を即見せる。
+      // (PC は 3 ペイン同時表示なので不要。onOpenPreview は mobile shell からのみ渡る。)
+      // toast を読ませる時間を取るため 400ms 後に切替。即切替だと toast を見逃す。
+      if (result.latex && onOpenPreview) {
+        window.setTimeout(() => onOpenPreview(), 400);
+      }
     } catch (err) {
       const status = (err as { status?: number })?.status;
       const reason = err instanceof Error ? err.message : "unknown";
       trackFreeGenerateError({ reason, status });
+      // 失敗の原因はほぼ「バックエンド一時障害 / IP rate limit / ネットワーク」。
+      // 「ログインが必要」と誤解させないため、再試行を促すメッセージに統一。
+      // 失敗時はお試し消費フラグも巻き戻すので、ユーザは追加で 1 回 retry できる。
+      try {
+        const ls = window.localStorage;
+        ls.removeItem("anonymous-trial:used");
+        ls.removeItem("anonymous-trial:last_at");
+      } catch { /* ignore */ }
+      setGuestTrialUsed(false);
       updateChatMessage(assistantMsgId, {
         content: locale === "en"
-          ? `Generation failed: ${reason}`
-          : `生成に失敗しました: ${reason}`,
+          ? `Couldn't reach the AI server this time. Please tap the button again to retry — no login needed. (${reason})`
+          : `今回 AI サーバーに届きませんでした。ログインなしで再試行できます。もう一度お試しください。 (${reason})`,
         isStreaming: false,
         error: reason,
       });
       toast.error(
-        locale === "en" ? "Trial generation failed. Please try again." : "お試し生成に失敗しました。もう一度お試しください。",
+        locale === "en"
+          ? "Couldn't reach the AI server. Please retry."
+          : "AI サーバーに届きませんでした。もう一度お試しください。",
       );
     } finally {
       setChatLoading(false);
@@ -264,14 +291,21 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
   const handleSend = async (overrideText?: string) => {
     const raw = typeof overrideText === "string" ? overrideText : input;
     const text = raw.trim();
-    if (!text || isChatLoading || !document) return;
+    // document は closure ではなく store-fresh で読み直す。
+    // pendingChatMessage 経路 (LP の「無料で1枚作る」CTA から渡された prompt) は
+    // setDocument / setGuest / setPendingChatMessage が同一 effect で連続発火するため、
+    // 古い closure を見ると "isGuest=false / document=null" 状態で走って 401 / no-op になる。
+    const docNow = useDocumentStore.getState().document;
+    if (!text || isChatLoading || !docNow) return;
 
     // ── ゲスト (ログインなしお試し) 経路 ───────────────────────────
     // 1 回だけ AI を叩ける。すでに使い切っていれば登録 CTA を出す。
-    if (isGuest) {
-      if (guestTrialUsed || hasUsedAnonymousTrial()) {
+    // isGuest も store-fresh で読み直す: ?guest=1 で来た直後に AIChatPanel が
+    // hydrate した瞬間は closure が isGuest=false のままになり得るため。
+    const isGuestNow = useUIStore.getState().isGuest;
+    if (isGuestNow) {
+      if (useUIStore.getState().guestTrialUsed || hasUsedAnonymousTrial()) {
         trackFreeGenerateLimitReached();
-        // Toast より強い CVR シグナルを出すため全画面 overlay を即起動。
         useUIStore.getState().openSignupOverlay({
           reason: "trial_limit",
           placement: "chat_send_blocked",
@@ -315,7 +349,7 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
     // 永久 true で残らないよう、前処理も含めて 1 つの try/finally に包む。
     try {
       const feedbackCtx = buildFeedbackContext();
-      const docContext = document ? buildDocumentContext(document, locale) : "";
+      const docContext = docNow ? buildDocumentContext(docNow, locale) : "";
       const enhancedContent = docContext
         ? `${docContext}\n\n${userMsg.content}${feedbackCtx}`
         : `${userMsg.content}${feedbackCtx}`;
@@ -344,7 +378,7 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
       let lastStreamError: string | null = null;
 
       try {
-        streamDiag = await streamAIMessage(history, document, (event: StreamEvent) => {
+        streamDiag = await streamAIMessage(history, docNow, (event: StreamEvent) => {
           chatLog.stream(requestId, event.type);
 
           switch (event.type) {
@@ -437,7 +471,7 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
               setCurrentTool(null);
 
               try {
-                const result = await sendAIMessage(history, document, locale, agentMode);
+                const result = await sendAIMessage(history, docNow, locale, agentMode);
                 const duration = Date.now() - startTime;
                 incrementUsage();
 
@@ -473,7 +507,7 @@ export function AIChatPanel({ onOpenPreview }: { onOpenPreview?: () => void } = 
         incrementUsage();
 
         // Final apply (in case "done" carried latex but no live "latex" event)
-        if (finalLatex && document.latex !== finalLatex) {
+        if (finalLatex && docNow.latex !== finalLatex) {
           applyLatex(finalLatex);
         }
 

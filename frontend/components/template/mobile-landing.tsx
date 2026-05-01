@@ -66,11 +66,12 @@ export function MobileLanding({
 }: Props) {
   const { locale, setLocale } = useI18n();
   const isJa = locale !== "en";
-  const [heroLoaded, setHeroLoaded] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setHeroLoaded(true), 60);
-    return () => clearTimeout(t);
-  }, []);
+  // 旧実装は heroLoaded=false で 60ms 後に true へ flip させ、CSS opacity-0→1 の
+  // transition でフェードインしていた。だがモバイル低速回線ではバンドル評価が
+  // 数秒かかり、その間 LCP 要素 (h1) が opacity-0 で paint されず Lighthouse の
+  // 「element render delay」が 3 秒以上に膨らんでいた。CVR 訴求とパフォーマンス
+  // を比較すると後者の方が重いので、初期描画から表示済み状態 (true) にする。
+  const [heroLoaded] = useState(true);
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
