@@ -187,11 +187,21 @@ export async function generateAnonymousTrialPDF(
   locale: AILocale = "ja",
 ): Promise<AnonymousTrialResponse> {
   const t0 = Date.now();
+  // ブラウザ指紋を同送して、シークレットウィンドウで cookie/localStorage を
+  // 消されても「同一デバイスから 1 回」を維持する。失敗してもリクエスト自体は通す。
+  let fp: string | null = null;
+  try {
+    const { getAnonymousFingerprint } = await import("@/lib/anon-fingerprint");
+    fp = await getAnonymousFingerprint();
+  } catch { /* ignore */ }
   let res: Response;
   try {
     res = await fetch(`/api/anonymous-trial/generate-pdf`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(fp ? { "x-eddivom-fp": fp } : {}),
+      },
       body: JSON.stringify({ topic, locale }),
       signal: AbortSignal.timeout(58000),
     });
@@ -486,9 +496,20 @@ export async function sendAIMessage(
   // ゲストお試しは AI 出力 + サーバ側 PDF コンパイルまでが一連で含まれるので、
   // 単発 chat (90s) よりも長めに取る (LuaLaTeX cold start で +30〜45s 余分)。
   const timeoutMs = opts.anonymous ? 140000 : 180000;
+  // ゲスト時のみブラウザ指紋を同送 (シークレットウィンドウ越しの濫用を抑止)。
+  let fp: string | null = null;
+  if (opts.anonymous) {
+    try {
+      const { getAnonymousFingerprint } = await import("@/lib/anon-fingerprint");
+      fp = await getAnonymousFingerprint();
+    } catch { /* ignore */ }
+  }
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(fp ? { "x-eddivom-fp": fp } : {}),
+    },
     body: JSON.stringify({ messages, document: doc, locale, mode }),
     signal: AbortSignal.timeout(timeoutMs),
   });

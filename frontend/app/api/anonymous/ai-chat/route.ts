@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
   };
   const xff = req.headers.get("x-forwarded-for");
   if (xff) headers["x-forwarded-for"] = xff;
+  // ブラウザ指紋: シークレットウィンドウ越しの再試行を抑止するために
+  // バックエンドの匿名トライアル使用記録に使う。
+  const fp = req.headers.get("x-eddivom-fp");
+  if (fp && /^[a-f0-9]{16,64}$/.test(fp)) headers["x-eddivom-fp"] = fp;
 
   try {
     const res = await fetch(`${BACKEND}/api/anonymous/ai-chat`, {

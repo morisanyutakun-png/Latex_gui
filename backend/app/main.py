@@ -38,6 +38,11 @@ from .batch_service import (
 )
 from .ai_service import chat as ai_chat, chat_stream as ai_chat_stream
 from .anonymous_trial import generate_anonymous_pdf
+from .anon_quota import (
+    normalize_fp as _anon_normalize_fp,
+    is_used as _anon_fp_is_used,
+    mark_used as _anon_fp_mark_used,
+)
 from .omr_service import analyze_image as omr_analyze_image, analyze_image_stream as omr_analyze_image_stream
 from .routers.subscription import router as subscription_router
 from .routers.grading import router as grading_router
@@ -473,6 +478,18 @@ async def anonymous_ai_chat(
     enforce_rate_limit(http_request, "anon-ai-chat-burst", limit=3, window_seconds=60)
     enforce_rate_limit(http_request, "anon-ai-chat-day", limit=5, window_seconds=86400)
 
+    # ── ブラウザ指紋による「同一デバイスで 7 日 1 回」ガード ──
+    # cookie / localStorage は私モードで剥がれるが、UA + 解像度 + canvas + tz の
+    # 合成指紋は維持される傾向が強い。1 回成功したら 7 日間ロックすることで、
+    # 「シークレット開いて無限に試す」を抑止する。指紋ヘッダが無いリクエスト
+    # (旧クライアント等) はガードを通すので「初回必ず使える」を維持。
+    fp = _anon_normalize_fp(http_request.headers.get("x-eddivom-fp"))
+    if fp and _anon_fp_is_used(fp):
+        raise HTTPException(status_code=429, detail={
+            "code": "TRIAL_LIMIT_REACHED",
+            "message": "無料お試しの上限に達しました。続きは無料登録 (30秒) でご利用ください。",
+        })
+
     if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
         raise HTTPException(status_code=503, detail={
             "message": "AI 機能を一時的にご利用いただけません。",
@@ -521,6 +538,13 @@ async def anonymous_ai_chat(
                 result["latex"] = fixed_latex
         except Exception as compile_err:
             logger.warning("[anon-ai-chat] post-agent compile failed: %s", compile_err)
+
+    # ── 成功時のみ指紋を消費 (失敗時は正規 1 回を奪わない) ──
+    # PDF を返せた = 「無料 1 枚」の体験が完了したと見なし、同一指紋からの
+    # 再試行を 7 日間ブロックする。pdf_b64 が None の場合は AI のみ成功 +
+    # コンパイル失敗なのでカウントしない (フロントが retry できる)。
+    if fp and pdf_b64:
+        _anon_fp_mark_used(fp)
 
     return {"success": True, **result, "pdf_base64": pdf_b64}
 
@@ -586,6 +610,15 @@ async def anonymous_trial_generate(req: AnonymousTrialRequest, request: Request)
     enforce_rate_limit(request, "anon-trial-burst", limit=3, window_seconds=60)
     enforce_rate_limit(request, "anon-trial-day", limit=10, window_seconds=86400)
 
+    # ブラウザ指紋ガード: シークレットウィンドウで cookie / localStorage を消されても
+    # 7 日 1 回に絞る。指紋ヘッダが無いリクエストは通す (初回必ず使える保証)。
+    fp = _anon_normalize_fp(request.headers.get("x-eddivom-fp"))
+    if fp and _anon_fp_is_used(fp):
+        raise HTTPException(status_code=429, detail={
+            "code": "TRIAL_LIMIT_REACHED",
+            "message": "無料お試しの上限に達しました。続きは無料登録 (30秒) でご利用ください。",
+        })
+
     locale = "en" if (req.locale or "").lower().startswith("en") else "ja"
     topic = (req.topic or "").strip()
 
@@ -609,6 +642,10 @@ async def anonymous_trial_generate(req: AnonymousTrialRequest, request: Request)
             "message": "生成に失敗しました。少し待ってから再度お試しください。" if locale == "ja"
                        else "Generation failed. Please try again in a moment.",
         })
+
+    # 成功時のみ指紋を消費 (上の except 群を通った時点では mark しない)
+    if fp:
+        _anon_fp_mark_used(fp)
 
     return Response(
         content=pdf_bytes,
