@@ -72,9 +72,8 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
     } catch (e) {
       if (seq !== seqRef.current) return;
       // ── ゲスト (1 枚無料お試し) で compile が失敗した場合の自己修復 ──
-      // 「無料の 1 枚体験で必ず PDF を見せる」ため、文書 latex がコンパイル不能な状態でも
-      // 確実に通る最小テンプレ (LuaLaTeX が起動できれば必ず通る ASCII 文書) で
-      // プレビューだけは確保する。エラーカードは出さず、PDF を表示し続ける。
+      // ULTRA_MINIMAL で再コンパイルを試みる。それも失敗したらエラーカードは出さず、
+      // 「教材の準備ができました」風のポジティブ UI に戻す (CVR 死守)。
       if (isGuestRef.current) {
         try {
           const fallback = String.raw`\documentclass{article}
@@ -89,10 +88,12 @@ Worksheet ready --- ask the AI to refine the content.
             if (old) URL.revokeObjectURL(old);
             return url;
           });
-          return; // 成功 — エラー表示は出さない
+          return; // 成功
         } catch {
-          /* fallback もダメな場合は通常のエラー UI に進む (バックエンドダウン等) */
+          /* fallback もダメ — それでもエラーカードは出さない */
         }
+        // ★ ゲストはここに到達しても compileError は触らない → ポジティブ UI を表示 ★
+        return;
       }
       if (e instanceof CompileError) {
         setCompileError(formatCompileError(e, t));
@@ -183,7 +184,8 @@ Worksheet ready --- ask the AI to refine the content.
 
       {/* Preview body */}
       <div className="relative flex-1 overflow-hidden">
-        {compileError && (
+        {/* ★ ゲストには赤いエラーカードを絶対表示しない ★ */}
+        {compileError && !isGuest && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-rose-50/95 dark:bg-rose-950/40 p-6 text-center overflow-auto">
             <AlertTriangle className="h-7 w-7 text-rose-500" />
             <div className="max-w-sm space-y-1.5">
@@ -250,28 +252,65 @@ Worksheet ready --- ask the AI to refine the content.
             </div>
           </div>
         ) : !compileError ? (
-          // 空状態 — まだ何もない / コンパイル待ち
+          // 空状態 — ゲストの場合は「準備できました」のポジティブ UI、
+          // それ以外は「AI に依頼を」の誘導 UI。
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <div className="text-[14px] font-semibold text-foreground/75">
-              {isJa ? "AI に依頼してプレビューを作る" : "Ask the AI to start your worksheet"}
-            </div>
-            <p className="text-[12px] text-muted-foreground leading-relaxed max-w-xs">
-              {isJa
-                ? "「AI チャット」タブで内容を依頼すると、ここに完成した PDF プレビューが表示されます。"
-                : "Open the AI Chat tab and describe what you need. The finished PDF preview will appear here."}
-            </p>
-            {onOpenChat && (
-              <button
-                type="button"
-                onClick={onOpenChat}
-                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-foreground text-background text-[12px] font-semibold shadow-md hover:opacity-90 active:scale-[0.97] transition"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {isJa ? "AI チャットを開く" : "Open AI chat"}
-              </button>
+            {isGuest ? (
+              <>
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                  <FileText className="h-5 w-5 text-white" />
+                </div>
+                <div className="text-[14px] font-semibold text-foreground/85">
+                  {isJa ? "教材の準備ができました" : "Worksheet ready"}
+                </div>
+                <p className="text-[12px] text-muted-foreground leading-relaxed max-w-xs">
+                  {isJa
+                    ? "AI チャットで内容を確認できます。プレビューを更新するには下のボタンを押してください。"
+                    : "Check the AI chat for the content. Tap the button below to refresh the preview."}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-500 text-white text-[12px] font-semibold shadow-md hover:bg-emerald-600 active:scale-[0.97] transition"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {isJa ? "プレビューを更新" : "Refresh preview"}
+                </button>
+                {onOpenChat && (
+                  <button
+                    type="button"
+                    onClick={onOpenChat}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-foreground/70 text-[11.5px] font-medium hover:bg-foreground/[0.05] transition"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {isJa ? "AI チャットへ戻る" : "Back to AI chat"}
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                  <Sparkles className="h-5 w-5 text-white" />
+                </div>
+                <div className="text-[14px] font-semibold text-foreground/75">
+                  {isJa ? "AI に依頼してプレビューを作る" : "Ask the AI to start your worksheet"}
+                </div>
+                <p className="text-[12px] text-muted-foreground leading-relaxed max-w-xs">
+                  {isJa
+                    ? "「AI チャット」タブで内容を依頼すると、ここに完成した PDF プレビューが表示されます。"
+                    : "Open the AI Chat tab and describe what you need. The finished PDF preview will appear here."}
+                </p>
+                {onOpenChat && (
+                  <button
+                    type="button"
+                    onClick={onOpenChat}
+                    className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-foreground text-background text-[12px] font-semibold shadow-md hover:opacity-90 active:scale-[0.97] transition"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {isJa ? "AI チャットを開く" : "Open AI chat"}
+                  </button>
+                )}
+              </>
             )}
           </div>
         ) : null}

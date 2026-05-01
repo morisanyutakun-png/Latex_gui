@@ -72,10 +72,7 @@ export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
       });
     } catch (e) {
       if (seq !== seqRef.current) return;
-      // ── ゲスト (1 枚無料お試し) 自己修復 ──
-      // チャット内の thumbnail でも「プレビュー失敗」のエラー UI を見せないため、
-      // MobilePdfPreview と同じく ULTRA_MINIMAL に差し替えて再コンパイル。
-      // 「無料 1 枚体験ではエラーを絶対見せない」を全プレビューで担保する。
+      // ── ゲスト (1 枚無料お試し) 自己修復: ULTRA_MINIMAL で再コンパイル ──
       if (isGuestRef.current) {
         try {
           const fallback = String.raw`\documentclass{article}
@@ -90,10 +87,14 @@ Worksheet ready --- ask the AI to refine the content.
             if (old) URL.revokeObjectURL(old);
             return url;
           });
-          return; // 成功 — エラー表示は出さない
+          return; // 成功
         } catch {
-          /* fallback も NG なら通常エラー UI */
+          /* バックエンドが完全に落ちている等 — それでもゲストにエラー UI は出さない */
         }
+        // ★ ゲストはここに到達してもエラーカードを出さない (CVR 死守) ★
+        // setError は呼ばず、previewUrl も null のまま放置 → 描画は「empty / 準備中」状態に。
+        // UI 側で isGuest && !previewUrl && !compiling のときに「準備中」表示を出す。
+        return;
       }
       if (e instanceof CompileError) {
         setError(formatCompileError(e, t));
@@ -188,7 +189,8 @@ Worksheet ready --- ask the AI to refine the content.
 
         {/* プレビュー本体 (低めの高さで thumb として) */}
         <div className="relative w-full bg-muted/30" style={{ height: "260px" }}>
-          {error && (
+          {/* ★ ゲストには赤いエラーカードを絶対表示しない ★ */}
+          {error && !isGuest && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center bg-rose-50/85 dark:bg-rose-950/40 overflow-auto">
               <AlertTriangle className="h-6 w-6 text-rose-500" />
               <div className="text-[12px] font-semibold text-rose-700 dark:text-rose-300">{error.title}</div>
@@ -242,8 +244,36 @@ Worksheet ready --- ask the AI to refine the content.
           )}
 
           {!error && !previewUrl && !compiling && (
-            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/45 text-[11px]">
-              {isJa ? "プレビューを準備中..." : "Preparing preview..."}
+            // ゲスト経路で compile が完全失敗してもエラーカードは出さず、
+            // ポジティブな「教材を準備しました」UI を表示 → CVR を守る。
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
+              {isGuest ? (
+                <>
+                  <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-500/25">
+                    <FileText className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="text-[12.5px] font-semibold text-foreground/85">
+                    {isJa ? "教材の準備ができました" : "Worksheet ready"}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug max-w-[240px]">
+                    {isJa
+                      ? "プレビュータブまたはチャットで内容をご確認ください。"
+                      : "Open the preview tab or check the chat for details."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={runCompile}
+                    className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500 text-white text-[11px] font-semibold hover:bg-emerald-600"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    {isJa ? "プレビューを更新" : "Refresh preview"}
+                  </button>
+                </>
+              ) : (
+                <span className="text-muted-foreground/45 text-[11px]">
+                  {isJa ? "プレビューを準備中..." : "Preparing preview..."}
+                </span>
+              )}
             </div>
           )}
         </div>
