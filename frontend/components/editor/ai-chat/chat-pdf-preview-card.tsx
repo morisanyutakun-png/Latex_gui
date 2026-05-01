@@ -17,6 +17,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { useUIStore } from "@/store/ui-store";
 import { FileText, Loader2, AlertTriangle, Maximize2, X, RefreshCw } from "lucide-react";
 
 interface Props {
@@ -37,6 +38,12 @@ interface CompileErrorView {
 export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
   const { t, locale } = useI18n();
   const isJa = locale !== "en";
+  // ゲスト (LP からのお試し) は /api/compile-raw が 401 になり「プレビュー生成には
+  // ログインが必要」エラーになる。MobilePdfPreview / DocumentEditor と同じく、
+  // isGuest=true なら anonymous プロキシ (/api/anonymous/compile-raw) に切替。
+  const isGuest = useUIStore((s) => s.isGuest);
+  const isGuestRef = useRef(isGuest);
+  isGuestRef.current = isGuest;
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [error, setError] = useState<CompileErrorView | null>(null);
@@ -52,7 +59,7 @@ export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
     setCompiling(true);
     setError(null);
     try {
-      const blob = await compileRawLatex(latex, title);
+      const blob = await compileRawLatex(latex, title, { anonymous: isGuestRef.current });
       if (seq !== seqRef.current) return;
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {

@@ -298,12 +298,16 @@ export interface AnonymousOption {
 }
 
 export async function previewLatex(doc: DocumentModel, opts: AnonymousOption = {}): Promise<string> {
-  const url = opts.anonymous ? `/api/anonymous/preview-latex` : `/api/preview-latex`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(doc),
-  });
+  const body = JSON.stringify(doc);
+  const tryFetch = (anon: boolean) => fetch(
+    anon ? `/api/anonymous/preview-latex` : `/api/preview-latex`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body },
+  );
+  let res = await tryFetch(!!opts.anonymous);
+  if (!res.ok && res.status === 401 && !opts.anonymous) {
+    // 認証必須エンドポイントが 401 を返したらゲスト用にフォールバック。
+    res = await tryFetch(true);
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const detail = (err as { detail?: { message?: string } })?.detail;
@@ -318,12 +322,18 @@ export async function compileRawLatex(
   filename?: string,
   opts: AnonymousOption = {},
 ): Promise<Blob> {
-  const url = opts.anonymous ? `/api/anonymous/compile-raw` : `/api/compile-raw`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ latex, filename: filename ?? "document" }),
-  });
+  const body = JSON.stringify({ latex, filename: filename ?? "document" });
+  const tryFetch = (anon: boolean) => fetch(
+    anon ? `/api/anonymous/compile-raw` : `/api/compile-raw`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body },
+  );
+  let res = await tryFetch(!!opts.anonymous);
+  // 401/UNAUTHORIZED にぶつかった場合は安全網として anonymous プロキシへ自動リトライ。
+  // ゲスト経路の取りこぼし (どこかの呼び出し側が anonymous フラグを渡し忘れた等) で
+  // 「プレビュー生成にはログインが必要」エラーをユーザに見せないための保険。
+  if (!res.ok && res.status === 401 && !opts.anonymous) {
+    res = await tryFetch(true);
+  }
   if (!res.ok) {
     throw await buildCompileError(res, `LaTeX compile failed (HTTP ${res.status})`);
   }
