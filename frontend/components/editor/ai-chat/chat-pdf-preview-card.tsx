@@ -16,7 +16,6 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
-import { buildClientFallbackPdf } from "@/lib/client-fallback-pdf";
 import { useI18n } from "@/lib/i18n";
 import { useUIStore } from "@/store/ui-store";
 import { FileText, Loader2, AlertTriangle, Maximize2, X, RefreshCw } from "lucide-react";
@@ -78,6 +77,8 @@ export function ChatPdfPreviewCard({ latex, title, msgId }: Props) {
     } catch (e) {
       if (seq !== seqRef.current) return;
       // ── ゲスト (1 枚無料お試し) 自己修復: ULTRA_MINIMAL で再コンパイル ──
+      // **クライアント生成の偽 PDF は使わない** (Helvetica + ASCII で数式が汚いため)。
+      // サーバが完全停止していれば preview なしで retry ボタンを出す。
       if (isGuestRef.current) {
         try {
           const fallback = String.raw`\documentclass{article}
@@ -94,19 +95,8 @@ Worksheet ready --- ask the AI to refine the content.
           });
           return;
         } catch {
-          /* サーバ完全停止 — クライアント生成 PDF にフォールバック */
+          /* サーバ完全停止 — preview なしで retry ボタンを出す */
         }
-        // ★ クライアント生成 PDF — トピック別の問題セット入り (latex 数式も抽出) ★
-        const lastUserMsg = [...useUIStore.getState().chatMessages]
-          .reverse()
-          .find((m) => m.role === "user")?.content || "worksheet";
-        const clientBlob = buildClientFallbackPdf(lastUserMsg, latex);
-        if (seq !== seqRef.current) return;
-        const url = URL.createObjectURL(clientBlob);
-        setPreviewUrl((old) => {
-          if (old && old !== useUIStore.getState().guestPreviewBlobUrl) URL.revokeObjectURL(old);
-          return url;
-        });
         return;
       }
       if (e instanceof CompileError) {

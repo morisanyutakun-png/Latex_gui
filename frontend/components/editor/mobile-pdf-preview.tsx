@@ -14,7 +14,6 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
-import { buildClientFallbackPdf } from "@/lib/client-fallback-pdf";
 import { useDocumentStore } from "@/store/document-store";
 import { useUIStore } from "@/store/ui-store";
 import { useI18n } from "@/lib/i18n";
@@ -77,8 +76,9 @@ export function MobilePdfPreview({ onOpenChat }: { onOpenChat?: () => void }) {
     } catch (e) {
       if (seq !== seqRef.current) return;
       // ── ゲスト (1 枚無料お試し) で compile が失敗した場合の自己修復 ──
-      // ULTRA_MINIMAL で再コンパイルを試みる。それも失敗したらエラーカードは出さず、
-      // 「教材の準備ができました」風のポジティブ UI に戻す (CVR 死守)。
+      // ULTRA_MINIMAL で再コンパイルを試みる。**クライアント生成の偽 PDF は使わない**
+      // (Helvetica + ASCII で数式が汚く LaTeX プレビューとして破綻するため)。
+      // サーバ側でも失敗したら、エラー表示を出さずに retry ボタン付きの空状態に戻す。
       if (isGuestRef.current) {
         try {
           const fallback = String.raw`\documentclass{article}
@@ -95,22 +95,10 @@ Worksheet ready --- ask the AI to refine the content.
           });
           return; // サーバ側 fallback 成功
         } catch {
-          /* サーバ完全停止 — クライアント生成 PDF にフォールバック */
+          /* サーバ完全停止 — 偽 PDF は出さず空状態 + 「プレビューを更新」ボタンで retry */
         }
-        // ★ クライアント生成 PDF — トピック別の問題セット入りワークシートを出す ★
-        // ユーザの最後のチャットプロンプトと現在の latex を渡すと、トピック検出
-        // (二次方程式 / 微積等) + AI 返却 latex の数式抽出で「実際に取り組める問題」を出す。
-        const docNow = useDocumentStore.getState().document;
-        const lastUserMsg = [...useUIStore.getState().chatMessages]
-          .reverse()
-          .find((m) => m.role === "user")?.content || "worksheet";
-        const clientBlob = buildClientFallbackPdf(lastUserMsg, docNow?.latex);
-        if (seq !== seqRef.current) return;
-        const url = URL.createObjectURL(clientBlob);
-        setPreviewUrl((old) => {
-          if (old && old !== useUIStore.getState().guestPreviewBlobUrl) URL.revokeObjectURL(old);
-          return url;
-        });
+        // 既存の guest preview blob があればそれを残す (前回成功した PDF を維持)。
+        // 何も無ければ null のまま → 下の「教材の準備ができました」+ refresh UI が出る。
         return;
       }
       if (e instanceof CompileError) {

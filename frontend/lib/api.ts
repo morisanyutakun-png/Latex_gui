@@ -325,14 +325,59 @@ export async function compileRawLatex(
   const body = JSON.stringify({ latex, filename: filename ?? "document" });
   const tryFetch = (anon: boolean) => fetch(
     anon ? `/api/anonymous/compile-raw` : `/api/compile-raw`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      // モバイル回線 + コールドスタートの LuaLaTeX は 30〜45秒かかる場合がある。
+      // Vercel proxy 側は maxDuration=60 / 55s timeout なので、フロントは 58s で打ち切る。
+      signal: AbortSignal.timeout(58000),
+    },
   );
-  let res = await tryFetch(!!opts.anonymous);
-  // 401/UNAUTHORIZED にぶつかった場合は安全網として anonymous プロキシへ自動リトライ。
-  // ゲスト経路の取りこぼし (どこかの呼び出し側が anonymous フラグを渡し忘れた等) で
-  // 「プレビュー生成にはログインが必要」エラーをユーザに見せないための保険。
-  if (!res.ok && res.status === 401 && !opts.anonymous) {
-    res = await tryFetch(true);
+
+  // 502 / 504 はインフラ系の transient failure (cold start, gateway timeout) なので
+  // 1 回だけリトライする。422 (LaTeX 由来の compile error) はリトライしない。
+  const MAX_ATTEMPTS = 2;
+  let res: Response | null = null;
+  let lastTransientErr: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      res = await tryFetch(!!opts.anonymous);
+    } catch (netErr) {
+      const isTimeout = netErr instanceof Error &&
+        (netErr.name === "TimeoutError" || netErr.name === "AbortError");
+      if (attempt < MAX_ATTEMPTS) {
+        lastTransientErr = netErr instanceof Error ? netErr : new Error(String(netErr));
+        continue;
+      }
+      throw new CompileError({
+        code: isTimeout ? "network_timeout" : "network_unreachable",
+        fallbackMessage: isTimeout
+          ? "コンパイルがタイムアウトしました。もう一度お試しください。"
+          : "コンパイルサーバに接続できませんでした。",
+        status: 0,
+      });
+    }
+
+    if (res.ok) break;
+
+    // 401: anonymous プロキシへ自動フォールバック (一度だけ)
+    if (res.status === 401 && !opts.anonymous && attempt === 1) {
+      res = await tryFetch(true);
+      if (res.ok) break;
+    }
+
+    // 502/504: transient なのでリトライ
+    if ((res.status === 502 || res.status === 504) && attempt < MAX_ATTEMPTS) {
+      lastTransientErr = new Error(`HTTP ${res.status}`);
+      continue;
+    }
+    break;
+  }
+
+  if (!res) {
+    throw lastTransientErr || new Error("compile failed");
   }
   if (!res.ok) {
     throw await buildCompileError(res, `LaTeX compile failed (HTTP ${res.status})`);
