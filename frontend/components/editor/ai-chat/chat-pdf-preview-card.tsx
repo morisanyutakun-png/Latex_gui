@@ -96,11 +96,11 @@ Worksheet ready --- ask the AI to refine the content.
         } catch {
           /* サーバ完全停止 — クライアント生成 PDF にフォールバック */
         }
-        // ★ クライアント生成 PDF を blob 化して必ず PDF サムネを表示 ★
-        const clientBlob = buildClientFallbackPdf(
-          "Worksheet ready",
-          "Open the AI chat for content",
-        );
+        // ★ クライアント生成 PDF — トピック別の問題セット入り (latex 数式も抽出) ★
+        const lastUserMsg = [...useUIStore.getState().chatMessages]
+          .reverse()
+          .find((m) => m.role === "user")?.content || "worksheet";
+        const clientBlob = buildClientFallbackPdf(lastUserMsg, latex);
         if (seq !== seqRef.current) return;
         const url = URL.createObjectURL(clientBlob);
         setPreviewUrl((old) => {

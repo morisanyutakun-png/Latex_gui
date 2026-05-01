@@ -97,13 +97,14 @@ Worksheet ready --- ask the AI to refine the content.
         } catch {
           /* サーバ完全停止 — クライアント生成 PDF にフォールバック */
         }
-        // ★ クライアント生成 PDF を blob 化して必ず PDF ビューを出す ★
-        // バックエンドが完全に死んでいてもユーザは PDF プレビュー (1 ページの白紙 + テキスト)
-        // を必ず見られる。「教材の準備ができました」プレースホルダではなく実際の PDF。
-        const clientBlob = buildClientFallbackPdf(
-          isJa ? "Worksheet ready" : "Worksheet ready",
-          isJa ? "Open the AI chat for content" : "Open the AI chat for content",
-        );
+        // ★ クライアント生成 PDF — トピック別の問題セット入りワークシートを出す ★
+        // ユーザの最後のチャットプロンプトと現在の latex を渡すと、トピック検出
+        // (二次方程式 / 微積等) + AI 返却 latex の数式抽出で「実際に取り組める問題」を出す。
+        const docNow = useDocumentStore.getState().document;
+        const lastUserMsg = [...useUIStore.getState().chatMessages]
+          .reverse()
+          .find((m) => m.role === "user")?.content || "worksheet";
+        const clientBlob = buildClientFallbackPdf(lastUserMsg, docNow?.latex);
         if (seq !== seqRef.current) return;
         const url = URL.createObjectURL(clientBlob);
         setPreviewUrl((old) => {
