@@ -141,6 +141,39 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* iOS Safari は Next の Viewport API から `user-scalable=no` を出力しない場合があり、
+            その隙間でピンチズームが発動する。生の meta タグを最優先で head 先頭に置いて
+            完全に上書きする。Next のメタ生成より先に評価されるため、ピンチ/ダブルタップ
+            ズームが iOS Safari / Android Chrome の両方で確実に無効化される。 */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
+        />
+        {/* JS 側: iOS のジェスチャ (gesturestart) と 2 本指タッチをブロックして
+            残りのピンチパスも止める。ダブルタップズームは touch-action: manipulation で抑止。 */}
+        <Script id="lock-mobile-zoom" strategy="beforeInteractive">
+          {`
+            (function () {
+              if (typeof document === 'undefined') return;
+              var prevent = function (e) { e.preventDefault(); };
+              // iOS Safari 専用: ピンチ開始ジェスチャを止める (passive:false 必須)
+              document.addEventListener('gesturestart', prevent, { passive: false });
+              document.addEventListener('gesturechange', prevent, { passive: false });
+              document.addEventListener('gestureend', prevent, { passive: false });
+              // Android / 新しい iOS: 2 本指タッチをピンチとして発動させない
+              document.addEventListener('touchmove', function (e) {
+                if (e.touches && e.touches.length > 1) e.preventDefault();
+              }, { passive: false });
+              // ダブルタップズーム抑止 (300ms 以内の 2 連 tap)
+              var lastTouch = 0;
+              document.addEventListener('touchend', function (e) {
+                var now = Date.now();
+                if (now - lastTouch <= 300) e.preventDefault();
+                lastTouch = now;
+              }, { passive: false });
+            })();
+          `}
+        </Script>
         {/* preconnect: TLS ハンドシェイクを先回りして実行することで、gtag.js / GA4 ビーコン /
             Ads conversion の初回送信時間を短縮する (LCP・FCP に効く)。`crossOrigin` は
             CORS 付きフェッチに必要 (gtag.js は CORS 越しの動的 import を行う)。 */}
