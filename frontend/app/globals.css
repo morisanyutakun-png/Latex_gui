@@ -1034,6 +1034,26 @@ html {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
 }
 
+/* ── モバイル画角の固定 ──
+   layout.tsx の viewport (maximumScale=1, userScalable=false) と組み合わせて
+   モバイル LP / チャットでピンチズームを完全に無効化する。
+   - touch-action: pan-x pan-y → ピンチを物理的に拾わせない (iOS 13+ で有効)
+   - text-size-adjust: 100% → Mobile Safari の自動フォント拡大を抑止
+   - input/textarea/select の font-size を 16px 以上に揃え、
+     focus 時の auto-zoom (iOS Safari の <16px トリガ) を確実に止める。 */
+@media (max-width: 768px) {
+  html {
+    touch-action: pan-x pan-y;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
 /* ── Mobile chat — ChatGPT のレイアウト土台 + Eddivom らしさ (amber accent) ──
    PC は触らずに data-mobile="1" のときだけ反映。
    ベースはクリーンに、ブランド色は要所だけにアクセントとして配置。 */

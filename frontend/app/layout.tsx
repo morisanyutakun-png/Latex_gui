@@ -115,11 +115,18 @@ export const metadata: Metadata = {
 // スマホ・タブレットで レイアウトが崩れないよう viewport を明示する。
 // エディタ UI はデスクトップ前提 (README でも PWA/モバイルは TODO) だが、
 // 最低限ランディング・法務ページが読める状態にする。
+// maximumScale=1 + userScalable=false: モバイル LP / チャットでピンチズームを無効化し、
+// 画角を固定する (LP の hero 画像ズレ・チャット入力時の画面拡大を防ぐ)。
+// 入力欄の auto-zoom も止めるため、モバイルの input/textarea は 16px 以上を維持する。
+// interactiveWidget=resizes-content: iOS のソフトキーボード出現時に layout viewport を
+// 縮めて、入力欄が画面外に押し出されず縦スクロールで自然に追従できるようにする。
 // theme-color: モバイル Safari/Chrome のステータスバーをページ色に合わせる (体感速度向上)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 5,
+  maximumScale: 1,
+  userScalable: false,
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#0b0b0c" },

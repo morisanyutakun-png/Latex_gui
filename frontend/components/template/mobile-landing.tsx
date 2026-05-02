@@ -584,7 +584,8 @@ function MobilePromptCta({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt:
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
           placeholder={placeholder}
           aria-label={isJa ? "AIに作成内容を伝える" : "Tell the AI what to make"}
-          className="flex-1 min-w-0 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/50 text-foreground"
+          // font-size は必ず 16px 以上 (iOS Safari の input auto-zoom は <16px で発動する)。
+          className="flex-1 min-w-0 bg-transparent text-[16px] outline-none placeholder:text-muted-foreground/50 text-foreground"
         />
       </div>
       <button
