@@ -122,14 +122,32 @@ export function MobileLanding({
             </span>
           </div>
           <h1 className="text-[clamp(1.6rem,7vw,2.2rem)] leading-[1.12] font-bold tracking-[-0.025em] mb-3">
-            {isJa
-              ? "解答付きのプリントを、60秒で1枚。"
-              : "Create a printable worksheet with answers in 60 seconds."}
+            {isJa ? (
+              <>
+                <HighlightMark>解答付きのプリント</HighlightMark>を、
+                <GradientWord>60秒で1枚</GradientWord>。
+              </>
+            ) : (
+              <>
+                Create a <HighlightMark>printable worksheet with answers</HighlightMark> in{" "}
+                <GradientWord>60 seconds</GradientWord>.
+              </>
+            )}
           </h1>
           <p className="text-foreground/80 text-[14px] leading-relaxed mb-2 font-medium">
-            {isJa
-              ? "数学・理科の任意のトピックを、きれいな問題プリントと解答PDFに変換します。最初の1枚は登録不要。"
-              : "Turn any math or science topic into a clean worksheet and answer-key PDF. No sign-up required for your first sheet."}
+            {isJa ? (
+              <>
+                数学・理科の任意のトピックを、
+                <span className="font-semibold text-foreground">きれいな問題プリントと解答PDF</span>に変換します。
+                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">最初の1枚は登録不要。</span>
+              </>
+            ) : (
+              <>
+                Turn any math or science topic into a{" "}
+                <span className="font-semibold text-foreground">clean worksheet and answer-key PDF</span>.{" "}
+                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">No sign-up required for your first sheet.</span>
+              </>
+            )}
           </p>
           <p className="inline-flex items-center gap-1.5 text-foreground/65 text-[11.5px] font-medium mb-3">
             <GraduationCap className="h-3.5 w-3.5" />
@@ -600,6 +618,34 @@ function MobilePromptCta({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt:
         <ArrowRight className="h-4 w-4" />
       </button>
     </div>
+  );
+}
+
+/* ── 装飾: 黄色マーカー風アンダーライン ──
+ * 全体が黒文字で重く見えるとの指摘を受けて、Hero H1 の核フレーズに薄い黄色の
+ * ハイライトを敷く。背景は半透明 + linear-gradient で「ペンで引いた」感を出し、
+ * dark mode でも視認できるよう発色を強めにしている。 */
+function HighlightMark({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="relative inline-block"
+      style={{
+        backgroundImage:
+          "linear-gradient(180deg, transparent 58%, rgba(250, 204, 21, 0.55) 58%, rgba(250, 204, 21, 0.55) 92%, transparent 92%)",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* ── 装飾: 数値・キーワードに使うグラデ強調 ── */
+function GradientWord({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
+      {children}
+    </span>
   );
 }
 

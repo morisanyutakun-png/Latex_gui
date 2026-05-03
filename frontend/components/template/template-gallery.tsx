@@ -394,6 +394,33 @@ function HeroFlowStrip({ isJa }: { isJa: boolean }) {
   );
 }
 
+/* ── 装飾: 黄色マーカー風アンダーライン ──
+ * Hero H1 の核フレーズに薄い黄色のハイライトを敷いて、黒文字の重さを和らげる。
+ * 背景は半透明 + linear-gradient で「ペンで引いた」感を出している。 */
+function HighlightMark({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="relative inline-block"
+      style={{
+        backgroundImage:
+          "linear-gradient(180deg, transparent 58%, rgba(250, 204, 21, 0.55) 58%, rgba(250, 204, 21, 0.55) 92%, transparent 92%)",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* ── 装飾: 数値・キーワードに使うグラデ強調 ── */
+function GradientWord({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
+      {children}
+    </span>
+  );
+}
+
 /* ── Hero: サンプルプロンプトチップ ──
  * クリックすると prompt を onSubmit に渡し、ゲスト生成フローへ即遷移する。
  * 「何を書いたらいいか分からない」を解消するためのワンクリック起点。
@@ -2573,15 +2600,33 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
 
             {/* Headline — 1 行 1 メッセージで CVR 訴求を「できること → 出力 → リスク無し」に整理 */}
             <h1 className="text-[clamp(1.6rem,4.2vw,3.4rem)] leading-[1.08] font-bold tracking-[-0.035em] mb-3 sm:mb-4">
-              {isJa
-                ? "解答付きのプリントを、60秒で1枚。"
-                : "Create a printable worksheet with answers in 60 seconds."}
+              {isJa ? (
+                <>
+                  <HighlightMark>解答付きのプリント</HighlightMark>を、
+                  <GradientWord>60秒で1枚</GradientWord>。
+                </>
+              ) : (
+                <>
+                  Create a <HighlightMark>printable worksheet with answers</HighlightMark> in{" "}
+                  <GradientWord>60 seconds</GradientWord>.
+                </>
+              )}
             </h1>
 
             <p className="text-foreground/80 text-[15px] sm:text-[17px] leading-relaxed max-w-xl mx-auto mb-3 font-medium">
-              {isJa
-                ? "数学・理科の任意のトピックを、きれいな問題プリントと解答PDFに変換します。最初の1枚は登録不要。"
-                : "Turn any math or science topic into a clean worksheet and answer-key PDF. No sign-up required for your first sheet."}
+              {isJa ? (
+                <>
+                  数学・理科の任意のトピックを、
+                  <span className="font-semibold text-foreground">きれいな問題プリントと解答PDF</span>に変換します。
+                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">最初の1枚は登録不要。</span>
+                </>
+              ) : (
+                <>
+                  Turn any math or science topic into a{" "}
+                  <span className="font-semibold text-foreground">clean worksheet and answer-key PDF</span>.{" "}
+                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">No sign-up required for your first sheet.</span>
+                </>
+              )}
             </p>
 
             <p className="inline-flex items-center gap-1.5 text-[12.5px] sm:text-[13.5px] text-foreground/65 font-medium mb-7 sm:mb-8">
