@@ -394,6 +394,74 @@ function HeroFlowStrip({ isJa }: { isJa: boolean }) {
   );
 }
 
+/* ── Hero: サンプルプロンプトチップ ──
+ * クリックすると prompt を onSubmit に渡し、ゲスト生成フローへ即遷移する。
+ * 「何を書いたらいいか分からない」を解消するためのワンクリック起点。
+ * 既存の HeroPromptCta と並列に置き、入力フローを壊さない。 */
+function HeroSamplePromptChips({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt: string) => void }) {
+  const samples = isJa
+    ? [
+        "中2数学 一次関数の確認テスト10問",
+        "高校物理 運動方程式の基本問題",
+        "小学生向け 分数の計算プリント",
+        "回路の基本クイズ 解説付き",
+      ]
+    : [
+        "10 quadratic equation problems with answers",
+        "High school physics: forces and motion quiz",
+        "Grade 6 fractions worksheet with answer key",
+        "Circuit basics quiz with explanations",
+      ];
+  return (
+    <div className="mt-3">
+      <p className="text-[10.5px] sm:text-[11px] font-semibold tracking-wide text-muted-foreground/70 mb-1.5 text-left">
+        {isJa ? "サンプルから始める：" : "Start from a sample:"}
+      </p>
+      <div className="flex flex-wrap justify-start gap-1.5 sm:gap-2">
+        {samples.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onSubmit(s)}
+            className="text-[11.5px] sm:text-[12px] px-3 py-1.5 rounded-full border border-foreground/[0.1] bg-card/60 text-foreground/85 hover:border-violet-500/35 hover:bg-card hover:-translate-y-0.5 active:scale-[0.98] transition-all"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Hero: Free でできること ──
+ * 「無料でどこまで」を初見で明確化。Pro 機能より先に無料体験の価値を見せる。
+ * 5 項目を 1 ブロックに纏め、視線がページ下部の Pricing に流れる前に決着させる。 */
+function HeroFreePerks({ isJa }: { isJa: boolean }) {
+  const items = [
+    { label: isJa ? "プリントを1枚生成"        : "Generate 1 worksheet" },
+    { label: isJa ? "問題を画面で編集"          : "Edit problems on the page" },
+    { label: isJa ? "問題プリントを PDF 出力"   : "Export worksheet PDF" },
+    { label: isJa ? "解答 PDF を出力"            : "Export answer-key PDF" },
+    { label: isJa ? "無料アカウントで保存"       : "Save with a free account" },
+  ];
+  return (
+    <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] p-2.5 sm:p-3 text-left">
+      <p className="inline-flex items-center gap-1.5 text-[11px] sm:text-[11.5px] font-bold tracking-wide text-emerald-700 dark:text-emerald-300 mb-2">
+        <Check className="h-3.5 w-3.5" />
+        {isJa ? "Free でできること" : "Free users can do this"}
+      </p>
+      <ul className="flex flex-wrap gap-x-3 gap-y-1">
+        {items.map((it) => (
+          <li key={it.label} className="inline-flex items-center gap-1.5 text-[12px] sm:text-[12.5px] text-foreground/85">
+            <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{it.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /* ── Editor Workspace Mockup ── */
 /* ── 30-second looping demo ── */
 function EditorMockup({ isJa }: { isJa: boolean }) {
@@ -2403,7 +2471,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
     // 「ログインなしお試しモーダル」を直接開く。広告流入ユーザにはここで
     // 触らせることが先 (CVR 検証用)。登録動線は結果画面の登録 CTA に集約する。
     return {
-      label: isJa ? "無料で1枚作ってみる" : "Create 1 free worksheet",
+      label: isJa ? "最初の1枚を作る" : "Generate my first worksheet",
       subLabel: isJa ? "登録不要 · 30〜60秒で1枚" : "No sign-up required · 30–60s per sheet",
       onClick: () => openTrialOrLimit("hero"),
       variant: "free" as const,
@@ -2506,21 +2574,21 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
             {/* Headline — 1 行 1 メッセージで CVR 訴求を「できること → 出力 → リスク無し」に整理 */}
             <h1 className="text-[clamp(1.6rem,4.2vw,3.4rem)] leading-[1.08] font-bold tracking-[-0.035em] mb-3 sm:mb-4">
               {isJa
-                ? "AIで印刷できるプリントを作成。"
-                : "Create printable worksheets with AI."}
+                ? "解答付きのプリントを、60秒で1枚。"
+                : "Create a printable worksheet with answers in 60 seconds."}
             </h1>
 
             <p className="text-foreground/80 text-[15px] sm:text-[17px] leading-relaxed max-w-xl mx-auto mb-3 font-medium">
               {isJa
-                ? "数学・理科の問題を、解答付きPDFで60秒で生成。"
-                : "Generate math and science quizzes with answer-key PDFs in 60 seconds."}
+                ? "数学・理科の任意のトピックを、きれいな問題プリントと解答PDFに変換します。最初の1枚は登録不要。"
+                : "Turn any math or science topic into a clean worksheet and answer-key PDF. No sign-up required for your first sheet."}
             </p>
 
-            <p className="inline-flex items-center gap-1.5 text-[12.5px] sm:text-[13.5px] text-emerald-700 dark:text-emerald-300 font-semibold mb-7 sm:mb-8">
-              <Check className="h-3.5 w-3.5" />
+            <p className="inline-flex items-center gap-1.5 text-[12.5px] sm:text-[13.5px] text-foreground/65 font-medium mb-7 sm:mb-8">
+              <GraduationCap className="h-3.5 w-3.5" />
               {isJa
-                ? "登録なしで、まず1枚お試しできます。"
-                : "Try 1 sheet for free — no sign-up required."}
+                ? "プリントをすぐ用意したい塾講師・家庭教師・教員の方へ。"
+                : "For tutors and teachers who need custom worksheets fast."}
             </p>
           </div>
 
@@ -2530,6 +2598,8 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           {primaryCta.variant === "free" && (
             <div className={`relative max-w-2xl mx-auto mb-9 sm:mb-10 transition-all duration-1000 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
               <HeroPromptCta isJa={isJa} onSubmit={(p) => openTrialOrLimit("hero_prompt", p)} />
+              <HeroSamplePromptChips isJa={isJa} onSubmit={(p) => openTrialOrLimit("hero_chip", p)} />
+              <HeroFreePerks isJa={isJa} />
               <HeroFlowStrip isJa={isJa} />
             </div>
           )}
@@ -2588,7 +2658,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 onClick={scrollToSample}
                 className="group flex items-center gap-2.5 px-6 py-3 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[14px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
               >
-                {isJa ? "完成イメージを見る" : "See sample"}
+                {isJa ? "サンプル出力を見る" : "See sample output"}
                 <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
               </button>
             </div>

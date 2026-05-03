@@ -213,7 +213,7 @@ export function MobileLandingShell() {
 
     // 未ログイン (status="unauthenticated" or "loading"): ゲストお試し CTA
     return {
-      label: isJa ? "無料で1枚作ってみる" : "Create 1 free worksheet",
+      label: isJa ? "最初の1枚を作る" : "Generate my first worksheet",
       subLabel: isJa ? "登録不要 · 30〜60秒で1枚" : "No sign-up required · 30–60s per sheet",
       onClick: () => { void openTrialOrLimit("hero"); },
       variant: "free" as const,

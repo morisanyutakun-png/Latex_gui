@@ -36,12 +36,12 @@ function headlineFor(
   if (reason === "trial_complete") {
     return isJa ? {
       eyebrow: "🎉 1 枚目の生成が完了しました",
-      title: "ここからは登録すれば\n保存・ダウンロード・追加 AI が使えます",
-      sub: "30秒・カード不要で Free に登録 → このまま編集を続けられます。",
+      title: "このプリントを保存する",
+      sub: "無料アカウントで保存・再編集・再ダウンロードできます。",
     } : {
       eyebrow: "🎉 First worksheet generated",
-      title: "Sign up to save, download,\nand keep generating",
-      sub: "30 seconds · No card · Free plan unlocks editing & downloads.",
+      title: "Save this worksheet for free",
+      sub: "Create a free account to save, edit, and download it again later.",
     };
   }
   if (reason === "trial_limit") {
@@ -57,13 +57,13 @@ function headlineFor(
   }
   if (reason === "feature_locked") {
     return isJa ? {
-      eyebrow: "🔒 この機能は登録ユーザー限定",
-      title: "30 秒の無料登録で\n保存・ダウンロード・OMR まで解放",
-      sub: "Free でも保存・PDF ダウンロードは使えます。Pro 以上で OMR / 採点。",
+      eyebrow: "💾 このプリントを残しておく",
+      title: "このプリントを保存する",
+      sub: "無料アカウントで保存・再編集・再ダウンロードできます。",
     } : {
-      eyebrow: "🔒 Feature requires sign-up",
-      title: "30-second signup unlocks\nsave, download, and more",
-      sub: "Free unlocks save & PDF. Pro unlocks OMR & grading.",
+      eyebrow: "💾 Keep this worksheet",
+      title: "Save this worksheet for free",
+      sub: "Create a free account to save, edit, and download it again later.",
     };
   }
   return isJa ? {
@@ -333,7 +333,7 @@ export function GuestSignupOverlay() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-6 sm:px-8 py-5">
             <PlanCard
               planId="free"
-              ctaLabel={isJa ? "Free に登録 (30秒)" : "Sign up Free (30s)"}
+              ctaLabel={isJa ? "このプリントを保存する" : "Save this worksheet for free"}
               features={freeFeatures}
               onClick={handleFreeSignup}
               isJa={isJa}

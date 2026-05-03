@@ -222,13 +222,13 @@ export function AnonymousTrialModal({
               <div className="flex-1">
                 <p className="text-[12.5px] font-semibold mb-0.5">
                   {isJa
-                    ? "保存・再生成・PDFダウンロードには無料登録が必要です"
-                    : "Sign up free to save, regenerate, and download"}
+                    ? "このプリントを保存する"
+                    : "Save this worksheet for free"}
                 </p>
                 <p className="text-[11.5px] text-muted-foreground">
                   {isJa
-                    ? "30 秒で登録すれば、続きの編集や類題量産・解答付き PDF までそのまま使えます。"
-                    : "30-second signup unlocks editing, variant generation, and answer-key PDFs."}
+                    ? "無料アカウントで保存・再編集・再ダウンロードできます。"
+                    : "Create a free account to save, edit, and download it again later."}
                 </p>
               </div>
             </div>
@@ -238,7 +238,7 @@ export function AnonymousTrialModal({
                 {isJa ? "閉じる" : "Close"}
               </Button>
               <Button onClick={onLoginRequested} className="gap-2">
-                {isJa ? "無料登録して続きを編集" : "Sign up free to continue"}
+                {isJa ? "このプリントを保存する" : "Save this worksheet for free"}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </div>

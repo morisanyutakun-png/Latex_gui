@@ -636,23 +636,25 @@ export default function EditorPage() {
           <span className="font-medium truncate">
             {locale === "en"
               ? guestTrialUsed
-                ? "Free trial used. Sign up free to keep editing with AI, save, and download PDF."
-                : "Guest mode — 1 free AI generation. Save, download, and more AI need a free signup."
+                ? "Worksheet ready. Save it to your free account to edit and download it again later."
+                : "Guest mode — 1 free AI generation. Save with a free account to keep editing and downloading."
               : guestTrialUsed
-                ? "無料お試しは使用済み。AI・保存・PDF ダウンロードを続けるには無料登録 (30秒) を。"
-                : "ゲストモード — AI は 1 回まで体験可。保存・PDF ダウンロード・追加 AI は無料登録 (30秒) で解放。"}
+                ? "プリントが完成しました。無料アカウントで保存すれば、再編集・再ダウンロードできます。"
+                : "ゲストモード — まずは1枚作れます。無料アカウントで保存すれば再編集・再ダウンロードできます。"}
           </span>
           <button
             onClick={() => {
               trackGuestSignupClick({ placement: "guest_banner" });
               useUIStore.getState().openSignupOverlay({
-                reason: guestTrialUsed ? "trial_limit" : "manual",
+                reason: guestTrialUsed ? "trial_complete" : "manual",
                 placement: "guest_banner",
               });
             }}
             className="ml-auto shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-foreground text-background text-[11.5px] font-bold hover:opacity-90 transition"
           >
-            {locale === "en" ? "Sign up free" : "無料登録"}
+            {locale === "en"
+              ? guestTrialUsed ? "Save this worksheet" : "Sign up free"
+              : guestTrialUsed ? "このプリントを保存" : "無料登録"}
           </button>
         </div>
       )}

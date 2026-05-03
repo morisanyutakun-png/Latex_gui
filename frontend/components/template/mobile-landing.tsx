@@ -21,6 +21,7 @@ import {
   ArrowRight, Sparkles, Check, ChevronRight, ChevronDown,
   Play, Monitor, Zap, Shield, Printer, FileText, Pencil, RefreshCw,
   Wrench, Crown, BookOpen, Mail, Smartphone, FileSignature,
+  GraduationCap, Save, FileDown,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useI18n } from "@/lib/i18n";
@@ -122,19 +123,19 @@ export function MobileLanding({
           </div>
           <h1 className="text-[clamp(1.6rem,7vw,2.2rem)] leading-[1.12] font-bold tracking-[-0.025em] mb-3">
             {isJa
-              ? "AIで印刷できるプリントを作成。"
-              : "Create printable worksheets with AI."}
+              ? "解答付きのプリントを、60秒で1枚。"
+              : "Create a printable worksheet with answers in 60 seconds."}
           </h1>
           <p className="text-foreground/80 text-[14px] leading-relaxed mb-2 font-medium">
             {isJa
-              ? "数学・理科の問題を、解答付きPDFで60秒で生成。"
-              : "Generate math and science quizzes with answer-key PDFs in 60 seconds."}
+              ? "数学・理科の任意のトピックを、きれいな問題プリントと解答PDFに変換します。最初の1枚は登録不要。"
+              : "Turn any math or science topic into a clean worksheet and answer-key PDF. No sign-up required for your first sheet."}
           </p>
-          <p className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 text-[12px] font-semibold mb-4">
-            <Check className="h-3.5 w-3.5" />
+          <p className="inline-flex items-center gap-1.5 text-foreground/65 text-[11.5px] font-medium mb-3">
+            <GraduationCap className="h-3.5 w-3.5" />
             {isJa
-              ? "登録なしで、まず1枚お試し。"
-              : "Try 1 sheet for free — no sign-up required."}
+              ? "プリントをすぐ用意したい塾講師・家庭教師・教員の方へ。"
+              : "For tutors and teachers who need custom worksheets fast."}
           </p>
         </div>
 
@@ -142,6 +143,8 @@ export function MobileLanding({
         {primaryCta.variant === "free" && onPromptSubmit && (
           <div className={`mb-3 transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
             <MobilePromptCta isJa={isJa} onSubmit={onPromptSubmit} />
+            <MobileSamplePromptChips isJa={isJa} onSubmit={onPromptSubmit} />
+            <MobileFreePerks isJa={isJa} />
             <MobileFlowStrip isJa={isJa} />
           </div>
         )}
@@ -167,7 +170,7 @@ export function MobileLanding({
             className="flex items-center justify-center gap-2 w-full h-12 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[13.5px] active:scale-[0.98] active:bg-foreground/[0.04] transition"
           >
             <Play className="h-3.5 w-3.5" />
-            {isJa ? "デモを見る" : "Watch demo"}
+            {isJa ? "サンプル出力を見る" : "See sample output"}
           </button>
           <p className="text-center text-[11px] text-muted-foreground/55 mt-1">
             {primaryCta.subLabel}
@@ -596,6 +599,72 @@ function MobilePromptCta({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt:
         {isJa ? "無料で1枚作る" : "Create 1 free worksheet"}
         <ArrowRight className="h-4 w-4" />
       </button>
+    </div>
+  );
+}
+
+/* ── モバイル: サンプルプロンプトチップ ──
+ * タップすると prompt を onSubmit に渡し、ゲスト生成フローに即遷移する。
+ * 「何を書いたらいいか分からない」を解消するためのワンタッチ起点。 */
+function MobileSamplePromptChips({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt: string) => void }) {
+  const samples = isJa
+    ? [
+        "中2数学 一次関数の確認テスト10問",
+        "高校物理 運動方程式の基本問題",
+        "小学生向け 分数の計算プリント",
+        "回路の基本クイズ 解説付き",
+      ]
+    : [
+        "10 quadratic equation problems with answers",
+        "High school physics: forces and motion quiz",
+        "Grade 6 fractions worksheet with answer key",
+        "Circuit basics quiz with explanations",
+      ];
+  return (
+    <div className="mt-2.5">
+      <p className="text-[10.5px] font-semibold tracking-wide text-muted-foreground/70 mb-1.5">
+        {isJa ? "サンプルから始める：" : "Start from a sample:"}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {samples.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onSubmit(s)}
+            className="text-[11.5px] px-2.5 py-1.5 rounded-full border border-foreground/[0.1] bg-card/60 text-foreground/85 hover:border-violet-500/35 active:scale-[0.97] transition text-left"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── モバイル: Free でできること一覧 ──
+ * 「無料でどこまで」を初見で明確化。Pro 機能より先に無料体験の価値を見せる。 */
+function MobileFreePerks({ isJa }: { isJa: boolean }) {
+  const items = [
+    { icon: <Sparkles className="h-3 w-3" />,    label: isJa ? "プリントを1枚生成"        : "Generate 1 worksheet" },
+    { icon: <Pencil className="h-3 w-3" />,      label: isJa ? "問題を画面で編集"          : "Edit problems on the page" },
+    { icon: <FileDown className="h-3 w-3" />,    label: isJa ? "問題プリントを PDF 出力"   : "Export worksheet PDF" },
+    { icon: <FileSignature className="h-3 w-3" />, label: isJa ? "解答 PDF を出力"          : "Export answer-key PDF" },
+    { icon: <Save className="h-3 w-3" />,        label: isJa ? "無料アカウントで保存"       : "Save with a free account" },
+  ];
+  return (
+    <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] p-2.5">
+      <p className="inline-flex items-center gap-1 text-[10.5px] font-bold tracking-wide text-emerald-700 dark:text-emerald-300 mb-1.5">
+        <Check className="h-3 w-3" />
+        {isJa ? "Free でできること" : "Free users can do this"}
+      </p>
+      <ul className="grid grid-cols-1 gap-1">
+        {items.map((it) => (
+          <li key={it.label} className="flex items-center gap-1.5 text-[11.5px] text-foreground/85">
+            <span className="text-emerald-600 dark:text-emerald-400">{it.icon}</span>
+            <span>{it.label}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
