@@ -141,6 +141,19 @@ export function MobileLanding({
           </p>
         </div>
 
+        {/* ── 成果物プレビュー: 「実際に出てくるもの」を H1 直下に配置 ──
+             KaTeX や画像を使わず、軽量な div+SVG で Worksheet PDF + Answer Key PDF の
+             2枚を並べて「これが60秒で出てくる」を一目で見せる。
+             タップでプライマリと同じ動作 (= ゲスト生成へ)。 */}
+        <button
+          type="button"
+          onClick={primaryCta.onClick}
+          aria-label={primaryCta.label}
+          className={`block w-full text-left mb-4 transition-all duration-700 delay-75 active:scale-[0.99] ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}
+        >
+          <WorksheetPreviewDuo isJa={isJa} />
+        </button>
+
         {/* ── アクション集約: 入力 + サンプルチップ + 巨大プライマリを一塊に ──
              free フローのときだけ展示。タップ→即生成へ。 */}
         {primaryCta.variant === "free" && onPromptSubmit ? (
@@ -686,6 +699,138 @@ function MobilePromptHeroBlock({
 }
 
 /* ── 旧 MobilePromptCta は廃止 (MobilePromptHeroBlock に統合) ── */
+
+/* ── Hero 直下: 成果物プレビュー (Worksheet + Answer-key) ──
+ *
+ * 「機能ではなく成果物で判断する」を念頭に、ファーストビューで「これが出てくる」
+ * を実物っぽく見せる。KaTeX/画像/動画は使わず、div + 軽量 SVG だけで紙感を出す。
+ * - 左: Worksheet PDF (問題のみ。空欄ライン付き)
+ * - 右: Answer-key PDF (解答付き、緑のチェック)
+ * - 上に Prompt 入力風のチップ + → AI → PDF のフロー帯
+ *
+ * モバイルファーストで 2 枚並列。重なりで奥行きを出し、文字サイズはモバイルで読める
+ * 範囲ぎりぎり (10〜11px)。タップで親が wraps する button が generation flow へ送る。 */
+function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
+  const promptText = isJa ? "二次方程式の問題を10問、解答付きで" : "10 quadratic problems with answers";
+  return (
+    <div className="relative">
+      {/* Prompt → AI → PDF のフロー帯 (チップ風) */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-card border border-foreground/[0.1] text-[10.5px] font-medium text-foreground/80 shadow-sm">
+          <Sparkles className="h-3 w-3 text-violet-500" />
+          <span className="truncate max-w-[58vw]">{promptText}</span>
+        </span>
+        <ArrowRight className="h-3 w-3 text-muted-foreground/55 shrink-0" />
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10px] font-extrabold tracking-wider shadow-md shadow-violet-500/25">
+          <Zap className="h-3 w-3" />
+          {isJa ? "60秒" : "60s"}
+        </span>
+      </div>
+
+      {/* 2 枚の紙 — 横並び、互いに少し重なって奥行き */}
+      <div className="relative grid grid-cols-2 gap-2">
+        <PreviewPaper
+          tone="worksheet"
+          title={isJa ? "数学Ⅰ 確認テスト" : "Math I — Quiz"}
+          subTitle={isJa ? "各10点 ・ 計100点" : "10 pts each · 100 pts"}
+          rows={[
+            { num: "(1)", text: "3x² + 5x − 2 = 0", showLine: true },
+            { num: "(2)", text: "x² − 7x + 12 = 0", showLine: true },
+            { num: "(3)", text: "2x² − x − 6 = 0",  showLine: true },
+            { num: "(4)", text: "x² + 4x + 4 = 0",  showLine: true },
+          ]}
+          stamp={isJa ? "問題プリント PDF" : "Worksheet PDF"}
+          stampColor="from-blue-500 to-violet-500"
+        />
+        <PreviewPaper
+          tone="answer"
+          title={isJa ? "解答 ・ 解説" : "Answer Key"}
+          subTitle={isJa ? "模範解答" : "Solutions"}
+          rows={[
+            { num: "(1)", text: "x = 1/3, −2", check: true },
+            { num: "(2)", text: "x = 3, 4",     check: true },
+            { num: "(3)", text: "x = 2, −3/2",  check: true },
+            { num: "(4)", text: "x = −2 (重解)", check: true },
+          ]}
+          stamp={isJa ? "解答 PDF" : "Answer-key PDF"}
+          stampColor="from-emerald-500 to-teal-500"
+        />
+      </div>
+
+      {/* 「タップして体験」 ─ プレビュー全体がボタンであることを補助的に伝える */}
+      <p className="mt-2 text-center text-[10.5px] text-muted-foreground/70 font-medium">
+        <span className="inline-flex items-center gap-1">
+          <Sparkles className="h-3 w-3 text-violet-500" />
+          {isJa ? "タップしてあなたのプリントを作る" : "Tap to make yours"}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+/* ── プレビュー用の紙コンポーネント ──
+ * 軽量な div だけで実物プリント風のレイアウトを再現。Serif フォントとリュール状の
+ * 罫線、上部のタイトル下線、右下に「PDF」スタンプを置いて成果物感を出す。 */
+function PreviewPaper({
+  title, subTitle, rows, stamp, stampColor, tone,
+}: {
+  title: string;
+  subTitle: string;
+  rows: { num: string; text: string; showLine?: boolean; check?: boolean }[];
+  stamp: string;
+  stampColor: string;
+  tone: "worksheet" | "answer";
+}) {
+  return (
+    <div className="relative rounded-md bg-white dark:bg-zinc-50 border border-gray-300/70 shadow-lg shadow-foreground/[0.08] overflow-hidden text-gray-900" style={{ fontFamily: "ui-serif, Georgia, 'Times New Roman', serif" }}>
+      {/* 角の折れ */}
+      <div
+        aria-hidden
+        className="absolute top-0 right-0 w-3.5 h-3.5"
+        style={{
+          background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)",
+        }}
+      />
+      {/* タイトル */}
+      <div className="px-2.5 pt-2 pb-1 border-b-2 border-gray-800">
+        <p className="text-[10.5px] font-bold text-center leading-tight tracking-wide">{title}</p>
+      </div>
+      <div className="px-2.5 pt-1 pb-1.5 flex items-center justify-between text-[8px] text-gray-500">
+        <span className="truncate">{subTitle}</span>
+        {tone === "worksheet" && (
+          <span className="flex items-center gap-1 shrink-0">
+            <span className="border-b border-gray-400 w-3 inline-block mb-0.5" />
+            <span className="border-b border-gray-400 w-3 inline-block mb-0.5" />
+          </span>
+        )}
+      </div>
+
+      {/* 問題 / 解答 行 */}
+      <ul className="px-2.5 pb-2 space-y-1.5">
+        {rows.map((r, i) => (
+          <li key={i} className="text-[9.5px] leading-tight text-gray-800">
+            <div className="flex items-baseline gap-1">
+              <span className="text-gray-500 shrink-0">{r.num}</span>
+              <span className="font-medium truncate" style={{ fontVariantNumeric: "tabular-nums" }}>{r.text}</span>
+              {r.check && (
+                <Check className="h-2.5 w-2.5 text-emerald-600 shrink-0 ml-auto" />
+              )}
+            </div>
+            {r.showLine && <div className="ml-3.5 mt-1 h-2 border-b border-dashed border-gray-300" />}
+          </li>
+        ))}
+      </ul>
+
+      {/* PDF スタンプ */}
+      <div className="px-2.5 pb-1.5 flex justify-end">
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-sm text-[7.5px] font-extrabold tracking-wider text-white bg-gradient-to-r ${stampColor} shadow-sm`}>
+          <FileText className="h-2 w-2" />
+          {stamp}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 /* ── 装飾: 黄色マーカー風アンダーライン ──
  * 全体が黒文字で重く見えるとの指摘を受けて、Hero H1 の核フレーズに薄い黄色の

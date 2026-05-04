@@ -394,6 +394,128 @@ function HeroFlowStrip({ isJa }: { isJa: boolean }) {
   );
 }
 
+/* ── Hero 直下: 成果物プレビュー (Worksheet + Answer-key) ──
+ *
+ * 「機能ではなく成果物で判断する」ため、ファーストビューに「実物プリント」を出す。
+ * KaTeX/動画/画像を使わない軽量実装 (div+SVG のみ) で LCP を悪化させない。
+ * - 左: Worksheet PDF (問題のみ・空欄ライン付き)
+ * - 右: Answer-key PDF (解答付き・緑チェック)
+ * - 上: Prompt → 60s チップ
+ * - 下: 「タップして自分のプリントを作る」
+ *
+ * モバイル LP と同コンポーネント名にしてあるが、PC LP は max-w-2xl なので
+ * 紙の文字が読みやすい。タップで onTap (なければ何もせず) — 親側で button にラップ。 */
+function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
+  const promptText = isJa ? "二次方程式の問題を10問、解答付きで" : "10 quadratic problems with answers";
+  return (
+    <div className="relative">
+      <div className="flex items-center justify-center gap-2 mb-3">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card border border-foreground/[0.1] text-[11px] sm:text-[12px] font-medium text-foreground/85 shadow-sm">
+          <Sparkles className="h-3 w-3 text-violet-500" />
+          <span className="truncate max-w-[60vw] sm:max-w-none">{promptText}</span>
+        </span>
+        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/55 shrink-0" />
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10.5px] font-extrabold tracking-wider shadow-md shadow-violet-500/25">
+          <Zap className="h-3 w-3" />
+          {isJa ? "60秒" : "60s"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <PreviewPaper
+          tone="worksheet"
+          title={isJa ? "数学Ⅰ 確認テスト" : "Math I — Quiz"}
+          subTitle={isJa ? "各10点 ・ 計100点" : "10 pts each · 100 pts"}
+          rows={[
+            { num: "(1)", text: "3x² + 5x − 2 = 0", showLine: true },
+            { num: "(2)", text: "x² − 7x + 12 = 0", showLine: true },
+            { num: "(3)", text: "2x² − x − 6 = 0",  showLine: true },
+            { num: "(4)", text: "x² + 4x + 4 = 0",  showLine: true },
+          ]}
+          stamp={isJa ? "問題プリント PDF" : "Worksheet PDF"}
+          stampColor="from-blue-500 to-violet-500"
+        />
+        <PreviewPaper
+          tone="answer"
+          title={isJa ? "解答 ・ 解説" : "Answer Key"}
+          subTitle={isJa ? "模範解答" : "Solutions"}
+          rows={[
+            { num: "(1)", text: "x = 1/3, −2", check: true },
+            { num: "(2)", text: "x = 3, 4",     check: true },
+            { num: "(3)", text: "x = 2, −3/2",  check: true },
+            { num: "(4)", text: "x = −2 (重解)", check: true },
+          ]}
+          stamp={isJa ? "解答 PDF" : "Answer-key PDF"}
+          stampColor="from-emerald-500 to-teal-500"
+        />
+      </div>
+
+      <p className="mt-3 text-center text-[11px] sm:text-[12px] text-muted-foreground/75 font-medium">
+        <span className="inline-flex items-center gap-1">
+          <Sparkles className="h-3 w-3 text-violet-500" />
+          {isJa ? "タップしてあなたのプリントを作る" : "Tap to make yours"}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function PreviewPaper({
+  title, subTitle, rows, stamp, stampColor, tone,
+}: {
+  title: string;
+  subTitle: string;
+  rows: { num: string; text: string; showLine?: boolean; check?: boolean }[];
+  stamp: string;
+  stampColor: string;
+  tone: "worksheet" | "answer";
+}) {
+  return (
+    <div
+      className="relative rounded-md bg-white border border-gray-300/70 shadow-xl shadow-foreground/[0.08] overflow-hidden text-gray-900"
+      style={{ fontFamily: "ui-serif, Georgia, 'Times New Roman', serif" }}
+    >
+      <div
+        aria-hidden
+        className="absolute top-0 right-0 w-4 h-4"
+        style={{ background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)" }}
+      />
+      <div className="px-3 pt-2.5 pb-1 border-b-2 border-gray-800">
+        <p className="text-[11px] sm:text-[13px] font-bold text-center leading-tight tracking-wide">{title}</p>
+      </div>
+      <div className="px-3 pt-1 pb-2 flex items-center justify-between text-[8.5px] sm:text-[10px] text-gray-500">
+        <span className="truncate">{subTitle}</span>
+        {tone === "worksheet" && (
+          <span className="flex items-center gap-1 shrink-0">
+            <span className="border-b border-gray-400 w-3 inline-block mb-0.5" />
+            <span className="border-b border-gray-400 w-3 inline-block mb-0.5" />
+          </span>
+        )}
+      </div>
+      <ul className="px-3 pb-2.5 space-y-1.5">
+        {rows.map((r, i) => (
+          <li key={i} className="text-[10px] sm:text-[11.5px] leading-tight text-gray-800">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-gray-500 shrink-0">{r.num}</span>
+              <span className="font-medium truncate" style={{ fontVariantNumeric: "tabular-nums" }}>{r.text}</span>
+              {r.check && (
+                <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-600 shrink-0 ml-auto" />
+              )}
+            </div>
+            {r.showLine && <div className="ml-4 mt-1 h-2 sm:h-2.5 border-b border-dashed border-gray-300" />}
+          </li>
+        ))}
+      </ul>
+      <div className="px-3 pb-2 flex justify-end">
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-sm text-[8px] sm:text-[9px] font-extrabold tracking-wider text-white bg-gradient-to-r ${stampColor} shadow-sm`}>
+          <FileText className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+          {stamp}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /* ── 装飾: 黄色マーカー風アンダーライン ──
  * Hero H1 の核フレーズに薄い黄色のハイライトを敷いて、黒文字の重さを和らげる。
  * 背景は半透明 + linear-gradient で「ペンで引いた」感を出している。 */
@@ -2629,13 +2751,28 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               )}
             </p>
 
-            <p className="inline-flex items-center gap-1.5 text-[12.5px] sm:text-[13.5px] text-foreground/65 font-medium mb-7 sm:mb-8">
+            <p className="inline-flex items-center gap-1.5 text-[12.5px] sm:text-[13.5px] text-foreground/65 font-medium mb-5 sm:mb-6">
               <GraduationCap className="h-3.5 w-3.5" />
               {isJa
                 ? "プリントをすぐ用意したい塾講師・家庭教師・教員の方へ。"
                 : "For tutors and teachers who need custom worksheets fast."}
             </p>
           </div>
+
+          {/* ── 成果物プレビュー: Headline 直下に「実物」を見せて成果物で判断させる ──
+               KaTeX/動画なし、軽量 div+SVG のみ。タップで Hero Prompt と同じフローに乗る。 */}
+          {primaryCta.variant === "free" && (
+            <div className={`relative max-w-2xl mx-auto mb-6 transition-all duration-1000 delay-75 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+              <button
+                type="button"
+                onClick={() => openTrialOrLimit("hero_preview")}
+                className="block w-full text-left active:scale-[0.99] transition"
+                aria-label={isJa ? "プレビューをタップして自分のプリントを作る" : "Tap preview to make your own"}
+              >
+                <WorksheetPreviewDuo isJa={isJa} />
+              </button>
+            </div>
+          )}
 
           {/* ── プロンプト入力 CTA + 出力プレビュー ──
                未ログインユーザだけに見せる (ログイン済みは「続きから編集 / 白紙で始める」が
