@@ -21,7 +21,7 @@ import {
   ArrowRight, Sparkles, Check, ChevronRight, ChevronDown,
   Monitor, Zap, Shield, Printer, FileText, Pencil, RefreshCw,
   Wrench, Crown, BookOpen, Mail, Smartphone, FileSignature,
-  GraduationCap, Save, FileDown,
+  Save, FileDown, Play,
 } from "lucide-react";
 import { renderMathHTML } from "@/lib/katex-render";
 
@@ -137,60 +137,49 @@ export function MobileLanding({
         <UserMenu />
       </nav>
 
-      {/* ━━ HERO (mobile, action-first)
-           「60秒で1枚 + 1タップで何枚でも」の 2 軸を最上段で訴求。
-           時間価値 (60s) と量産価値 (variant) を H1 で同時に出す。 */}
-      <section className="relative overflow-hidden pt-4 pb-5 px-5">
+      {/* ━━ HERO (mobile, visual-first)
+           モバイル最適化: 文字情報を大幅削減し、「H1 + 1行サブ + 即触れる入力」を主役に。
+           target band, 3 段強調文, 重複フレーズを scroll-down 領域へ降ろす。
+           タイポグラフィは iOS HIG 準拠 (H1 32px / sub 14px / meta 11px) で 3 段階のみ。 */}
+      <section className="relative overflow-hidden pt-3 pb-6 px-5">
+        {/* 背景グロー — 視覚的アンカー */}
+        <div aria-hidden className="absolute inset-x-0 top-0 h-[55vh] pointer-events-none -z-10">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[420px] h-[420px] rounded-full bg-gradient-to-br from-violet-500/15 via-fuchsia-500/10 to-transparent blur-3xl" />
+          <div className="absolute top-20 right-0 w-[260px] h-[260px] rounded-full bg-gradient-to-br from-amber-400/15 via-orange-400/8 to-transparent blur-3xl" />
+        </div>
+
         <div className={`transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          {/* 核機能バッジ — H1 の前に置いて「これが価値の中心」を明示。
-               REM (内部名) → 顧客に伝わる "高精度 類題生成エンジン搭載" に。 */}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-500/[0.12] via-fuchsia-500/[0.12] to-blue-500/[0.12] border border-violet-500/35 shadow-sm shadow-violet-500/10 mb-2.5">
+          {/* 核機能バッジ — テキストを短縮 (12 字) */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-full bg-gradient-to-r from-violet-500/[0.14] via-fuchsia-500/[0.14] to-blue-500/[0.14] border border-violet-500/40 shadow-sm shadow-violet-500/15 mb-3">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10.5px] font-extrabold tracking-wider">
-              {isJa
-                ? "高精度 類題生成エンジン搭載 · 1タップで何枚でも"
-                : "Precision Variant Engine inside · 1 tap, infinite"}
+              {isJa ? "高精度 類題生成エンジン搭載" : "Precision Variant Engine inside"}
             </span>
             <span className="inline-flex items-center px-1 py-[1px] rounded text-[8.5px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500">
               NEW
             </span>
           </div>
-          <h1 className="text-[clamp(1.55rem,7vw,2.15rem)] leading-[1.1] font-bold tracking-[-0.025em] mb-2.5">
+
+          {/* H1 — モバイル最大級のフォントサイズで「視覚的支配力」を確保 (28-36px range) */}
+          <h1 className="text-[clamp(1.75rem,8.4vw,2.4rem)] leading-[1.05] font-black tracking-[-0.03em] mb-3">
             {isJa ? (
               <>
                 <GradientWord>60秒で1枚</GradientWord>。<br />
-                あとは <HighlightMark>1タップで何枚でも</HighlightMark>。
+                あとは<HighlightMark>1タップ</HighlightMark>。
               </>
             ) : (
               <>
                 <GradientWord>60s for one</GradientWord>.<br />
-                Then <HighlightMark>one tap for more</HighlightMark>.
+                Then <HighlightMark>1 tap</HighlightMark>.
               </>
             )}
           </h1>
-          <p className="text-foreground/75 text-[13.5px] leading-snug mb-3 font-medium">
-            {isJa ? (
-              <>
-                数学・理科のプリントを 60 秒で生成。
-                <span className="text-violet-700 dark:text-violet-300 font-semibold">同じ範囲の類題は、ボタン1つで何枚でも。</span>
-                <span className="text-emerald-700 dark:text-emerald-300 font-semibold"> 登録不要でお試し可。</span>
-              </>
-            ) : (
-              <>
-                Generate math &amp; science worksheets in 60 seconds.{" "}
-                <span className="text-violet-700 dark:text-violet-300 font-semibold">Then crank out variants with one tap.</span>{" "}
-                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">No sign-up to try.</span>
-              </>
-            )}
-          </p>
-          {/* 顧客課題の言い換え — 教師の本当の痛みに直接刺す */}
-          <p className="text-[11.5px] text-muted-foreground/85 leading-snug mb-3 inline-flex items-start gap-1">
-            <GraduationCap className="h-3 w-3 mt-0.5 shrink-0 text-foreground/55" />
-            <span>
-              {isJa
-                ? "生徒ごとに数値だけ変えたい先生へ — 毎週のプリント作りを 数十分 → 数秒 に。"
-                : "For teachers who tweak numbers per student — weekly prep from minutes to seconds."}
-            </span>
+
+          {/* サブ — 1 行に圧縮。3 つの強調を撤去して「核ベネフィット」だけに */}
+          <p className="text-foreground/70 text-[14px] leading-relaxed mb-4 font-medium max-w-[18rem]">
+            {isJa
+              ? "数学・理科プリントを瞬時に・無制限に。"
+              : "Math & science worksheets, instantly. Unlimited."}
           </p>
         </div>
 
@@ -245,64 +234,57 @@ export function MobileLanding({
         </section>
       )}
 
-      {/* ━━ Trust + ターゲット帯 — 1 行で圧縮し、ファーストビューを軽くする ━━ */}
-      <section className="px-5 pb-3">
-        <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border border-violet-500/35 text-violet-700 dark:text-violet-300 font-bold">
-            <Sparkles className="h-3 w-3" />{isJa ? "1タップ類題" : "1-tap variants"}
-          </span>
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold">
-            <Shield className="h-3 w-3" />{isJa ? "登録不要" : "No signup"}
-          </span>
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/75 font-medium">
-            <Zap className="h-3 w-3" />{isJa ? "30〜60秒" : "30–60s"}
-          </span>
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/75 font-medium">
-            <Printer className="h-3 w-3" />{isJa ? "印刷OK" : "Print-ready"}
-          </span>
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/75 font-medium">
-            <GraduationCap className="h-3 w-3" />{isJa ? "塾・教員向け" : "Tutors & teachers"}
-          </span>
+      {/* ━━ Trust 行 — 3 アイコン × 数値で視覚優先。文字情報を最小化 ━━ */}
+      <section className="px-5 pb-5">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { icon: Zap,        valueJa: "60秒",       valueEn: "60s",        labelJa: "1枚生成",      labelEn: "to make 1",     tone: "amber"   as const },
+            { icon: Sparkles,   valueJa: "∞",          valueEn: "∞",          labelJa: "類題量産",     labelEn: "variants",       tone: "violet"  as const },
+            { icon: Shield,     valueJa: "0",          valueEn: "0",          labelJa: "登録不要",     labelEn: "to start",       tone: "emerald" as const },
+          ].map(({ icon: Icon, valueJa, valueEn, labelJa, labelEn, tone }) => {
+            const toneRing =
+              tone === "amber" ? "border-amber-500/25 bg-amber-500/[0.06]" :
+              tone === "violet" ? "border-violet-500/30 bg-violet-500/[0.06]" :
+              "border-emerald-500/25 bg-emerald-500/[0.06]";
+            const toneText =
+              tone === "amber" ? "text-amber-600" :
+              tone === "violet" ? "text-violet-600" :
+              "text-emerald-600";
+            return (
+              <div key={labelJa} className={`flex flex-col items-center gap-0.5 rounded-2xl border ${toneRing} px-2 py-2.5`}>
+                <Icon className={`h-3.5 w-3.5 ${toneText}`} strokeWidth={2.2} />
+                <span className={`text-[18px] font-black tabular-nums leading-none ${toneText}`}>
+                  {isJa ? valueJa : valueEn}
+                </span>
+                <span className="text-[10px] text-muted-foreground/80 font-medium leading-none">
+                  {isJa ? labelJa : labelEn}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </section>
 
-      {/* ━━ モバイル/PC バナー — フル編集は PC 推奨。ファーストビューから外して下に。 ━━ */}
-      <section className="px-5 pb-4">
-        <div className="flex items-start gap-2.5 rounded-2xl bg-foreground/[0.025] dark:bg-white/[0.03] border border-foreground/[0.08] p-3">
-          <div className="h-8 w-8 rounded-full bg-foreground/[0.05] flex items-center justify-center shrink-0">
-            <Smartphone className="h-4 w-4 text-foreground/70" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12.5px] font-semibold text-foreground/85 mb-0.5">
-              {isJa
-                ? "モバイル対応 · 編集は PC が快適"
-                : "Works on mobile · Best editing experience on desktop"}
-            </p>
-            <p className="text-[11.5px] text-muted-foreground leading-snug">
-              {isJa
-                ? "AI チャット + PDF プレビューはモバイルで動きます。図エディタ・採点・OCR などフル編集は PC ブラウザを推奨。"
-                : "AI chat + PDF preview work on mobile. Open on a desktop browser for the full editor, figure editor, OCR, and grading."}
-            </p>
-          </div>
+      {/* ━━ PC 推奨バナー — アイコン1個 + 1行 (旧2行版を圧縮) ━━ */}
+      <section className="px-5 pb-5">
+        <div className="flex items-center gap-2.5 rounded-2xl bg-foreground/[0.03] dark:bg-white/[0.03] border border-foreground/[0.08] px-3 py-2.5">
+          <Smartphone className="h-4 w-4 text-foreground/55 shrink-0" />
+          <p className="text-[11.5px] text-foreground/75 leading-snug font-medium flex-1">
+            {isJa ? "モバイルで動きます · 編集は PC が快適" : "Works on mobile · Best editing on desktop"}
+          </p>
         </div>
       </section>
 
       {/* ━━ DEMO STRIP (30s editor) — モバイル向けに横スクロールではなく等比縮小 ━━ */}
       <section id="sample-output" className="relative pt-6 pb-10 px-3 overflow-hidden">
-        <div className="px-2 mb-5 text-center">
-          <p className="inline-flex items-center gap-1.5 text-[10.5px] font-bold tracking-[0.18em] uppercase mb-2">
-            <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent">
-              {isJa ? "30 秒デモ" : "30s Demo"}
-            </span>
+        <div className="px-2 mb-4 text-center">
+          <p className="inline-flex items-center gap-1.5 text-[10.5px] font-bold tracking-[0.2em] uppercase mb-2 text-violet-600 dark:text-violet-400">
+            <Play className="h-2.5 w-2.5 fill-current" />
+            {isJa ? "30秒で全部見せます" : "Watch it all in 30s"}
           </p>
-          <h2 className="text-[20px] font-bold tracking-tight mb-2 leading-snug">
-            {isJa ? "AIに頼んで、紙面にすぐ反映。" : "Ask the AI. See it on the page."}
+          <h2 className="text-[22px] font-black tracking-[-0.02em] leading-tight">
+            {isJa ? "依頼 → 紙面に即反映。" : "Ask. See it. Done."}
           </h2>
-          <p className="text-muted-foreground text-[12.5px] leading-relaxed">
-            {isJa
-              ? "依頼するだけで、印刷できる教材ができあがります。"
-              : "Just ask. Get a print-ready worksheet."}
-          </p>
         </div>
 
         {/* MockupShrink: 端末幅から逆算して transform: scale で縮小 */}
@@ -347,24 +329,17 @@ export function MobileLanding({
 
       {/* ━━ FIGURE DRAW DEMO ━━ */}
       <section className="pt-8 pb-10 px-3 bg-gradient-to-b from-emerald-50/30 to-transparent dark:from-emerald-500/[0.04]">
-        <div className="px-2 mb-5 text-center">
-          <p className="inline-flex items-center gap-1.5 text-[10.5px] font-bold tracking-[0.18em] uppercase mb-2">
-            <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
-              {isJa ? "図形描画モード" : "Figure mode"}
-            </span>
+        <div className="px-2 mb-4 text-center">
+          <p className="inline-flex items-center gap-1.5 text-[10.5px] font-bold tracking-[0.2em] uppercase mb-2 text-emerald-600 dark:text-emerald-400">
+            {isJa ? "図形描画モード" : "Figure mode"}
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9px] font-extrabold tracking-wider shadow-sm shadow-emerald-500/30">
               <Check className="h-2 w-2" />
               FREE
             </span>
           </p>
-          <h2 className="text-[20px] font-bold tracking-tight mb-2 leading-snug">
-            {isJa ? "図も、Free で描ける。" : "Draw figures, free."}
+          <h2 className="text-[22px] font-black tracking-[-0.02em] leading-tight">
+            {isJa ? "図も、無料で描ける。" : "Figures, free."}
           </h2>
-          <p className="text-muted-foreground text-[12.5px] leading-relaxed">
-            {isJa
-              ? "回路 / 力学 / 幾何 / 化学 / 生物 / フローチャート対応。"
-              : "Circuits, mechanics, geometry, chemistry, biology, flowcharts."}
-          </p>
         </div>
 
         <IdleMount minHeight="320px">
@@ -374,71 +349,51 @@ export function MobileLanding({
         </IdleMount>
       </section>
 
-      {/* ━━ WHO IS THIS FOR ━━ */}
-      <section className="px-5 py-9">
-        <h2 className="text-[20px] font-bold tracking-tight mb-4 text-center">
-          {isJa ? "こんな方に" : "Built for"}
+      {/* ━━ WHO IS THIS FOR — 3 アイコン横並び (簡潔・視覚優先) ━━ */}
+      <section className="px-5 py-8">
+        <h2 className="text-[22px] font-black tracking-[-0.02em] mb-5 text-center leading-tight">
+          {isJa ? "誰のため？" : "Built for"}
         </h2>
-        <div className="flex flex-col gap-2.5">
+        <div className="grid grid-cols-3 gap-2">
           {[
-            { gradient: "from-blue-500 to-cyan-500", icon: <BookOpen className="h-4 w-4 text-white" />, title: isJa ? "塾講師" : "Tutors", desc: isJa ? "毎週の確認テストを最短で" : "Weekly quizzes in minutes" },
-            { gradient: "from-emerald-500 to-teal-500", icon: <Pencil className="h-4 w-4 text-white" />, title: isJa ? "学校教員" : "Teachers", desc: isJa ? "問題集と解答を一括出力" : "Worksheet + answer key in one go" },
-            { gradient: "from-violet-500 to-fuchsia-500", icon: <Wrench className="h-4 w-4 text-white" />, title: isJa ? "教材クリエイター" : "Content creators", desc: isJa ? "TikZ図と数式を綺麗に量産" : "Clean TikZ figures at scale" },
+            { gradient: "from-blue-500 to-cyan-500",     icon: <BookOpen className="h-4 w-4 text-white" />, title: isJa ? "塾講師" : "Tutors" },
+            { gradient: "from-emerald-500 to-teal-500",  icon: <Pencil className="h-4 w-4 text-white" />,   title: isJa ? "教員" : "Teachers" },
+            { gradient: "from-violet-500 to-fuchsia-500",icon: <Wrench className="h-4 w-4 text-white" />,   title: isJa ? "教材作家" : "Creators" },
           ].map((p) => (
-            <div key={p.title} className="flex items-start gap-3 p-3.5 rounded-2xl bg-card border border-foreground/[0.06]">
-              <div className={`h-9 w-9 rounded-xl bg-gradient-to-br ${p.gradient} flex items-center justify-center shadow-md shrink-0`}>
+            <div key={p.title} className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-card border border-foreground/[0.06]">
+              <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${p.gradient} flex items-center justify-center shadow-md`}>
                 {p.icon}
               </div>
-              <div>
-                <h3 className="text-[14px] font-semibold tracking-tight mb-0.5">{p.title}</h3>
-                <p className="text-[12px] text-muted-foreground leading-snug">{p.desc}</p>
-              </div>
+              <span className="text-[12px] font-bold tracking-tight text-center">{p.title}</span>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ━━ 開発者紹介 — Pricing 直前で「誰が作っているか」を見せて信頼感を底上げ ━━ */}
-      <section className="px-5 py-8 border-t border-foreground/[0.05] bg-foreground/[0.012]">
-        <p className="text-center text-[10.5px] font-bold tracking-[0.22em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-3">
-          {isJa ? "開発者について" : "About the developer"}
+      {/* ━━ 開発者紹介 — モバイルは超圧縮で 1 段落のみ ━━ */}
+      <section className="px-5 py-6 border-t border-foreground/[0.05] bg-foreground/[0.012]">
+        <p className="text-center text-[10px] font-bold tracking-[0.22em] uppercase text-violet-600/85 dark:text-violet-400/85 mb-2">
+          {isJa ? "開発者" : "Developer"}
         </p>
-        <h2 className="text-center text-[17px] font-bold tracking-tight mb-4 leading-snug">
+        <p className="text-center text-[12.5px] leading-relaxed text-foreground/80 max-w-[20rem] mx-auto">
           {isJa
-            ? "ソフトウェアだけでなく、STEM教材を実際に作ってきた人間が設計。"
-            : "Built by someone who creates STEM materials, not just software."}
-        </h2>
-        <div className="space-y-3 text-[12.5px] leading-relaxed text-foreground/80">
-          <p>
-            {isJa
-              ? "Eddivom は、名古屋大学工学部の学生で、物理の学習教材も自作している森 祐太によって開発されています。"
-              : "Eddivom is developed by Yuta Mori, an engineering student at Nagoya University and creator of physics learning materials."}
-          </p>
-          <p>
-            {isJa
-              ? "「教材は手早く作れるべき。でもその裏側にある考え方は、ちゃんと残るべき」── そんな信念のもとで作られています。"
-              : "The product is built around a simple belief: worksheets should be easy to create, but the reasoning behind them should stay clear."}
-          </p>
-          <p>
-            {isJa
-              ? "だから Eddivom は、汎用 AI チャットで終わらせず、数式・解答・印刷可能な PDF・問題単位で編集できるワークフローに集中しています。"
-              : "That is why Eddivom focuses on equations, answer keys, printable PDFs, and editable problem-by-problem workflows — not just generic AI chat."}
-          </p>
-        </div>
+            ? "STEM 教材を実際に作ってきた人間 (名古屋大学・森 祐太) が設計。「手早く・印刷品質で」を守るために生まれました。"
+            : "Designed by Yuta Mori (Nagoya Univ.) — an engineering student who actually creates STEM materials. Built around: fast, print-quality."}
+        </p>
       </section>
 
       {/* ━━ PRICING — 必ず PC 版と同じ PLANS データから派生させる
           (Free / Starter / Pro / Premium の 4 種、価格・特徴は SSOT) ━━ */}
-      <section id="pricing" className="px-5 py-9 bg-foreground/[0.015]">
+      <section id="pricing" className="px-5 py-8 bg-foreground/[0.015]">
         <div className="text-center mb-5">
-          <p className="text-[10.5px] font-bold tracking-[0.22em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-2">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-violet-600/85 dark:text-violet-400/85 mb-1.5">
             {isJa ? "料金プラン" : "Pricing"}
           </p>
-          <h2 className="text-[20px] font-bold tracking-tight">
-            {isJa ? "用途に合わせて選べる" : "Pick what fits"}
+          <h2 className="text-[24px] font-black tracking-[-0.02em] leading-tight">
+            {isJa ? "用途で選ぶ" : "Pick what fits"}
           </h2>
-          <p className="text-[11.5px] text-muted-foreground/65 mt-1">
-            {isJa ? "税込・月額" : "Monthly · tax incl."}
+          <p className="text-[11px] text-muted-foreground/65 mt-1">
+            {isJa ? "税込・月額・いつでも解約" : "Monthly · tax incl. · cancel anytime"}
           </p>
         </div>
         <div className="flex flex-col gap-3">
@@ -559,15 +514,15 @@ export function MobileLanding({
 
       {/* ━━ Final CTA ━━ */}
       <section className="px-5 py-10 text-center bg-gradient-to-b from-transparent to-foreground/[0.02]">
-        <h2 className="text-[22px] font-bold tracking-tight mb-2 leading-snug">
+        <h2 className="text-[26px] font-black tracking-[-0.02em] mb-2 leading-tight">
           {isJa ? (
-            <>今すぐ <HighlightMark>1枚</HighlightMark> 作ってみる。</>
+            <>今、<HighlightMark>1枚</HighlightMark>作ろう。</>
           ) : (
-            <>Make your <HighlightMark>first sheet</HighlightMark> now.</>
+            <>Make <HighlightMark>1 sheet</HighlightMark> now.</>
           )}
         </h2>
-        <p className="text-[13px] text-muted-foreground mb-5">
-          {isJa ? "登録不要・30秒で始められます。" : "No signup · 30 seconds to start."}
+        <p className="text-[12.5px] text-muted-foreground mb-5">
+          {isJa ? "登録不要 · 30 秒で始められる。" : "No signup · 30 seconds."}
         </p>
         <button
           onClick={primaryCta.onClick}

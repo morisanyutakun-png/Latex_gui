@@ -428,13 +428,14 @@ export default function EditorPage() {
               </button>
               <div className="flex-1" />
               {/* ✨ 類題ジェネレータへの自然な誘導 — モバイルの核機能エントリポイント。
-                  ゲスト/Free 使い切りはトーストで pricing 誘導、それ以外は Studio を開く。 */}
+                  権限階層: Guest=ロック / Free 未使用=お試し / Free 使用済=Pro 誘導 /
+                            Starter=Pro 誘導 / Pro·Premium=無制限 */}
               {(() => {
-                const variantPro = canUseFeature(currentPlan, "variantGen");
+                const variantProOrAbove = canUseFeature(currentPlan, "variantGen");
+                const variantIsFree = currentPlan === "free";
                 let variantTrialUsed = false;
                 try { variantTrialUsed = typeof window !== "undefined" && window.localStorage.getItem("eddivom:variant-trial:used") === "1"; } catch { /* ignore */ }
-                // ゲストは "1 枚作る" を消化中なので類題は触らせない (二重消費防止)
-                const variantLocked = isGuest || (!variantPro && variantTrialUsed);
+                const variantLocked = isGuest || (!variantProOrAbove && (!variantIsFree || variantTrialUsed));
                 return (
                   <button
                     onClick={() => {
@@ -786,14 +787,15 @@ export default function EditorPage() {
             })()}
 
             {/* ✨ Variant Studio — 類題ジェネレータ。Pro+ で無制限 / Free は 1 回お試し。
-                AI チャット (差分修正) とは別の「核機能」モードとして対等に並べる。 */}
+                権限階層: Free 未使用=お試し / Free 使用済=Pro 誘導 / Starter=Pro 誘導 /
+                          Pro·Premium=無制限 (Guest はそもそも PC activity bar に到達しない) */}
             {(() => {
               const variantStudioOpen = useUIStore.getState().variantStudioOpen;
-              const variantPro = canUseFeature(currentPlan, "variantGen");
-              // ロック判定 = Pro 未満 かつ 既にお試し消費済み (storeget で同期 fetch)
+              const variantProOrAbove = canUseFeature(currentPlan, "variantGen");
+              const variantIsFree = currentPlan === "free";
               let variantTrialUsed = false;
               try { variantTrialUsed = typeof window !== "undefined" && window.localStorage.getItem("eddivom:variant-trial:used") === "1"; } catch { /* ignore */ }
-              const variantLocked = !variantPro && variantTrialUsed;
+              const variantLocked = !variantProOrAbove && (!variantIsFree || variantTrialUsed);
               return (
                 <ActivityBtn
                   accent="violet"

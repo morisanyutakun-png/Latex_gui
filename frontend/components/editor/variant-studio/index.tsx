@@ -110,11 +110,17 @@ function VariantStudioContent() {
   const docTitle = useDocumentStore((s) => s.document?.metadata.title || "");
   const currentPlan = usePlanStore((s) => s.currentPlan);
 
-  const isPro = canUseFeature(currentPlan, "variantGen");
+  const isProOrAbove = canUseFeature(currentPlan, "variantGen");  // Pro / Premium のみ true
+  const isFreePlan = currentPlan === "free";
   const trialUsed = hasUsedVariantTrial();
-  // ゲストは無条件ロック — 「無料1枚」を消化したら登録 → そこから variant trial が使える、という順序を守る
-  const locked = isGuest || (!isPro && trialUsed);
-  const trialAvailable = !isGuest && !isPro && !trialUsed;
+  // 権限階層:
+  //   Guest          → 完全ロック (LP 「無料1枚」を消化中。登録誘導)
+  //   Free 未使用    → 1 回だけお試し可 (フリーミアム動線)
+  //   Free 使用済    → ロック → Pro 誘導
+  //   Starter        → 完全ロック (LP の Pro `addedFeatures` で「Pro で解放」と宣言済み)
+  //   Pro / Premium  → 無制限
+  const locked = isGuest || (!isProOrAbove && (!isFreePlan || trialUsed));
+  const trialAvailable = !isGuest && isFreePlan && !trialUsed;
 
   // ── State ──
   const [style, setStyle] = React.useState<VariantStyle>(
@@ -173,8 +179,8 @@ function VariantStudioContent() {
         outputMode,
         locale: locale || (isJa ? "ja" : "en"),
       });
-      trackVariantGenUsed({ placement: "studio_run", plan: currentPlan, trial: !isPro });
-      if (!isPro) markVariantTrialUsed();
+      trackVariantGenUsed({ placement: "studio_run", plan: currentPlan, trial: !isProOrAbove });
+      if (!isProOrAbove) markVariantTrialUsed();
       setGeneratedCount((n) => n + 1);
       toast.success(isJa ? "類題プリントを生成しました" : "Variant worksheet generated", {
         description: isJa
@@ -249,7 +255,7 @@ function VariantStudioContent() {
                     {isJa ? "お試し残 1" : "TRIAL 1"}
                   </span>
                 )}
-                {isPro && (
+                {isProOrAbove && (
                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9.5px] font-extrabold tracking-wider text-violet-700 dark:text-violet-300 bg-violet-500/12 border border-violet-500/35">
                     <Crown className="h-2.5 w-2.5" />
                     {isJa ? "Pro" : "PRO"}
@@ -330,8 +336,12 @@ function VariantStudioContent() {
                   </p>
                   <p className="text-[12px] text-muted-foreground mb-4 leading-relaxed">
                     {isJa
-                      ? "Free プランの 1 回お試しは使用済みです。Pro なら 1 ボタンで何枚でも類題を量産できます。"
-                      : "Your free trial has been used. On Pro you can crank out unlimited variants with one tap."}
+                      ? (currentPlan === "starter"
+                          ? "類題ジェネレータは Pro プラン以上の機能です。Pro なら 1 ボタンで何枚でも類題を量産できます。"
+                          : "Free プランの 1 回お試しは使用済みです。Pro なら 1 ボタンで何枚でも類題を量産できます。")
+                      : (currentPlan === "starter"
+                          ? "Variant Studio is a Pro+ feature. Upgrade to Pro for unlimited one-tap variant generation."
+                          : "Your free trial has been used. On Pro you can crank out unlimited variants with one tap.")}
                   </p>
                   <button
                     type="button"
@@ -622,7 +632,7 @@ function VariantStudioContent() {
                     {isJa ? "Pro 機能を無料お試し中" : "Free trial of a Pro feature"}
                   </span>
                 )}
-                {isPro && (
+                {isProOrAbove && (
                   <span className="inline-flex items-center gap-1 text-muted-foreground/65 font-medium">
                     <Zap className="h-3 w-3 text-amber-500" />
                     {isJa ? "Pro: 何枚でも無制限" : "Pro: unlimited"}
