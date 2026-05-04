@@ -330,6 +330,26 @@ export function trackGuestSignupClick(extra?: FreeGenerateEventParams & { placem
   return fireGa4Event("guest_signup_click", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
 }
 
+// ─── Variant generation (REM ノウハウ) ファネル ───────────────────────────
+// Pro+ 限定機能。Free は localStorage で 1 回だけ体験できるフリーミアム動線。
+// "click" → "used" → "paywall_hit" の 3 段階で、どこで止まっているか可視化する。
+
+/** 「✨ 類題をもう1枚」ボタン or 「✨ 強化」トグルを押した瞬間。実行可否の前段。 */
+export function trackVariantGenClick(extra?: { placement?: "button" | "toggle"; plan?: string }): boolean {
+  return fireGa4Event("variant_gen_click", { ...extra });
+}
+
+/** 実際に variant 生成 / 強化送信が走った瞬間 (LLM へリクエストした直後)。 */
+export function trackVariantGenUsed(extra?: { placement?: "button" | "toggle"; plan?: string; trial?: boolean }): boolean {
+  return fireGa4Event("variant_gen_used", { ...extra });
+}
+
+/** Free + 既に 1 回使い切ったユーザがロック状態の variant トリガーを押した瞬間。
+ *  signup overlay や upgrade 誘導の効果測定に使う。 */
+export function trackVariantGenPaywallHit(extra?: { placement?: "button" | "toggle" }): boolean {
+  return fireGa4Event("variant_gen_paywall_hit", { ...extra });
+}
+
 
 // ─── Google Ads pageview conversion ───────────────────────────────────────
 //

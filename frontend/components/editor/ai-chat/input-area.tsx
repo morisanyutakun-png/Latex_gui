@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n";
 import {
   ArrowUp, Loader2, Paperclip, Sparkles, X, Wand2, FileText,
   Calculator, Table, Square, Plus, Mic,
-  ClipboardList, Layers,
+  ClipboardList, Layers, Lock,
 } from "lucide-react";
 import type { AgentMode } from "@/lib/api";
 import { MODE_ACCENTS } from "./mode-switcher";
@@ -26,9 +26,14 @@ const QUICK_ACTIONS: QuickAction[] = [
 export function InputArea({
   input, setInput, onSend, onStop, onKeyDown, isChatLoading,
   textareaRef, onAttach, mode, onModeChange,
+  enhanceOn, onEnhanceToggle, enhanceLocked,
 }: {
   input: string;
   setInput: (v: string) => void;
+  /**
+   * 通常送信は引数なしで呼ぶ。`onEnhanceToggle` が ON の状態で発火された送信は
+   * 親側で REM ノウハウ強化 (`buildEnhancePrompt`) を挟むよう実装する。
+   */
   onSend: () => void;
   /** ストリーミング中の停止 (モバイルの送信ボタンが Stop に化けたとき呼ばれる) */
   onStop?: () => void;
@@ -40,6 +45,14 @@ export function InputArea({
   onModeChange?: (m: AgentMode) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   onAttach?: () => void;
+  /** ✨ 強化トグルの状態。Pro+ または未消費 Free のとき切替可能。 */
+  enhanceOn?: boolean;
+  /** ✨ 強化トグル切替ハンドラ。未指定だとトグルは描画しない。 */
+  onEnhanceToggle?: () => void;
+  /** Free + 使用済 → トグル自体をクリックすると signup overlay が開く設計。
+   *  この場合 `onEnhanceToggle` 内で signup を発火させてもよいので、ここでは
+   *  単に「視覚的にロックされている」フラグだけ受け取る。 */
+  enhanceLocked?: boolean;
 }) {
   const { t, locale } = useI18n();
   const [focused, setFocused] = useState(false);
@@ -165,6 +178,35 @@ export function InputArea({
                 className="h-10 w-10 rounded-full flex items-center justify-center text-amber-700/75 dark:text-amber-300/75 hover:bg-amber-500/10 active:scale-95 transition shrink-0"
               >
                 <Mic className="h-5 w-5" strokeWidth={1.8} />
+              </button>
+            )}
+            {/* ✨ 強化トグル — ON のとき送信時に REM ノウハウで肉付け。
+                 Pro+ は自由に切替、Free 未消費は ON 可だが消費後は <Lock /> 付き。
+                 クリック時のロック判定は親 (ai-chat/index.tsx) 側で行う。 */}
+            {onEnhanceToggle && hasInput && !isChatLoading && (
+              <button
+                type="button"
+                onClick={onEnhanceToggle}
+                aria-pressed={!!enhanceOn}
+                aria-label={locale === "en" ? "Toggle prompt boost" : "プロンプト強化トグル"}
+                title={enhanceLocked
+                  ? (locale === "en" ? "Pro plan to keep using prompt boost" : "Pro プランでプロンプト強化が無制限に")
+                  : enhanceOn
+                    ? (locale === "en" ? "Prompt boost ON — REM-style structuring" : "強化ON — REM ノウハウで肉付け")
+                    : (locale === "en" ? "Prompt boost OFF — normal send" : "強化OFF — 通常送信")
+                }
+                className={`h-10 w-10 rounded-full flex items-center justify-center active:scale-95 transition shrink-0 ${
+                  enhanceLocked
+                    ? "text-violet-500/70 bg-violet-500/[0.06] border border-violet-500/30"
+                    : enhanceOn
+                      ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-md shadow-violet-500/30"
+                      : "text-foreground/45 hover:text-violet-500 hover:bg-violet-500/[0.08]"
+                }`}
+              >
+                {enhanceLocked
+                  ? <Lock className="h-4 w-4" />
+                  : <Sparkles className="h-4.5 w-4.5" strokeWidth={2} />
+                }
               </button>
             )}
             {(hasInput || isChatLoading) && (
@@ -393,6 +435,34 @@ export function InputArea({
               className={`${iconBtnSize} rounded-xl flex items-center justify-center text-foreground/35 hover:text-foreground/70 hover:bg-foreground/[0.06] active:scale-95 transition-all shrink-0 mb-0.5`}
             >
               <X className={isMobile ? "h-4.5 w-4.5" : "h-3.5 w-3.5"} />
+            </button>
+          )}
+
+          {/* ✨ 強化トグル (PC) */}
+          {onEnhanceToggle && hasInput && !isChatLoading && (
+            <button
+              type="button"
+              onClick={onEnhanceToggle}
+              aria-pressed={!!enhanceOn}
+              aria-label={locale === "en" ? "Toggle prompt boost" : "プロンプト強化トグル"}
+              title={enhanceLocked
+                ? (locale === "en" ? "Pro plan to keep using prompt boost" : "Pro プランでプロンプト強化が無制限に")
+                : enhanceOn
+                  ? (locale === "en" ? "Prompt boost ON — REM-style structuring" : "強化ON — REM ノウハウで肉付け")
+                  : (locale === "en" ? "Prompt boost OFF — normal send" : "強化OFF — 通常送信")
+              }
+              className={`${iconBtnSize} rounded-xl flex items-center justify-center active:scale-95 transition-all shrink-0 mb-0.5 ${
+                enhanceLocked
+                  ? "text-violet-500/70 bg-violet-500/[0.06] border border-violet-500/30"
+                  : enhanceOn
+                    ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-sm shadow-violet-500/30"
+                    : "text-foreground/40 hover:text-violet-500 hover:bg-violet-500/[0.08]"
+              }`}
+            >
+              {enhanceLocked
+                ? <Lock className={isMobile ? "h-4 w-4" : "h-3.5 w-3.5"} />
+                : <Sparkles className={isMobile ? "h-4 w-4" : "h-3.5 w-3.5"} strokeWidth={2} />
+              }
             </button>
           )}
 

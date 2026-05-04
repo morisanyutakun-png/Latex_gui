@@ -32,7 +32,8 @@ export type GatedFeature =
   | "latexExport"      // LaTeXソースエクスポート (Starter+)
   | "allTemplates"     // Pro テンプレ解放 (入試・発表・報告書 等, Pro+)
   | "premiumTemplates" // Premium 限定テンプレ (卒論・ポスター・教科書 等, Premium+)
-  | "batch";           // バッチ処理 (Pro+)
+  | "batch"            // バッチ処理 (Pro+)
+  | "variantGen";      // 類題自動生成・プロンプト強化 (Pro+; Free は localStorage で 1 回だけ体験)
 
 /** 機能 → 使えるようになる最低プラン (バックエンド plan_limits.py と同期必須) */
 const FEATURE_MIN_PLAN: Record<GatedFeature, PlanId> = {
@@ -42,6 +43,7 @@ const FEATURE_MIN_PLAN: Record<GatedFeature, PlanId> = {
   allTemplates:      "pro",
   premiumTemplates:  "premium",
   batch:             "pro",
+  variantGen:        "pro",
 };
 
 /** 機能ごとの日本語ラベル (アップグレード促進メッセージ用) */
@@ -52,6 +54,7 @@ export const FEATURE_LABELS: Record<GatedFeature, { ja: string; en: string }> = 
   allTemplates:      { ja: "入試・発表テンプレ利用", en: "Exam & slide templates" },
   premiumTemplates:  { ja: "Premium 限定テンプレート", en: "Premium-only templates" },
   batch:             { ja: "バッチ処理", en: "Batch processing" },
+  variantGen:        { ja: "類題自動生成 / プロンプト強化", en: "Variant generation & prompt boost" },
 };
 
 const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, pro: 2, premium: 3 };

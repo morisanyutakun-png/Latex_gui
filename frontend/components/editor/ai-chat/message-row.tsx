@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
+import { VariantButton } from "./variant-button";
 import { formatRelativeTime, formatDuration, formatTokens, splitSummary } from "./utils";
 import { useI18n } from "@/lib/i18n";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -15,10 +16,24 @@ import { ChatPdfPreviewCard } from "./chat-pdf-preview-card";
 
 export function MessageRow({
   msg, onFeedback, onRetryError,
+  showVariant, variantLocked, variantTrialBadge, variantBusy,
+  onVariantTrigger, onVariantLockedClick,
 }: {
   msg: ChatMessage;
   onFeedback: (msgId: string, feedback: "good" | "bad") => void;
   onRetryError?: (msgId: string) => void;
+  /** REM 由来「✨ 類題をもう1枚」を assistant 末尾に出すかどうか。 */
+  showVariant?: boolean;
+  /** Free + 使用済 → ロック表示 + クリックで signup overlay */
+  variantLocked?: boolean;
+  /** Free + 未消費 → "お試し" バッジ付きで表示 */
+  variantTrialBadge?: boolean;
+  /** ストリーミング中などで二重発火を防ぐ */
+  variantBusy?: boolean;
+  /** active 状態でクリックされたとき: 親が handleSend(..., { mode:"variant" }) を呼ぶ */
+  onVariantTrigger?: () => void;
+  /** ロック状態でクリックされたとき: 親が signup overlay を開く */
+  onVariantLockedClick?: () => void;
 }) {
   const { t, locale } = useI18n();
   const isUser = msg.role === "user";
@@ -226,6 +241,21 @@ export function MessageRow({
                 {formatTokens(msg.usage.inputTokens)}↑ {formatTokens(msg.usage.outputTokens)}↓
               </span>
             )}
+          </div>
+        )}
+
+        {/* REM ノウハウ由来「✨ 類題をもう1枚」: 末尾 assistant メッセージにだけ出す。
+            Pro+ は常時 active、Free は 1 回だけ active、消費後は <Lock /> 付き。 */}
+        {!isUser && showVariant && (onVariantTrigger || onVariantLockedClick) && (
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            <VariantButton
+              onTrigger={onVariantTrigger ?? (() => {})}
+              onLockedClick={onVariantLockedClick ?? (() => {})}
+              locked={!!variantLocked}
+              busy={!!variantBusy}
+              showProBadge={!!variantTrialBadge}
+              size="sm"
+            />
           </div>
         )}
       </div>
