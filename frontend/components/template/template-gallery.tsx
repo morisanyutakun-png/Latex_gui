@@ -3965,6 +3965,8 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 {[
                   isJa ? "高性能AI 月500回に拡張 (Starterの3.3倍・1日40回)" : "Premium AI boosted to 500 / month (3.3× Starter, 40 / day)",
                   isJa ? "Pro テンプレ 6種を解放 (共通テスト / 国公立二次 / 塾プリント / 英語 / 技術報告書 / プレゼン)" : "Unlocks 6 Pro templates (national exam / 2nd-stage / cram / reading / tech report / slides)",
+                  isJa ? "類題自動生成 を解放 (1ボタンで類題プリントをもう1枚)" : "Variant generation unlocked (one-tap regenerate of similar problems)",
+                  isJa ? "プロンプト強化 を解放 (出題ノウハウで自動構造化)" : "Prompt boost unlocked (auto-structures messy prompts into print-ready layouts)",
                   isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",
                   isJa ? "バッチ処理 (最大100行)" : "Batch processing (up to 100 rows)",
