@@ -107,6 +107,11 @@ import {
   Wrench,
   Hammer,
   Play,
+  Wand2,
+  TrendingUp,
+  TrendingDown,
+  Shuffle,
+  Loader2,
   Plus,
   ClipboardCheck,
   MousePointer2,
@@ -1051,7 +1056,7 @@ function HeroFreePerks({ isJa }: { isJa: boolean }) {
 /* ── Editor Workspace Mockup ── */
 /* ── 30-second looping demo ── */
 function EditorMockup({ isJa }: { isJa: boolean }) {
-  const CYCLE = 30000; // 30 s
+  const CYCLE = 38000; // 38 s — 既存 30s デモに「類題生成」核機能フェーズ (~8s) を追加
   // 可視時のみ tick を回す (off-screen / 非表示タブでは完全停止 → TBT を抑える)
   const containerRef = useRef<HTMLDivElement>(null);
   const [tick] = useVisibleInterval(containerRef, 100);
@@ -1064,13 +1069,19 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
   const a1 = isJa ? "5問作成しました。紙面に反映しました。" : "Done — 5 problems created and applied!";
   const a2 = isJa ? "難易度を上げて更新しました。" : "Updated with harder variants.";
 
-  // ── Timeline (ms) — paced to fill ~30 s cycle ──
+  // ── Timeline (ms) — paced to fill ~38 s cycle ──
+  // フェーズ:
+  //  1) p1 入力 → AI 思考 → 紙面に反映 (Q1)
+  //  2) p2 入力 → AI 思考 → 紙面更新 (難しく)
+  //  3) ★ 類題ジェネレータ起動 → Style 選択 → 生成 → 別の類題セットに置き換わる
   const T = {
     type1: 2000,  send1: 2000 + p1.length * 130 + 500,
     think1: 0,    ai1: 0,      content1: 0,  applied1: 0,
     type2: 0,     send2: 0,
     think2: 0,    ai2: 0,      content2: 0,  applied2: 0,
-    fadeOut: 27500,
+    // 類題ジェネレータ・フェーズ
+    studioOpen: 0, studioPick: 0, studioRun: 0, studioThink: 0, studioApplied: 0, studioClose: 0,
+    fadeOut: 35200,
   };
   T.think1 = T.send1 + 400;
   T.ai1    = T.think1 + 3000;
@@ -1082,6 +1093,13 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
   T.ai2      = T.think2 + 2800;
   T.content2 = T.ai2 + 400;
   T.applied2 = T.content2 + 2000;
+  // ★ 類題フェーズ — 既存の applied2 後に「核機能」として目立たせる
+  T.studioOpen    = T.applied2 + 1500;   // ~1.5s 余韻 → Studio オーバーレイがスライドイン
+  T.studioPick    = T.studioOpen + 1400; // スタイル "難しく" がハイライト
+  T.studioRun     = T.studioPick + 900;  // CTA がクリックされる
+  T.studioThink   = T.studioRun + 200;   // 類題生成中 (shimmer overlay)
+  T.studioApplied = T.studioThink + 2400;// 紙面に新しい類題セットが反映
+  T.studioClose   = T.studioApplied + 700;// オーバーレイが閉じる
 
   // ── Derived state ──
   const typingProgress = (start: number, text: string, charMs: number) => {
@@ -1101,6 +1119,15 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
   const showApplied2 = e >= T.applied2;
   const showThink1   = e >= T.think1 && e < T.ai1;
   const showThink2   = e >= T.think2 && e < T.ai2;
+
+  // 類題ジェネレータ (★ 核機能フェーズ)
+  const showStudio        = e >= T.studioOpen && e < T.studioClose;
+  const studioPickedHard  = e >= T.studioPick;     // "もう少し難しく" カードが選択状態
+  const studioCtaPressed  = e >= T.studioRun && e < T.studioRun + 350; // CTA がタップされた瞬間 (scale anim)
+  const studioGenerating  = e >= T.studioThink && e < T.studioApplied; // 類題生成中の shimmer
+  const studioApplied     = e >= T.studioApplied;
+  // 紙面に類題版を表示するか — applied 後 〜 (CYCLE 末尾まで)
+  const showVariantSet    = e >= T.studioApplied;
 
   // ── Activity log steps (mirrors real ThinkingIndicator) ──
   // Each step appears in sequence during the thinking phase, mimicking the
@@ -1134,6 +1161,8 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
     : 0;
   const showHarder = e >= T.content2;
   const harderFlash = e >= T.content2 && e < T.content2 + 600;
+  // ★ 類題セットが反映された瞬間に紙面全体を violet/fuchsia リングで一瞬光らせる
+  const variantFlash = e >= T.studioApplied && e < T.studioApplied + 900;
 
   // Fade in/out for loop
   const opacity = e >= T.fadeOut ? Math.max(0, 1 - (e - T.fadeOut) / 1800)
@@ -1141,14 +1170,19 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
 
   // Step label for progress bar
   const stepLabel =
-    e < T.type1    ? (isJa ? "デモ開始..." : "Starting...") :
-    e < T.send1    ? (isJa ? "ユーザーが入力中" : "User typing...") :
-    e < T.ai1      ? (isJa ? "AIが分析中..." : "AI thinking...") :
-    e < T.applied1 ? (isJa ? "紙面に反映中" : "Applying to page...") :
-    e < T.type2    ? (isJa ? "問題が完成" : "Problems created") :
-    e < T.send2    ? (isJa ? "追加指示を入力中" : "New instruction...") :
-    e < T.ai2      ? (isJa ? "AIが更新中..." : "AI updating...") :
-    e < T.fadeOut   ? (isJa ? "更新完了" : "Updated") :
+    e < T.type1        ? (isJa ? "デモ開始..." : "Starting...") :
+    e < T.send1        ? (isJa ? "ユーザーが入力中" : "User typing...") :
+    e < T.ai1          ? (isJa ? "AIが分析中..." : "AI thinking...") :
+    e < T.applied1     ? (isJa ? "紙面に反映中" : "Applying to page...") :
+    e < T.type2        ? (isJa ? "問題が完成" : "Problems created") :
+    e < T.send2        ? (isJa ? "追加指示を入力中" : "New instruction...") :
+    e < T.ai2          ? (isJa ? "AIが更新中..." : "AI updating...") :
+    e < T.studioOpen   ? (isJa ? "更新完了" : "Updated") :
+    e < T.studioPick   ? (isJa ? "✨ 類題ジェネレータを起動" : "✨ Opening Variant Studio") :
+    e < T.studioRun    ? (isJa ? "スタイルを選択中…" : "Picking a style…") :
+    e < T.studioThink  ? (isJa ? "✨ 類題を生成 (核機能)" : "✨ Generate variants (core feature)") :
+    e < T.studioApplied? (isJa ? "REM ノウハウで類題を生成中…" : "Generating variants with REM…") :
+    e < T.fadeOut      ? (isJa ? "★ 類題プリント完成 — 1ボタンで何枚でも" : "★ Variant ready — one tap, infinite worksheets") :
     (isJa ? "もう一度再生..." : "Replaying...");
 
   // ── Activity log card (mirrors real ThinkingIndicator) ──
@@ -1260,14 +1294,31 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
           </div>
         </div>
 
-        {/* 2-pane + activity bar */}
-        <div className="flex" style={{ minHeight: "340px" }}>
+        {/* 2-pane + activity bar — `relative` で内部の Variant Studio オーバーレイの absolute を効かせる */}
+        <div className="relative flex" style={{ minHeight: "340px" }}>
 
           {/* Left: animated worksheet */}
           <div className="flex-1 bg-gray-100/60 dark:bg-gray-950/40 flex justify-center items-start py-4 px-3 overflow-hidden">
             <div className="overflow-hidden rounded-md shadow-xl" style={{ width: "248px", height: "308px" }}>
               <div style={{ transform: "scale(0.645)", transformOrigin: "top left", width: "385px", pointerEvents: "none" }}>
-                <div className={`bg-white rounded-lg shadow-2xl border border-gray-300/50 overflow-hidden select-none transition-all duration-500 ${harderFlash ? "ring-2 ring-amber-400/40" : ""}`} style={SERIF}>
+                <div
+                  className={`relative bg-white rounded-lg shadow-2xl border border-gray-300/50 overflow-hidden select-none transition-all duration-500 ${
+                    harderFlash ? "ring-2 ring-amber-400/40" : ""
+                  } ${variantFlash ? "ring-4 ring-violet-500/45" : ""}`}
+                  style={SERIF}
+                >
+                  {/* 類題反映直後の紙面右上に "✨ 類題版" バッジを 1 秒だけ載せる */}
+                  {showVariantSet && (
+                    <span
+                      className={`absolute top-2 right-2 z-10 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[8px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500 shadow-md transition-opacity duration-500 ${
+                        variantFlash ? "opacity-100" : "opacity-90"
+                      }`}
+                      style={{ fontFamily: "ui-sans-serif, system-ui" }}
+                    >
+                      <Sparkles className="h-2 w-2" />
+                      {isJa ? "類題版" : "VARIANT"}
+                    </span>
+                  )}
                   {/* Title */}
                   {wsBlock(1, <>
                     <div className="px-6 pt-5 pb-3 border-b-2 border-gray-800">
@@ -1302,14 +1353,26 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
                         <div>
                           <p className="text-[11.5px] text-gray-800 leading-relaxed flex items-baseline gap-1">
                             <span className="text-gray-500 mr-1">(1)</span>
-                            <M t={showHarder ? "5x^2 - 7x + 1 = 0" : "3x^2 + 5x - 2 = 0"} />{isJa ? "　を解け。" : ""}
+                            <M t={
+                              showVariantSet
+                                ? "7x^2 + 11x - 6 = 0"     // ★ 類題版 (難しく + 別係数)
+                                : showHarder
+                                  ? "5x^2 - 7x + 1 = 0"
+                                  : "3x^2 + 5x - 2 = 0"
+                            } />{isJa ? "　を解け。" : ""}
                           </p>
                           <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
                         </div>
                         <div>
                           <p className="text-[11.5px] text-gray-800 leading-relaxed flex items-baseline gap-1">
                             <span className="text-gray-500 mr-1">(2)</span>
-                            <M t={showHarder ? "\\log_3 27 \\cdot \\log_2 16" : "\\log_2 8 + \\log_2 4"} />{isJa ? "　の値を求めよ。" : " = ?"}
+                            <M t={
+                              showVariantSet
+                                ? "\\log_5 125 + \\log_2 32"  // ★ 類題版
+                                : showHarder
+                                  ? "\\log_3 27 \\cdot \\log_2 16"
+                                  : "\\log_2 8 + \\log_2 4"
+                            } />{isJa ? "　の値を求めよ。" : " = ?"}
                           </p>
                           <div className="ml-6 mt-1 h-10 border-b border-dashed border-gray-200" />
                         </div>
@@ -1323,8 +1386,20 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
                         </p>
                         <p className="text-[10px] text-gray-600 mb-2.5">
                           {isJa
-                            ? <span>関数 <M t={showHarder ? "f(x) = 2x^2 - 8x + 5" : "f(x) = x^2 - 4x + 3"} /> について、次の問いに答えよ。</span>
-                            : <span><M t={showHarder ? "f(x) = 2x^2 - 8x + 5" : "f(x) = x^2 - 4x + 3"} /> — answer the following.</span>}
+                            ? <span>関数 <M t={
+                                showVariantSet
+                                  ? "f(x) = 3x^2 - 12x + 7"
+                                  : showHarder
+                                    ? "f(x) = 2x^2 - 8x + 5"
+                                    : "f(x) = x^2 - 4x + 3"
+                              } /> について、次の問いに答えよ。</span>
+                            : <span><M t={
+                                showVariantSet
+                                  ? "f(x) = 3x^2 - 12x + 7"
+                                  : showHarder
+                                    ? "f(x) = 2x^2 - 8x + 5"
+                                    : "f(x) = x^2 - 4x + 3"
+                              } /> — answer the following.</span>}
                         </p>
                       </div>
                     )}
@@ -1396,16 +1471,174 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
             </div>
           </div>
 
-          {/* Activity Bar — 実エディタと同じ 2 項目 (AI / 採点) */}
+          {/* Activity Bar — 実エディタと同じ並び (AI / ✨ 類題 / 採点)。
+               類題フェーズ中は ✨ アイコンを violet で active にして「ここから起動した」を視覚化。 */}
           <div className="w-8 border-l border-foreground/[0.06] bg-foreground/[0.02] flex flex-col items-center py-2 gap-2">
-            <div className="w-5 h-5 rounded flex items-center justify-center border-l-2 border-amber-500"
-                 style={{ background: "rgba(245,158,11,0.10)" }}>
-              <Sparkles className="h-3 w-3 text-amber-500" />
+            {/* AI Chat */}
+            <div
+              className={`w-5 h-5 rounded flex items-center justify-center transition-all duration-300 ${
+                showStudio ? "border-l-2 border-transparent text-muted-foreground/25" : "border-l-2 border-amber-500"
+              }`}
+              style={!showStudio ? { background: "rgba(245,158,11,0.10)" } : undefined}
+            >
+              <Sparkles className={`h-3 w-3 ${showStudio ? "text-muted-foreground/30" : "text-amber-500"}`} />
             </div>
+            {/* ✨ Variant Studio (類題) — 類題フェーズで光る */}
+            <div
+              className={`relative w-5 h-5 rounded flex items-center justify-center transition-all duration-300 ${
+                showStudio ? "border-l-2 border-violet-500 ring-2 ring-violet-500/35" : "text-muted-foreground/25"
+              }`}
+              style={showStudio ? { background: "rgba(139,92,246,0.14)" } : undefined}
+            >
+              <Wand2 className={`h-3 w-3 ${showStudio ? "text-violet-500" : "text-muted-foreground/40"}`} />
+              {/* Studio 起動の 1 タップ目に "クリック" っぽい bounce */}
+              {e >= T.studioOpen && e < T.studioOpen + 500 && (
+                <span aria-hidden className="absolute inset-0 rounded animate-ping bg-violet-500/30" />
+              )}
+            </div>
+            {/* 採点 (placeholder) */}
             <div className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground/25">
               <CheckSquare className="h-3 w-3" />
             </div>
           </div>
+
+          {/* ★★★ Variant Studio オーバーレイ — 30秒デモの「核機能」演出 ★★★
+                右側からスライドインしてスタイル選択 → CTA タップ → shimmer → 完成
+                までを 6〜7 秒で見せる。 */}
+          {showStudio && (
+            <div
+              className="absolute inset-y-0 right-0 z-20 w-[260px] sm:w-[280px] bg-background/97 backdrop-blur-md border-l border-foreground/[0.08] shadow-2xl shadow-violet-500/10 flex flex-col"
+              style={{
+                animation: "slide-in-right 0.4s ease-out",
+                background: "linear-gradient(135deg, rgba(139,92,246,0.06) 0%, rgba(255,255,255,0.95) 50%, rgba(217,70,239,0.05) 100%)",
+              }}
+            >
+              {/* ambient orb */}
+              <span aria-hidden className="absolute -top-12 -right-8 w-40 h-40 rounded-full bg-violet-500/15 blur-2xl pointer-events-none" />
+
+              {/* Studio header */}
+              <div className="relative flex items-start gap-2 px-3 pt-3 pb-2 border-b border-foreground/[0.05]">
+                <div className="relative shrink-0">
+                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-blue-500 flex items-center justify-center shadow-md shadow-violet-500/30">
+                    <Wand2 className="h-3.5 w-3.5 text-white" strokeWidth={2.2} />
+                  </div>
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400 border border-background animate-pulse" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <p className="text-[11px] font-bold tracking-tight">
+                      {isJa ? "類題ジェネレータ" : "Variant Studio"}
+                    </p>
+                    <span className="inline-flex items-center gap-0.5 px-1 py-[1px] rounded text-[7.5px] font-extrabold tracking-wider text-violet-700 dark:text-violet-300 bg-violet-500/12 border border-violet-500/35">
+                      <Crown className="h-2 w-2" />
+                      PRO
+                    </span>
+                  </div>
+                  <p className="text-[8.5px] text-muted-foreground/75 leading-snug mt-0.5 inline-flex items-center gap-0.5">
+                    <Zap className="h-2 w-2 text-amber-500" />
+                    {isJa ? "瞬時に何枚でも" : "Infinite, in one tap"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Style cards (compact) */}
+              <div className="relative flex-1 px-3 py-2.5 space-y-1.5">
+                <p className="text-[8.5px] font-bold tracking-wider uppercase text-muted-foreground/65 mb-1">
+                  {isJa ? "スタイルを選ぶ" : "Pick style"}
+                </p>
+                {([
+                  { id: "same",   ja: "同じ難易度",       en: "Same",     icon: Sparkles,      color: "violet" },
+                  { id: "harder", ja: "もう少し難しく",   en: "Harder",   icon: TrendingUp,    color: "rose"   },
+                  { id: "easier", ja: "もう少し易しく",   en: "Easier",   icon: TrendingDown,  color: "emerald"},
+                  { id: "format", ja: "別の形式で",       en: "Format",   icon: Shuffle,       color: "amber"  },
+                  { id: "more",   ja: "問題数を増やして", en: "More",     icon: Plus,          color: "blue"   },
+                ] as const).map((s) => {
+                  const isPicked = studioPickedHard && s.id === "harder";
+                  const Icon = s.icon;
+                  const colorClass =
+                    s.color === "violet"  ? "bg-violet-500/12 text-violet-600" :
+                    s.color === "rose"    ? "bg-rose-500/12 text-rose-600" :
+                    s.color === "emerald" ? "bg-emerald-500/12 text-emerald-600" :
+                    s.color === "amber"   ? "bg-amber-500/12 text-amber-600" :
+                    "bg-blue-500/12 text-blue-600";
+                  return (
+                    <div
+                      key={s.id}
+                      className={`relative flex items-center gap-1.5 px-2 py-1.5 rounded-md border transition-all duration-300 ${
+                        isPicked
+                          ? "border-rose-500/40 bg-gradient-to-r from-rose-500/[0.10] to-orange-500/[0.06] ring-1 ring-rose-500/30 -translate-y-0.5 shadow-sm shadow-rose-500/15"
+                          : "border-foreground/[0.06] bg-foreground/[0.02]"
+                      }`}
+                    >
+                      <span className={`h-5 w-5 shrink-0 rounded ${colorClass} flex items-center justify-center`}>
+                        <Icon className="h-2.5 w-2.5" />
+                      </span>
+                      <span className={`text-[9px] font-semibold leading-tight ${isPicked ? "text-rose-700 dark:text-rose-300" : "text-foreground/80"}`}>
+                        {isJa ? s.ja : s.en}
+                      </span>
+                      {isPicked && (
+                        <Check className="ml-auto h-2.5 w-2.5 text-rose-500" strokeWidth={3} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* CTA */}
+              <div className="relative px-3 pb-3 pt-1">
+                <button
+                  type="button"
+                  disabled
+                  className={`relative w-full inline-flex items-center justify-center gap-1 h-8 rounded-lg text-white text-[10px] font-bold transition-all duration-200 overflow-hidden ${
+                    studioCtaPressed ? "scale-[0.96]" : ""
+                  }`}
+                  style={{
+                    background: "linear-gradient(135deg, #7c3aed 0%, #d946ef 50%, #2563eb 100%)",
+                    boxShadow: studioCtaPressed
+                      ? "0 0 0 4px rgba(139,92,246,0.30)"
+                      : "0 4px 12px rgba(139,92,246,0.30)",
+                  }}
+                >
+                  {/* shimmer */}
+                  <span aria-hidden className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full" style={{ animation: "shimmer 2.4s ease-in-out infinite" }} />
+                  <Sparkles className="h-3 w-3 relative z-10" />
+                  <span className="relative z-10">
+                    {studioGenerating ? (isJa ? "生成中…" : "Generating…") : (isJa ? "類題を生成" : "Generate")}
+                  </span>
+                  {studioGenerating ? null : (
+                    <span className="relative z-10 text-[8px] opacity-50 ml-0.5 font-mono">⌘↵</span>
+                  )}
+                </button>
+                <p className="mt-1 text-[8px] text-center text-muted-foreground/65 inline-flex items-center justify-center gap-0.5 w-full">
+                  <Zap className="h-2 w-2 text-amber-500" />
+                  {isJa ? "Pro: 何枚でも無制限" : "Pro: unlimited"}
+                </p>
+              </div>
+
+              {/* shimmer overlay during generation */}
+              {studioGenerating && (
+                <div className="absolute inset-0 bg-background/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+                  <div className="flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-blue-600 text-white shadow-2xl shadow-violet-500/40">
+                    <div className="relative">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Sparkles className="absolute -top-0.5 -right-0.5 h-2 w-2 text-amber-300 animate-pulse" />
+                    </div>
+                    <p className="text-[9px] font-bold tracking-tight text-center">
+                      {isJa ? "類題を生成中…" : "Generating…"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* applied success burst */}
+              {studioApplied && e < T.studioApplied + 1200 && (
+                <div className="absolute inset-x-3 bottom-12 z-10 px-2 py-1.5 rounded-md bg-emerald-500/95 text-white shadow-md flex items-center gap-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <Check className="h-3 w-3" strokeWidth={3} />
+                  <span className="text-[9px] font-bold">{isJa ? "類題プリント完成" : "Variant ready"}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Demo progress bar */}
