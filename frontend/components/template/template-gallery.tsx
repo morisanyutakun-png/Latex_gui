@@ -3195,10 +3195,27 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
             </p>
           </div>
 
-          {/* ── 成果物プレビュー: Headline 直下に「実物」を見せて成果物で判断させる ──
-               KaTeX/動画なし、軽量 div+SVG のみ。タップで Hero Prompt と同じフローに乗る。 */}
+          {/* ── プロンプト入力 CTA — Hero ファーストビューに「触れる入力欄」 ──
+               未ログインユーザだけに見せる (ログイン済みは「続きから編集 / 白紙で始める」が
+               メイン CTA なので、prompt 入力欄を出すと動線が分散する)。 */}
           {primaryCta.variant === "free" && (
-            <div className={`relative max-w-2xl mx-auto mb-6 transition-all duration-1000 delay-75 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+            <div className={`relative max-w-2xl mx-auto mb-5 transition-all duration-1000 delay-75 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+              <HeroPromptCta isJa={isJa} onSubmit={(p) => openTrialOrLimit("hero_prompt", p)} />
+              <HeroSamplePromptChips isJa={isJa} onSubmit={(p) => openTrialOrLimit("hero_chip", p)} />
+            </div>
+          )}
+
+          {/* ── 成果物プレビュー: 入力欄の真下に置いて「入力 → これが出てくる」の流れに */}
+          {primaryCta.variant === "free" && (
+            <div className={`relative max-w-2xl mx-auto mb-6 transition-all duration-1000 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+              <div className="flex items-center justify-center gap-1.5 mb-3 text-[11px] sm:text-[12px] font-semibold text-muted-foreground/70">
+                <span className="h-px w-8 bg-foreground/15" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08]">
+                  <span aria-hidden>↓</span>
+                  {isJa ? "こんなのが60秒で出てきます" : "Here's what you'll get in 60s"}
+                </span>
+                <span className="h-px w-8 bg-foreground/15" />
+              </div>
               <button
                 type="button"
                 onClick={() => openTrialOrLimit("hero_preview")}
@@ -3210,13 +3227,9 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
             </div>
           )}
 
-          {/* ── プロンプト入力 CTA + 出力プレビュー ──
-               未ログインユーザだけに見せる (ログイン済みは「続きから編集 / 白紙で始める」が
-               メイン CTA なので、prompt 入力欄を出すと動線が分散する)。 */}
+          {/* ── 補足: 何ができるか + フロー帯 ── */}
           {primaryCta.variant === "free" && (
-            <div className={`relative max-w-2xl mx-auto mb-9 sm:mb-10 transition-all duration-1000 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
-              <HeroPromptCta isJa={isJa} onSubmit={(p) => openTrialOrLimit("hero_prompt", p)} />
-              <HeroSamplePromptChips isJa={isJa} onSubmit={(p) => openTrialOrLimit("hero_chip", p)} />
+            <div className={`relative max-w-2xl mx-auto mb-9 sm:mb-10 transition-all duration-1000 delay-150 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
               <HeroFreePerks isJa={isJa} />
               <HeroFlowStrip isJa={isJa} />
             </div>

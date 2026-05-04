@@ -165,22 +165,10 @@ export function MobileLanding({
           </p>
         </div>
 
-        {/* ── 成果物プレビュー: 「実際に出てくるもの」を H1 直下に配置 ──
-             外側を <button> にすると WorksheetPreviewDuo 内のタブ/ドット/CTA pill の
-             <button> が「button-in-button」になって Safari がパースを切るため、
-             ここでは <div> + 内側のクリック領域に generation onClick を割り当てる。
-             カルーセルが画面中央に snap される (snap-center) ように、ラッパは
-             flow を阻害しないシンプルな block にする。 */}
-        <div
-          className={`mb-4 transition-all duration-700 delay-75 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}
-        >
-          <WorksheetPreviewDuo isJa={isJa} onTapToGenerate={primaryCta.onClick} />
-        </div>
-
-        {/* ── アクション集約: 入力 + サンプルチップ + 巨大プライマリを一塊に ──
-             free フローのときだけ展示。タップ→即生成へ。 */}
+        {/* ── アクション集約 (入力 + チップ + 巨大プライマリ) ──
+             ファーストビューに「触れる入力欄」を配置。free フローのみ。 */}
         {primaryCta.variant === "free" && onPromptSubmit ? (
-          <div className={`transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+          <div className={`mb-4 transition-all duration-700 delay-75 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
             <MobilePromptHeroBlock
               isJa={isJa}
               onSubmit={onPromptSubmit}
@@ -190,7 +178,7 @@ export function MobileLanding({
             />
           </div>
         ) : (
-          <div className={`transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+          <div className={`mb-4 transition-all duration-700 delay-75 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
             <button
               onClick={primaryCta.onClick}
               className="group flex items-center justify-center gap-2 w-full h-14 rounded-2xl bg-foreground text-background font-bold text-[15.5px] shadow-xl shadow-foreground/20 active:scale-[0.98] transition"
@@ -202,6 +190,23 @@ export function MobileLanding({
             <p className="text-center text-[11px] text-muted-foreground/60 mt-2">{primaryCta.subLabel}</p>
           </div>
         )}
+
+        {/* ── 成果物プレビュー: 入力欄の真下に置いて「入力 → こんなのが出てくる」の
+             流れを直感的に見せる。タップでも生成へ進める。 */}
+        <div
+          className={`mt-2 transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}
+        >
+          {/* "↓ こんなのが出てきます" の小さな繋ぎ */}
+          <div className="flex items-center justify-center gap-1 mb-2 text-[10.5px] font-semibold text-muted-foreground/70">
+            <span className="h-px w-6 bg-foreground/15" />
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08]">
+              <span aria-hidden>↓</span>
+              {isJa ? "こんなのが60秒で出てきます" : "Here's what you'll get in 60s"}
+            </span>
+            <span className="h-px w-6 bg-foreground/15" />
+          </div>
+          <WorksheetPreviewDuo isJa={isJa} onTapToGenerate={primaryCta.onClick} />
+        </div>
       </section>
 
       {/* ━━ FREE PERKS — Hero 直下で「無料でどこまで」を最速で見せる (CTA 周辺の補強) ━━ */}
