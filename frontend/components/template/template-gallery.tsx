@@ -396,50 +396,28 @@ function HeroFlowStrip({ isJa }: { isJa: boolean }) {
 
 /* ── Hero 直下: 成果物プレビュー (Worksheet + Answer-key) ──
  *
- * 「機能ではなく成果物で判断する」ため、ファーストビューに「実物プリント」を出す。
- * 数式は KaTeX で本物の LaTeX 組版にコンパイル (renderMathHTML 経由)。
- * 画像/動画は使わず、CSS だけで紙の質感 (罫線・角折れ・3D 傾き・ノイズ・影) を出す。
- * - 左: 問題プリント (二段組ヘッダ、配点バッジ、解答欄罫線)
- * - 右: 解答キー (丸の正解スタンプ、薄い解説)
- * - 上: Prompt → AI → 60s のフロー帯
- * - 下: 「タップしてあなたのプリントを作る」
+ * 「成果物で判断する」を意識し、ファーストビューに「実際の出力」を見せる:
+ *   - 左: 二次関数 / 三角関数 / 対数 / 積分 をミックスした問題集 (display 数式 + 配点バッジ)
+ *   - 右: 解答に SVG グラフ (放物線 + 頂点 + 軸の交点 ・ 単位円 + 三角比) を含めて
+ *         「図入りの解説 PDF」が60秒で出ることを直感的に伝える
+ *   - 紙は CSS だけで質感 (二重罫線・角折れ・大学ノート風縦罫・3D 傾き・薄い影)
  *
  * 親側で button にラップ → タップでゲスト生成へ。 */
 function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
-  // KaTeX CSS を hero マウント時に投入 (SampleShowcase より先に呼ばれてしまうが、
-  // どちらが先でも 1 回だけ injectされる guard 付き)。
-  React.useEffect(() => {
-    ensureKatexCss();
-  }, []);
+  React.useEffect(() => { ensureKatexCss(); }, []);
 
-  const promptText = isJa ? "二次方程式の問題を10問、解答付きで" : "10 quadratic equation problems with answers";
-
-  // LaTeX ソース (KaTeX 互換の最小限)
-  const wsRows: { num: string; latex: string; pts?: string }[] = [
-    { num: "(1)", latex: "3x^2 + 5x - 2 = 0",   pts: "10" },
-    { num: "(2)", latex: "x^2 - 7x + 12 = 0",   pts: "10" },
-    { num: "(3)", latex: "2x^2 - x - 6 = 0",    pts: "10" },
-    { num: "(4)", latex: "x^2 + 4x + 4 = 0",    pts: "10" },
-  ];
-  const akRows: { num: string; latex: string; note?: string }[] = [
-    { num: "(1)", latex: "x = \\dfrac{1}{3},\\; -2",  note: isJa ? "因数分解" : "factor" },
-    { num: "(2)", latex: "x = 3,\\; 4",                note: isJa ? "因数分解" : "factor" },
-    { num: "(3)", latex: "x = 2,\\; -\\dfrac{3}{2}",   note: isJa ? "因数分解" : "factor" },
-    { num: "(4)", latex: "x = -2",                     note: isJa ? "重解" : "double root" },
-  ];
+  const promptText = isJa
+    ? "高1数学・関数と三角比の確認テスト 解答・グラフ付き"
+    : "Algebra & trig quiz with answers and graphs";
 
   return (
     <div className="relative">
-      {/* Prompt → AI → 60s のフロー帯 */}
       <HeroFlowBadge isJa={isJa} promptText={promptText} />
 
-      {/* 紙 2 枚 — お互いに少し回転させて「机に置いた紙」感を出す */}
-      <div className="relative grid grid-cols-2 gap-3 sm:gap-5 perspective-[1500px]">
-        {/* 装飾: 紙の下に薄い影を敷く */}
+      <div className="relative grid grid-cols-2 gap-3 sm:gap-5" style={{ perspective: "1500px" }}>
         <div aria-hidden className="absolute inset-x-4 -bottom-3 h-10 rounded-[50%] bg-foreground/15 blur-2xl pointer-events-none" />
-
-        <PreviewPaperWorksheet rows={wsRows} isJa={isJa} />
-        <PreviewPaperAnswerKey rows={akRows} isJa={isJa} />
+        <PreviewPaperWorksheet isJa={isJa} />
+        <PreviewPaperAnswerKey isJa={isJa} />
       </div>
 
       <p className="mt-4 text-center text-[11px] sm:text-[12px] text-muted-foreground/75 font-medium">
@@ -470,7 +448,7 @@ function HeroFlowBadge({ isJa, promptText }: { isJa: boolean; promptText: string
   );
 }
 
-/* 共通: 紙の枠 (罫線・角折れ・グリッド薄背景・3D 傾き) */
+/* 共通: 紙の枠 */
 function PaperFrame({ children, tilt }: { children: React.ReactNode; tilt: "left" | "right" }) {
   const rotate = tilt === "left" ? "rotateY(4deg) rotate(-1.2deg)" : "rotateY(-4deg) rotate(1.2deg)";
   return (
@@ -485,133 +463,266 @@ function PaperFrame({ children, tilt }: { children: React.ReactNode; tilt: "left
         transformOrigin: "center bottom",
       }}
     >
-      {/* 角の折れ */}
-      <div
-        aria-hidden
-        className="absolute top-0 right-0 w-4 h-4 sm:w-5 sm:h-5"
-        style={{ background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.08) 50%)" }}
-      />
-      {/* 折れの裏側 (薄いグレー) */}
-      <div
-        aria-hidden
-        className="absolute top-0 right-0 w-4 h-4 sm:w-5 sm:h-5"
+      <div aria-hidden className="absolute top-0 right-0 w-4 h-4 sm:w-5 sm:h-5"
+        style={{ background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.08) 50%)" }} />
+      <div aria-hidden className="absolute top-0 right-0 w-4 h-4 sm:w-5 sm:h-5"
         style={{
           clipPath: "polygon(100% 0, 100% 100%, 0 0)",
           background: "linear-gradient(135deg, rgba(0,0,0,0.04), rgba(0,0,0,0.12))",
-        }}
-      />
-      {/* 左の薄い縦罫 (大学ノート風) */}
+        }} />
       <div aria-hidden className="absolute left-3 sm:left-4 top-0 bottom-0 w-px bg-rose-300/40" />
       {children}
     </div>
   );
 }
 
-/* 問題プリント */
-function PreviewPaperWorksheet({
-  rows, isJa,
-}: { rows: { num: string; latex: string; pts?: string }[]; isJa: boolean }) {
+/* 紙のヘッダ — 二重罫線 + サブ + 名前欄 */
+function PaperHeader({
+  eyebrow, title, subtitle, isJa, withScore = false, rightBadge,
+}: {
+  eyebrow: string; title: string; subtitle: string; isJa: boolean;
+  withScore?: boolean; rightBadge?: React.ReactNode;
+}) {
   return (
-    <PaperFrame tilt="left">
-      {/* 二重罫線のヘッダ */}
-      <div className="px-3 sm:px-4 pt-2.5 sm:pt-3">
-        <div className="flex items-baseline justify-between text-[7.5px] sm:text-[9px] tracking-[0.2em] uppercase text-gray-500">
-          <span>EDDIVOM · {isJa ? "確認テスト" : "Quiz"}</span>
-          <span>2025 · 05</span>
-        </div>
-        <div className="border-t border-gray-800 mt-0.5" />
-        <h3 className="text-center text-[12px] sm:text-[15px] font-bold tracking-wide leading-tight pt-1.5 pb-0.5">
-          {isJa ? "数学Ⅰ　二次方程式" : "Math I — Quadratic Equations"}
-        </h3>
-        <p className="text-center text-[8px] sm:text-[10px] text-gray-500 leading-tight">
-          {isJa ? "次の方程式を解け。" : "Solve each equation."}
-        </p>
-        <div className="border-t border-b border-gray-800 mt-1.5 h-[3px]" style={{ borderTopWidth: 1, borderBottomWidth: 0.5 }} />
-        {/* 名前欄 */}
+    <div className="px-3 sm:px-4 pt-2.5 sm:pt-3">
+      <div className="flex items-baseline justify-between text-[7.5px] sm:text-[9px] tracking-[0.22em] uppercase text-gray-500">
+        <span>{eyebrow}</span>
+        <span>2025 · 05</span>
+      </div>
+      <div className="border-t-[1.5px] border-gray-800 mt-0.5" />
+      <h3 className="text-center text-[12px] sm:text-[15px] font-bold tracking-wide leading-tight pt-1.5">
+        {title}
+      </h3>
+      <p className="text-center text-[8px] sm:text-[10px] text-gray-500 leading-tight pb-1">
+        {subtitle}
+      </p>
+      <div className="border-t border-gray-800" />
+      <div className="border-t border-gray-800 mt-[1.5px]" />
+      {withScore ? (
         <div className="flex items-end justify-between gap-2 mt-1.5 text-[7.5px] sm:text-[9px] text-gray-500">
           <span className="flex items-baseline gap-1">
             <span>{isJa ? "氏名" : "Name"}</span>
-            <span className="border-b border-gray-500 w-12 sm:w-16 inline-block mb-0.5" />
+            <span className="border-b border-gray-500 w-12 sm:w-20 inline-block mb-0.5" />
           </span>
           <span className="flex items-baseline gap-1">
+            <span className="border-b border-gray-500 w-7 inline-block mb-0.5" />
             <span>/100</span>
           </span>
         </div>
-      </div>
+      ) : rightBadge ? (
+        <div className="flex items-end justify-end gap-1 mt-1.5 text-[7.5px] sm:text-[9px] text-gray-500">
+          {rightBadge}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
-      <ol className="px-3 sm:px-4 pt-2 pb-3 space-y-1.5 sm:space-y-2">
-        {rows.map((r, i) => (
-          <li key={i} className="text-[10px] sm:text-[12px] leading-tight">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-gray-500 shrink-0">{r.num}</span>
-              <span className="font-medium overflow-hidden">
-                <PreviewMath latex={r.latex} />
-              </span>
-              {r.pts && (
-                <span className="ml-auto inline-flex items-center px-1 py-[1px] rounded-sm border border-gray-400/60 text-[7px] sm:text-[8.5px] tracking-wider text-gray-600 shrink-0">
-                  {r.pts}{isJa ? "点" : "pt"}
-                </span>
-              )}
-            </div>
-            <div className="ml-4 mt-1 sm:mt-1.5 h-2 sm:h-3 border-b border-dashed border-gray-300/80" />
-          </li>
-        ))}
+/* 配点バッジ — グラデのソリッド寄り (ザコさ解消) */
+function PointsBadge({ pts, isJa }: { pts: string; isJa: boolean }) {
+  return (
+    <span className="ml-auto inline-flex items-center gap-0.5 px-1.5 py-[1.5px] rounded-full text-[7.5px] sm:text-[9px] font-extrabold tracking-wider text-white bg-gradient-to-r from-amber-500 to-rose-500 shadow-sm shrink-0"
+      style={{ fontFamily: "ui-sans-serif, system-ui" }}>
+      {pts}{isJa ? "点" : "pt"}
+    </span>
+  );
+}
+
+/* 問題プリント (左) */
+function PreviewPaperWorksheet({ isJa }: { isJa: boolean }) {
+  return (
+    <PaperFrame tilt="left">
+      <PaperHeader
+        eyebrow={`EDDIVOM · ${isJa ? "確認テスト" : "Quiz"}`}
+        title={isJa ? "数学Ⅰ・Ⅱ　関数と三角比" : "Math I/II — Functions & Trig"}
+        subtitle={isJa ? "次の各問に答えよ。" : "Answer each problem."}
+        withScore
+        isJa={isJa}
+      />
+
+      <ol className="px-3 sm:px-4 pt-2 pb-3 space-y-2 sm:space-y-2.5">
+        {/* 第1問: 二次関数の最大最小 (display 数式) */}
+        <li>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
+              {isJa ? "問1" : "Q1"}
+            </span>
+            <span className="text-[9px] sm:text-[11px] text-gray-700">
+              {isJa ? "次の関数の最小値を求めよ。" : "Find the minimum value."}
+            </span>
+            <PointsBadge pts="20" isJa={isJa} />
+          </div>
+          <div className="pl-3 sm:pl-4">
+            <PreviewMathDisplay latex="f(x) = x^2 - 6x + 11" />
+          </div>
+          <div className="ml-3 sm:ml-4 mt-1 h-2 sm:h-3 border-b border-dashed border-gray-300/80" />
+        </li>
+
+        {/* 第2問: 三角比 (分数 + 平方根) */}
+        <li>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
+              {isJa ? "問2" : "Q2"}
+            </span>
+            <span className="text-[9px] sm:text-[11px] text-gray-700">
+              {isJa ? "次の値を計算せよ。" : "Evaluate."}
+            </span>
+            <PointsBadge pts="20" isJa={isJa} />
+          </div>
+          <div className="pl-3 sm:pl-4">
+            <PreviewMathDisplay latex="\sin\dfrac{\pi}{3} + \cos\dfrac{\pi}{6} - \tan\dfrac{\pi}{4}" />
+          </div>
+          <div className="ml-3 sm:ml-4 mt-1 h-2 sm:h-3 border-b border-dashed border-gray-300/80" />
+        </li>
+
+        {/* 第3問: 対数 (display) */}
+        <li>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
+              {isJa ? "問3" : "Q3"}
+            </span>
+            <span className="text-[9px] sm:text-[11px] text-gray-700">
+              {isJa ? "次の方程式を解け。" : "Solve."}
+            </span>
+            <PointsBadge pts="30" isJa={isJa} />
+          </div>
+          <div className="pl-3 sm:pl-4">
+            <PreviewMathDisplay latex="\log_{2}(x+1) + \log_{2}(x-1) = 3" />
+          </div>
+          <div className="ml-3 sm:ml-4 mt-1 h-2 sm:h-3 border-b border-dashed border-gray-300/80" />
+        </li>
+
+        {/* 第4問: 定積分 (大きな ∫) */}
+        <li>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
+              {isJa ? "問4" : "Q4"}
+            </span>
+            <span className="text-[9px] sm:text-[11px] text-gray-700">
+              {isJa ? "定積分の値を求めよ。" : "Compute."}
+            </span>
+            <PointsBadge pts="30" isJa={isJa} />
+          </div>
+          <div className="pl-3 sm:pl-4">
+            <PreviewMathDisplay latex="\int_{0}^{2} (3x^2 - 2x + 1)\,dx" />
+          </div>
+          <div className="ml-3 sm:ml-4 mt-1 h-2 sm:h-3 border-b border-dashed border-gray-300/80" />
+        </li>
       </ol>
 
-      {/* スタンプ */}
       <PaperStamp label={isJa ? "問題プリント PDF" : "Worksheet PDF"} color="from-blue-500 to-violet-500" />
     </PaperFrame>
   );
 }
 
-/* 解答プリント */
-function PreviewPaperAnswerKey({
-  rows, isJa,
-}: { rows: { num: string; latex: string; note?: string }[]; isJa: boolean }) {
+/* 解答プリント (右) — グラフ入り */
+function PreviewPaperAnswerKey({ isJa }: { isJa: boolean }) {
   return (
     <PaperFrame tilt="right">
-      <div className="px-3 sm:px-4 pt-2.5 sm:pt-3">
-        <div className="flex items-baseline justify-between text-[7.5px] sm:text-[9px] tracking-[0.2em] uppercase text-gray-500">
-          <span>EDDIVOM · {isJa ? "解答" : "Answer Key"}</span>
-          <span>2025 · 05</span>
-        </div>
-        <div className="border-t border-gray-800 mt-0.5" />
-        <h3 className="text-center text-[12px] sm:text-[15px] font-bold tracking-wide leading-tight pt-1.5 pb-0.5">
-          {isJa ? "解答 ・ 解説" : "Solutions"}
-        </h3>
-        <p className="text-center text-[8px] sm:text-[10px] text-gray-500 leading-tight">
-          {isJa ? "模範解答と解法のヒント。" : "Sample answers with hints."}
-        </p>
-        <div className="border-t border-b border-gray-800 mt-1.5 h-[3px]" style={{ borderTopWidth: 1, borderBottomWidth: 0.5 }} />
-        <div className="flex items-end justify-end gap-1 mt-1.5 text-[7.5px] sm:text-[9px] text-gray-500">
-          <span className="inline-flex items-center gap-0.5 px-1 rounded border border-emerald-500/40 text-emerald-700">
-            <Check className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
-            {isJa ? "正解" : "Correct"}
+      <PaperHeader
+        eyebrow={`EDDIVOM · ${isJa ? "解答" : "Answer Key"}`}
+        title={isJa ? "解答 ・ 解説" : "Solutions & Explanations"}
+        subtitle={isJa ? "図入りの完全解答。" : "Complete answers with figures."}
+        rightBadge={
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/12 border border-emerald-500/35 text-emerald-700 font-bold">
+            <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+            {isJa ? "全問正解" : "All correct"}
           </span>
-        </div>
-      </div>
+        }
+        isJa={isJa}
+      />
 
-      <ol className="px-3 sm:px-4 pt-2 pb-3 space-y-1.5 sm:space-y-2">
-        {rows.map((r, i) => (
-          <li key={i} className="text-[10px] sm:text-[12px] leading-tight">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-gray-500 shrink-0">{r.num}</span>
-              <span className="font-medium overflow-hidden">
-                <PreviewMath latex={r.latex} />
+      <ol className="px-3 sm:px-4 pt-2 pb-3 space-y-2 sm:space-y-2.5">
+        {/* 問1 解答 + 放物線グラフ */}
+        <li>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
+              {isJa ? "問1" : "Q1"}
+            </span>
+            <span className="overflow-hidden">
+              <PreviewMathInline latex="f(x)=(x-3)^2+2" />
+            </span>
+            <CorrectMark />
+          </div>
+          <div className="flex items-center gap-2 pl-3 sm:pl-4">
+            <ParabolaSvg />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[8.5px] sm:text-[10.5px] text-gray-700">
+                {isJa ? "頂点 " : "vertex "}
+                <PreviewMathInline latex="(3,\,2)" />
               </span>
-              <span aria-hidden className="ml-auto h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full border-[1.5px] border-rose-500/80 shrink-0" />
+              <span className="text-[8.5px] sm:text-[10.5px] font-semibold text-rose-700">
+                {isJa ? "最小値 " : "min = "}
+                <PreviewMathInline latex="\boxed{2}" />
+              </span>
             </div>
-            {r.note && (
-              <p className="ml-4 mt-0.5 text-[8.5px] sm:text-[10px] text-gray-500 italic">
-                {isJa ? "→ " : "→ "}{r.note}
-              </p>
-            )}
-          </li>
-        ))}
+          </div>
+        </li>
+
+        {/* 問2 解答 + 単位円 */}
+        <li>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
+              {isJa ? "問2" : "Q2"}
+            </span>
+            <span className="overflow-hidden">
+              <PreviewMathInline latex="\dfrac{\sqrt{3}}{2}+\dfrac{\sqrt{3}}{2}-1=\sqrt{3}-1" />
+            </span>
+            <CorrectMark />
+          </div>
+          <div className="flex items-center gap-2 pl-3 sm:pl-4">
+            <UnitCircleSvg />
+            <span className="text-[8.5px] sm:text-[10.5px] text-gray-700 leading-snug">
+              {isJa ? "単位円で " : "From unit circle: "}
+              <PreviewMathInline latex="\sin60^\circ=\tfrac{\sqrt{3}}{2}" />
+            </span>
+          </div>
+        </li>
+
+        {/* 問3 解答 — 簡潔に */}
+        <li>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
+              {isJa ? "問3" : "Q3"}
+            </span>
+            <span className="overflow-hidden">
+              <PreviewMathInline latex="x^2-1=8 \;\Rightarrow\; x=3" />
+            </span>
+            <CorrectMark />
+          </div>
+          <p className="ml-4 sm:ml-5 mt-0.5 text-[8.5px] sm:text-[10px] text-gray-500 italic">
+            {isJa ? "→ 真数条件 x > 1 より x = 3" : "→ x > 1, so x = 3"}
+          </p>
+        </li>
+
+        {/* 問4 解答 — 計算式 */}
+        <li>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
+              {isJa ? "問4" : "Q4"}
+            </span>
+            <span className="overflow-hidden">
+              <PreviewMathInline latex="\bigl[x^3-x^2+x\bigr]_0^2=\boxed{6}" />
+            </span>
+            <CorrectMark />
+          </div>
+        </li>
       </ol>
 
       <PaperStamp label={isJa ? "解答 PDF" : "Answer-key PDF"} color="from-emerald-500 to-teal-500" />
     </PaperFrame>
+  );
+}
+
+/* 採点風の赤マル */
+function CorrectMark() {
+  return (
+    <span aria-hidden className="ml-auto relative h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0">
+      <svg viewBox="0 0 20 20" className="absolute inset-0 w-full h-full">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(225,29,72,0.85)" strokeWidth="2" strokeLinecap="round"
+          strokeDasharray="50.27" strokeDashoffset="0" transform="rotate(-30 10 10)" />
+      </svg>
+    </span>
   );
 }
 
@@ -630,18 +741,105 @@ function PaperStamp({ label, color }: { label: string; color: string }) {
   );
 }
 
-/* KaTeX 描画 — 失敗時はテキストフォールバック */
-function PreviewMath({ latex }: { latex: string }) {
+/* KaTeX inline */
+function PreviewMathInline({ latex }: { latex: string }) {
   const { html, ok } = renderMathHTML(latex, { displayMode: false });
+  if (ok) return <span className="align-middle [&_.katex]:text-[0.92em] sm:[&_.katex]:text-[1em]" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <span className="text-gray-700">{latex}</span>;
+}
+
+/* KaTeX display — 数式が「主役」になるよう center + 大きめ */
+function PreviewMathDisplay({ latex }: { latex: string }) {
+  const { html, ok } = renderMathHTML(latex, { displayMode: true });
   if (ok) {
     return (
-      <span
-        className="align-middle [&_.katex]:text-[0.95em]"
+      <div
+        className="my-0.5 text-center [&_.katex-display]:m-0 [&_.katex]:text-[0.95em] sm:[&_.katex]:text-[1.05em]"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
   }
-  return <span className="text-gray-700">{latex}</span>;
+  return <div className="text-gray-700 text-center">{latex}</div>;
+}
+
+/* TikZ 風の放物線 SVG — y = (x-3)^2 + 2 を [-1, 7] で描画 */
+function ParabolaSvg() {
+  // 座標系: x ∈ [-1, 7] → 0..120, y ∈ [-1, 12] → 90..0
+  const W = 120, H = 90;
+  const xMin = -1, xMax = 7, yMin = -1, yMax = 12;
+  const sx = (x: number) => ((x - xMin) / (xMax - xMin)) * W;
+  const sy = (y: number) => H - ((y - yMin) / (yMax - yMin)) * H;
+  const points: string[] = [];
+  for (let i = 0; i <= 80; i++) {
+    const x = xMin + (i / 80) * (xMax - xMin);
+    const y = (x - 3) * (x - 3) + 2;
+    points.push(`${sx(x).toFixed(2)},${sy(y).toFixed(2)}`);
+  }
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-[88px] sm:w-[120px] h-auto shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id="parabolaStroke" x1="0" x2="1">
+          <stop offset="0" stopColor="#6366f1" />
+          <stop offset="1" stopColor="#ec4899" />
+        </linearGradient>
+        <pattern id="grid" width="15" height="15" patternUnits="userSpaceOnUse">
+          <path d="M 15 0 L 0 0 0 15" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="0.5" />
+        </pattern>
+      </defs>
+      <rect width={W} height={H} fill="url(#grid)" />
+      {/* 軸 */}
+      <line x1={sx(xMin)} y1={sy(0)} x2={sx(xMax)} y2={sy(0)} stroke="#1f2937" strokeWidth="0.7" />
+      <line x1={sx(0)} y1={sy(yMin)} x2={sx(0)} y2={sy(yMax)} stroke="#1f2937" strokeWidth="0.7" />
+      {/* 矢印 */}
+      <polygon points={`${sx(xMax)},${sy(0)} ${sx(xMax)-2.5},${sy(0)-1.5} ${sx(xMax)-2.5},${sy(0)+1.5}`} fill="#1f2937" />
+      <polygon points={`${sx(0)},${sy(yMax)} ${sx(0)-1.5},${sy(yMax)+2.5} ${sx(0)+1.5},${sy(yMax)+2.5}`} fill="#1f2937" />
+      {/* 放物線本体 */}
+      <polyline points={points.join(" ")} fill="none" stroke="url(#parabolaStroke)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      {/* 頂点 (3, 2) */}
+      <circle cx={sx(3)} cy={sy(2)} r="2" fill="#ec4899" stroke="white" strokeWidth="1" />
+      <text x={sx(3)+3} y={sy(2)-3} fontSize="6" fill="#be185d" fontWeight="700">(3,2)</text>
+      {/* 軸ラベル */}
+      <text x={sx(xMax)-4} y={sy(0)+6} fontSize="5.5" fill="#374151">x</text>
+      <text x={sx(0)+2} y={sy(yMax)+5} fontSize="5.5" fill="#374151">y</text>
+    </svg>
+  );
+}
+
+/* 単位円 SVG (60° の三角比) */
+function UnitCircleSvg() {
+  const cx = 45, cy = 45, r = 32;
+  const angle = 60 * Math.PI / 180;
+  const px = cx + r * Math.cos(angle);
+  const py = cy - r * Math.sin(angle);
+  return (
+    <svg viewBox="0 0 90 90" className="w-[72px] sm:w-[92px] h-auto shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id="circleStroke" x1="0" x2="1">
+          <stop offset="0" stopColor="#10b981" />
+          <stop offset="1" stopColor="#06b6d4" />
+        </linearGradient>
+      </defs>
+      {/* 軸 */}
+      <line x1="6" y1={cy} x2="86" y2={cy} stroke="#1f2937" strokeWidth="0.7" />
+      <line x1={cx} y1="6" x2={cx} y2="86" stroke="#1f2937" strokeWidth="0.7" />
+      {/* 円 */}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#circleStroke)" strokeWidth="1.6" />
+      {/* 半径 (60°) */}
+      <line x1={cx} y1={cy} x2={px} y2={py} stroke="#0ea5e9" strokeWidth="1.4" />
+      {/* sin / cos の補助線 */}
+      <line x1={px} y1={py} x2={px} y2={cy} stroke="#ec4899" strokeWidth="1.2" strokeDasharray="2 1.5" />
+      <line x1={cx} y1={cy} x2={px} y2={cy} stroke="#6366f1" strokeWidth="1.2" strokeDasharray="2 1.5" />
+      {/* 角度の弧 */}
+      <path d={`M ${cx + 10} ${cy} A 10 10 0 0 0 ${cx + 10 * Math.cos(angle)} ${cy - 10 * Math.sin(angle)}`} fill="none" stroke="#f59e0b" strokeWidth="0.9" />
+      <text x={cx + 12} y={cy - 4} fontSize="6" fill="#b45309" fontWeight="700">60°</text>
+      {/* 点 P */}
+      <circle cx={px} cy={py} r="1.8" fill="#0ea5e9" stroke="white" strokeWidth="0.8" />
+      {/* ラベル */}
+      <text x={px + 1.5} y={py - 2} fontSize="6" fill="#0c4a6e" fontWeight="700">P</text>
+      <text x="80" y={cy - 1} fontSize="5.5" fill="#374151">x</text>
+      <text x={cx + 1} y="10" fontSize="5.5" fill="#374151">y</text>
+    </svg>
+  );
 }
 
 /* ── 装飾: 黄色マーカー風アンダーライン ──

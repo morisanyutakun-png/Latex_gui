@@ -724,31 +724,17 @@ function MobilePromptHeroBlock({
 
 /* ── 旧 MobilePromptCta は廃止 (MobilePromptHeroBlock に統合) ── */
 
-/* ── Hero 直下: 成果物プレビュー (Worksheet + Answer-key) ──
+/* ── Hero 直下: 成果物プレビュー (Worksheet + Answer-key)
  *
- * 数式は KaTeX で本物の組版にコンパイル。CSS だけで紙の質感 (二重罫線・角折れ・
- * 大学ノート風の縦罫・3D 傾き・薄い影・グリッド背景) を出す。 */
+ * モバイル幅でも見える「成果物」を出すため、左ページは display 数式 3 問に絞り、
+ * 右ページは放物線グラフ + 単位円の図を入れた解答にする。 */
 function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
   useEffect(() => { ensureKatexCssMobile(); }, []);
 
-  const promptText = isJa ? "二次方程式の問題を10問、解答付きで" : "10 quadratic equation problems with answers";
-
-  const wsRows: { num: string; latex: string; pts?: string }[] = [
-    { num: "(1)", latex: "3x^2 + 5x - 2 = 0",   pts: "10" },
-    { num: "(2)", latex: "x^2 - 7x + 12 = 0",   pts: "10" },
-    { num: "(3)", latex: "2x^2 - x - 6 = 0",    pts: "10" },
-    { num: "(4)", latex: "x^2 + 4x + 4 = 0",    pts: "10" },
-  ];
-  const akRows: { num: string; latex: string; note?: string }[] = [
-    { num: "(1)", latex: "x = \\dfrac{1}{3},\\; -2", note: isJa ? "因数分解" : "factor" },
-    { num: "(2)", latex: "x = 3,\\; 4",               note: isJa ? "因数分解" : "factor" },
-    { num: "(3)", latex: "x = 2,\\; -\\dfrac{3}{2}",  note: isJa ? "因数分解" : "factor" },
-    { num: "(4)", latex: "x = -2",                    note: isJa ? "重解" : "double root" },
-  ];
+  const promptText = isJa ? "高1数学・関数と三角比 解答グラフ付き" : "Algebra & trig with graph answers";
 
   return (
     <div className="relative">
-      {/* Prompt → 60s フロー帯 */}
       <div className="flex items-center justify-center gap-1.5 mb-3">
         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-card border border-foreground/[0.1] text-[10.5px] font-medium text-foreground/85 shadow-sm max-w-[58vw]">
           <Sparkles className="h-3 w-3 text-violet-500 shrink-0" />
@@ -763,8 +749,8 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
 
       <div className="relative grid grid-cols-2 gap-2.5" style={{ perspective: "1500px" }}>
         <div aria-hidden className="absolute inset-x-3 -bottom-3 h-8 rounded-[50%] bg-foreground/15 blur-2xl pointer-events-none" />
-        <MobilePaperWorksheet rows={wsRows} isJa={isJa} />
-        <MobilePaperAnswerKey rows={akRows} isJa={isJa} />
+        <MobilePaperWorksheet isJa={isJa} />
+        <MobilePaperAnswerKey isJa={isJa} />
       </div>
 
       <p className="mt-3 text-center text-[11px] text-muted-foreground/75 font-medium">
@@ -778,7 +764,6 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
   );
 }
 
-/* 紙の枠 — 罫線・角折れ・縦罫・3D 傾き */
 function MobilePaperFrame({ children, tilt }: { children: React.ReactNode; tilt: "left" | "right" }) {
   const rotate = tilt === "left" ? "rotateY(4deg) rotate(-1deg)" : "rotateY(-4deg) rotate(1deg)";
   return (
@@ -789,81 +774,89 @@ function MobilePaperFrame({ children, tilt }: { children: React.ReactNode; tilt:
         backgroundImage:
           "linear-gradient(to bottom, rgba(250,250,247,1), rgba(255,255,255,1)), repeating-linear-gradient(0deg, rgba(0,0,0,0.014) 0 1px, transparent 1px 22px)",
         backgroundBlendMode: "multiply",
-        boxShadow:
-          "0 18px 30px -12px rgba(0,0,0,0.25), 0 4px 8px -4px rgba(0,0,0,0.12)",
+        boxShadow: "0 18px 30px -12px rgba(0,0,0,0.25), 0 4px 8px -4px rgba(0,0,0,0.12)",
         transform: rotate,
         transformOrigin: "center bottom",
       }}
     >
-      <div
-        aria-hidden
-        className="absolute top-0 right-0 w-3.5 h-3.5"
-        style={{ background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.08) 50%)" }}
-      />
-      <div
-        aria-hidden
-        className="absolute top-0 right-0 w-3.5 h-3.5"
+      <div aria-hidden className="absolute top-0 right-0 w-3.5 h-3.5"
+        style={{ background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.08) 50%)" }} />
+      <div aria-hidden className="absolute top-0 right-0 w-3.5 h-3.5"
         style={{
           clipPath: "polygon(100% 0, 100% 100%, 0 0)",
           background: "linear-gradient(135deg, rgba(0,0,0,0.05), rgba(0,0,0,0.13))",
-        }}
-      />
+        }} />
       <div aria-hidden className="absolute left-2.5 top-0 bottom-0 w-px bg-rose-300/45" />
       {children}
     </div>
   );
 }
 
-function MobilePaperWorksheet({
-  rows, isJa,
-}: { rows: { num: string; latex: string; pts?: string }[]; isJa: boolean }) {
+function MobilePointsBadge({ pts, isJa }: { pts: string; isJa: boolean }) {
+  return (
+    <span className="ml-auto inline-flex items-center px-1.5 py-[1px] rounded-full text-[7px] font-extrabold tracking-wider text-white bg-gradient-to-r from-amber-500 to-rose-500 shadow-sm shrink-0"
+      style={{ fontFamily: "ui-sans-serif, system-ui" }}>
+      {pts}{isJa ? "点" : "p"}
+    </span>
+  );
+}
+
+function MobilePaperWorksheet({ isJa }: { isJa: boolean }) {
   return (
     <MobilePaperFrame tilt="left">
       <div className="px-2.5 pt-2">
         <div className="flex items-baseline justify-between text-[7px] tracking-[0.2em] uppercase text-gray-500">
           <span>EDDIVOM</span>
-          <span>05/25</span>
+          <span>05·25</span>
         </div>
-        <div className="border-t border-gray-800 mt-0.5" />
+        <div className="border-t-[1.5px] border-gray-800 mt-0.5" />
         <h3 className="text-center text-[10.5px] font-bold tracking-wide leading-tight pt-1">
-          {isJa ? "数学Ⅰ 二次方程式" : "Math I — Quadratic"}
+          {isJa ? "関数 ・ 三角比" : "Func & Trig"}
         </h3>
-        <p className="text-center text-[7.5px] text-gray-500 leading-tight">
-          {isJa ? "次の方程式を解け。" : "Solve each equation."}
+        <p className="text-center text-[7.5px] text-gray-500 leading-tight pb-1">
+          {isJa ? "次の各問に答えよ。" : "Answer each."}
         </p>
-        <div className="border-t border-gray-800 mt-1" />
+        <div className="border-t border-gray-800" />
+        <div className="border-t border-gray-800 mt-[1.5px]" />
       </div>
-      <ol className="px-2.5 pt-1.5 pb-2 space-y-1.5">
-        {rows.map((r, i) => (
-          <li key={i} className="text-[9.5px] leading-tight">
-            <div className="flex items-baseline gap-1">
-              <span className="text-gray-500 shrink-0">{r.num}</span>
-              <span className="font-medium overflow-hidden">
-                <PreviewMath latex={r.latex} />
-              </span>
-              {r.pts && (
-                <span className="ml-auto inline-flex items-center px-1 py-[1px] rounded-sm border border-gray-400/60 text-[7px] tracking-wider text-gray-600 shrink-0">
-                  {r.pts}{isJa ? "点" : "pt"}
-                </span>
-              )}
-            </div>
-            <div className="ml-3 mt-1 h-2 border-b border-dashed border-gray-300/80" />
-          </li>
-        ))}
+
+      <ol className="px-2.5 pt-1.5 pb-2 space-y-2">
+        <li>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問1" : "Q1"}</span>
+            <span className="text-[8.5px] text-gray-700 truncate">{isJa ? "最小値を求めよ" : "min?"}</span>
+            <MobilePointsBadge pts="30" isJa={isJa} />
+          </div>
+          <div className="pl-2 mt-0.5"><PreviewMathDisplay latex="f(x)=x^2-6x+11" /></div>
+        </li>
+        <li>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問2" : "Q2"}</span>
+            <span className="text-[8.5px] text-gray-700 truncate">{isJa ? "値を求めよ" : "evaluate"}</span>
+            <MobilePointsBadge pts="30" isJa={isJa} />
+          </div>
+          <div className="pl-2 mt-0.5"><PreviewMathDisplay latex="\sin\dfrac{\pi}{3}+\cos\dfrac{\pi}{6}" /></div>
+        </li>
+        <li>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問3" : "Q3"}</span>
+            <span className="text-[8.5px] text-gray-700 truncate">{isJa ? "計算せよ" : "compute"}</span>
+            <MobilePointsBadge pts="40" isJa={isJa} />
+          </div>
+          <div className="pl-2 mt-0.5"><PreviewMathDisplay latex="\int_{0}^{2}(3x^2-2x+1)dx" /></div>
+        </li>
       </ol>
+
       <div className="px-2.5 pb-1.5 flex justify-end">
         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[3px] text-[7.5px] font-extrabold tracking-[0.15em] text-white bg-gradient-to-r from-blue-500 to-violet-500 shadow-sm" style={{ fontFamily: "ui-sans-serif, system-ui" }}>
-          <FileText className="h-2 w-2" />
-          {isJa ? "問題 PDF" : "Worksheet"}
+          <FileText className="h-2 w-2" />{isJa ? "問題 PDF" : "Worksheet"}
         </span>
       </div>
     </MobilePaperFrame>
   );
 }
 
-function MobilePaperAnswerKey({
-  rows, isJa,
-}: { rows: { num: string; latex: string; note?: string }[]; isJa: boolean }) {
+function MobilePaperAnswerKey({ isJa }: { isJa: boolean }) {
   return (
     <MobilePaperFrame tilt="right">
       <div className="px-2.5 pt-2">
@@ -871,53 +864,156 @@ function MobilePaperAnswerKey({
           <span>EDDIVOM</span>
           <span>{isJa ? "解答" : "ANSWER"}</span>
         </div>
-        <div className="border-t border-gray-800 mt-0.5" />
+        <div className="border-t-[1.5px] border-gray-800 mt-0.5" />
         <h3 className="text-center text-[10.5px] font-bold tracking-wide leading-tight pt-1">
           {isJa ? "解答 ・ 解説" : "Solutions"}
         </h3>
-        <p className="text-center text-[7.5px] text-gray-500 leading-tight">
-          {isJa ? "模範解答とヒント" : "Sample answers + hints"}
+        <p className="text-center text-[7.5px] text-gray-500 leading-tight pb-1">
+          {isJa ? "図入りの完全解答" : "with figures"}
         </p>
-        <div className="border-t border-gray-800 mt-1" />
+        <div className="border-t border-gray-800" />
+        <div className="border-t border-gray-800 mt-[1.5px]" />
       </div>
-      <ol className="px-2.5 pt-1.5 pb-2 space-y-1.5">
-        {rows.map((r, i) => (
-          <li key={i} className="text-[9.5px] leading-tight">
-            <div className="flex items-baseline gap-1">
-              <span className="text-gray-500 shrink-0">{r.num}</span>
-              <span className="font-medium overflow-hidden">
-                <PreviewMath latex={r.latex} />
-              </span>
-              <span aria-hidden className="ml-auto h-3 w-3 rounded-full border-[1.5px] border-rose-500/80 shrink-0" />
-            </div>
-            {r.note && (
-              <p className="ml-3 mt-0.5 text-[8px] text-gray-500 italic">→ {r.note}</p>
-            )}
-          </li>
-        ))}
+
+      <ol className="px-2.5 pt-1.5 pb-2 space-y-2">
+        <li>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問1" : "Q1"}</span>
+            <span className="overflow-hidden text-[9px]">
+              <PreviewMathInline latex="(x-3)^2+2" />
+            </span>
+            <MobileCorrectMark />
+          </div>
+          <div className="flex items-center gap-1.5 pl-2 mt-0.5">
+            <ParabolaSvgMobile />
+            <span className="text-[7.5px] font-semibold text-rose-700 leading-tight">
+              {isJa ? "最小=" : "min="}<PreviewMathInline latex="\boxed{2}" />
+            </span>
+          </div>
+        </li>
+
+        <li>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問2" : "Q2"}</span>
+            <span className="overflow-hidden text-[9px]">
+              <PreviewMathInline latex="\sqrt{3}" />
+            </span>
+            <MobileCorrectMark />
+          </div>
+          <div className="flex items-center gap-1.5 pl-2 mt-0.5">
+            <UnitCircleSvgMobile />
+            <span className="text-[7.5px] text-gray-700 leading-tight">
+              <PreviewMathInline latex="\sin60^\circ=\tfrac{\sqrt3}{2}" />
+            </span>
+          </div>
+        </li>
+
+        <li>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問3" : "Q3"}</span>
+            <span className="overflow-hidden text-[9px]">
+              <PreviewMathInline latex="[x^3-x^2+x]_0^2=\boxed{6}" />
+            </span>
+            <MobileCorrectMark />
+          </div>
+        </li>
       </ol>
+
       <div className="px-2.5 pb-1.5 flex justify-end">
         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[3px] text-[7.5px] font-extrabold tracking-[0.15em] text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm" style={{ fontFamily: "ui-sans-serif, system-ui" }}>
-          <FileText className="h-2 w-2" />
-          {isJa ? "解答 PDF" : "Answer key"}
+          <FileText className="h-2 w-2" />{isJa ? "解答 PDF" : "Answer key"}
         </span>
       </div>
     </MobilePaperFrame>
   );
 }
 
-/* KaTeX 描画 — 失敗時はテキストフォールバック */
-function PreviewMath({ latex }: { latex: string }) {
+function MobileCorrectMark() {
+  return (
+    <span aria-hidden className="ml-auto relative h-3 w-3 shrink-0">
+      <svg viewBox="0 0 20 20" className="absolute inset-0 w-full h-full">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(225,29,72,0.85)" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
+/* インライン KaTeX */
+function PreviewMathInline({ latex }: { latex: string }) {
   const { html, ok } = renderMathHTML(latex, { displayMode: false });
+  if (ok) return <span className="align-middle [&_.katex]:text-[0.88em]" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <span className="text-gray-700">{latex}</span>;
+}
+
+/* ディスプレイ KaTeX (中央寄せ + やや大きめ) */
+function PreviewMathDisplay({ latex }: { latex: string }) {
+  const { html, ok } = renderMathHTML(latex, { displayMode: true });
   if (ok) {
     return (
-      <span
-        className="align-middle [&_.katex]:text-[0.92em]"
+      <div
+        className="text-center [&_.katex-display]:m-0 [&_.katex]:text-[0.92em]"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
   }
-  return <span className="text-gray-700">{latex}</span>;
+  return <div className="text-center text-gray-700">{latex}</div>;
+}
+
+/* 放物線 SVG (モバイル小型) */
+function ParabolaSvgMobile() {
+  const W = 70, H = 54;
+  const xMin = -1, xMax = 7, yMin = -1, yMax = 12;
+  const sx = (x: number) => ((x - xMin) / (xMax - xMin)) * W;
+  const sy = (y: number) => H - ((y - yMin) / (yMax - yMin)) * H;
+  const points: string[] = [];
+  for (let i = 0; i <= 60; i++) {
+    const x = xMin + (i / 60) * (xMax - xMin);
+    const y = (x - 3) * (x - 3) + 2;
+    points.push(`${sx(x).toFixed(2)},${sy(y).toFixed(2)}`);
+  }
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-[64px] h-auto shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id="parabolaStrokeMobile" x1="0" x2="1">
+          <stop offset="0" stopColor="#6366f1" />
+          <stop offset="1" stopColor="#ec4899" />
+        </linearGradient>
+        <pattern id="gridMobile" width="10" height="10" patternUnits="userSpaceOnUse">
+          <path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="0.4" />
+        </pattern>
+      </defs>
+      <rect width={W} height={H} fill="url(#gridMobile)" />
+      <line x1={sx(xMin)} y1={sy(0)} x2={sx(xMax)} y2={sy(0)} stroke="#1f2937" strokeWidth="0.6" />
+      <line x1={sx(0)} y1={sy(yMin)} x2={sx(0)} y2={sy(yMax)} stroke="#1f2937" strokeWidth="0.6" />
+      <polyline points={points.join(" ")} fill="none" stroke="url(#parabolaStrokeMobile)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={sx(3)} cy={sy(2)} r="1.6" fill="#ec4899" stroke="white" strokeWidth="0.7" />
+    </svg>
+  );
+}
+
+/* 単位円 SVG (モバイル小型) */
+function UnitCircleSvgMobile() {
+  const cx = 28, cy = 28, r = 20;
+  const angle = 60 * Math.PI / 180;
+  const px = cx + r * Math.cos(angle);
+  const py = cy - r * Math.sin(angle);
+  return (
+    <svg viewBox="0 0 56 56" className="w-[52px] h-auto shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id="circleStrokeMobile" x1="0" x2="1">
+          <stop offset="0" stopColor="#10b981" />
+          <stop offset="1" stopColor="#06b6d4" />
+        </linearGradient>
+      </defs>
+      <line x1="4" y1={cy} x2="52" y2={cy} stroke="#1f2937" strokeWidth="0.6" />
+      <line x1={cx} y1="4" x2={cx} y2="52" stroke="#1f2937" strokeWidth="0.6" />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#circleStrokeMobile)" strokeWidth="1.4" />
+      <line x1={cx} y1={cy} x2={px} y2={py} stroke="#0ea5e9" strokeWidth="1.2" />
+      <line x1={px} y1={py} x2={px} y2={cy} stroke="#ec4899" strokeWidth="0.9" strokeDasharray="1.5 1" />
+      <path d={`M ${cx + 7} ${cy} A 7 7 0 0 0 ${cx + 7 * Math.cos(angle)} ${cy - 7 * Math.sin(angle)}`} fill="none" stroke="#f59e0b" strokeWidth="0.8" />
+      <circle cx={px} cy={py} r="1.4" fill="#0ea5e9" stroke="white" strokeWidth="0.6" />
+    </svg>
+  );
 }
 
 /* ── 装飾: 黄色マーカー風アンダーライン ──
