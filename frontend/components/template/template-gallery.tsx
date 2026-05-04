@@ -1023,11 +1023,12 @@ function HeroSamplePromptChips({ isJa, onSubmit }: { isJa: boolean; onSubmit: (p
  * 5 項目を 1 ブロックに纏め、視線がページ下部の Pricing に流れる前に決着させる。 */
 function HeroFreePerks({ isJa }: { isJa: boolean }) {
   const items = [
-    { label: isJa ? "プリントを1枚生成"        : "Generate 1 worksheet" },
-    { label: isJa ? "問題を画面で編集"          : "Edit problems on the page" },
-    { label: isJa ? "問題プリントを PDF 出力"   : "Export worksheet PDF" },
-    { label: isJa ? "解答 PDF を出力"            : "Export answer-key PDF" },
-    { label: isJa ? "無料アカウントで保存"       : "Save with a free account" },
+    { label: isJa ? "プリントを1枚生成"           : "Generate 1 worksheet" },
+    { label: isJa ? "問題を画面で編集"             : "Edit problems on the page" },
+    { label: isJa ? "問題プリントを PDF 出力"      : "Export worksheet PDF" },
+    { label: isJa ? "解答 PDF を出力"               : "Export answer-key PDF" },
+    { label: isJa ? "✨ 類題ジェネレータ (お試し1回)" : "✨ Variant Studio (1 free trial)" },
+    { label: isJa ? "無料アカウントで保存"          : "Save with a free account" },
   ];
   return (
     <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] p-2.5 sm:p-3 text-left">
@@ -3965,7 +3966,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 {[
                   isJa ? "高性能AI 月500回に拡張 (Starterの3.3倍・1日40回)" : "Premium AI boosted to 500 / month (3.3× Starter, 40 / day)",
                   isJa ? "Pro テンプレ 6種を解放 (共通テスト / 国公立二次 / 塾プリント / 英語 / 技術報告書 / プレゼン)" : "Unlocks 6 Pro templates (national exam / 2nd-stage / cram / reading / tech report / slides)",
-                  isJa ? "類題自動生成 を解放 (1ボタンで類題プリントをもう1枚)" : "Variant generation unlocked (one-tap regenerate of similar problems)",
+                  isJa ? "類題ジェネレータ を解放 (1ボタンで何枚でも類題を量産・5スタイル切替)" : "Variant Studio unlocked (one-tap, unlimited variants · 5 styles)",
                   isJa ? "プロンプト強化 を解放 (出題ノウハウで自動構造化)" : "Prompt boost unlocked (auto-structures messy prompts into print-ready layouts)",
                   isJa ? "採点・自動採点 (OMR)" : "Grading & auto-scoring (OMR)",
                   isJa ? "PDF・画像取り込み (OCR)" : "PDF & image import (OCR)",

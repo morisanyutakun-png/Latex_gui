@@ -1298,11 +1298,12 @@ function GradientWord({ children }: { children: React.ReactNode }) {
  * 「無料でどこまで」を初見で明確化。Pro 機能より先に無料体験の価値を見せる。 */
 function MobileFreePerks({ isJa }: { isJa: boolean }) {
   const items = [
-    { icon: <Sparkles className="h-3 w-3" />,    label: isJa ? "プリントを1枚生成"        : "Generate 1 worksheet" },
-    { icon: <Pencil className="h-3 w-3" />,      label: isJa ? "問題を画面で編集"          : "Edit problems on the page" },
-    { icon: <FileDown className="h-3 w-3" />,    label: isJa ? "問題プリントを PDF 出力"   : "Export worksheet PDF" },
-    { icon: <FileSignature className="h-3 w-3" />, label: isJa ? "解答 PDF を出力"          : "Export answer-key PDF" },
-    { icon: <Save className="h-3 w-3" />,        label: isJa ? "無料アカウントで保存"       : "Save with a free account" },
+    { icon: <Sparkles className="h-3 w-3" />,      label: isJa ? "プリントを1枚生成"           : "Generate 1 worksheet" },
+    { icon: <Pencil className="h-3 w-3" />,        label: isJa ? "問題を画面で編集"             : "Edit problems on the page" },
+    { icon: <FileDown className="h-3 w-3" />,      label: isJa ? "問題プリントを PDF 出力"      : "Export worksheet PDF" },
+    { icon: <FileSignature className="h-3 w-3" />, label: isJa ? "解答 PDF を出力"               : "Export answer-key PDF" },
+    { icon: <Sparkles className="h-3 w-3" />,      label: isJa ? "類題ジェネレータ (お試し1回)" : "Variant Studio (1 free trial)" },
+    { icon: <Save className="h-3 w-3" />,          label: isJa ? "無料アカウントで保存"          : "Save with a free account" },
   ];
   return (
     <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] p-2.5">

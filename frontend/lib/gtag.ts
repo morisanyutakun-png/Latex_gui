@@ -334,19 +334,40 @@ export function trackGuestSignupClick(extra?: FreeGenerateEventParams & { placem
 // Pro+ 限定機能。Free は localStorage で 1 回だけ体験できるフリーミアム動線。
 // "click" → "used" → "paywall_hit" の 3 段階で、どこで止まっているか可視化する。
 
-/** 「✨ 類題をもう1枚」ボタン or 「✨ 強化」トグルを押した瞬間。実行可否の前段。 */
-export function trackVariantGenClick(extra?: { placement?: "button" | "toggle"; plan?: string }): boolean {
+/** placement の語彙:
+ *   - "toggle"        = チャット入力欄の ✨ 強化トグル
+ *   - "studio"        = Variant Studio パネルから (起動 / paywall hit)
+ *   - "studio_run"    = Studio の生成ボタン or 連射 CTA
+ *   - "studio_repeat" = 連射 CTA (生成成功後にもう1枚)
+ *   - "activity_bar"  = エディタの activity bar からの起動
+ *   - "pdf_card"      = チャットの PDF プレビューカードから起動
+ *   - "mobile_pdf"    = モバイル PDF プレビューから起動
+ *   - "chat_header"   = AI チャットヘッダの「Studio へ」リンク
+ */
+type VariantPlacement =
+  | "toggle"
+  | "studio"
+  | "studio_run"
+  | "studio_repeat"
+  | "activity_bar"
+  | "pdf_card"
+  | "mobile_pdf"
+  | "chat_header"
+  | string;
+
+/** 「✨ 類題」関連のクリック (ボタン / トグル / Studio 起動 等)。実行可否の前段。 */
+export function trackVariantGenClick(extra?: { placement?: VariantPlacement; plan?: string }): boolean {
   return fireGa4Event("variant_gen_click", { ...extra });
 }
 
 /** 実際に variant 生成 / 強化送信が走った瞬間 (LLM へリクエストした直後)。 */
-export function trackVariantGenUsed(extra?: { placement?: "button" | "toggle"; plan?: string; trial?: boolean }): boolean {
+export function trackVariantGenUsed(extra?: { placement?: VariantPlacement; plan?: string; trial?: boolean }): boolean {
   return fireGa4Event("variant_gen_used", { ...extra });
 }
 
 /** Free + 既に 1 回使い切ったユーザがロック状態の variant トリガーを押した瞬間。
  *  signup overlay や upgrade 誘導の効果測定に使う。 */
-export function trackVariantGenPaywallHit(extra?: { placement?: "button" | "toggle" }): boolean {
+export function trackVariantGenPaywallHit(extra?: { placement?: VariantPlacement }): boolean {
   return fireGa4Event("variant_gen_paywall_hit", { ...extra });
 }
 

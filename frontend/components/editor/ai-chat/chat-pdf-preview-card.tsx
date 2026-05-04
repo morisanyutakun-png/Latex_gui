@@ -18,7 +18,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { compileRawLatex, CompileError, formatCompileError } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useUIStore } from "@/store/ui-store";
-import { FileText, Loader2, AlertTriangle, Maximize2, X, RefreshCw } from "lucide-react";
+import { FileText, Loader2, AlertTriangle, Maximize2, X, RefreshCw, Sparkles } from "lucide-react";
+import { trackVariantGenClick } from "@/lib/gtag";
+import { usePlanStore } from "@/store/plan-store";
 
 interface Props {
   /** AI が確定した LaTeX (msg.latex) */
@@ -192,6 +194,26 @@ Worksheet ready --- ask the AI to refine the content.
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {isJa ? "生成中" : "Compiling"}
               </span>
+            )}
+            {/* ✨ もう1枚 — PDF 完成直後に最も自然な「次の一手」として提示 */}
+            {!compiling && previewUrl && !isGuest && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  trackVariantGenClick({ placement: "pdf_card", plan: usePlanStore.getState().currentPlan });
+                  useUIStore.getState().openVariantStudio({
+                    seed: latex,
+                    preselectedStyle: "same",
+                  });
+                }}
+                title={isJa ? "この問題から類題を作る" : "Make variants from this"}
+                className="flex items-center gap-1 text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-sm hover:from-violet-600 hover:to-fuchsia-600 active:scale-[0.97] transition"
+                aria-label={isJa ? "類題を作る" : "Make variants"}
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                {isJa ? "類題" : "Variants"}
+              </button>
             )}
             {!compiling && previewUrl && (
               <button

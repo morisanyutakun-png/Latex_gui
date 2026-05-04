@@ -85,6 +85,19 @@ interface UIState {
   activeRewriteKind: "variant" | "enhance" | null;
   setActiveRewriteKind: (kind: "variant" | "enhance" | null) => void;
 
+  // ── Variant Studio (類題ジェネレータ・モード) ──
+  // 既存の AI チャットから機能分離した独立モード。チャット履歴は触らない。
+  // 1 ボタンで何枚でも類題を量産する「核機能」を担う独立パネル。
+  variantStudioOpen: boolean;
+  /** Studio を開いたときに preload する seed の latex (任意)。
+   *  null の場合は document-store の現在 doc から自動抽出する。 */
+  variantStudioSeed: string | null;
+  /** 既定で選ばれているスタイル ("same" / "harder" / "easier" / "format" / "more")。
+   *  ChatPdfPreviewCard などから「✨ もう1枚 (難しく)」のように直リンクで開くときに使う。 */
+  variantStudioPreselectedStyle: string | null;
+  openVariantStudio: (opts?: { seed?: string | null; preselectedStyle?: string | null }) => void;
+  closeVariantStudio: () => void;
+
   // エージェントモード (localStorage 永続)
   agentMode: AgentMode;
   setAgentMode: (m: AgentMode) => void;
@@ -229,6 +242,9 @@ export const useUIStore = create<UIState>((set, get) => ({
   isChatLoading: false,
   streamingMessageId: null,
   activeRewriteKind: null,
+  variantStudioOpen: false,
+  variantStudioSeed: null,
+  variantStudioPreselectedStyle: null,
   pendingChatMessage: null,
   guestPreviewBlobUrl: null,
   guestPreviewBlobLatex: null,
@@ -306,6 +322,18 @@ export const useUIStore = create<UIState>((set, get) => ({
   })),
   setChatLoading: (v) => set({ isChatLoading: v, ...(v ? {} : { activeRewriteKind: null }) }),
   setActiveRewriteKind: (kind) => set({ activeRewriteKind: kind }),
+  openVariantStudio: (opts) =>
+    set({
+      variantStudioOpen: true,
+      variantStudioSeed: opts?.seed ?? null,
+      variantStudioPreselectedStyle: opts?.preselectedStyle ?? null,
+    }),
+  closeVariantStudio: () =>
+    set({
+      variantStudioOpen: false,
+      variantStudioSeed: null,
+      variantStudioPreselectedStyle: null,
+    }),
   clearChat: () => set({ chatMessages: [], streamingMessageId: null }),
   updateStreamingContent: (id, content) => set((state) => ({
     chatMessages: state.chatMessages.map((m) =>

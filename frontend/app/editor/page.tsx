@@ -25,6 +25,7 @@ import { useI18n } from "@/lib/i18n";
 import { OMRSplitView } from "@/components/omr/omr-split-view";
 import { GradingMode } from "@/components/grading/grading-mode";
 import { FigureEditor } from "@/components/figure-editor/figure-editor";
+import { VariantStudio } from "@/components/editor/variant-studio";
 import { usePlanStore } from "@/store/plan-store";
 import { PLANS, canUseFeature, requiredPlanFor } from "@/lib/plans";
 import { toast } from "sonner";
@@ -627,6 +628,9 @@ export default function EditorPage() {
       />
       <OMRSplitView />
       {figureEditorMode && <FigureEditor />}
+      {/* 類題ジェネレータ・モード — 既存 OMR/Figure と同じ「独立モード」パターン。
+          チャット履歴は触らず、1-shot で doc に類題を反映する。 */}
+      <VariantStudio />
 
       {/* ゲストモード帯: 「ログインなしで体験中」の状態を常時提示し、
           AI 1 回 + 編集 + ライブプレビューだけが解放されている事を伝える。 */}
@@ -710,6 +714,54 @@ export default function EditorPage() {
                   title={gradingMode ? "" : t("side.tooltip.ai")}
                   badge={isChatLoading}
                   disabled={gradingMode}
+                />
+              );
+            })()}
+
+            {/* ✨ Variant Studio — 類題ジェネレータ。Pro+ で無制限 / Free は 1 回お試し。
+                AI チャット (差分修正) とは別の「核機能」モードとして対等に並べる。 */}
+            {(() => {
+              const variantStudioOpen = useUIStore.getState().variantStudioOpen;
+              const variantPro = canUseFeature(currentPlan, "variantGen");
+              // ロック判定 = Pro 未満 かつ 既にお試し消費済み (storeget で同期 fetch)
+              let variantTrialUsed = false;
+              try { variantTrialUsed = typeof window !== "undefined" && window.localStorage.getItem("eddivom:variant-trial:used") === "1"; } catch { /* ignore */ }
+              const variantLocked = !variantPro && variantTrialUsed;
+              return (
+                <ActivityBtn
+                  accent="violet"
+                  active={variantStudioOpen}
+                  icon={<Sparkles className={variantStudioOpen ? "h-[15px] w-[15px] text-white" : "h-[17px] w-[17px]"} />}
+                  label={locale === "en" ? "Variants" : "類題"}
+                  onClick={() => {
+                    if (variantLocked) {
+                      // ロック時はトーストで pricing 誘導 (既存 OCR と同パターン)
+                      const planName = PLANS[requiredPlanFor("variantGen")].name;
+                      toast.error(
+                        locale === "en"
+                          ? `Variant Studio requires ${planName} plan or higher.`
+                          : `類題ジェネレータは ${planName} プラン以上で無制限利用できます。`,
+                        {
+                          duration: 5000,
+                          action: {
+                            label: locale === "en" ? "Upgrade" : "アップグレード",
+                            onClick: () => usePlanStore.getState().setShowPricing(true),
+                          },
+                        },
+                      );
+                      return;
+                    }
+                    useUIStore.getState().openVariantStudio({
+                      preselectedStyle: "same",
+                    });
+                  }}
+                  title={
+                    variantLocked
+                      ? (locale === "en" ? "Pro plan required (unlimited variants)" : "Pro プランで類題が無制限")
+                      : (locale === "en" ? "Variant Studio — generate similar problems" : "類題ジェネレータ — 1ボタンで何枚でも")
+                  }
+                  disabled={gradingMode}
+                  locked={variantLocked}
                 />
               );
             })()}
