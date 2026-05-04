@@ -840,10 +840,10 @@ function MobilePaperWorksheet({ isJa }: { isJa: boolean }) {
         <li>
           <div className="flex items-baseline gap-1">
             <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問3" : "Q3"}</span>
-            <span className="text-[8.5px] text-gray-700 truncate">{isJa ? "計算せよ" : "compute"}</span>
+            <span className="text-[8.5px] text-gray-700 truncate">{isJa ? "解け" : "solve"}</span>
             <MobilePointsBadge pts="40" isJa={isJa} />
           </div>
-          <div className="pl-2 mt-0.5"><PreviewMathDisplay latex="\int_{0}^{2}(3x^2-2x+1)dx" /></div>
+          <div className="pl-2 mt-0.5"><PreviewMathDisplay latex="\log_2(x+1)+\log_2(x-1)=3" /></div>
         </li>
       </ol>
 
@@ -908,13 +908,33 @@ function MobilePaperAnswerKey({ isJa }: { isJa: boolean }) {
           </div>
         </li>
 
+        {/* Q3: 対数方程式の解説 — 解法ステップ + 数直線図解 */}
         <li>
           <div className="flex items-baseline gap-1">
             <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問3" : "Q3"}</span>
-            <span className="overflow-hidden text-[9px]">
-              <PreviewMathInline latex="[x^3-x^2+x]_0^2=\boxed{6}" />
+            <span className="text-[8px] font-semibold tracking-wide text-violet-700">
+              {isJa ? "対数" : "log"}
             </span>
             <MobileCorrectMark />
+          </div>
+          <div className="ml-2 pl-1.5 border-l-2 border-violet-400/60 space-y-0.5 mt-0.5">
+            <MobileSolutionStep n={1}>
+              <PreviewMathInline latex="x>1" />
+              <span className="text-[7px] text-gray-500 ml-0.5">{isJa ? "(真数)" : "(dom)"}</span>
+            </MobileSolutionStep>
+            <MobileSolutionStep n={2}>
+              <PreviewMathInline latex="x^2-1=8" />
+            </MobileSolutionStep>
+            <MobileSolutionStep n={3}>
+              <PreviewMathInline latex="x=\pm 3" />
+            </MobileSolutionStep>
+          </div>
+          <div className="ml-2 mt-1 flex items-center gap-1.5">
+            <NumberLineLogDomainMobile />
+          </div>
+          <div className="ml-2 mt-1 inline-flex items-center gap-1 px-1 py-0.5 rounded bg-gradient-to-r from-amber-100 to-rose-100 border border-rose-300/60">
+            <span className="text-[7.5px] font-bold text-rose-800">{isJa ? "答" : "Ans"}</span>
+            <PreviewMathInline latex="x=\boxed{3}" />
           </div>
         </li>
       </ol>
@@ -925,6 +945,58 @@ function MobilePaperAnswerKey({ isJa }: { isJa: boolean }) {
         </span>
       </div>
     </MobilePaperFrame>
+  );
+}
+
+/* モバイル: 解法ステップの 1 行 */
+function MobileSolutionStep({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-1 text-[8.5px] leading-snug">
+      <span
+        className="inline-flex items-center justify-center h-3 w-3 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-[7px] font-extrabold shadow-sm shrink-0"
+        style={{ fontFamily: "ui-sans-serif, system-ui" }}
+      >
+        {n}
+      </span>
+      <span className="overflow-hidden">{children}</span>
+    </div>
+  );
+}
+
+/* モバイル: 真数条件 x>1 の数直線図解 */
+function NumberLineLogDomainMobile() {
+  const W = 90, H = 28;
+  const xMin = -5, xMax = 5;
+  const sx = (x: number) => ((x - xMin) / (xMax - xMin)) * W;
+  const baseY = 16;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-[88px] h-auto shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id="domainOKMobile" x1="0" x2="1">
+          <stop offset="0" stopColor="#10b981" stopOpacity="0.25" />
+          <stop offset="1" stopColor="#10b981" stopOpacity="0.55" />
+        </linearGradient>
+        <linearGradient id="domainNGMobile" x1="0" x2="1">
+          <stop offset="0" stopColor="#f43f5e" stopOpacity="0.45" />
+          <stop offset="1" stopColor="#f43f5e" stopOpacity="0.15" />
+        </linearGradient>
+      </defs>
+      <rect x={sx(xMin)} y={baseY - 4} width={sx(1) - sx(xMin)} height="8" fill="url(#domainNGMobile)" />
+      <rect x={sx(1)} y={baseY - 4} width={sx(xMax) - sx(1)} height="8" fill="url(#domainOKMobile)" />
+      <line x1={sx(xMin)} y1={baseY} x2={sx(xMax)} y2={baseY} stroke="#1f2937" strokeWidth="0.8" />
+      <polygon points={`${sx(xMax)},${baseY} ${sx(xMax)-2},${baseY-1.2} ${sx(xMax)-2},${baseY+1.2}`} fill="#1f2937" />
+      {[-3, 1, 3].map((t) => (
+        <g key={t}>
+          <line x1={sx(t)} y1={baseY - 1.5} x2={sx(t)} y2={baseY + 1.5} stroke="#1f2937" strokeWidth="0.6" />
+          <text x={sx(t)} y={baseY + 7} fontSize="4.5" fill="#374151" textAnchor="middle">{t}</text>
+        </g>
+      ))}
+      <circle cx={sx(1)} cy={baseY} r="1.6" fill="white" stroke="#1f2937" strokeWidth="0.8" />
+      <circle cx={sx(3)} cy={baseY} r="2" fill="#10b981" stroke="white" strokeWidth="0.6" />
+      <circle cx={sx(-3)} cy={baseY} r="2" fill="#f43f5e" stroke="white" strokeWidth="0.6" />
+      <line x1={sx(-3) - 1.2} y1={baseY - 1.2} x2={sx(-3) + 1.2} y2={baseY + 1.2} stroke="white" strokeWidth="0.7" />
+      <line x1={sx(-3) - 1.2} y1={baseY + 1.2} x2={sx(-3) + 1.2} y2={baseY - 1.2} stroke="white" strokeWidth="0.7" />
+    </svg>
   );
 }
 

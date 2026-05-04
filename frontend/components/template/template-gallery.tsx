@@ -679,20 +679,62 @@ function PreviewPaperAnswerKey({ isJa }: { isJa: boolean }) {
           </div>
         </li>
 
-        {/* 問3 解答 — 簡潔に */}
+        {/* 問3 解答 — 解法ステップ + 真数条件の数直線図解 */}
         <li>
-          <div className="flex items-baseline gap-1.5">
+          <div className="flex items-baseline gap-1.5 mb-1">
             <span className="text-[10px] sm:text-[12px] font-bold text-gray-700 shrink-0">
               {isJa ? "問3" : "Q3"}
             </span>
-            <span className="overflow-hidden">
-              <PreviewMathInline latex="x^2-1=8 \;\Rightarrow\; x=3" />
+            <span className="text-[8.5px] sm:text-[10px] font-semibold tracking-wide text-violet-700 shrink-0">
+              {isJa ? "対数方程式" : "log eqn"}
             </span>
             <CorrectMark />
           </div>
-          <p className="ml-4 sm:ml-5 mt-0.5 text-[8.5px] sm:text-[10px] text-gray-500 italic">
-            {isJa ? "→ 真数条件 x > 1 より x = 3" : "→ x > 1, so x = 3"}
-          </p>
+
+          {/* 解法ステップ — グラデ縦罫 + numbered chip */}
+          <div className="ml-3 sm:ml-4 pl-2.5 border-l-2 border-violet-400/60 space-y-1">
+            <SolutionStep n={1} label={isJa ? "真数条件" : "Domain"}>
+              <PreviewMathInline latex="x+1>0\;\land\;x-1>0\;\Rightarrow\;x>1" />
+            </SolutionStep>
+            <SolutionStep n={2} label={isJa ? "和→積に変形" : "Combine logs"}>
+              <PreviewMathInline latex="\log_2\bigl\{(x+1)(x-1)\bigr\}=3" />
+            </SolutionStep>
+            <SolutionStep n={3} label={isJa ? "対数を外す" : "Exponentiate"}>
+              <PreviewMathInline latex="x^2-1=2^3=8" />
+            </SolutionStep>
+            <SolutionStep n={4} label={isJa ? "解の選別" : "Select"}>
+              <PreviewMathInline latex="x=\pm 3" />
+              <span className="text-[8px] sm:text-[10px] text-gray-500 ml-1">
+                {isJa ? "→ 条件より −3 不適" : "→ −3 rejected"}
+              </span>
+            </SolutionStep>
+          </div>
+
+          {/* 真数条件の数直線図解 */}
+          <div className="ml-3 sm:ml-4 mt-2 flex items-center gap-2">
+            <NumberLineLogDomain />
+            <div className="flex flex-col gap-0.5">
+              <span className="inline-flex items-center gap-1 text-[8.5px] sm:text-[10px]">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-emerald-700 font-semibold">
+                  <PreviewMathInline latex="x=3" /> {isJa ? "可" : "OK"}
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-[8.5px] sm:text-[10px]">
+                <span className="h-2 w-2 rounded-full bg-rose-400" />
+                <span className="text-rose-600 line-through">
+                  <PreviewMathInline latex="x=-3" />
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <div className="ml-3 sm:ml-4 mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-100 to-rose-100 border border-rose-300/60">
+            <span className="text-[8.5px] sm:text-[10px] font-bold text-rose-800">
+              {isJa ? "答 " : "Ans. "}
+            </span>
+            <PreviewMathInline latex="x=\boxed{3}" />
+          </div>
         </li>
 
         {/* 問4 解答 — 計算式 */}
@@ -711,6 +753,74 @@ function PreviewPaperAnswerKey({ isJa }: { isJa: boolean }) {
 
       <PaperStamp label={isJa ? "解答 PDF" : "Answer-key PDF"} color="from-emerald-500 to-teal-500" />
     </PaperFrame>
+  );
+}
+
+/* 解法ステップ行 — 番号付きチップ + ラベル + 数式 */
+function SolutionStep({ n, label, children }: { n: number; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-1.5 text-[9px] sm:text-[11px] leading-snug">
+      <span
+        className="inline-flex items-center justify-center h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-[7.5px] sm:text-[9px] font-extrabold shadow-sm shrink-0"
+        style={{ fontFamily: "ui-sans-serif, system-ui" }}
+      >
+        {n}
+      </span>
+      <span
+        className="text-[7.5px] sm:text-[9px] font-bold tracking-wider uppercase text-violet-700 shrink-0"
+        style={{ fontFamily: "ui-sans-serif, system-ui" }}
+      >
+        {label}
+      </span>
+      <span className="overflow-hidden">{children}</span>
+    </div>
+  );
+}
+
+/* 真数条件 x>1 の数直線図解 */
+function NumberLineLogDomain() {
+  // x ∈ [-5, 5] を 0..120 に。x=1 で境界。x=3 は OK、x=-3 は NG
+  const W = 120, H = 36;
+  const xMin = -5, xMax = 5;
+  const sx = (x: number) => ((x - xMin) / (xMax - xMin)) * W;
+  const baseY = 22;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-[120px] sm:w-[150px] h-auto shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id="domainOK" x1="0" x2="1">
+          <stop offset="0" stopColor="#10b981" stopOpacity="0.25" />
+          <stop offset="1" stopColor="#10b981" stopOpacity="0.55" />
+        </linearGradient>
+        <linearGradient id="domainNG" x1="0" x2="1">
+          <stop offset="0" stopColor="#f43f5e" stopOpacity="0.45" />
+          <stop offset="1" stopColor="#f43f5e" stopOpacity="0.15" />
+        </linearGradient>
+      </defs>
+      {/* NG 帯 (x ≤ 1) — 斜線パターン風 */}
+      <rect x={sx(xMin)} y={baseY - 5} width={sx(1) - sx(xMin)} height="10" fill="url(#domainNG)" />
+      {/* OK 帯 (x > 1) */}
+      <rect x={sx(1)} y={baseY - 5} width={sx(xMax) - sx(1)} height="10" fill="url(#domainOK)" />
+      {/* 数直線本体 */}
+      <line x1={sx(xMin)} y1={baseY} x2={sx(xMax)} y2={baseY} stroke="#1f2937" strokeWidth="0.9" />
+      {/* 矢印 */}
+      <polygon points={`${sx(xMax)},${baseY} ${sx(xMax)-2.5},${baseY-1.5} ${sx(xMax)-2.5},${baseY+1.5}`} fill="#1f2937" />
+      {/* 目盛 */}
+      {[-3, 0, 1, 3].map((t) => (
+        <g key={t}>
+          <line x1={sx(t)} y1={baseY - 2} x2={sx(t)} y2={baseY + 2} stroke="#1f2937" strokeWidth="0.7" />
+          <text x={sx(t)} y={baseY + 8} fontSize="5.5" fill="#374151" textAnchor="middle">{t}</text>
+        </g>
+      ))}
+      {/* x=1 の境界 (open circle) */}
+      <circle cx={sx(1)} cy={baseY} r="2" fill="white" stroke="#1f2937" strokeWidth="1" />
+      <text x={sx(1)} y={baseY - 7} fontSize="5.5" fill="#374151" textAnchor="middle" fontStyle="italic">x&gt;1</text>
+      {/* x=3 OK (filled green) */}
+      <circle cx={sx(3)} cy={baseY} r="2.4" fill="#10b981" stroke="white" strokeWidth="0.8" />
+      {/* x=-3 NG (rose with X) */}
+      <circle cx={sx(-3)} cy={baseY} r="2.4" fill="#f43f5e" stroke="white" strokeWidth="0.8" />
+      <line x1={sx(-3) - 1.5} y1={baseY - 1.5} x2={sx(-3) + 1.5} y2={baseY + 1.5} stroke="white" strokeWidth="0.9" />
+      <line x1={sx(-3) - 1.5} y1={baseY + 1.5} x2={sx(-3) + 1.5} y2={baseY - 1.5} stroke="white" strokeWidth="0.9" />
+    </svg>
   );
 }
 
