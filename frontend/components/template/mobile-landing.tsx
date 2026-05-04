@@ -138,29 +138,52 @@ export function MobileLanding({
       </nav>
 
       {/* ━━ HERO (mobile, action-first)
-           ファーストビューを「H1 → 1行サブ → 入力 → タップ即送信チップ → 大プライマリ」に圧縮。
-           長文サブや target band は CTA の下に降ろし、最初の画面はとにかく「触って試せる」状態に。 */}
-      <section className="relative overflow-hidden pt-5 pb-5 px-5">
+           「60秒で1枚 + 1タップで何枚でも」の 2 軸を最上段で訴求。
+           時間価値 (60s) と量産価値 (variant) を H1 で同時に出す。 */}
+      <section className="relative overflow-hidden pt-4 pb-5 px-5">
         <div className={`transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          <h1 className="text-[clamp(1.65rem,7.4vw,2.25rem)] leading-[1.1] font-bold tracking-[-0.025em] mb-2">
+          {/* 核機能バッジ — H1 の前に置いて「これが価値の中心」を明示 */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-500/[0.10] via-fuchsia-500/[0.10] to-blue-500/[0.10] border border-violet-500/30 mb-2.5">
+            <Sparkles className="h-3 w-3 text-violet-500" />
+            <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10.5px] font-extrabold tracking-wider">
+              {isJa ? "1タップで何枚でも・REM 出題ノウハウ駆動" : "1 tap, infinite variants · REM-powered"}
+            </span>
+          </div>
+          <h1 className="text-[clamp(1.55rem,7vw,2.15rem)] leading-[1.1] font-bold tracking-[-0.025em] mb-2.5">
             {isJa ? (
               <>
-                <HighlightMark>解答付きのプリント</HighlightMark>を、
-                <GradientWord>60秒で1枚</GradientWord>。
+                <GradientWord>60秒で1枚</GradientWord>。<br />
+                あとは <HighlightMark>1タップで何枚でも</HighlightMark>。
               </>
             ) : (
               <>
-                A <HighlightMark>printable worksheet with answers</HighlightMark> in{" "}
-                <GradientWord>60 seconds</GradientWord>.
+                <GradientWord>60s for one</GradientWord>.<br />
+                Then <HighlightMark>one tap for more</HighlightMark>.
               </>
             )}
           </h1>
           <p className="text-foreground/75 text-[13.5px] leading-snug mb-3 font-medium">
-            {isJa
-              ? "数学・理科のトピックを書くだけ。"
-              : "Just write a math or science topic."}{" "}
-            <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
-              {isJa ? "登録不要で1枚試せます。" : "No sign-up for your first sheet."}
+            {isJa ? (
+              <>
+                数学・理科のプリントを 60 秒で生成。
+                <span className="text-violet-700 dark:text-violet-300 font-semibold">同じ範囲の類題は、ボタン1つで何枚でも。</span>
+                <span className="text-emerald-700 dark:text-emerald-300 font-semibold"> 登録不要でお試し可。</span>
+              </>
+            ) : (
+              <>
+                Generate math &amp; science worksheets in 60 seconds.{" "}
+                <span className="text-violet-700 dark:text-violet-300 font-semibold">Then crank out variants with one tap.</span>{" "}
+                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">No sign-up to try.</span>
+              </>
+            )}
+          </p>
+          {/* 顧客課題の言い換え — 教師の本当の痛みに直接刺す */}
+          <p className="text-[11.5px] text-muted-foreground/85 leading-snug mb-3 inline-flex items-start gap-1">
+            <GraduationCap className="h-3 w-3 mt-0.5 shrink-0 text-foreground/55" />
+            <span>
+              {isJa
+                ? "生徒ごとに数値だけ変えたい先生へ — 毎週のプリント作りを 数十分 → 数秒 に。"
+                : "For teachers who tweak numbers per student — weekly prep from minutes to seconds."}
             </span>
           </p>
         </div>
@@ -196,12 +219,12 @@ export function MobileLanding({
         <div
           className={`mt-2 transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}
         >
-          {/* "↓ こんなのが出てきます" の小さな繋ぎ */}
-          <div className="flex items-center justify-center gap-1 mb-2 text-[10.5px] font-semibold text-muted-foreground/70">
+          {/* "↓ こんなのが出てきます" — 60秒 + 類題量産 の二段訴求 */}
+          <div className="flex items-center justify-center gap-1 mb-2 text-[10.5px] font-semibold text-muted-foreground/75">
             <span className="h-px w-6 bg-foreground/15" />
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08]">
-              <span aria-hidden>↓</span>
-              {isJa ? "こんなのが60秒で出てきます" : "Here's what you'll get in 60s"}
+              <Zap className="h-2.5 w-2.5 text-amber-500" aria-hidden />
+              {isJa ? "60秒で1枚 → 1タップで類題量産" : "60s for one → 1 tap for variants"}
             </span>
             <span className="h-px w-6 bg-foreground/15" />
           </div>
@@ -219,6 +242,9 @@ export function MobileLanding({
       {/* ━━ Trust + ターゲット帯 — 1 行で圧縮し、ファーストビューを軽くする ━━ */}
       <section className="px-5 pb-3">
         <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border border-violet-500/35 text-violet-700 dark:text-violet-300 font-bold">
+            <Sparkles className="h-3 w-3" />{isJa ? "1タップ類題" : "1-tap variants"}
+          </span>
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold">
             <Shield className="h-3 w-3" />{isJa ? "登録不要" : "No signup"}
           </span>

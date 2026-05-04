@@ -1004,9 +1004,15 @@ function HeroSamplePromptChips({ isJa, onSubmit }: { isJa: boolean; onSubmit: (p
       ];
   return (
     <div className="mt-3">
-      <p className="text-[10.5px] sm:text-[11px] font-semibold tracking-wide text-muted-foreground/70 mb-1.5 text-left">
-        {isJa ? "サンプルから始める：" : "Start from a sample:"}
-      </p>
+      <div className="flex items-baseline justify-between gap-2 mb-1.5">
+        <p className="text-[10.5px] sm:text-[11px] font-semibold tracking-wide text-muted-foreground/70 text-left">
+          {isJa ? "サンプルから始める：" : "Start from a sample:"}
+        </p>
+        <p className="text-[10px] sm:text-[10.5px] font-bold tracking-wide text-violet-600 dark:text-violet-400 inline-flex items-center gap-0.5">
+          <Sparkles className="h-2.5 w-2.5" />
+          {isJa ? "完成後 1タップで類題量産" : "1-tap variants after"}
+        </p>
+      </div>
       <div className="flex flex-wrap justify-start gap-1.5 sm:gap-2">
         {samples.map((s) => (
           <button
@@ -3289,9 +3295,10 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
     // 未ログイン (status="unauthenticated" or "loading"): ヒーロー CTA は
     // 「ログインなしお試しモーダル」を直接開く。広告流入ユーザにはここで
     // 触らせることが先 (CVR 検証用)。登録動線は結果画面の登録 CTA に集約する。
+    // 顧客目線: "1 枚作る" よりも「60秒 + 類題は何枚でも」の循環価値を訴求。
     return {
-      label: isJa ? "最初の1枚を作る" : "Generate my first worksheet",
-      subLabel: isJa ? "登録不要 · 30〜60秒で1枚" : "No sign-up required · 30–60s per sheet",
+      label: isJa ? "60秒で最初の1枚を作る" : "Make my first sheet in 60s",
+      subLabel: isJa ? "登録不要 · 完成後は1タップで何枚でも類題" : "No sign-up · 1-tap variants after",
       onClick: () => openTrialOrLimit("hero"),
       variant: "free" as const,
     };
@@ -3382,50 +3389,54 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
         <div className="relative z-10 max-w-5xl mx-auto text-center px-4 sm:px-6">
           <div className={`transition-all duration-1000 ease-out ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
 
-            {/* Badge — タイトな単一行 */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-blue-500/[0.08] to-violet-500/[0.08] border border-violet-500/[0.15] mb-4 sm:mb-5 shadow-sm">
-              <Sparkles className="h-3 w-3 text-violet-500" />
-              <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent text-[11px] font-bold tracking-wide">
-                Eddivom — {isJa ? "数学・理科の AI 教材ジェネレーター" : "AI worksheet generator for math and science"}
+            {/* 核機能バッジ — 「1 タップで何枚でも類題」を最上段で訴求。
+                 H1 より先に出して、ユーザに「これがあなたの本当の課題を解決する機能」と提示する。 */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-violet-500/[0.10] via-fuchsia-500/[0.10] to-blue-500/[0.10] border border-violet-500/[0.30] mb-4 sm:mb-5 shadow-md shadow-violet-500/10">
+              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+              <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[11px] sm:text-[12px] font-extrabold tracking-wider">
+                {isJa ? "1タップで何枚でも・REM 出題ノウハウ駆動" : "1 tap, infinite variants · REM-powered"}
+              </span>
+              <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[9px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500">
+                CORE
               </span>
             </div>
 
-            {/* Headline — 1 行 1 メッセージで CVR 訴求を「できること → 出力 → リスク無し」に整理 */}
+            {/* Headline — 2 軸 (60秒で1枚 + 1タップで何枚でも) を 1 行に並べる */}
             <h1 className="text-[clamp(1.6rem,4.2vw,3.4rem)] leading-[1.08] font-bold tracking-[-0.035em] mb-3 sm:mb-4">
               {isJa ? (
                 <>
-                  <HighlightMark>解答付きのプリント</HighlightMark>を、
                   <GradientWord>60秒で1枚</GradientWord>。
+                  あとは <HighlightMark>1タップで何枚でも</HighlightMark>。
                 </>
               ) : (
                 <>
-                  Create a <HighlightMark>printable worksheet with answers</HighlightMark> in{" "}
-                  <GradientWord>60 seconds</GradientWord>.
+                  <GradientWord>60s for one</GradientWord>. Then{" "}
+                  <HighlightMark>one tap for more variants</HighlightMark>.
                 </>
               )}
             </h1>
 
-            <p className="text-foreground/80 text-[15px] sm:text-[17px] leading-relaxed max-w-xl mx-auto mb-3 font-medium">
+            <p className="text-foreground/80 text-[15px] sm:text-[17px] leading-relaxed max-w-2xl mx-auto mb-3 font-medium">
               {isJa ? (
                 <>
-                  数学・理科の任意のトピックを、
-                  <span className="font-semibold text-foreground">きれいな問題プリントと解答PDF</span>に変換します。
-                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">最初の1枚は登録不要。</span>
+                  数学・理科のプリントを 60 秒で生成。
+                  <span className="text-violet-700 dark:text-violet-300 font-semibold">同じ範囲の類題は、ボタン1つで何枚でも。</span>
+                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold"> 最初の1枚は登録不要。</span>
                 </>
               ) : (
                 <>
-                  Turn any math or science topic into a{" "}
-                  <span className="font-semibold text-foreground">clean worksheet and answer-key PDF</span>.{" "}
-                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">No sign-up required for your first sheet.</span>
+                  Generate math &amp; science worksheets in 60 seconds.{" "}
+                  <span className="text-violet-700 dark:text-violet-300 font-semibold">Then crank out variants on the same topic with one tap.</span>{" "}
+                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">No sign-up for your first sheet.</span>
                 </>
               )}
             </p>
 
-            <p className="inline-flex items-center gap-1.5 text-[12.5px] sm:text-[13.5px] text-foreground/65 font-medium mb-5 sm:mb-6">
+            <p className="inline-flex items-center gap-1.5 text-[12.5px] sm:text-[13.5px] text-foreground/70 font-medium mb-5 sm:mb-6">
               <GraduationCap className="h-3.5 w-3.5" />
               {isJa
-                ? "プリントをすぐ用意したい塾講師・家庭教師・教員の方へ。"
-                : "For tutors and teachers who need custom worksheets fast."}
+                ? "生徒ごとに数値だけ変えたい先生へ — 毎週のプリント作りを 数十分 → 数秒 に。"
+                : "For teachers who tweak numbers per student — weekly prep from minutes to seconds."}
             </p>
           </div>
 
@@ -3442,11 +3453,11 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           {/* ── 成果物プレビュー: 入力欄の真下に置いて「入力 → これが出てくる」の流れに */}
           {primaryCta.variant === "free" && (
             <div className={`relative max-w-2xl mx-auto mb-6 transition-all duration-1000 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
-              <div className="flex items-center justify-center gap-1.5 mb-3 text-[11px] sm:text-[12px] font-semibold text-muted-foreground/70">
+              <div className="flex items-center justify-center gap-1.5 mb-3 text-[11px] sm:text-[12px] font-semibold text-muted-foreground/75">
                 <span className="h-px w-8 bg-foreground/15" />
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08]">
-                  <span aria-hidden>↓</span>
-                  {isJa ? "こんなのが60秒で出てきます" : "Here's what you'll get in 60s"}
+                  <Zap className="h-3 w-3 text-amber-500" />
+                  {isJa ? "60秒で1枚 → 1タップで類題量産" : "60s for one → 1 tap for more variants"}
                 </span>
                 <span className="h-px w-8 bg-foreground/15" />
               </div>

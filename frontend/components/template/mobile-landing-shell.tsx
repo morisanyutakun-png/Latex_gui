@@ -212,9 +212,11 @@ export function MobileLandingShell() {
     }
 
     // 未ログイン (status="unauthenticated" or "loading"): ゲストお試し CTA
+    // 顧客目線: "1 枚作る" だけだとリピート価値が伝わらない →
+    // CTA で「60秒で1枚 → 類題はボタン1つで何枚でも」のサイクルを暗示。
     return {
-      label: isJa ? "最初の1枚を作る" : "Generate my first worksheet",
-      subLabel: isJa ? "登録不要 · 30〜60秒で1枚" : "No sign-up required · 30–60s per sheet",
+      label: isJa ? "60秒で最初の1枚を作る" : "Make my first sheet in 60s",
+      subLabel: isJa ? "登録不要 · 完成後は1タップで何枚でも類題" : "No sign-up · 1-tap variants after",
       onClick: () => { void openTrialOrLimit("hero"); },
       variant: "free" as const,
     };
