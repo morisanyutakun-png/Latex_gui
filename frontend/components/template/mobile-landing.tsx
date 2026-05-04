@@ -142,11 +142,17 @@ export function MobileLanding({
            時間価値 (60s) と量産価値 (variant) を H1 で同時に出す。 */}
       <section className="relative overflow-hidden pt-4 pb-5 px-5">
         <div className={`transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          {/* 核機能バッジ — H1 の前に置いて「これが価値の中心」を明示 */}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-500/[0.10] via-fuchsia-500/[0.10] to-blue-500/[0.10] border border-violet-500/30 mb-2.5">
+          {/* 核機能バッジ — H1 の前に置いて「これが価値の中心」を明示。
+               REM (内部名) → 顧客に伝わる "高精度 類題生成エンジン搭載" に。 */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-500/[0.12] via-fuchsia-500/[0.12] to-blue-500/[0.12] border border-violet-500/35 shadow-sm shadow-violet-500/10 mb-2.5">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10.5px] font-extrabold tracking-wider">
-              {isJa ? "1タップで何枚でも・REM 出題ノウハウ駆動" : "1 tap, infinite variants · REM-powered"}
+              {isJa
+                ? "高精度 類題生成エンジン搭載 · 1タップで何枚でも"
+                : "Precision Variant Engine inside · 1 tap, infinite"}
+            </span>
+            <span className="inline-flex items-center px-1 py-[1px] rounded text-[8.5px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500">
+              NEW
             </span>
           </div>
           <h1 className="text-[clamp(1.55rem,7vw,2.15rem)] leading-[1.1] font-bold tracking-[-0.025em] mb-2.5">

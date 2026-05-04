@@ -1187,7 +1187,7 @@ function EditorMockup({ isJa }: { isJa: boolean }) {
     e < T.studioPick   ? (isJa ? "✨ 類題ジェネレータを起動" : "✨ Opening Variant Studio") :
     e < T.studioRun    ? (isJa ? "スタイルを選択中…" : "Picking a style…") :
     e < T.studioThink  ? (isJa ? "✨ 類題を生成 (核機能)" : "✨ Generate variants (core feature)") :
-    e < T.studioApplied? (isJa ? "REM ノウハウで類題を生成中…" : "Generating variants with REM…") :
+    e < T.studioApplied? (isJa ? "高精度エンジンで類題を生成中…" : "Generating with Precision Variant Engine…") :
     e < T.fadeOut      ? (isJa ? "★ 類題プリント完成 — 1ボタンで何枚でも" : "★ Variant ready — one tap, infinite worksheets") :
     (isJa ? "もう一度再生..." : "Replaying...");
 
@@ -3389,15 +3389,18 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
         <div className="relative z-10 max-w-5xl mx-auto text-center px-4 sm:px-6">
           <div className={`transition-all duration-1000 ease-out ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
 
-            {/* 核機能バッジ — 「1 タップで何枚でも類題」を最上段で訴求。
+            {/* 核機能バッジ — 顧客に伝わる「高精度 類題生成エンジン」訴求。
+                 旧「REM 出題ノウハウ駆動」は内部名で意味不明だったので、ベネフィット直結の名前に置換。
                  H1 より先に出して、ユーザに「これがあなたの本当の課題を解決する機能」と提示する。 */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-violet-500/[0.10] via-fuchsia-500/[0.10] to-blue-500/[0.10] border border-violet-500/[0.30] mb-4 sm:mb-5 shadow-md shadow-violet-500/10">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-violet-500/[0.12] via-fuchsia-500/[0.12] to-blue-500/[0.12] border border-violet-500/[0.35] mb-4 sm:mb-5 shadow-md shadow-violet-500/15">
               <Sparkles className="h-3.5 w-3.5 text-violet-500" />
               <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[11px] sm:text-[12px] font-extrabold tracking-wider">
-                {isJa ? "1タップで何枚でも・REM 出題ノウハウ駆動" : "1 tap, infinite variants · REM-powered"}
+                {isJa
+                  ? "高精度 類題生成エンジン搭載 · 1問から何枚でも瞬時に量産"
+                  : "Precision Variant Engine inside · 1 problem, infinite variants in seconds"}
               </span>
-              <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[9px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500">
-                CORE
+              <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[9px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500 shadow-sm">
+                NEW
               </span>
             </div>
 

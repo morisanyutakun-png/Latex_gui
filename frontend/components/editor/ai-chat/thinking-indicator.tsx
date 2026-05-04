@@ -129,8 +129,8 @@ export function ThinkingIndicator({
               }`}
               title={
                 activeRewriteKind === "variant"
-                  ? (isJa ? "REM ノウハウで類題を生成中" : "Generating variants via REM-style prompt")
-                  : (isJa ? "REM ノウハウでプロンプトを強化中" : "Enhancing prompt via REM-style structure")
+                  ? (isJa ? "高精度エンジンで類題を生成中" : "Generating variants via Precision Variant Engine")
+                  : (isJa ? "出題ノウハウでプロンプトを強化中" : "Enhancing prompt with authoring playbook")
               }
             >
               <Sparkles className="h-2.5 w-2.5" />

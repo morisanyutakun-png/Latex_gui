@@ -254,7 +254,9 @@ function VariantStudioContent() {
               </div>
               <p className="text-[11px] text-muted-foreground/85 leading-snug mt-0.5 inline-flex items-center gap-1">
                 <Zap className="h-2.5 w-2.5 text-amber-500" />
-                {isJa ? "瞬時に何枚でも・REM 出題ノウハウ駆動" : "Instant variants · powered by REM authoring"}
+                {isJa
+                  ? "高精度 類題生成エンジン · 瞬時に何枚でも"
+                  : "Precision Variant Engine · infinite variants instantly"}
               </p>
             </div>
             <button
