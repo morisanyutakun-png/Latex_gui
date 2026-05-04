@@ -389,6 +389,9 @@ export default function EditorPage() {
     };
     return (
       <div className="flex h-[100dvh] flex-col bg-background overflow-hidden">
+        {/* 類題ジェネレータ — モバイルでも核機能として常時マウント。
+            open=false の間は null を返すので不可視。エントリは下のメニュー / ヘッダ✨ボタンから。 */}
+        <VariantStudio />
         {/* ヘッダー — ChatGPT モバイル風:
             AI 画面: [≡ メニュー] [Eddivom pill] ... [✏︎ 新規] [⋮]
             プレビュー画面: [‹ 戻る] [タイトル] ... [⋮] */}
@@ -424,6 +427,70 @@ export default function EditorPage() {
                 </span>
               </button>
               <div className="flex-1" />
+              {/* ✨ 類題ジェネレータへの自然な誘導 — モバイルの核機能エントリポイント。
+                  ゲスト/Free 使い切りはトーストで pricing 誘導、それ以外は Studio を開く。 */}
+              {(() => {
+                const variantPro = canUseFeature(currentPlan, "variantGen");
+                let variantTrialUsed = false;
+                try { variantTrialUsed = typeof window !== "undefined" && window.localStorage.getItem("eddivom:variant-trial:used") === "1"; } catch { /* ignore */ }
+                // ゲストは "1 枚作る" を消化中なので類題は触らせない (二重消費防止)
+                const variantLocked = isGuest || (!variantPro && variantTrialUsed);
+                return (
+                  <button
+                    onClick={() => {
+                      if (variantLocked) {
+                        if (isGuest) {
+                          toast.error(
+                            locale === "en"
+                              ? "Sign up free to use Variant Studio."
+                              : "類題ジェネレータは無料登録 (30秒) で使えます。",
+                            {
+                              duration: 5000,
+                              action: {
+                                label: locale === "en" ? "Sign up" : "登録",
+                                onClick: () => {
+                                  useUIStore.getState().openSignupOverlay({
+                                    reason: "manual",
+                                    placement: "mobile_header_variant",
+                                  });
+                                },
+                              },
+                            },
+                          );
+                          return;
+                        }
+                        const planName = PLANS[requiredPlanFor("variantGen")].name;
+                        toast.error(
+                          locale === "en"
+                            ? `Variant Studio requires ${planName} plan or higher.`
+                            : `類題ジェネレータは ${planName} プラン以上で無制限利用できます。`,
+                          {
+                            duration: 5000,
+                            action: {
+                              label: locale === "en" ? "Upgrade" : "アップグレード",
+                              onClick: () => usePlanStore.getState().setShowPricing(true),
+                            },
+                          },
+                        );
+                        return;
+                      }
+                      useUIStore.getState().openVariantStudio({ preselectedStyle: "same" });
+                    }}
+                    aria-label={locale === "en" ? "Variant Studio" : "類題ジェネレータ"}
+                    title={locale === "en" ? "Variant Studio" : "類題ジェネレータ"}
+                    className={`relative h-10 w-10 flex items-center justify-center rounded-full transition active:scale-95 ${
+                      variantLocked
+                        ? "text-violet-500/55"
+                        : "text-violet-600 dark:text-violet-400 hover:bg-violet-500/[0.08]"
+                    }`}
+                  >
+                    <Sparkles className="h-5 w-5" strokeWidth={1.8} />
+                    {!variantLocked && (
+                      <span aria-hidden className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-sm" />
+                    )}
+                  </button>
+                );
+              })()}
               {/* ✏︎ 新規チャット */}
               <button
                 onClick={handleNewChat}

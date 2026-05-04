@@ -55,6 +55,15 @@ export async function generateVariantSilently(
   if (!docNow) {
     throw new Error("ドキュメントが読み込まれていません。エディタを開いてからお試しください。");
   }
+  // ── ゲストガード (defense-in-depth) ──
+  // ゲスト (?guest=1) は anonymous trial の 1 枚だけ AI を叩ける権限しか持たない。
+  // variant 経路は別 trial カウンタなので、ゲストに通すと anonymous trial と二重消費になる。
+  // また /api/ai/chat (ログイン必須プロキシ) を直叩きすると 401 になる。
+  // UI 側でロックしているが、念のためここでも明示的に弾く。
+  const isGuestNow = useUIStore.getState().isGuest;
+  if (isGuestNow) {
+    throw new Error("類題ジェネレータは無料登録 (30秒) で使えます。");
+  }
 
   const remLocale: RemLocale = normalizeLocale(opts.locale ?? null);
   const prompt = buildVariantPrompt(docNow.latex || "", remLocale, style, opts.count);

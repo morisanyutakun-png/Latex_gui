@@ -102,6 +102,9 @@ function VariantStudioContent() {
   const preselectedStyle = useUIStore((s) => s.variantStudioPreselectedStyle);
   const activeRewriteKind = useUIStore((s) => s.activeRewriteKind);
   const openSignupOverlay = useUIStore((s) => s.openSignupOverlay);
+  // ゲスト (?guest=1) は anonymous trial で 1 枚作る権限しか持たない。
+  // variant-trial と二重消費させないため、ゲスト時は Studio を完全ロック扱いにする。
+  const isGuest = useUIStore((s) => s.isGuest);
 
   const docLatex = useDocumentStore((s) => s.document?.latex || "");
   const docTitle = useDocumentStore((s) => s.document?.metadata.title || "");
@@ -109,8 +112,9 @@ function VariantStudioContent() {
 
   const isPro = canUseFeature(currentPlan, "variantGen");
   const trialUsed = hasUsedVariantTrial();
-  const locked = !isPro && trialUsed;
-  const trialAvailable = !isPro && !trialUsed;
+  // ゲストは無条件ロック — 「無料1枚」を消化したら登録 → そこから variant trial が使える、という順序を守る
+  const locked = isGuest || (!isPro && trialUsed);
+  const trialAvailable = !isGuest && !isPro && !trialUsed;
 
   // ── State ──
   const [style, setStyle] = React.useState<VariantStyle>(
@@ -290,32 +294,59 @@ function VariantStudioContent() {
 
         {/* ── Body ── */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5 scrollbar-thin relative">
-          {/* Locked state */}
+          {/* Locked state — ゲストとログイン後 Pro 未契約で文言を分岐 */}
           {locked && (
             <div className="rounded-2xl border-2 border-violet-500/35 bg-gradient-to-br from-violet-500/[0.08] via-fuchsia-500/[0.05] to-blue-500/[0.06] p-5 text-center shadow-lg shadow-violet-500/10">
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-md shadow-violet-500/35 mb-3">
                 <Lock className="h-5 w-5 text-white" />
               </div>
-              <p className="text-[15px] font-bold mb-1 tracking-tight">
-                {isJa ? "Pro で類題を無制限に" : "Unlimited variants on Pro"}
-              </p>
-              <p className="text-[12px] text-muted-foreground mb-4 leading-relaxed">
-                {isJa
-                  ? "Free プランの 1 回お試しは使用済みです。Pro なら 1 ボタンで何枚でも類題を量産できます。"
-                  : "Your free trial has been used. On Pro you can crank out unlimited variants with one tap."}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  trackVariantGenPaywallHit({ placement: "studio" });
-                  openSignupOverlay({ reason: "feature_locked", placement: "variant_studio" });
-                }}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 text-white text-[13.5px] font-bold shadow-xl shadow-violet-500/30 hover:shadow-violet-500/50 hover:-translate-y-0.5 active:scale-[0.97] transition"
-              >
-                <Crown className="h-3.5 w-3.5" />
-                {isJa ? "Pro を見る" : "See Pro"}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
+              {isGuest ? (
+                <>
+                  <p className="text-[15px] font-bold mb-1 tracking-tight">
+                    {isJa ? "登録すると類題が使えます" : "Sign up to unlock variants"}
+                  </p>
+                  <p className="text-[12px] text-muted-foreground mb-4 leading-relaxed">
+                    {isJa
+                      ? "今は「無料1枚お試し」を体験中です。無料登録 (30秒) で、類題ジェネレータも 1 回お試しできます。"
+                      : "You're using your free 1-shot trial right now. Sign up free (30s) to also try Variant Studio once."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      trackVariantGenPaywallHit({ placement: "studio" });
+                      openSignupOverlay({ reason: "manual", placement: "variant_studio_guest" });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 text-white text-[13.5px] font-bold shadow-xl shadow-violet-500/30 hover:shadow-violet-500/50 hover:-translate-y-0.5 active:scale-[0.97] transition"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {isJa ? "無料登録する" : "Sign up free"}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-[15px] font-bold mb-1 tracking-tight">
+                    {isJa ? "Pro で類題を無制限に" : "Unlimited variants on Pro"}
+                  </p>
+                  <p className="text-[12px] text-muted-foreground mb-4 leading-relaxed">
+                    {isJa
+                      ? "Free プランの 1 回お試しは使用済みです。Pro なら 1 ボタンで何枚でも類題を量産できます。"
+                      : "Your free trial has been used. On Pro you can crank out unlimited variants with one tap."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      trackVariantGenPaywallHit({ placement: "studio" });
+                      openSignupOverlay({ reason: "feature_locked", placement: "variant_studio" });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 text-white text-[13.5px] font-bold shadow-xl shadow-violet-500/30 hover:shadow-violet-500/50 hover:-translate-y-0.5 active:scale-[0.97] transition"
+                  >
+                    <Crown className="h-3.5 w-3.5" />
+                    {isJa ? "Pro を見る" : "See Pro"}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -544,12 +575,17 @@ function VariantStudioContent() {
               type="button"
               onClick={() => {
                 trackVariantGenPaywallHit({ placement: "studio" });
-                openSignupOverlay({ reason: "feature_locked", placement: "variant_studio" });
+                openSignupOverlay({
+                  reason: isGuest ? "manual" : "feature_locked",
+                  placement: isGuest ? "variant_studio_guest" : "variant_studio",
+                });
               }}
               className="w-full inline-flex items-center justify-center gap-1.5 h-13 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-[14.5px] font-bold shadow-xl shadow-violet-500/30 active:scale-[0.97] transition"
             >
               <Lock className="h-4 w-4" />
-              {isJa ? "Pro にアップグレード" : "Upgrade to Pro"}
+              {isGuest
+                ? (isJa ? "無料登録して使う" : "Sign up to unlock")
+                : (isJa ? "Pro にアップグレード" : "Upgrade to Pro")}
               <ArrowRight className="h-4 w-4" />
             </button>
           ) : (
