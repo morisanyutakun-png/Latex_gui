@@ -726,15 +726,50 @@ function MobilePromptHeroBlock({
 
 /* ── Hero 直下: 成果物プレビュー (Worksheet + Answer-key)
  *
- * モバイル幅でも見える「成果物」を出すため、左ページは display 数式 3 問に絞り、
- * 右ページは放物線グラフ + 単位円の図を入れた解答にする。 */
+ * モバイル: 「問題 / 解答」のタブ + フルワイドのスワイプカルーセル。
+ * 横 2 列の窮屈な並列ではなく、画面幅いっぱいに 1 枚ずつ表示し、
+ * scroll-snap で横スワイプ切替。タブを押すと scrollIntoView でアニメ移動。
+ * 右側の紙の端を peek として残して「もう1枚ある」アフォーダンスを出す。 */
 function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
   useEffect(() => { ensureKatexCssMobile(); }, []);
 
   const promptText = isJa ? "高1数学・関数と三角比 解答グラフ付き" : "Algebra & trig with graph answers";
 
+  // タブ状態 + スクロール先 ref
+  const [active, setActive] = React.useState<"q" | "a">("q");
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const qRef = React.useRef<HTMLDivElement>(null);
+  const aRef = React.useRef<HTMLDivElement>(null);
+
+  const goTo = (which: "q" | "a") => {
+    setActive(which);
+    const target = which === "q" ? qRef.current : aRef.current;
+    target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+  };
+
+  // スワイプで active を更新 — IntersectionObserver で「画面中央にどちらが来たか」検出
+  React.useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting && e.intersectionRatio > 0.55) {
+            const which = (e.target as HTMLElement).dataset.page as "q" | "a";
+            if (which) setActive(which);
+          }
+        }
+      },
+      { root, threshold: [0.55, 0.8] },
+    );
+    if (qRef.current) obs.observe(qRef.current);
+    if (aRef.current) obs.observe(aRef.current);
+    return () => obs.disconnect();
+  }, []);
+
   return (
     <div className="relative">
+      {/* Prompt → 60s フロー帯 */}
       <div className="flex items-center justify-center gap-1.5 mb-3">
         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-card border border-foreground/[0.1] text-[10.5px] font-medium text-foreground/85 shadow-sm max-w-[58vw]">
           <Sparkles className="h-3 w-3 text-violet-500 shrink-0" />
@@ -747,13 +782,79 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
         </span>
       </div>
 
-      <div className="relative grid grid-cols-2 gap-2.5" style={{ perspective: "1500px" }}>
-        <div aria-hidden className="absolute inset-x-3 -bottom-3 h-8 rounded-[50%] bg-foreground/15 blur-2xl pointer-events-none" />
-        <MobilePaperWorksheet isJa={isJa} />
-        <MobilePaperAnswerKey isJa={isJa} />
+      {/* タブ切替 */}
+      <div className="flex items-center justify-center mb-2">
+        <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-foreground/[0.05] border border-foreground/[0.08]">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); goTo("q"); }}
+            className={`flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-bold transition ${
+              active === "q"
+                ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-sm shadow-violet-500/30"
+                : "text-foreground/60"
+            }`}
+          >
+            <FileText className="h-3 w-3" />
+            {isJa ? "問題" : "Worksheet"}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); goTo("a"); }}
+            className={`flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-bold transition ${
+              active === "a"
+                ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-500/30"
+                : "text-foreground/60"
+            }`}
+          >
+            <FileSignature className="h-3 w-3" />
+            {isJa ? "解答" : "Answers"}
+          </button>
+        </div>
       </div>
 
-      <p className="mt-3 text-center text-[11px] text-muted-foreground/75 font-medium">
+      {/* カルーセル — 全画面幅に伸ばす (px-5 の親padding を相殺) */}
+      <div
+        ref={scrollRef}
+        className="-mx-5 px-5 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3 pb-2"
+        style={{ scrollPaddingInline: "1.25rem", WebkitOverflowScrolling: "touch" }}
+      >
+        <div
+          ref={qRef}
+          data-page="q"
+          className="snap-start shrink-0 w-[calc(100vw-2.5rem-1.5rem)] max-w-[460px]"
+        >
+          <MobilePaperWorksheet isJa={isJa} />
+        </div>
+        <div
+          ref={aRef}
+          data-page="a"
+          className="snap-start shrink-0 w-[calc(100vw-2.5rem-1.5rem)] max-w-[460px]"
+        >
+          <MobilePaperAnswerKey isJa={isJa} />
+        </div>
+      </div>
+
+      {/* スワイプ／ドット指示 */}
+      <div className="flex items-center justify-center gap-2 mt-2">
+        <button
+          type="button"
+          aria-label={isJa ? "問題ページ" : "Worksheet page"}
+          onClick={(e) => { e.stopPropagation(); goTo("q"); }}
+          className={`h-1.5 rounded-full transition-all ${active === "q" ? "w-6 bg-gradient-to-r from-blue-500 to-violet-500" : "w-1.5 bg-foreground/20"}`}
+        />
+        <button
+          type="button"
+          aria-label={isJa ? "解答ページ" : "Answer page"}
+          onClick={(e) => { e.stopPropagation(); goTo("a"); }}
+          className={`h-1.5 rounded-full transition-all ${active === "a" ? "w-6 bg-gradient-to-r from-emerald-500 to-teal-500" : "w-1.5 bg-foreground/20"}`}
+        />
+      </div>
+
+      <p className="mt-2 text-center text-[10px] text-muted-foreground/60 font-medium">
+        {isJa ? "← スワイプで切替 →" : "← swipe to switch →"}
+      </p>
+
+      <p className="mt-2 text-center text-[11px] text-muted-foreground/75 font-medium">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-violet-500/25 bg-violet-500/[0.06]">
           <Sparkles className="h-3 w-3 text-violet-500" />
           {isJa ? "タップしてあなたのプリントを作る" : "Tap to generate your own"}
@@ -764,29 +865,26 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
   );
 }
 
-function MobilePaperFrame({ children, tilt }: { children: React.ReactNode; tilt: "left" | "right" }) {
-  const rotate = tilt === "left" ? "rotateY(4deg) rotate(-1deg)" : "rotateY(-4deg) rotate(1deg)";
+function MobilePaperFrame({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="relative rounded-[3px] bg-white border border-gray-300/80 overflow-hidden text-gray-900"
+      className="relative rounded-md bg-white border border-gray-300/80 overflow-hidden text-gray-900"
       style={{
         fontFamily: "'Iowan Old Style', 'Palatino Linotype', 'Hiragino Mincho ProN', 'Yu Mincho', serif",
         backgroundImage:
-          "linear-gradient(to bottom, rgba(250,250,247,1), rgba(255,255,255,1)), repeating-linear-gradient(0deg, rgba(0,0,0,0.014) 0 1px, transparent 1px 22px)",
+          "linear-gradient(to bottom, rgba(250,250,247,1), rgba(255,255,255,1)), repeating-linear-gradient(0deg, rgba(0,0,0,0.014) 0 1px, transparent 1px 24px)",
         backgroundBlendMode: "multiply",
-        boxShadow: "0 18px 30px -12px rgba(0,0,0,0.25), 0 4px 8px -4px rgba(0,0,0,0.12)",
-        transform: rotate,
-        transformOrigin: "center bottom",
+        boxShadow: "0 24px 50px -16px rgba(0,0,0,0.3), 0 6px 12px -4px rgba(0,0,0,0.12)",
       }}
     >
-      <div aria-hidden className="absolute top-0 right-0 w-3.5 h-3.5"
+      <div aria-hidden className="absolute top-0 right-0 w-5 h-5"
         style={{ background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.08) 50%)" }} />
-      <div aria-hidden className="absolute top-0 right-0 w-3.5 h-3.5"
+      <div aria-hidden className="absolute top-0 right-0 w-5 h-5"
         style={{
           clipPath: "polygon(100% 0, 100% 100%, 0 0)",
           background: "linear-gradient(135deg, rgba(0,0,0,0.05), rgba(0,0,0,0.13))",
         }} />
-      <div aria-hidden className="absolute left-2.5 top-0 bottom-0 w-px bg-rose-300/45" />
+      <div aria-hidden className="absolute left-4 top-0 bottom-0 w-px bg-rose-300/45" />
       {children}
     </div>
   );
@@ -794,62 +892,75 @@ function MobilePaperFrame({ children, tilt }: { children: React.ReactNode; tilt:
 
 function MobilePointsBadge({ pts, isJa }: { pts: string; isJa: boolean }) {
   return (
-    <span className="ml-auto inline-flex items-center px-1.5 py-[1px] rounded-full text-[7px] font-extrabold tracking-wider text-white bg-gradient-to-r from-amber-500 to-rose-500 shadow-sm shrink-0"
+    <span className="ml-auto inline-flex items-center px-2 py-[2px] rounded-full text-[9.5px] font-extrabold tracking-wider text-white bg-gradient-to-r from-amber-500 to-rose-500 shadow-sm shrink-0"
       style={{ fontFamily: "ui-sans-serif, system-ui" }}>
-      {pts}{isJa ? "点" : "p"}
+      {pts}{isJa ? "点" : "pt"}
     </span>
   );
 }
 
 function MobilePaperWorksheet({ isJa }: { isJa: boolean }) {
   return (
-    <MobilePaperFrame tilt="left">
-      <div className="px-2.5 pt-2">
-        <div className="flex items-baseline justify-between text-[7px] tracking-[0.2em] uppercase text-gray-500">
-          <span>EDDIVOM</span>
-          <span>05·25</span>
+    <MobilePaperFrame>
+      <div className="px-5 pt-4">
+        <div className="flex items-baseline justify-between text-[9px] tracking-[0.22em] uppercase text-gray-500">
+          <span>EDDIVOM · {isJa ? "確認テスト" : "Quiz"}</span>
+          <span>2025 · 05</span>
         </div>
-        <div className="border-t-[1.5px] border-gray-800 mt-0.5" />
-        <h3 className="text-center text-[10.5px] font-bold tracking-wide leading-tight pt-1">
-          {isJa ? "関数 ・ 三角比" : "Func & Trig"}
+        <div className="border-t-[1.5px] border-gray-800 mt-1" />
+        <h3 className="text-center text-[16px] font-bold tracking-wide leading-tight pt-2">
+          {isJa ? "数学Ⅰ・Ⅱ　関数と三角比" : "Math I/II — Functions & Trig"}
         </h3>
-        <p className="text-center text-[7.5px] text-gray-500 leading-tight pb-1">
-          {isJa ? "次の各問に答えよ。" : "Answer each."}
+        <p className="text-center text-[10px] text-gray-500 leading-tight pb-1.5">
+          {isJa ? "次の各問に答えよ。" : "Answer each problem."}
         </p>
         <div className="border-t border-gray-800" />
         <div className="border-t border-gray-800 mt-[1.5px]" />
+        <div className="flex items-end justify-between gap-2 mt-1.5 text-[9.5px] text-gray-500">
+          <span className="flex items-baseline gap-1">
+            <span>{isJa ? "氏名" : "Name"}</span>
+            <span className="border-b border-gray-500 w-20 inline-block mb-0.5" />
+          </span>
+          <span className="flex items-baseline gap-1">
+            <span className="border-b border-gray-500 w-7 inline-block mb-0.5" />
+            <span>/100</span>
+          </span>
+        </div>
       </div>
 
-      <ol className="px-2.5 pt-1.5 pb-2 space-y-2">
+      <ol className="px-5 pt-3 pb-3 space-y-3">
         <li>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問1" : "Q1"}</span>
-            <span className="text-[8.5px] text-gray-700 truncate">{isJa ? "最小値を求めよ" : "min?"}</span>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[12.5px] font-bold text-gray-700 shrink-0">{isJa ? "問1" : "Q1"}</span>
+            <span className="text-[11px] text-gray-700">{isJa ? "次の関数の最小値を求めよ。" : "Find the minimum value."}</span>
             <MobilePointsBadge pts="30" isJa={isJa} />
           </div>
-          <div className="pl-2 mt-0.5"><PreviewMathDisplay latex="f(x)=x^2-6x+11" /></div>
+          <div className="pl-4"><PreviewMathDisplayLg latex="f(x)=x^2-6x+11" /></div>
+          <div className="ml-4 mt-1 h-3 border-b border-dashed border-gray-300/80" />
         </li>
         <li>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問2" : "Q2"}</span>
-            <span className="text-[8.5px] text-gray-700 truncate">{isJa ? "値を求めよ" : "evaluate"}</span>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[12.5px] font-bold text-gray-700 shrink-0">{isJa ? "問2" : "Q2"}</span>
+            <span className="text-[11px] text-gray-700">{isJa ? "次の値を計算せよ。" : "Evaluate."}</span>
             <MobilePointsBadge pts="30" isJa={isJa} />
           </div>
-          <div className="pl-2 mt-0.5"><PreviewMathDisplay latex="\sin\dfrac{\pi}{3}+\cos\dfrac{\pi}{6}" /></div>
+          <div className="pl-4"><PreviewMathDisplayLg latex="\sin\dfrac{\pi}{3}+\cos\dfrac{\pi}{6}-\tan\dfrac{\pi}{4}" /></div>
+          <div className="ml-4 mt-1 h-3 border-b border-dashed border-gray-300/80" />
         </li>
         <li>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問3" : "Q3"}</span>
-            <span className="text-[8.5px] text-gray-700 truncate">{isJa ? "解け" : "solve"}</span>
+          <div className="flex items-baseline gap-1.5 mb-1">
+            <span className="text-[12.5px] font-bold text-gray-700 shrink-0">{isJa ? "問3" : "Q3"}</span>
+            <span className="text-[11px] text-gray-700">{isJa ? "次の方程式を解け。" : "Solve."}</span>
             <MobilePointsBadge pts="40" isJa={isJa} />
           </div>
-          <div className="pl-2 mt-0.5"><PreviewMathDisplay latex="\log_2(x+1)+\log_2(x-1)=3" /></div>
+          <div className="pl-4"><PreviewMathDisplayLg latex="\log_{2}(x+1)+\log_{2}(x-1)=3" /></div>
+          <div className="ml-4 mt-1 h-3 border-b border-dashed border-gray-300/80" />
         </li>
       </ol>
 
-      <div className="px-2.5 pb-1.5 flex justify-end">
-        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[3px] text-[7.5px] font-extrabold tracking-[0.15em] text-white bg-gradient-to-r from-blue-500 to-violet-500 shadow-sm" style={{ fontFamily: "ui-sans-serif, system-ui" }}>
-          <FileText className="h-2 w-2" />{isJa ? "問題 PDF" : "Worksheet"}
+      <div className="px-5 pb-3 flex justify-end">
+        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-[3px] text-[9.5px] font-extrabold tracking-[0.15em] text-white bg-gradient-to-r from-blue-500 to-violet-500 shadow-sm" style={{ fontFamily: "ui-sans-serif, system-ui" }}>
+          <FileText className="h-2.5 w-2.5" />{isJa ? "問題プリント PDF" : "Worksheet PDF"}
         </span>
       </div>
     </MobilePaperFrame>
@@ -858,144 +969,262 @@ function MobilePaperWorksheet({ isJa }: { isJa: boolean }) {
 
 function MobilePaperAnswerKey({ isJa }: { isJa: boolean }) {
   return (
-    <MobilePaperFrame tilt="right">
-      <div className="px-2.5 pt-2">
-        <div className="flex items-baseline justify-between text-[7px] tracking-[0.2em] uppercase text-gray-500">
-          <span>EDDIVOM</span>
-          <span>{isJa ? "解答" : "ANSWER"}</span>
+    <MobilePaperFrame>
+      <div className="px-5 pt-4">
+        <div className="flex items-baseline justify-between text-[9px] tracking-[0.22em] uppercase text-gray-500">
+          <span>EDDIVOM · {isJa ? "解答" : "Answer Key"}</span>
+          <span>2025 · 05</span>
         </div>
-        <div className="border-t-[1.5px] border-gray-800 mt-0.5" />
-        <h3 className="text-center text-[10.5px] font-bold tracking-wide leading-tight pt-1">
-          {isJa ? "解答 ・ 解説" : "Solutions"}
+        <div className="border-t-[1.5px] border-gray-800 mt-1" />
+        <h3 className="text-center text-[16px] font-bold tracking-wide leading-tight pt-2">
+          {isJa ? "解答 ・ 解説" : "Solutions & Explanations"}
         </h3>
-        <p className="text-center text-[7.5px] text-gray-500 leading-tight pb-1">
-          {isJa ? "図入りの完全解答" : "with figures"}
+        <p className="text-center text-[10px] text-gray-500 leading-tight pb-1.5">
+          {isJa ? "図入りの完全解答。" : "Complete answers with figures."}
         </p>
         <div className="border-t border-gray-800" />
         <div className="border-t border-gray-800 mt-[1.5px]" />
+        <div className="flex items-end justify-end gap-1 mt-1.5">
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/12 border border-emerald-500/35 text-emerald-700 font-bold text-[9.5px]">
+            <Check className="h-2.5 w-2.5" />
+            {isJa ? "全問正解" : "All correct"}
+          </span>
+        </div>
       </div>
 
-      <ol className="px-2.5 pt-1.5 pb-2 space-y-2">
+      <ol className="px-5 pt-3 pb-3 space-y-3">
+        {/* Q1: 放物線 */}
         <li>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問1" : "Q1"}</span>
-            <span className="overflow-hidden text-[9px]">
-              <PreviewMathInline latex="(x-3)^2+2" />
+          <div className="flex items-baseline gap-1.5 mb-1.5">
+            <span className="text-[12.5px] font-bold text-gray-700 shrink-0">{isJa ? "問1" : "Q1"}</span>
+            <span className="overflow-hidden">
+              <PreviewMathInline latex="f(x)=(x-3)^2+2" />
             </span>
             <MobileCorrectMark />
           </div>
-          <div className="flex items-center gap-1.5 pl-2 mt-0.5">
-            <ParabolaSvgMobile />
-            <span className="text-[7.5px] font-semibold text-rose-700 leading-tight">
-              {isJa ? "最小=" : "min="}<PreviewMathInline latex="\boxed{2}" />
+          <div className="flex items-center gap-3 pl-4">
+            <ParabolaSvgMobileLg />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10.5px] text-gray-700">
+                {isJa ? "頂点 " : "vertex "}<PreviewMathInline latex="(3,\,2)" />
+              </span>
+              <span className="text-[10.5px] font-semibold text-rose-700">
+                {isJa ? "最小値 " : "min = "}<PreviewMathInline latex="\boxed{2}" />
+              </span>
+            </div>
+          </div>
+        </li>
+
+        {/* Q2: 単位円 */}
+        <li>
+          <div className="flex items-baseline gap-1.5 mb-1.5">
+            <span className="text-[12.5px] font-bold text-gray-700 shrink-0">{isJa ? "問2" : "Q2"}</span>
+            <span className="overflow-hidden">
+              <PreviewMathInline latex="\dfrac{\sqrt{3}}{2}+\dfrac{\sqrt{3}}{2}-1=\sqrt{3}-1" />
+            </span>
+            <MobileCorrectMark />
+          </div>
+          <div className="flex items-center gap-3 pl-4">
+            <UnitCircleSvgMobileLg />
+            <span className="text-[10.5px] text-gray-700 leading-snug">
+              {isJa ? "単位円で " : "unit circle: "}
+              <PreviewMathInline latex="\sin60^\circ=\tfrac{\sqrt{3}}{2}" />
             </span>
           </div>
         </li>
 
+        {/* Q3: 対数の解法ステップ + 数直線 */}
         <li>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問2" : "Q2"}</span>
-            <span className="overflow-hidden text-[9px]">
-              <PreviewMathInline latex="\sqrt{3}" />
+          <div className="flex items-baseline gap-1.5 mb-1.5">
+            <span className="text-[12.5px] font-bold text-gray-700 shrink-0">{isJa ? "問3" : "Q3"}</span>
+            <span className="text-[10px] font-semibold tracking-wide text-violet-700">
+              {isJa ? "対数方程式" : "log eqn"}
             </span>
             <MobileCorrectMark />
           </div>
-          <div className="flex items-center gap-1.5 pl-2 mt-0.5">
-            <UnitCircleSvgMobile />
-            <span className="text-[7.5px] text-gray-700 leading-tight">
-              <PreviewMathInline latex="\sin60^\circ=\tfrac{\sqrt3}{2}" />
-            </span>
-          </div>
-        </li>
-
-        {/* Q3: 対数方程式の解説 — 解法ステップ + 数直線図解 */}
-        <li>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[9.5px] font-bold text-gray-700 shrink-0">{isJa ? "問3" : "Q3"}</span>
-            <span className="text-[8px] font-semibold tracking-wide text-violet-700">
-              {isJa ? "対数" : "log"}
-            </span>
-            <MobileCorrectMark />
-          </div>
-          <div className="ml-2 pl-1.5 border-l-2 border-violet-400/60 space-y-0.5 mt-0.5">
-            <MobileSolutionStep n={1}>
-              <PreviewMathInline latex="x>1" />
-              <span className="text-[7px] text-gray-500 ml-0.5">{isJa ? "(真数)" : "(dom)"}</span>
+          <div className="ml-4 pl-3 border-l-2 border-violet-400/60 space-y-1">
+            <MobileSolutionStep n={1} label={isJa ? "真数条件" : "Domain"}>
+              <PreviewMathInline latex="x+1>0\;\land\;x-1>0\;\Rightarrow\;x>1" />
             </MobileSolutionStep>
-            <MobileSolutionStep n={2}>
-              <PreviewMathInline latex="x^2-1=8" />
+            <MobileSolutionStep n={2} label={isJa ? "和→積" : "Combine"}>
+              <PreviewMathInline latex="\log_2\{(x+1)(x-1)\}=3" />
             </MobileSolutionStep>
-            <MobileSolutionStep n={3}>
+            <MobileSolutionStep n={3} label={isJa ? "対数を外す" : "Exp"}>
+              <PreviewMathInline latex="x^2-1=2^3=8" />
+            </MobileSolutionStep>
+            <MobileSolutionStep n={4} label={isJa ? "解の選別" : "Select"}>
               <PreviewMathInline latex="x=\pm 3" />
             </MobileSolutionStep>
           </div>
-          <div className="ml-2 mt-1 flex items-center gap-1.5">
-            <NumberLineLogDomainMobile />
+          <div className="ml-4 mt-2 flex items-center gap-3">
+            <NumberLineLogDomainMobileLg />
+            <div className="flex flex-col gap-0.5">
+              <span className="inline-flex items-center gap-1 text-[10px]">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-emerald-700 font-semibold">
+                  <PreviewMathInline latex="x=3" /> {isJa ? "可" : "OK"}
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px]">
+                <span className="h-2 w-2 rounded-full bg-rose-400" />
+                <span className="text-rose-600 line-through">
+                  <PreviewMathInline latex="x=-3" />
+                </span>
+              </span>
+            </div>
           </div>
-          <div className="ml-2 mt-1 inline-flex items-center gap-1 px-1 py-0.5 rounded bg-gradient-to-r from-amber-100 to-rose-100 border border-rose-300/60">
-            <span className="text-[7.5px] font-bold text-rose-800">{isJa ? "答" : "Ans"}</span>
+          <div className="ml-4 mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-100 to-rose-100 border border-rose-300/60">
+            <span className="text-[10.5px] font-bold text-rose-800">{isJa ? "答 " : "Ans. "}</span>
             <PreviewMathInline latex="x=\boxed{3}" />
           </div>
         </li>
       </ol>
 
-      <div className="px-2.5 pb-1.5 flex justify-end">
-        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[3px] text-[7.5px] font-extrabold tracking-[0.15em] text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm" style={{ fontFamily: "ui-sans-serif, system-ui" }}>
-          <FileText className="h-2 w-2" />{isJa ? "解答 PDF" : "Answer key"}
+      <div className="px-5 pb-3 flex justify-end">
+        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-[3px] text-[9.5px] font-extrabold tracking-[0.15em] text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm" style={{ fontFamily: "ui-sans-serif, system-ui" }}>
+          <FileText className="h-2.5 w-2.5" />{isJa ? "解答 PDF" : "Answer-key PDF"}
         </span>
       </div>
     </MobilePaperFrame>
   );
 }
 
-/* モバイル: 解法ステップの 1 行 */
-function MobileSolutionStep({ n, children }: { n: number; children: React.ReactNode }) {
+/* モバイル: 解法ステップの 1 行 — 番号チップ + ラベル + 数式 */
+function MobileSolutionStep({ n, label, children }: { n: number; label?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-baseline gap-1 text-[8.5px] leading-snug">
+    <div className="flex items-baseline gap-1.5 text-[10px] leading-snug">
       <span
-        className="inline-flex items-center justify-center h-3 w-3 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-[7px] font-extrabold shadow-sm shrink-0"
+        className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-[9px] font-extrabold shadow-sm shrink-0"
         style={{ fontFamily: "ui-sans-serif, system-ui" }}
       >
         {n}
       </span>
+      {label && (
+        <span
+          className="text-[8.5px] font-bold tracking-wider uppercase text-violet-700 shrink-0"
+          style={{ fontFamily: "ui-sans-serif, system-ui" }}
+        >
+          {label}
+        </span>
+      )}
       <span className="overflow-hidden">{children}</span>
     </div>
   );
 }
 
-/* モバイル: 真数条件 x>1 の数直線図解 */
-function NumberLineLogDomainMobile() {
-  const W = 90, H = 28;
+/* モバイル (フルワイド): 大型ディスプレイ数式 */
+function PreviewMathDisplayLg({ latex }: { latex: string }) {
+  const { html, ok } = renderMathHTML(latex, { displayMode: true });
+  if (ok) {
+    return (
+      <div
+        className="text-center [&_.katex-display]:m-0 [&_.katex]:text-[1.1em]"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
+  }
+  return <div className="text-center text-gray-700">{latex}</div>;
+}
+
+/* モバイル (フルワイド): 大型放物線 */
+function ParabolaSvgMobileLg() {
+  const W = 120, H = 90;
+  const xMin = -1, xMax = 7, yMin = -1, yMax = 12;
+  const sx = (x: number) => ((x - xMin) / (xMax - xMin)) * W;
+  const sy = (y: number) => H - ((y - yMin) / (yMax - yMin)) * H;
+  const points: string[] = [];
+  for (let i = 0; i <= 80; i++) {
+    const x = xMin + (i / 80) * (xMax - xMin);
+    const y = (x - 3) * (x - 3) + 2;
+    points.push(`${sx(x).toFixed(2)},${sy(y).toFixed(2)}`);
+  }
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-[120px] h-auto shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id="parabolaStrokeMobileLg" x1="0" x2="1">
+          <stop offset="0" stopColor="#6366f1" />
+          <stop offset="1" stopColor="#ec4899" />
+        </linearGradient>
+        <pattern id="gridMobileLg" width="15" height="15" patternUnits="userSpaceOnUse">
+          <path d="M 15 0 L 0 0 0 15" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="0.5" />
+        </pattern>
+      </defs>
+      <rect width={W} height={H} fill="url(#gridMobileLg)" />
+      <line x1={sx(xMin)} y1={sy(0)} x2={sx(xMax)} y2={sy(0)} stroke="#1f2937" strokeWidth="0.7" />
+      <line x1={sx(0)} y1={sy(yMin)} x2={sx(0)} y2={sy(yMax)} stroke="#1f2937" strokeWidth="0.7" />
+      <polygon points={`${sx(xMax)},${sy(0)} ${sx(xMax)-2.5},${sy(0)-1.5} ${sx(xMax)-2.5},${sy(0)+1.5}`} fill="#1f2937" />
+      <polygon points={`${sx(0)},${sy(yMax)} ${sx(0)-1.5},${sy(yMax)+2.5} ${sx(0)+1.5},${sy(yMax)+2.5}`} fill="#1f2937" />
+      <polyline points={points.join(" ")} fill="none" stroke="url(#parabolaStrokeMobileLg)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={sx(3)} cy={sy(2)} r="2" fill="#ec4899" stroke="white" strokeWidth="1" />
+      <text x={sx(3)+3} y={sy(2)-3} fontSize="6" fill="#be185d" fontWeight="700">(3,2)</text>
+      <text x={sx(xMax)-4} y={sy(0)+6} fontSize="5.5" fill="#374151">x</text>
+      <text x={sx(0)+2} y={sy(yMax)+5} fontSize="5.5" fill="#374151">y</text>
+    </svg>
+  );
+}
+
+/* モバイル (フルワイド): 大型単位円 */
+function UnitCircleSvgMobileLg() {
+  const cx = 45, cy = 45, r = 32;
+  const angle = 60 * Math.PI / 180;
+  const px = cx + r * Math.cos(angle);
+  const py = cy - r * Math.sin(angle);
+  return (
+    <svg viewBox="0 0 90 90" className="w-[88px] h-auto shrink-0" aria-hidden>
+      <defs>
+        <linearGradient id="circleStrokeMobileLg" x1="0" x2="1">
+          <stop offset="0" stopColor="#10b981" />
+          <stop offset="1" stopColor="#06b6d4" />
+        </linearGradient>
+      </defs>
+      <line x1="6" y1={cy} x2="86" y2={cy} stroke="#1f2937" strokeWidth="0.7" />
+      <line x1={cx} y1="6" x2={cx} y2="86" stroke="#1f2937" strokeWidth="0.7" />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#circleStrokeMobileLg)" strokeWidth="1.6" />
+      <line x1={cx} y1={cy} x2={px} y2={py} stroke="#0ea5e9" strokeWidth="1.4" />
+      <line x1={px} y1={py} x2={px} y2={cy} stroke="#ec4899" strokeWidth="1.2" strokeDasharray="2 1.5" />
+      <line x1={cx} y1={cy} x2={px} y2={cy} stroke="#6366f1" strokeWidth="1.2" strokeDasharray="2 1.5" />
+      <path d={`M ${cx + 10} ${cy} A 10 10 0 0 0 ${cx + 10 * Math.cos(angle)} ${cy - 10 * Math.sin(angle)}`} fill="none" stroke="#f59e0b" strokeWidth="0.9" />
+      <text x={cx + 12} y={cy - 4} fontSize="6" fill="#b45309" fontWeight="700">60°</text>
+      <circle cx={px} cy={py} r="1.8" fill="#0ea5e9" stroke="white" strokeWidth="0.8" />
+      <text x={px + 1.5} y={py - 2} fontSize="6" fill="#0c4a6e" fontWeight="700">P</text>
+    </svg>
+  );
+}
+
+/* モバイル (フルワイド): 大型 真数条件 数直線 */
+function NumberLineLogDomainMobileLg() {
+  const W = 150, H = 40;
   const xMin = -5, xMax = 5;
   const sx = (x: number) => ((x - xMin) / (xMax - xMin)) * W;
-  const baseY = 16;
+  const baseY = 24;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-[88px] h-auto shrink-0" aria-hidden>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-[150px] h-auto shrink-0" aria-hidden>
       <defs>
-        <linearGradient id="domainOKMobile" x1="0" x2="1">
+        <linearGradient id="domainOKMobileLg" x1="0" x2="1">
           <stop offset="0" stopColor="#10b981" stopOpacity="0.25" />
           <stop offset="1" stopColor="#10b981" stopOpacity="0.55" />
         </linearGradient>
-        <linearGradient id="domainNGMobile" x1="0" x2="1">
+        <linearGradient id="domainNGMobileLg" x1="0" x2="1">
           <stop offset="0" stopColor="#f43f5e" stopOpacity="0.45" />
           <stop offset="1" stopColor="#f43f5e" stopOpacity="0.15" />
         </linearGradient>
       </defs>
-      <rect x={sx(xMin)} y={baseY - 4} width={sx(1) - sx(xMin)} height="8" fill="url(#domainNGMobile)" />
-      <rect x={sx(1)} y={baseY - 4} width={sx(xMax) - sx(1)} height="8" fill="url(#domainOKMobile)" />
-      <line x1={sx(xMin)} y1={baseY} x2={sx(xMax)} y2={baseY} stroke="#1f2937" strokeWidth="0.8" />
-      <polygon points={`${sx(xMax)},${baseY} ${sx(xMax)-2},${baseY-1.2} ${sx(xMax)-2},${baseY+1.2}`} fill="#1f2937" />
-      {[-3, 1, 3].map((t) => (
+      <rect x={sx(xMin)} y={baseY - 5} width={sx(1) - sx(xMin)} height="10" fill="url(#domainNGMobileLg)" />
+      <rect x={sx(1)} y={baseY - 5} width={sx(xMax) - sx(1)} height="10" fill="url(#domainOKMobileLg)" />
+      <line x1={sx(xMin)} y1={baseY} x2={sx(xMax)} y2={baseY} stroke="#1f2937" strokeWidth="0.9" />
+      <polygon points={`${sx(xMax)},${baseY} ${sx(xMax)-2.5},${baseY-1.5} ${sx(xMax)-2.5},${baseY+1.5}`} fill="#1f2937" />
+      {[-3, 0, 1, 3].map((t) => (
         <g key={t}>
-          <line x1={sx(t)} y1={baseY - 1.5} x2={sx(t)} y2={baseY + 1.5} stroke="#1f2937" strokeWidth="0.6" />
-          <text x={sx(t)} y={baseY + 7} fontSize="4.5" fill="#374151" textAnchor="middle">{t}</text>
+          <line x1={sx(t)} y1={baseY - 2} x2={sx(t)} y2={baseY + 2} stroke="#1f2937" strokeWidth="0.7" />
+          <text x={sx(t)} y={baseY + 9} fontSize="6" fill="#374151" textAnchor="middle">{t}</text>
         </g>
       ))}
-      <circle cx={sx(1)} cy={baseY} r="1.6" fill="white" stroke="#1f2937" strokeWidth="0.8" />
-      <circle cx={sx(3)} cy={baseY} r="2" fill="#10b981" stroke="white" strokeWidth="0.6" />
-      <circle cx={sx(-3)} cy={baseY} r="2" fill="#f43f5e" stroke="white" strokeWidth="0.6" />
-      <line x1={sx(-3) - 1.2} y1={baseY - 1.2} x2={sx(-3) + 1.2} y2={baseY + 1.2} stroke="white" strokeWidth="0.7" />
-      <line x1={sx(-3) - 1.2} y1={baseY + 1.2} x2={sx(-3) + 1.2} y2={baseY - 1.2} stroke="white" strokeWidth="0.7" />
+      <circle cx={sx(1)} cy={baseY} r="2" fill="white" stroke="#1f2937" strokeWidth="1" />
+      <text x={sx(1)} y={baseY - 7} fontSize="6" fill="#374151" textAnchor="middle" fontStyle="italic">x&gt;1</text>
+      <circle cx={sx(3)} cy={baseY} r="2.4" fill="#10b981" stroke="white" strokeWidth="0.8" />
+      <circle cx={sx(-3)} cy={baseY} r="2.4" fill="#f43f5e" stroke="white" strokeWidth="0.8" />
+      <line x1={sx(-3) - 1.5} y1={baseY - 1.5} x2={sx(-3) + 1.5} y2={baseY + 1.5} stroke="white" strokeWidth="0.9" />
+      <line x1={sx(-3) - 1.5} y1={baseY + 1.5} x2={sx(-3) + 1.5} y2={baseY - 1.5} stroke="white" strokeWidth="0.9" />
     </svg>
   );
 }
@@ -1015,77 +1244,6 @@ function PreviewMathInline({ latex }: { latex: string }) {
   const { html, ok } = renderMathHTML(latex, { displayMode: false });
   if (ok) return <span className="align-middle [&_.katex]:text-[0.88em]" dangerouslySetInnerHTML={{ __html: html }} />;
   return <span className="text-gray-700">{latex}</span>;
-}
-
-/* ディスプレイ KaTeX (中央寄せ + やや大きめ) */
-function PreviewMathDisplay({ latex }: { latex: string }) {
-  const { html, ok } = renderMathHTML(latex, { displayMode: true });
-  if (ok) {
-    return (
-      <div
-        className="text-center [&_.katex-display]:m-0 [&_.katex]:text-[0.92em]"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    );
-  }
-  return <div className="text-center text-gray-700">{latex}</div>;
-}
-
-/* 放物線 SVG (モバイル小型) */
-function ParabolaSvgMobile() {
-  const W = 70, H = 54;
-  const xMin = -1, xMax = 7, yMin = -1, yMax = 12;
-  const sx = (x: number) => ((x - xMin) / (xMax - xMin)) * W;
-  const sy = (y: number) => H - ((y - yMin) / (yMax - yMin)) * H;
-  const points: string[] = [];
-  for (let i = 0; i <= 60; i++) {
-    const x = xMin + (i / 60) * (xMax - xMin);
-    const y = (x - 3) * (x - 3) + 2;
-    points.push(`${sx(x).toFixed(2)},${sy(y).toFixed(2)}`);
-  }
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-[64px] h-auto shrink-0" aria-hidden>
-      <defs>
-        <linearGradient id="parabolaStrokeMobile" x1="0" x2="1">
-          <stop offset="0" stopColor="#6366f1" />
-          <stop offset="1" stopColor="#ec4899" />
-        </linearGradient>
-        <pattern id="gridMobile" width="10" height="10" patternUnits="userSpaceOnUse">
-          <path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="0.4" />
-        </pattern>
-      </defs>
-      <rect width={W} height={H} fill="url(#gridMobile)" />
-      <line x1={sx(xMin)} y1={sy(0)} x2={sx(xMax)} y2={sy(0)} stroke="#1f2937" strokeWidth="0.6" />
-      <line x1={sx(0)} y1={sy(yMin)} x2={sx(0)} y2={sy(yMax)} stroke="#1f2937" strokeWidth="0.6" />
-      <polyline points={points.join(" ")} fill="none" stroke="url(#parabolaStrokeMobile)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={sx(3)} cy={sy(2)} r="1.6" fill="#ec4899" stroke="white" strokeWidth="0.7" />
-    </svg>
-  );
-}
-
-/* 単位円 SVG (モバイル小型) */
-function UnitCircleSvgMobile() {
-  const cx = 28, cy = 28, r = 20;
-  const angle = 60 * Math.PI / 180;
-  const px = cx + r * Math.cos(angle);
-  const py = cy - r * Math.sin(angle);
-  return (
-    <svg viewBox="0 0 56 56" className="w-[52px] h-auto shrink-0" aria-hidden>
-      <defs>
-        <linearGradient id="circleStrokeMobile" x1="0" x2="1">
-          <stop offset="0" stopColor="#10b981" />
-          <stop offset="1" stopColor="#06b6d4" />
-        </linearGradient>
-      </defs>
-      <line x1="4" y1={cy} x2="52" y2={cy} stroke="#1f2937" strokeWidth="0.6" />
-      <line x1={cx} y1="4" x2={cx} y2="52" stroke="#1f2937" strokeWidth="0.6" />
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#circleStrokeMobile)" strokeWidth="1.4" />
-      <line x1={cx} y1={cy} x2={px} y2={py} stroke="#0ea5e9" strokeWidth="1.2" />
-      <line x1={px} y1={py} x2={px} y2={cy} stroke="#ec4899" strokeWidth="0.9" strokeDasharray="1.5 1" />
-      <path d={`M ${cx + 7} ${cy} A 7 7 0 0 0 ${cx + 7 * Math.cos(angle)} ${cy - 7 * Math.sin(angle)}`} fill="none" stroke="#f59e0b" strokeWidth="0.8" />
-      <circle cx={px} cy={py} r="1.4" fill="#0ea5e9" stroke="white" strokeWidth="0.6" />
-    </svg>
-  );
 }
 
 /* ── 装飾: 黄色マーカー風アンダーライン ──
