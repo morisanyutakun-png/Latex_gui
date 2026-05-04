@@ -79,6 +79,11 @@ interface UIState {
   chatMessages: ChatMessage[];
   isChatLoading: boolean;
   streamingMessageId: string | null;
+  /** 「現在の AI リクエストが REM ノウハウ系の特殊送信か」を ThinkingIndicator に伝える。
+   *  null = 通常チャット、"variant" = 類題生成中、"enhance" = プロンプト強化中。
+   *  送信開始時にセット、完了 (成功/失敗どちらも) で null に戻す。 */
+  activeRewriteKind: "variant" | "enhance" | null;
+  setActiveRewriteKind: (kind: "variant" | "enhance" | null) => void;
 
   // エージェントモード (localStorage 永続)
   agentMode: AgentMode;
@@ -223,6 +228,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   chatMessages: [],
   isChatLoading: false,
   streamingMessageId: null,
+  activeRewriteKind: null,
   pendingChatMessage: null,
   guestPreviewBlobUrl: null,
   guestPreviewBlobLatex: null,
@@ -298,7 +304,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   updateChatMessage: (id, updates) => set((state) => ({
     chatMessages: state.chatMessages.map((m) => m.id === id ? { ...m, ...updates } : m),
   })),
-  setChatLoading: (v) => set({ isChatLoading: v }),
+  setChatLoading: (v) => set({ isChatLoading: v, ...(v ? {} : { activeRewriteKind: null }) }),
+  setActiveRewriteKind: (kind) => set({ activeRewriteKind: kind }),
   clearChat: () => set({ chatMessages: [], streamingMessageId: null }),
   updateStreamingContent: (id, content) => set((state) => ({
     chatMessages: state.chatMessages.map((m) =>

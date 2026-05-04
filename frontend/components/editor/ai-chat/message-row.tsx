@@ -8,6 +8,7 @@ import {
 import { ChatMarkdown } from "./chat-markdown";
 import { ActionTimeline } from "./action-timeline";
 import { VariantButton } from "./variant-button";
+import type { VariantStyle } from "@/lib/rem-prompts";
 import { formatRelativeTime, formatDuration, formatTokens, splitSummary } from "./utils";
 import { useI18n } from "@/lib/i18n";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -30,8 +31,9 @@ export function MessageRow({
   variantTrialBadge?: boolean;
   /** ストリーミング中などで二重発火を防ぐ */
   variantBusy?: boolean;
-  /** active 状態でクリックされたとき: 親が handleSend(..., { mode:"variant" }) を呼ぶ */
-  onVariantTrigger?: () => void;
+  /** active 状態でメニュー項目選択時: 親が handleSend(..., { mode:"variant", style }) を呼ぶ。
+   *  style は VARIANT_STYLES のキーで、"same" / "harder" / "easier" / "format" / "more"。 */
+  onVariantTrigger?: (style: VariantStyle) => void;
   /** ロック状態でクリックされたとき: 親が signup overlay を開く */
   onVariantLockedClick?: () => void;
 }) {
@@ -249,7 +251,7 @@ export function MessageRow({
         {!isUser && showVariant && (onVariantTrigger || onVariantLockedClick) && (
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
             <VariantButton
-              onTrigger={onVariantTrigger ?? (() => {})}
+              onTrigger={(style) => onVariantTrigger?.(style)}
               onLockedClick={onVariantLockedClick ?? (() => {})}
               locked={!!variantLocked}
               busy={!!variantBusy}

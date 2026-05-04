@@ -40,6 +40,8 @@ export function ThinkingIndicator({
   // 「分析中」しか出ない時間が長く「壊れている」と誤解されやすい。
   // store-fresh で読んでゲスト時のみ「30〜60秒で完成します」のヒントを足す。
   const isGuest = useUIStore((s) => s.isGuest);
+  // 類題生成 / プロンプト強化中は「目的の見える」ラベルに差し替える (Claude/ChatGPT 風)。
+  const activeRewriteKind = useUIStore((s) => s.activeRewriteKind);
   const [elapsed, setElapsed] = React.useState(0);
   const logEndRef = React.useRef<HTMLDivElement>(null);
 
@@ -118,6 +120,25 @@ export function ThinkingIndicator({
         {/* Name + status */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className="text-[12px] font-semibold tracking-wide text-foreground/60 uppercase">Eddivom AI</span>
+          {activeRewriteKind && (
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full text-[9.5px] font-extrabold tracking-wider text-white shadow-sm shrink-0 ${
+                activeRewriteKind === "variant"
+                  ? "bg-gradient-to-r from-violet-500 to-fuchsia-500"
+                  : "bg-gradient-to-r from-blue-500 to-violet-500"
+              }`}
+              title={
+                activeRewriteKind === "variant"
+                  ? (isJa ? "REM ノウハウで類題を生成中" : "Generating variants via REM-style prompt")
+                  : (isJa ? "REM ノウハウでプロンプトを強化中" : "Enhancing prompt via REM-style structure")
+              }
+            >
+              <Sparkles className="h-2.5 w-2.5" />
+              {activeRewriteKind === "variant"
+                ? (isJa ? "類題生成中" : "Variant")
+                : (isJa ? "強化送信中" : "Enhanced")}
+            </span>
+          )}
           <span className="flex items-center gap-1.5 text-[11px] text-amber-600/75 dark:text-amber-400/75 font-medium min-w-0 truncate">
             <span className="thinking-dot-ripple shrink-0">
               <span className="h-1.5 w-1.5 rounded-full inline-block bg-amber-500" />

@@ -105,6 +105,15 @@ export function InputArea({
     return (
       <>
         <div className="px-3 pb-2 pt-1 shrink-0 chat-mobile-safe-bottom">
+          {/* ✨ 強化中インジケータ — composer の上に薄く乗せて「ON のまま」を常時可視化 */}
+          {enhanceOn && !enhanceLocked && (
+            <div className="mb-1 flex items-center justify-center">
+              <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-full bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border border-violet-500/30 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
+                <Sparkles className="h-2.5 w-2.5" />
+                {locale === "en" ? "Prompt boost ON — every send is auto-structured" : "強化 ON — 送信ごとに自動で構造化"}
+              </span>
+            </div>
+          )}
           <div
             className="relative flex items-center gap-1 px-1.5 py-1.5 rounded-full"
             style={{
@@ -114,7 +123,9 @@ export function InputArea({
               border: focused ? "1px solid rgba(217,119,6,0.30)" : "1px solid rgba(217,119,6,0.14)",
               boxShadow: focused
                 ? `0 0 0 3px rgba(245,158,11,0.14), 0 1px 6px rgba(217,119,6,0.10)`
-                : "0 1px 2px rgba(217,119,6,0.04)",
+                : enhanceOn && !enhanceLocked
+                  ? "0 0 0 2px rgba(168,85,247,0.18), 0 1px 4px rgba(168,85,247,0.10)"
+                  : "0 1px 2px rgba(217,119,6,0.04)",
               transition: "box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease",
             }}
           >
@@ -181,9 +192,9 @@ export function InputArea({
               </button>
             )}
             {/* ✨ 強化トグル — ON のとき送信時に REM ノウハウで肉付け。
-                 Pro+ は自由に切替、Free 未消費は ON 可だが消費後は <Lock /> 付き。
-                 クリック時のロック判定は親 (ai-chat/index.tsx) 側で行う。 */}
-            {onEnhanceToggle && hasInput && !isChatLoading && (
+                 入力の有無に関わらず常時表示し、Claude/ChatGPT の "Style"/"Tone" と
+                 同じく「セッション中 ON を保持」する設計。ON は枠も光って状態が常に見える。 */}
+            {onEnhanceToggle && !isChatLoading && (
               <button
                 type="button"
                 onClick={onEnhanceToggle}
@@ -192,14 +203,14 @@ export function InputArea({
                 title={enhanceLocked
                   ? (locale === "en" ? "Pro plan to keep using prompt boost" : "Pro プランでプロンプト強化が無制限に")
                   : enhanceOn
-                    ? (locale === "en" ? "Prompt boost ON — REM-style structuring" : "強化ON — REM ノウハウで肉付け")
+                    ? (locale === "en" ? "Prompt boost ON — auto-structures every send" : "強化ON — 送信ごとに自動で構造化")
                     : (locale === "en" ? "Prompt boost OFF — normal send" : "強化OFF — 通常送信")
                 }
                 className={`h-10 w-10 rounded-full flex items-center justify-center active:scale-95 transition shrink-0 ${
                   enhanceLocked
                     ? "text-violet-500/70 bg-violet-500/[0.06] border border-violet-500/30"
                     : enhanceOn
-                      ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-md shadow-violet-500/30"
+                      ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-md shadow-violet-500/30 ring-2 ring-violet-500/30"
                       : "text-foreground/45 hover:text-violet-500 hover:bg-violet-500/[0.08]"
                 }`}
               >
@@ -338,6 +349,22 @@ export function InputArea({
     <div
       className={`${isMobile ? "px-2.5 pb-2 pt-1 chat-mobile-safe-bottom" : "px-3 pb-3 pt-1"} shrink-0 chat-panel-bar dark:bg-white/[0.02] backdrop-blur-sm`}
     >
+      {/* ✨ 強化中インジケータ (PC) — composer の上に薄く乗せて「ON のまま」を常時可視化 */}
+      {enhanceOn && !enhanceLocked && !isChatLoading && (
+        <div className="mb-1.5 flex items-center justify-between gap-2 px-2">
+          <span className="inline-flex items-center gap-1.5 px-2 py-[2px] rounded-full bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border border-violet-500/30 text-[10.5px] font-semibold text-violet-700 dark:text-violet-300">
+            <Sparkles className="h-3 w-3" />
+            {locale === "en" ? "Prompt boost ON — every send is auto-structured" : "強化 ON — 送信ごとに自動で構造化"}
+          </span>
+          <button
+            type="button"
+            onClick={onEnhanceToggle}
+            className="text-[10.5px] text-muted-foreground/70 hover:text-violet-600 underline-offset-2 hover:underline transition"
+          >
+            {locale === "en" ? "Turn off" : "OFFにする"}
+          </button>
+        </div>
+      )}
       {/* Quick action chips — モバイルでは折り返さず横スクロール (ChatGPT 風) */}
       {showQuick && !isChatLoading && (
         <div
@@ -438,8 +465,8 @@ export function InputArea({
             </button>
           )}
 
-          {/* ✨ 強化トグル (PC) */}
-          {onEnhanceToggle && hasInput && !isChatLoading && (
+          {/* ✨ 強化トグル (PC) — 入力の有無に関わらず常時表示。ON はセッション中保持。 */}
+          {onEnhanceToggle && !isChatLoading && (
             <button
               type="button"
               onClick={onEnhanceToggle}
@@ -448,14 +475,14 @@ export function InputArea({
               title={enhanceLocked
                 ? (locale === "en" ? "Pro plan to keep using prompt boost" : "Pro プランでプロンプト強化が無制限に")
                 : enhanceOn
-                  ? (locale === "en" ? "Prompt boost ON — REM-style structuring" : "強化ON — REM ノウハウで肉付け")
+                  ? (locale === "en" ? "Prompt boost ON — auto-structures every send" : "強化ON — 送信ごとに自動で構造化")
                   : (locale === "en" ? "Prompt boost OFF — normal send" : "強化OFF — 通常送信")
               }
               className={`${iconBtnSize} rounded-xl flex items-center justify-center active:scale-95 transition-all shrink-0 mb-0.5 ${
                 enhanceLocked
                   ? "text-violet-500/70 bg-violet-500/[0.06] border border-violet-500/30"
                   : enhanceOn
-                    ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-sm shadow-violet-500/30"
+                    ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-sm shadow-violet-500/30 ring-2 ring-violet-500/30"
                     : "text-foreground/40 hover:text-violet-500 hover:bg-violet-500/[0.08]"
               }`}
             >
