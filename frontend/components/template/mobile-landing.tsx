@@ -166,17 +166,16 @@ export function MobileLanding({
         </div>
 
         {/* ── 成果物プレビュー: 「実際に出てくるもの」を H1 直下に配置 ──
-             KaTeX や画像を使わず、軽量な div+SVG で Worksheet PDF + Answer Key PDF の
-             2枚を並べて「これが60秒で出てくる」を一目で見せる。
-             タップでプライマリと同じ動作 (= ゲスト生成へ)。 */}
-        <button
-          type="button"
-          onClick={primaryCta.onClick}
-          aria-label={primaryCta.label}
-          className={`block w-full text-left mb-4 transition-all duration-700 delay-75 active:scale-[0.99] ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}
+             外側を <button> にすると WorksheetPreviewDuo 内のタブ/ドット/CTA pill の
+             <button> が「button-in-button」になって Safari がパースを切るため、
+             ここでは <div> + 内側のクリック領域に generation onClick を割り当てる。
+             カルーセルが画面中央に snap される (snap-center) ように、ラッパは
+             flow を阻害しないシンプルな block にする。 */}
+        <div
+          className={`mb-4 transition-all duration-700 delay-75 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}
         >
-          <WorksheetPreviewDuo isJa={isJa} />
-        </button>
+          <WorksheetPreviewDuo isJa={isJa} onTapToGenerate={primaryCta.onClick} />
+        </div>
 
         {/* ── アクション集約: 入力 + サンプルチップ + 巨大プライマリを一塊に ──
              free フローのときだけ展示。タップ→即生成へ。 */}
@@ -730,7 +729,7 @@ function MobilePromptHeroBlock({
  * 横 2 列の窮屈な並列ではなく、画面幅いっぱいに 1 枚ずつ表示し、
  * scroll-snap で横スワイプ切替。タブを押すと scrollIntoView でアニメ移動。
  * 右側の紙の端を peek として残して「もう1枚ある」アフォーダンスを出す。 */
-function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
+function WorksheetPreviewDuo({ isJa, onTapToGenerate }: { isJa: boolean; onTapToGenerate?: () => void }) {
   useEffect(() => { ensureKatexCssMobile(); }, []);
 
   const promptText = isJa ? "高1数学・関数と三角比 解答グラフ付き" : "Algebra & trig with graph answers";
@@ -744,7 +743,8 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
   const goTo = (which: "q" | "a") => {
     setActive(which);
     const target = which === "q" ? qRef.current : aRef.current;
-    target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    // inline: "center" で snap-center と組み合わせ、画面中央にカードを合わせる
+    target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   };
 
   // スワイプで active を更新 — IntersectionObserver で「画面中央にどちらが来たか」検出
@@ -787,7 +787,7 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
         <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-foreground/[0.05] border border-foreground/[0.08]">
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); goTo("q"); }}
+            onClick={() => goTo("q")}
             className={`flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-bold transition ${
               active === "q"
                 ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-sm shadow-violet-500/30"
@@ -799,7 +799,7 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); goTo("a"); }}
+            onClick={() => goTo("a")}
             className={`flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-bold transition ${
               active === "a"
                 ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-500/30"
@@ -812,23 +812,34 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
         </div>
       </div>
 
-      {/* カルーセル — 全画面幅に伸ばす (px-5 の親padding を相殺) */}
+      {/* カルーセル — 親の px-5 を相殺して 100vw を確保し、各カードを画面中央に snap。
+           ・両端に 7vw 程度の peek (もう1枚の存在を示唆)
+           ・カード幅 = 86vw (max 440px)、視覚中央軸 = 50vw に snap
+           ・スクロールパディングは要らない (snap-center は scroll-port 中心基準) */}
       <div
         ref={scrollRef}
-        className="-mx-5 px-5 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3 pb-2"
-        style={{ scrollPaddingInline: "1.25rem", WebkitOverflowScrolling: "touch" }}
+        className="-mx-5 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3 pb-3 pt-1 px-[7vw]"
+        style={{ WebkitOverflowScrolling: "touch" }}
       >
         <div
           ref={qRef}
           data-page="q"
-          className="snap-start shrink-0 w-[calc(100vw-2.5rem-1.5rem)] max-w-[460px]"
+          onClick={onTapToGenerate}
+          role="button"
+          tabIndex={0}
+          aria-label={isJa ? "問題プリントのサンプル — タップでこの形式のプリントを作る" : "Worksheet sample — tap to generate"}
+          className="snap-center shrink-0 w-[86vw] max-w-[440px] cursor-pointer active:scale-[0.99] transition"
         >
           <MobilePaperWorksheet isJa={isJa} />
         </div>
         <div
           ref={aRef}
           data-page="a"
-          className="snap-start shrink-0 w-[calc(100vw-2.5rem-1.5rem)] max-w-[460px]"
+          onClick={onTapToGenerate}
+          role="button"
+          tabIndex={0}
+          aria-label={isJa ? "解答プリントのサンプル — タップでこの形式のプリントを作る" : "Answer-key sample — tap to generate"}
+          className="snap-center shrink-0 w-[86vw] max-w-[440px] cursor-pointer active:scale-[0.99] transition"
         >
           <MobilePaperAnswerKey isJa={isJa} />
         </div>
@@ -839,13 +850,13 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
         <button
           type="button"
           aria-label={isJa ? "問題ページ" : "Worksheet page"}
-          onClick={(e) => { e.stopPropagation(); goTo("q"); }}
+          onClick={() => goTo("q")}
           className={`h-1.5 rounded-full transition-all ${active === "q" ? "w-6 bg-gradient-to-r from-blue-500 to-violet-500" : "w-1.5 bg-foreground/20"}`}
         />
         <button
           type="button"
           aria-label={isJa ? "解答ページ" : "Answer page"}
-          onClick={(e) => { e.stopPropagation(); goTo("a"); }}
+          onClick={() => goTo("a")}
           className={`h-1.5 rounded-full transition-all ${active === "a" ? "w-6 bg-gradient-to-r from-emerald-500 to-teal-500" : "w-1.5 bg-foreground/20"}`}
         />
       </div>
@@ -854,13 +865,17 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
         {isJa ? "← スワイプで切替 →" : "← swipe to switch →"}
       </p>
 
-      <p className="mt-2 text-center text-[11px] text-muted-foreground/75 font-medium">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-violet-500/25 bg-violet-500/[0.06]">
+      <div className="mt-2 flex justify-center">
+        <button
+          type="button"
+          onClick={onTapToGenerate}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-violet-500/25 bg-violet-500/[0.06] text-[11px] text-foreground/85 font-medium active:scale-[0.97] transition"
+        >
           <Sparkles className="h-3 w-3 text-violet-500" />
           {isJa ? "タップしてあなたのプリントを作る" : "Tap to generate your own"}
           <ArrowRight className="h-3 w-3 text-violet-500" />
-        </span>
-      </p>
+        </button>
+      </div>
     </div>
   );
 }
