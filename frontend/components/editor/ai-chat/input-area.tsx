@@ -100,47 +100,78 @@ export function InputArea({
   const textareaMinH = isMobile ? 36 : 28;
   const textareaFontSize = isMobile ? 16 : 14; // iOS auto-zoom 防止 (16px 以上で発動しない)
 
-  // ── Eddivom モバイル Composer (ChatGPT 土台 + amber accent) ──
+  // ── Cycling placeholder hints (mobile only) ──
+  // 4 秒ごとに切り替わる「次の入力例」。ChatGPT iOS / Notion AI 風の動的プレースホルダ。
+  // ユーザがフォーカスする前に「これ何が入るの?」を直感的に伝えるための演出。
+  const HINTS_JA = React.useMemo(() => [
+    "数学Ⅰ 二次関数の小テストを5問",
+    "高1物理 運動方程式の練習10問",
+    "中2 一次関数の確認テストを作って",
+    "化学基礎 mol計算の問題セット",
+    "問1の数値だけ変えて",
+  ], []);
+  const HINTS_EN = React.useMemo(() => [
+    "Make a 5-question quadratic quiz",
+    "10 problems on Newton's laws",
+    "Linear functions practice for 8th grade",
+    "Mole calculation problems",
+    "Change only the numbers in Q1",
+  ], []);
+  const [hintIdx, setHintIdx] = React.useState(0);
+  React.useEffect(() => {
+    if (!isMobile) return;
+    if (input.length > 0 || focused) return; // 入力中・フォーカス中は固定
+    const id = setInterval(() => {
+      setHintIdx((i) => (i + 1) % HINTS_JA.length);
+    }, 3500);
+    return () => clearInterval(id);
+  }, [isMobile, input, focused, HINTS_JA.length]);
+  const dynamicMobilePlaceholder = locale === "en"
+    ? HINTS_EN[hintIdx % HINTS_EN.length]
+    : HINTS_JA[hintIdx % HINTS_JA.length];
+
+  // ── Eddivom モバイル Composer (iOS ネイティブ風・2 段構成) ──
+  // 旧: 1 行に [+][textarea][✨][送信] を詰め込んでいた → placeholder が潰れて Web 感
+  // 新: textarea を主役に大型化、アクションボタンは下段に独立した行として配置。
+  //     ChatGPT iOS / Claude iOS と同じ視覚言語で、各ボタンに 44px の touch target を確保。
   if (isMobile) {
     return (
       <>
-        <div className="px-3 pb-2 pt-1 shrink-0 chat-mobile-safe-bottom">
-          {/* ✨ 強化中インジケータ — composer の上に薄く乗せて「ON のまま」を常時可視化 */}
+        <div
+          className="px-3 pt-1.5 shrink-0"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
+        >
+          {/* ── 強化 ON 時の subtle ステータスストリップ (composer の上) ── */}
           {enhanceOn && !enhanceLocked && (
-            <div className="mb-1 flex items-center justify-center">
-              <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-full bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border border-violet-500/30 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
+            <div className="mb-1.5 flex items-center justify-center animate-in fade-in slide-in-from-bottom-1 duration-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-[3px] rounded-full bg-gradient-to-r from-violet-500/15 to-fuchsia-500/15 border border-violet-500/30 text-[10px] font-bold tracking-wide text-violet-700 dark:text-violet-300 shadow-sm">
                 <Sparkles className="h-2.5 w-2.5" />
-                {locale === "en" ? "Prompt boost ON — every send is auto-structured" : "強化 ON — 送信ごとに自動で構造化"}
+                {locale === "en" ? "Prompt boost ON" : "強化 ON ・ 送信ごとに自動構造化"}
               </span>
             </div>
           )}
+
+          {/* ── Composer 本体: rounded-3xl の 2 段カード (iOS native feel) ── */}
           <div
-            className="relative flex items-center gap-1 px-1.5 py-1.5 rounded-full"
+            className="relative rounded-[28px] overflow-hidden"
             style={{
               background: focused
-                ? "linear-gradient(135deg, rgba(254,243,199,0.55) 0%, rgba(255,255,255,0.95) 100%)"
-                : "rgba(255,251,235,0.55)",
-              border: focused ? "1px solid rgba(217,119,6,0.30)" : "1px solid rgba(217,119,6,0.14)",
-              boxShadow: focused
-                ? `0 0 0 3px rgba(245,158,11,0.14), 0 1px 6px rgba(217,119,6,0.10)`
+                ? "linear-gradient(180deg, rgba(255,253,247,1) 0%, rgba(254,247,233,1) 100%)"
+                : "linear-gradient(180deg, rgba(255,253,247,0.95) 0%, rgba(254,247,233,0.85) 100%)",
+              border: focused
+                ? "1px solid rgba(217,119,6,0.32)"
                 : enhanceOn && !enhanceLocked
-                  ? "0 0 0 2px rgba(168,85,247,0.18), 0 1px 4px rgba(168,85,247,0.10)"
-                  : "0 1px 2px rgba(217,119,6,0.04)",
-              transition: "box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease",
+                  ? "1px solid rgba(168,85,247,0.30)"
+                  : "1px solid rgba(217,119,6,0.16)",
+              boxShadow: focused
+                ? "0 0 0 4px rgba(245,158,11,0.12), 0 4px 16px -4px rgba(217,119,6,0.18), 0 1px 2px rgba(217,119,6,0.08)"
+                : enhanceOn && !enhanceLocked
+                  ? "0 0 0 3px rgba(168,85,247,0.12), 0 4px 12px -4px rgba(168,85,247,0.18)"
+                  : "0 4px 12px -4px rgba(217,119,6,0.12), 0 1px 2px rgba(0,0,0,0.04)",
+              transition: "box-shadow 0.2s ease, border-color 0.2s ease",
             }}
           >
-            {/* 左: [+] ボタン → bottom sheet (hover/active で amber tint) */}
-            <button
-              type="button"
-              onClick={() => setSheetOpen(true)}
-              disabled={isChatLoading}
-              aria-label={t("chat.attach.tooltip")}
-              className="h-10 w-10 rounded-full flex items-center justify-center text-amber-700/80 dark:text-amber-300/80 hover:bg-amber-500/10 active:scale-95 transition disabled:opacity-30 shrink-0"
-            >
-              <Plus className="h-5 w-5" strokeWidth={2} />
-            </button>
-
-            {/* textarea (フラット pill) */}
+            {/* 上段: textarea のみ (主役) */}
             <textarea
               ref={textareaRef}
               value={input}
@@ -153,91 +184,95 @@ export function InputArea({
               onCompositionEnd={() => { composingRef.current = false; }}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
-              placeholder={t("chat.input.placeholder")}
+              placeholder={dynamicMobilePlaceholder}
               disabled={isChatLoading}
               rows={1}
               inputMode="text"
               enterKeyHint="send"
               autoCapitalize="sentences"
+              className="w-full bg-transparent border-0 outline-none resize-none placeholder:text-amber-900/40 dark:placeholder:text-amber-300/45 placeholder:font-medium text-foreground"
               style={{
-                minHeight: textareaMinH,
-                maxHeight: 160,
-                fontSize: textareaFontSize,
-                lineHeight: 1.4,
-                resize: "none",
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                boxShadow: "none",
-                padding: "6px 4px",
-                margin: 0,
-                color: "inherit",
-                fontFamily: "inherit",
+                minHeight: 48,
+                maxHeight: 180,
+                fontSize: 16, // iOS auto-zoom 防止
+                lineHeight: 1.5,
+                padding: "14px 18px 6px 18px",
               }}
             />
 
-            {/* 右側: ChatGPT モバイル相当のクリーンな配置。
-                入力なし → mic 1 つだけ (灰)
-                入力あり → 黒丸送信
-                ストリーム中 → 黒丸 Stop */}
-            {!isChatLoading && !hasInput && (
+            {/* 下段: アクションバー (左 [+] / 右 ✨ + Mic|送信) */}
+            <div className="flex items-center gap-1 px-2 pb-2 pt-1">
+              {/* [+] 添付/モードシート — 控えめな iOS 風グレーボタン */}
               <button
                 type="button"
-                onClick={() => textareaRef.current?.focus()}
-                aria-label={locale === "en" ? "Voice input" : "音声入力"}
-                className="h-10 w-10 rounded-full flex items-center justify-center text-amber-700/75 dark:text-amber-300/75 hover:bg-amber-500/10 active:scale-95 transition shrink-0"
+                onClick={() => setSheetOpen(true)}
+                disabled={isChatLoading}
+                aria-label={t("chat.attach.tooltip")}
+                className="h-9 w-9 rounded-full flex items-center justify-center text-amber-700/80 dark:text-amber-300/80 bg-amber-500/[0.06] hover:bg-amber-500/[0.12] active:scale-95 transition disabled:opacity-30 shrink-0"
               >
-                <Mic className="h-5 w-5" strokeWidth={1.8} />
+                <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} />
               </button>
-            )}
-            {/* ✨ 強化トグル — ON のとき送信時に REM ノウハウで肉付け。
-                 入力の有無に関わらず常時表示し、Claude/ChatGPT の "Style"/"Tone" と
-                 同じく「セッション中 ON を保持」する設計。ON は枠も光って状態が常に見える。 */}
-            {onEnhanceToggle && !isChatLoading && (
-              <button
-                type="button"
-                onClick={onEnhanceToggle}
-                aria-pressed={!!enhanceOn}
-                aria-label={locale === "en" ? "Toggle prompt boost" : "プロンプト強化トグル"}
-                title={enhanceLocked
-                  ? (locale === "en" ? "Pro plan to keep using prompt boost" : "Pro プランでプロンプト強化が無制限に")
-                  : enhanceOn
-                    ? (locale === "en" ? "Prompt boost ON — auto-structures every send" : "強化ON — 送信ごとに自動で構造化")
-                    : (locale === "en" ? "Prompt boost OFF — normal send" : "強化OFF — 通常送信")
-                }
-                className={`h-10 w-10 rounded-full flex items-center justify-center active:scale-95 transition shrink-0 ${
-                  enhanceLocked
-                    ? "text-violet-500/70 bg-violet-500/[0.06] border border-violet-500/30"
-                    : enhanceOn
-                      ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-md shadow-violet-500/30 ring-2 ring-violet-500/30"
-                      : "text-foreground/45 hover:text-violet-500 hover:bg-violet-500/[0.08]"
-                }`}
-              >
-                {enhanceLocked
-                  ? <Lock className="h-4 w-4" />
-                  : <Sparkles className="h-4.5 w-4.5" strokeWidth={2} />
-                }
-              </button>
-            )}
-            {(hasInput || isChatLoading) && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (isChatLoading && onStop) onStop();
-                  else onSend();
-                }}
-                aria-label={isChatLoading ? (t("chat.stop") as string || "Stop") : (t("chat.send") as string)}
-                className={`h-10 w-10 rounded-full flex items-center justify-center text-white active:scale-95 transition shrink-0 ${
-                  isChatLoading ? "eddivom-stop-active" : "eddivom-send-active"
-                }`}
-              >
-                {isChatLoading
-                  ? <Square className="h-3.5 w-3.5 fill-current relative z-10" />
-                  : <ArrowUp className="h-5 w-5 relative z-10" strokeWidth={2.5} />
-                }
-              </button>
-            )}
+
+              <div className="flex-1" />
+
+              {/* ✨ 強化トグル — 常時表示、ON で発光 */}
+              {onEnhanceToggle && !isChatLoading && (
+                <button
+                  type="button"
+                  onClick={onEnhanceToggle}
+                  aria-pressed={!!enhanceOn}
+                  aria-label={locale === "en" ? "Toggle prompt boost" : "プロンプト強化トグル"}
+                  className={`h-9 px-3 rounded-full flex items-center justify-center gap-1 text-[11.5px] font-bold tracking-wide active:scale-95 transition shrink-0 ${
+                    enhanceLocked
+                      ? "text-violet-600/70 bg-violet-500/[0.06] border border-violet-500/30"
+                      : enhanceOn
+                        ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-md shadow-violet-500/30"
+                        : "text-violet-700/85 dark:text-violet-300/85 bg-violet-500/[0.07] hover:bg-violet-500/[0.14] border border-violet-500/15"
+                  }`}
+                >
+                  {enhanceLocked
+                    ? <Lock className="h-3.5 w-3.5" />
+                    : <Sparkles className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  }
+                  <span>{locale === "en" ? "Boost" : "強化"}</span>
+                </button>
+              )}
+
+              {/* 入力なし → Mic / 入力あり → 送信 / ストリーム中 → Stop */}
+              {!isChatLoading && !hasInput && (
+                <button
+                  type="button"
+                  onClick={() => textareaRef.current?.focus()}
+                  aria-label={locale === "en" ? "Voice input" : "音声入力"}
+                  className="h-9 w-9 rounded-full flex items-center justify-center text-amber-700/75 dark:text-amber-300/75 hover:bg-amber-500/10 active:scale-95 transition shrink-0"
+                >
+                  <Mic className="h-[18px] w-[18px]" strokeWidth={1.9} />
+                </button>
+              )}
+              {(hasInput || isChatLoading) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isChatLoading && onStop) onStop();
+                    else onSend();
+                  }}
+                  aria-label={isChatLoading ? (t("chat.stop") as string || "Stop") : (t("chat.send") as string)}
+                  className={`h-9 w-9 rounded-full flex items-center justify-center text-white active:scale-90 transition shrink-0 ${
+                    isChatLoading ? "eddivom-stop-active" : "eddivom-send-active"
+                  }`}
+                  style={{
+                    boxShadow: isChatLoading
+                      ? "0 4px 12px rgba(15,23,42,0.25)"
+                      : "0 4px 12px rgba(217,119,6,0.30), 0 1px 2px rgba(217,119,6,0.15)",
+                  }}
+                >
+                  {isChatLoading
+                    ? <Square className="h-3 w-3 fill-current relative z-10" />
+                    : <ArrowUp className="h-[18px] w-[18px] relative z-10" strokeWidth={2.6} />
+                  }
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
