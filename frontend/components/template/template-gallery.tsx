@@ -397,123 +397,251 @@ function HeroFlowStrip({ isJa }: { isJa: boolean }) {
 /* ── Hero 直下: 成果物プレビュー (Worksheet + Answer-key) ──
  *
  * 「機能ではなく成果物で判断する」ため、ファーストビューに「実物プリント」を出す。
- * KaTeX/動画/画像を使わない軽量実装 (div+SVG のみ) で LCP を悪化させない。
- * - 左: Worksheet PDF (問題のみ・空欄ライン付き)
- * - 右: Answer-key PDF (解答付き・緑チェック)
- * - 上: Prompt → 60s チップ
- * - 下: 「タップして自分のプリントを作る」
+ * 数式は KaTeX で本物の LaTeX 組版にコンパイル (renderMathHTML 経由)。
+ * 画像/動画は使わず、CSS だけで紙の質感 (罫線・角折れ・3D 傾き・ノイズ・影) を出す。
+ * - 左: 問題プリント (二段組ヘッダ、配点バッジ、解答欄罫線)
+ * - 右: 解答キー (丸の正解スタンプ、薄い解説)
+ * - 上: Prompt → AI → 60s のフロー帯
+ * - 下: 「タップしてあなたのプリントを作る」
  *
- * モバイル LP と同コンポーネント名にしてあるが、PC LP は max-w-2xl なので
- * 紙の文字が読みやすい。タップで onTap (なければ何もせず) — 親側で button にラップ。 */
+ * 親側で button にラップ → タップでゲスト生成へ。 */
 function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
-  const promptText = isJa ? "二次方程式の問題を10問、解答付きで" : "10 quadratic problems with answers";
+  // KaTeX CSS を hero マウント時に投入 (SampleShowcase より先に呼ばれてしまうが、
+  // どちらが先でも 1 回だけ injectされる guard 付き)。
+  React.useEffect(() => {
+    ensureKatexCss();
+  }, []);
+
+  const promptText = isJa ? "二次方程式の問題を10問、解答付きで" : "10 quadratic equation problems with answers";
+
+  // LaTeX ソース (KaTeX 互換の最小限)
+  const wsRows: { num: string; latex: string; pts?: string }[] = [
+    { num: "(1)", latex: "3x^2 + 5x - 2 = 0",   pts: "10" },
+    { num: "(2)", latex: "x^2 - 7x + 12 = 0",   pts: "10" },
+    { num: "(3)", latex: "2x^2 - x - 6 = 0",    pts: "10" },
+    { num: "(4)", latex: "x^2 + 4x + 4 = 0",    pts: "10" },
+  ];
+  const akRows: { num: string; latex: string; note?: string }[] = [
+    { num: "(1)", latex: "x = \\dfrac{1}{3},\\; -2",  note: isJa ? "因数分解" : "factor" },
+    { num: "(2)", latex: "x = 3,\\; 4",                note: isJa ? "因数分解" : "factor" },
+    { num: "(3)", latex: "x = 2,\\; -\\dfrac{3}{2}",   note: isJa ? "因数分解" : "factor" },
+    { num: "(4)", latex: "x = -2",                     note: isJa ? "重解" : "double root" },
+  ];
+
   return (
     <div className="relative">
-      <div className="flex items-center justify-center gap-2 mb-3">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card border border-foreground/[0.1] text-[11px] sm:text-[12px] font-medium text-foreground/85 shadow-sm">
-          <Sparkles className="h-3 w-3 text-violet-500" />
-          <span className="truncate max-w-[60vw] sm:max-w-none">{promptText}</span>
-        </span>
-        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/55 shrink-0" />
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[10.5px] font-extrabold tracking-wider shadow-md shadow-violet-500/25">
-          <Zap className="h-3 w-3" />
-          {isJa ? "60秒" : "60s"}
-        </span>
+      {/* Prompt → AI → 60s のフロー帯 */}
+      <HeroFlowBadge isJa={isJa} promptText={promptText} />
+
+      {/* 紙 2 枚 — お互いに少し回転させて「机に置いた紙」感を出す */}
+      <div className="relative grid grid-cols-2 gap-3 sm:gap-5 perspective-[1500px]">
+        {/* 装飾: 紙の下に薄い影を敷く */}
+        <div aria-hidden className="absolute inset-x-4 -bottom-3 h-10 rounded-[50%] bg-foreground/15 blur-2xl pointer-events-none" />
+
+        <PreviewPaperWorksheet rows={wsRows} isJa={isJa} />
+        <PreviewPaperAnswerKey rows={akRows} isJa={isJa} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <PreviewPaper
-          tone="worksheet"
-          title={isJa ? "数学Ⅰ 確認テスト" : "Math I — Quiz"}
-          subTitle={isJa ? "各10点 ・ 計100点" : "10 pts each · 100 pts"}
-          rows={[
-            { num: "(1)", text: "3x² + 5x − 2 = 0", showLine: true },
-            { num: "(2)", text: "x² − 7x + 12 = 0", showLine: true },
-            { num: "(3)", text: "2x² − x − 6 = 0",  showLine: true },
-            { num: "(4)", text: "x² + 4x + 4 = 0",  showLine: true },
-          ]}
-          stamp={isJa ? "問題プリント PDF" : "Worksheet PDF"}
-          stampColor="from-blue-500 to-violet-500"
-        />
-        <PreviewPaper
-          tone="answer"
-          title={isJa ? "解答 ・ 解説" : "Answer Key"}
-          subTitle={isJa ? "模範解答" : "Solutions"}
-          rows={[
-            { num: "(1)", text: "x = 1/3, −2", check: true },
-            { num: "(2)", text: "x = 3, 4",     check: true },
-            { num: "(3)", text: "x = 2, −3/2",  check: true },
-            { num: "(4)", text: "x = −2 (重解)", check: true },
-          ]}
-          stamp={isJa ? "解答 PDF" : "Answer-key PDF"}
-          stampColor="from-emerald-500 to-teal-500"
-        />
-      </div>
-
-      <p className="mt-3 text-center text-[11px] sm:text-[12px] text-muted-foreground/75 font-medium">
-        <span className="inline-flex items-center gap-1">
+      <p className="mt-4 text-center text-[11px] sm:text-[12px] text-muted-foreground/75 font-medium">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-violet-500/25 bg-violet-500/[0.06]">
           <Sparkles className="h-3 w-3 text-violet-500" />
-          {isJa ? "タップしてあなたのプリントを作る" : "Tap to make yours"}
+          {isJa ? "タップしてあなたのプリントを作る" : "Tap to generate your own"}
+          <ArrowRight className="h-3 w-3 text-violet-500" />
         </span>
       </p>
     </div>
   );
 }
 
-function PreviewPaper({
-  title, subTitle, rows, stamp, stampColor, tone,
-}: {
-  title: string;
-  subTitle: string;
-  rows: { num: string; text: string; showLine?: boolean; check?: boolean }[];
-  stamp: string;
-  stampColor: string;
-  tone: "worksheet" | "answer";
-}) {
+/* Hero 用: Prompt → AI → 60s のフロー帯 */
+function HeroFlowBadge({ isJa, promptText }: { isJa: boolean; promptText: string }) {
   return (
-    <div
-      className="relative rounded-md bg-white border border-gray-300/70 shadow-xl shadow-foreground/[0.08] overflow-hidden text-gray-900"
-      style={{ fontFamily: "ui-serif, Georgia, 'Times New Roman', serif" }}
-    >
-      <div
-        aria-hidden
-        className="absolute top-0 right-0 w-4 h-4"
-        style={{ background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)" }}
-      />
-      <div className="px-3 pt-2.5 pb-1 border-b-2 border-gray-800">
-        <p className="text-[11px] sm:text-[13px] font-bold text-center leading-tight tracking-wide">{title}</p>
-      </div>
-      <div className="px-3 pt-1 pb-2 flex items-center justify-between text-[8.5px] sm:text-[10px] text-gray-500">
-        <span className="truncate">{subTitle}</span>
-        {tone === "worksheet" && (
-          <span className="flex items-center gap-1 shrink-0">
-            <span className="border-b border-gray-400 w-3 inline-block mb-0.5" />
-            <span className="border-b border-gray-400 w-3 inline-block mb-0.5" />
-          </span>
-        )}
-      </div>
-      <ul className="px-3 pb-2.5 space-y-1.5">
-        {rows.map((r, i) => (
-          <li key={i} className="text-[10px] sm:text-[11.5px] leading-tight text-gray-800">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-gray-500 shrink-0">{r.num}</span>
-              <span className="font-medium truncate" style={{ fontVariantNumeric: "tabular-nums" }}>{r.text}</span>
-              {r.check && (
-                <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-600 shrink-0 ml-auto" />
-              )}
-            </div>
-            {r.showLine && <div className="ml-4 mt-1 h-2 sm:h-2.5 border-b border-dashed border-gray-300" />}
-          </li>
-        ))}
-      </ul>
-      <div className="px-3 pb-2 flex justify-end">
-        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-sm text-[8px] sm:text-[9px] font-extrabold tracking-wider text-white bg-gradient-to-r ${stampColor} shadow-sm`}>
-          <FileText className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
-          {stamp}
-        </span>
-      </div>
+    <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card border border-foreground/[0.1] text-[11px] sm:text-[12px] font-medium text-foreground/85 shadow-sm max-w-[68vw] sm:max-w-none">
+        <Sparkles className="h-3 w-3 text-violet-500 shrink-0" />
+        <span className="truncate">{promptText}</span>
+      </span>
+      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/55 shrink-0" />
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-blue-500 text-white text-[10.5px] sm:text-[11px] font-extrabold tracking-wider shadow-md shadow-violet-500/30 shrink-0">
+        <Zap className="h-3 w-3" />
+        {isJa ? "60秒" : "60s"}
+      </span>
     </div>
   );
+}
+
+/* 共通: 紙の枠 (罫線・角折れ・グリッド薄背景・3D 傾き) */
+function PaperFrame({ children, tilt }: { children: React.ReactNode; tilt: "left" | "right" }) {
+  const rotate = tilt === "left" ? "rotateY(4deg) rotate(-1.2deg)" : "rotateY(-4deg) rotate(1.2deg)";
+  return (
+    <div
+      className="relative rounded-[3px] bg-white border border-gray-300/80 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.25),0_4px_10px_-4px_rgba(0,0,0,0.12)] overflow-hidden text-gray-900"
+      style={{
+        fontFamily: "'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', 'Hiragino Mincho ProN', 'Yu Mincho', serif",
+        backgroundImage:
+          "linear-gradient(to bottom, rgba(250,250,247,1), rgba(255,255,255,1)), repeating-linear-gradient(0deg, rgba(0,0,0,0.014) 0 1px, transparent 1px 22px)",
+        backgroundBlendMode: "multiply",
+        transform: rotate,
+        transformOrigin: "center bottom",
+      }}
+    >
+      {/* 角の折れ */}
+      <div
+        aria-hidden
+        className="absolute top-0 right-0 w-4 h-4 sm:w-5 sm:h-5"
+        style={{ background: "linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.08) 50%)" }}
+      />
+      {/* 折れの裏側 (薄いグレー) */}
+      <div
+        aria-hidden
+        className="absolute top-0 right-0 w-4 h-4 sm:w-5 sm:h-5"
+        style={{
+          clipPath: "polygon(100% 0, 100% 100%, 0 0)",
+          background: "linear-gradient(135deg, rgba(0,0,0,0.04), rgba(0,0,0,0.12))",
+        }}
+      />
+      {/* 左の薄い縦罫 (大学ノート風) */}
+      <div aria-hidden className="absolute left-3 sm:left-4 top-0 bottom-0 w-px bg-rose-300/40" />
+      {children}
+    </div>
+  );
+}
+
+/* 問題プリント */
+function PreviewPaperWorksheet({
+  rows, isJa,
+}: { rows: { num: string; latex: string; pts?: string }[]; isJa: boolean }) {
+  return (
+    <PaperFrame tilt="left">
+      {/* 二重罫線のヘッダ */}
+      <div className="px-3 sm:px-4 pt-2.5 sm:pt-3">
+        <div className="flex items-baseline justify-between text-[7.5px] sm:text-[9px] tracking-[0.2em] uppercase text-gray-500">
+          <span>EDDIVOM · {isJa ? "確認テスト" : "Quiz"}</span>
+          <span>2025 · 05</span>
+        </div>
+        <div className="border-t border-gray-800 mt-0.5" />
+        <h3 className="text-center text-[12px] sm:text-[15px] font-bold tracking-wide leading-tight pt-1.5 pb-0.5">
+          {isJa ? "数学Ⅰ　二次方程式" : "Math I — Quadratic Equations"}
+        </h3>
+        <p className="text-center text-[8px] sm:text-[10px] text-gray-500 leading-tight">
+          {isJa ? "次の方程式を解け。" : "Solve each equation."}
+        </p>
+        <div className="border-t border-b border-gray-800 mt-1.5 h-[3px]" style={{ borderTopWidth: 1, borderBottomWidth: 0.5 }} />
+        {/* 名前欄 */}
+        <div className="flex items-end justify-between gap-2 mt-1.5 text-[7.5px] sm:text-[9px] text-gray-500">
+          <span className="flex items-baseline gap-1">
+            <span>{isJa ? "氏名" : "Name"}</span>
+            <span className="border-b border-gray-500 w-12 sm:w-16 inline-block mb-0.5" />
+          </span>
+          <span className="flex items-baseline gap-1">
+            <span>/100</span>
+          </span>
+        </div>
+      </div>
+
+      <ol className="px-3 sm:px-4 pt-2 pb-3 space-y-1.5 sm:space-y-2">
+        {rows.map((r, i) => (
+          <li key={i} className="text-[10px] sm:text-[12px] leading-tight">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-gray-500 shrink-0">{r.num}</span>
+              <span className="font-medium overflow-hidden">
+                <PreviewMath latex={r.latex} />
+              </span>
+              {r.pts && (
+                <span className="ml-auto inline-flex items-center px-1 py-[1px] rounded-sm border border-gray-400/60 text-[7px] sm:text-[8.5px] tracking-wider text-gray-600 shrink-0">
+                  {r.pts}{isJa ? "点" : "pt"}
+                </span>
+              )}
+            </div>
+            <div className="ml-4 mt-1 sm:mt-1.5 h-2 sm:h-3 border-b border-dashed border-gray-300/80" />
+          </li>
+        ))}
+      </ol>
+
+      {/* スタンプ */}
+      <PaperStamp label={isJa ? "問題プリント PDF" : "Worksheet PDF"} color="from-blue-500 to-violet-500" />
+    </PaperFrame>
+  );
+}
+
+/* 解答プリント */
+function PreviewPaperAnswerKey({
+  rows, isJa,
+}: { rows: { num: string; latex: string; note?: string }[]; isJa: boolean }) {
+  return (
+    <PaperFrame tilt="right">
+      <div className="px-3 sm:px-4 pt-2.5 sm:pt-3">
+        <div className="flex items-baseline justify-between text-[7.5px] sm:text-[9px] tracking-[0.2em] uppercase text-gray-500">
+          <span>EDDIVOM · {isJa ? "解答" : "Answer Key"}</span>
+          <span>2025 · 05</span>
+        </div>
+        <div className="border-t border-gray-800 mt-0.5" />
+        <h3 className="text-center text-[12px] sm:text-[15px] font-bold tracking-wide leading-tight pt-1.5 pb-0.5">
+          {isJa ? "解答 ・ 解説" : "Solutions"}
+        </h3>
+        <p className="text-center text-[8px] sm:text-[10px] text-gray-500 leading-tight">
+          {isJa ? "模範解答と解法のヒント。" : "Sample answers with hints."}
+        </p>
+        <div className="border-t border-b border-gray-800 mt-1.5 h-[3px]" style={{ borderTopWidth: 1, borderBottomWidth: 0.5 }} />
+        <div className="flex items-end justify-end gap-1 mt-1.5 text-[7.5px] sm:text-[9px] text-gray-500">
+          <span className="inline-flex items-center gap-0.5 px-1 rounded border border-emerald-500/40 text-emerald-700">
+            <Check className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+            {isJa ? "正解" : "Correct"}
+          </span>
+        </div>
+      </div>
+
+      <ol className="px-3 sm:px-4 pt-2 pb-3 space-y-1.5 sm:space-y-2">
+        {rows.map((r, i) => (
+          <li key={i} className="text-[10px] sm:text-[12px] leading-tight">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-gray-500 shrink-0">{r.num}</span>
+              <span className="font-medium overflow-hidden">
+                <PreviewMath latex={r.latex} />
+              </span>
+              <span aria-hidden className="ml-auto h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full border-[1.5px] border-rose-500/80 shrink-0" />
+            </div>
+            {r.note && (
+              <p className="ml-4 mt-0.5 text-[8.5px] sm:text-[10px] text-gray-500 italic">
+                {isJa ? "→ " : "→ "}{r.note}
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
+
+      <PaperStamp label={isJa ? "解答 PDF" : "Answer-key PDF"} color="from-emerald-500 to-teal-500" />
+    </PaperFrame>
+  );
+}
+
+/* 紙の右下に貼る PDF スタンプ */
+function PaperStamp({ label, color }: { label: string; color: string }) {
+  return (
+    <div className="px-3 sm:px-4 pb-2 flex justify-end">
+      <span
+        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[3px] text-[8px] sm:text-[9.5px] font-extrabold tracking-[0.15em] text-white bg-gradient-to-r ${color} shadow-sm`}
+        style={{ fontFamily: "ui-sans-serif, system-ui" }}
+      >
+        <FileText className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/* KaTeX 描画 — 失敗時はテキストフォールバック */
+function PreviewMath({ latex }: { latex: string }) {
+  const { html, ok } = renderMathHTML(latex, { displayMode: false });
+  if (ok) {
+    return (
+      <span
+        className="align-middle [&_.katex]:text-[0.95em]"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
+  }
+  return <span className="text-gray-700">{latex}</span>;
 }
 
 /* ── 装飾: 黄色マーカー風アンダーライン ──
