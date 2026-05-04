@@ -19,7 +19,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowRight, Sparkles, Check, ChevronRight, ChevronDown,
-  Play, Monitor, Zap, Shield, Printer, FileText, Pencil, RefreshCw,
+  Monitor, Zap, Shield, Printer, FileText, Pencil, RefreshCw,
   Wrench, Crown, BookOpen, Mail, Smartphone, FileSignature,
   GraduationCap, Save, FileDown,
 } from "lucide-react";
@@ -61,10 +61,11 @@ interface Props {
 export function MobileLanding({
   primaryCta,
   scrollToPricing,
-  scrollToSample,
   onPlanSelect,
   onPromptSubmit,
 }: Props) {
+  // `scrollToSample` は親から受け取るが、Hero 簡素化に伴いボタンを廃止したため
+  // 現状は使用していない。親側のシグネチャを変えないよう Props は残す。
   const { locale, setLocale } = useI18n();
   const isJa = locale !== "en";
   // 旧実装は heroLoaded=false で 60ms 後に true へ flip させ、CSS opacity-0→1 の
@@ -112,16 +113,12 @@ export function MobileLanding({
         <UserMenu />
       </nav>
 
-      {/* ━━ HERO (mobile compact) ━━ */}
-      <section className="relative overflow-hidden pt-8 pb-6 px-5">
+      {/* ━━ HERO (mobile, action-first)
+           ファーストビューを「H1 → 1行サブ → 入力 → タップ即送信チップ → 大プライマリ」に圧縮。
+           長文サブや target band は CTA の下に降ろし、最初の画面はとにかく「触って試せる」状態に。 */}
+      <section className="relative overflow-hidden pt-5 pb-5 px-5">
         <div className={`transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-500/[0.08] to-violet-500/[0.08] border border-violet-500/[0.18] mb-3">
-            <Sparkles className="h-3 w-3 text-violet-500" />
-            <span className="bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent text-[10.5px] font-bold tracking-wide">
-              {isJa ? "数学・理科の AI 教材ジェネレーター" : "AI worksheet generator for math and science"}
-            </span>
-          </div>
-          <h1 className="text-[clamp(1.6rem,7vw,2.2rem)] leading-[1.12] font-bold tracking-[-0.025em] mb-3">
+          <h1 className="text-[clamp(1.65rem,7.4vw,2.25rem)] leading-[1.1] font-bold tracking-[-0.025em] mb-2">
             {isJa ? (
               <>
                 <HighlightMark>解答付きのプリント</HighlightMark>を、
@@ -129,74 +126,74 @@ export function MobileLanding({
               </>
             ) : (
               <>
-                Create a <HighlightMark>printable worksheet with answers</HighlightMark> in{" "}
+                A <HighlightMark>printable worksheet with answers</HighlightMark> in{" "}
                 <GradientWord>60 seconds</GradientWord>.
               </>
             )}
           </h1>
-          <p className="text-foreground/80 text-[14px] leading-relaxed mb-2 font-medium">
-            {isJa ? (
-              <>
-                数学・理科の任意のトピックを、
-                <span className="font-semibold text-foreground">きれいな問題プリントと解答PDF</span>に変換します。
-                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">最初の1枚は登録不要。</span>
-              </>
-            ) : (
-              <>
-                Turn any math or science topic into a{" "}
-                <span className="font-semibold text-foreground">clean worksheet and answer-key PDF</span>.{" "}
-                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">No sign-up required for your first sheet.</span>
-              </>
-            )}
-          </p>
-          <p className="inline-flex items-center gap-1.5 text-foreground/65 text-[11.5px] font-medium mb-3">
-            <GraduationCap className="h-3.5 w-3.5" />
+          <p className="text-foreground/75 text-[13.5px] leading-snug mb-3 font-medium">
             {isJa
-              ? "プリントをすぐ用意したい塾講師・家庭教師・教員の方へ。"
-              : "For tutors and teachers who need custom worksheets fast."}
+              ? "数学・理科のトピックを書くだけ。"
+              : "Just write a math or science topic."}{" "}
+            <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
+              {isJa ? "登録不要で1枚試せます。" : "No sign-up for your first sheet."}
+            </span>
           </p>
         </div>
 
-        {/* プロンプト入力 CTA — 未ログイン free フローでのみ出す */}
-        {primaryCta.variant === "free" && onPromptSubmit && (
-          <div className={`mb-3 transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
-            <MobilePromptCta isJa={isJa} onSubmit={onPromptSubmit} />
-            <MobileSamplePromptChips isJa={isJa} onSubmit={onPromptSubmit} />
-            <MobileFreePerks isJa={isJa} />
-            <MobileFlowStrip isJa={isJa} />
+        {/* ── アクション集約: 入力 + サンプルチップ + 巨大プライマリを一塊に ──
+             free フローのときだけ展示。タップ→即生成へ。 */}
+        {primaryCta.variant === "free" && onPromptSubmit ? (
+          <div className={`transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+            <MobilePromptHeroBlock
+              isJa={isJa}
+              onSubmit={onPromptSubmit}
+              ctaLabel={primaryCta.label}
+              ctaSubLabel={primaryCta.subLabel}
+              onPrimary={primaryCta.onClick}
+            />
           </div>
-        )}
-
-        {/* CTA buttons — full width, ChatGPT-style mobile
-            CVR の「無料」ボタンが画面内で連続するとノイズになるため、free フローでは
-            プロンプト入力の "Create" ボタン + 画面下の固定 CTA に役割を集約し、
-            ここではセカンダリの「デモを見る」だけ残してリズムを整える。
-            ログイン済み (resume / paid-new) はプロンプト CTA を出さないので primary を残す。 */}
-        <div className={`flex flex-col gap-2.5 transition-all duration-700 delay-150 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
-          {primaryCta.variant !== "free" && (
+        ) : (
+          <div className={`transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
             <button
               onClick={primaryCta.onClick}
-              className="group flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-bold text-[14.5px] shadow-lg shadow-foreground/15 active:scale-[0.98] transition"
+              className="group flex items-center justify-center gap-2 w-full h-14 rounded-2xl bg-foreground text-background font-bold text-[15.5px] shadow-xl shadow-foreground/20 active:scale-[0.98] transition"
             >
               {primaryCta.variant === "resume" && <FileText className="h-4 w-4" />}
               <span>{primaryCta.label}</span>
               <ArrowRight className="h-4 w-4 group-active:translate-x-0.5 transition-transform" />
             </button>
-          )}
-          <button
-            onClick={scrollToSample}
-            className="flex items-center justify-center gap-2 w-full h-12 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[13.5px] active:scale-[0.98] active:bg-foreground/[0.04] transition"
-          >
-            <Play className="h-3.5 w-3.5" />
-            {isJa ? "サンプル出力を見る" : "See sample output"}
-          </button>
-          <p className="text-center text-[11px] text-muted-foreground/55 mt-1">
-            {primaryCta.subLabel}
-          </p>
+            <p className="text-center text-[11px] text-muted-foreground/60 mt-2">{primaryCta.subLabel}</p>
+          </div>
+        )}
+      </section>
+
+      {/* ━━ FREE PERKS — Hero 直下で「無料でどこまで」を最速で見せる (CTA 周辺の補強) ━━ */}
+      {primaryCta.variant === "free" && (
+        <section className="px-5 pb-3">
+          <MobileFreePerks isJa={isJa} />
+        </section>
+      )}
+
+      {/* ━━ Trust + ターゲット帯 — 1 行で圧縮し、ファーストビューを軽くする ━━ */}
+      <section className="px-5 pb-3">
+        <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold">
+            <Shield className="h-3 w-3" />{isJa ? "登録不要" : "No signup"}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/75 font-medium">
+            <Zap className="h-3 w-3" />{isJa ? "30〜60秒" : "30–60s"}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/75 font-medium">
+            <Printer className="h-3 w-3" />{isJa ? "印刷OK" : "Print-ready"}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-foreground/75 font-medium">
+            <GraduationCap className="h-3 w-3" />{isJa ? "塾・教員向け" : "Tutors & teachers"}
+          </span>
         </div>
       </section>
 
-      {/* ━━ モバイル / PC バナー — 「モバイルでも動く」を先に伝えて離脱防止 ━━ */}
+      {/* ━━ モバイル/PC バナー — フル編集は PC 推奨。ファーストビューから外して下に。 ━━ */}
       <section className="px-5 pb-4">
         <div className="flex items-start gap-2.5 rounded-2xl bg-foreground/[0.025] dark:bg-white/[0.03] border border-foreground/[0.08] p-3">
           <div className="h-8 w-8 rounded-full bg-foreground/[0.05] flex items-center justify-center shrink-0">
@@ -489,16 +486,21 @@ export function MobileLanding({
 
       {/* ━━ Final CTA ━━ */}
       <section className="px-5 py-10 text-center bg-gradient-to-b from-transparent to-foreground/[0.02]">
-        <h2 className="text-[20px] font-bold tracking-tight mb-2">
-          {isJa ? "今夜中に、最初の1枚を。" : "Your first sheet, tonight."}
+        <h2 className="text-[22px] font-bold tracking-tight mb-2 leading-snug">
+          {isJa ? (
+            <>今すぐ <HighlightMark>1枚</HighlightMark> 作ってみる。</>
+          ) : (
+            <>Make your <HighlightMark>first sheet</HighlightMark> now.</>
+          )}
         </h2>
         <p className="text-[13px] text-muted-foreground mb-5">
-          {isJa ? "30秒で始められます。" : "Set up in 30 seconds."}
+          {isJa ? "登録不要・30秒で始められます。" : "No signup · 30 seconds to start."}
         </p>
         <button
           onClick={primaryCta.onClick}
-          className="flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-bold text-[14.5px] shadow-lg shadow-foreground/15 active:scale-[0.98] transition"
+          className="flex items-center justify-center gap-2 w-full h-13 py-3 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 text-white font-bold text-[15px] shadow-xl shadow-violet-500/25 active:scale-[0.98] transition"
         >
+          <Sparkles className="h-4 w-4" />
           {primaryCta.label}
           <ArrowRight className="h-4 w-4" />
         </button>
@@ -509,9 +511,9 @@ export function MobileLanding({
       </section>
 
       {/* ━━ 下部固定 CTA ━━
-           CVR 改善: ヒーロー CTA を見逃したユーザがスクロール途中でも戻れるよう、
-           常時表示の固定バーを置く。free フロー (= 未ログイン) のときだけ出して、
-           ログイン済みは邪魔にならないよう非表示。フッター末尾の余白は本バー分を見越して足す。 */}
+           スクロール途中・ページ下部のどこからでも 1 タップで生成画面に行ける窓口。
+           グラデの目立つ pill にして「ここを押す」が初見で分かるようにする。
+           free フロー (= 未ログイン) のときだけ出して、ログイン済みには見せない。 */}
       {primaryCta.variant === "free" && (
         <div
           className="fixed inset-x-0 bottom-0 z-40 px-3 pt-2 border-t border-foreground/[0.08] bg-background/95 backdrop-blur-md"
@@ -519,18 +521,21 @@ export function MobileLanding({
         >
           <button
             onClick={primaryCta.onClick}
-            className="flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-bold text-[14.5px] shadow-lg shadow-foreground/20 active:scale-[0.98] transition"
+            className="flex items-center justify-center gap-2 w-full h-12 rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 text-white font-bold text-[14.5px] shadow-lg shadow-violet-500/30 active:scale-[0.98] transition"
             aria-label={primaryCta.label}
           >
             <Sparkles className="h-4 w-4" />
             <span>{primaryCta.label}</span>
             <ArrowRight className="h-4 w-4" />
           </button>
+          <p className="text-center text-[10px] text-muted-foreground/60 mt-1">
+            {isJa ? "登録不要 · 30〜60秒で1枚" : "No signup · 30–60s per sheet"}
+          </p>
         </div>
       )}
 
       {/* 固定 CTA で隠れる分、ページ末尾に下駄を履かせる */}
-      {primaryCta.variant === "free" && <div aria-hidden style={{ height: "calc(env(safe-area-inset-bottom, 0px) + 4.5rem)" }} />}
+      {primaryCta.variant === "free" && <div aria-hidden style={{ height: "calc(env(safe-area-inset-bottom, 0px) + 5rem)" }} />}
 
       {/* ━━ Footer ━━ */}
       <footer
@@ -587,39 +592,100 @@ const FAQ_EN = [
   { q: "Is it suitable for high-school quizzes and tutor worksheets?", a: "Yes. Templates tuned for Japanese national exam, university second-stage, in-class quizzes, and problem sets." },
 ];
 
-/* ── モバイル: プロンプト入力風 CTA ── */
-function MobilePromptCta({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt: string) => void }) {
+/* ── モバイル: 統合 Hero ブロック ──
+ *  ① 大きな入力欄 (16px 以上で iOS auto-zoom 抑制)
+ *  ② サンプルチップ — タップで即 onSubmit (空でもエディタ側で空白テンプレが立ち上がる)
+ *  ③ 大プライマリ pill — 入力空でも踏める。タップ即生成へ。
+ *  ④ サブテキスト「登録不要 · 30〜60秒で1枚」
+ *
+ * 「考えて入力」より先に「ボタンを押す」を出して摩擦を最小化する設計。 */
+function MobilePromptHeroBlock({
+  isJa, onSubmit, ctaLabel, ctaSubLabel, onPrimary,
+}: {
+  isJa: boolean;
+  onSubmit: (prompt: string) => void;
+  ctaLabel: string;
+  ctaSubLabel: string;
+  onPrimary: () => void;
+}) {
   const [value, setValue] = useState("");
   const placeholder = isJa
-    ? "二次方程式の問題を10問、解答付きで作って"
+    ? "二次方程式の問題を10問、解答付きで"
     : "Create 10 quadratic equation problems with answers";
-  const submit = () => onSubmit(value);
+
+  const samples = isJa
+    ? [
+        "中2数学 一次関数の確認テスト10問",
+        "高校物理 運動方程式の基本問題",
+        "小学生向け 分数の計算プリント",
+        "回路の基本クイズ 解説付き",
+      ]
+    : [
+        "10 quadratic equation problems with answers",
+        "High school physics: forces and motion quiz",
+        "Grade 6 fractions worksheet with answer key",
+        "Circuit basics quiz with explanations",
+      ];
+
+  const submitWithValue = () => onSubmit(value);
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-stretch gap-1.5 p-1.5 pl-3 rounded-2xl border-2 border-foreground/[0.08] bg-card/80 shadow-sm focus-within:border-violet-500/40 transition">
-        <Sparkles className="h-3.5 w-3.5 text-violet-500 self-center shrink-0" aria-hidden />
+    <div className="space-y-2.5">
+      {/* 入力欄 */}
+      <div className="flex items-stretch gap-1.5 p-2 pl-3 rounded-2xl border-2 border-foreground/[0.1] bg-card shadow-sm focus-within:border-violet-500/50 focus-within:shadow-violet-500/10 transition">
+        <Sparkles className="h-4 w-4 text-violet-500 self-center shrink-0" aria-hidden />
         <input
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitWithValue(); } }}
           placeholder={placeholder}
           aria-label={isJa ? "AIに作成内容を伝える" : "Tell the AI what to make"}
-          // font-size は必ず 16px 以上 (iOS Safari の input auto-zoom は <16px で発動する)。
-          className="flex-1 min-w-0 bg-transparent text-[16px] outline-none placeholder:text-muted-foreground/50 text-foreground"
+          className="flex-1 min-w-0 bg-transparent text-[16px] outline-none placeholder:text-muted-foreground/55 text-foreground"
         />
       </div>
+
+      {/* タップ即送信のサンプルチップ — 横スクロール一行で親指の移動を最小化 */}
+      <div className="-mx-5 px-5 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 w-max pb-1">
+          <span className="text-[10.5px] font-semibold tracking-wide text-muted-foreground/70 shrink-0">
+            {isJa ? "例：" : "Try:"}
+          </span>
+          {samples.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onSubmit(s)}
+              className="text-[11.5px] px-2.5 py-1.5 rounded-full border border-violet-500/25 bg-gradient-to-r from-blue-500/[0.06] to-violet-500/[0.06] text-foreground/85 hover:border-violet-500/45 active:scale-[0.96] transition shrink-0 whitespace-nowrap"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* プライマリ — 入力なしでも踏める。これが「とにかく1枚作る」の主導線。 */}
       <button
         type="button"
-        onClick={submit}
-        className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-foreground text-background font-bold text-[14px] shadow-md shadow-foreground/15 active:scale-[0.98] transition"
+        onClick={() => {
+          // 入力に文字があればそれを送信、無ければ空でゲスト生成画面へ
+          if (value.trim()) submitWithValue();
+          else onPrimary();
+        }}
+        className="flex items-center justify-center gap-2 w-full h-14 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 text-white font-bold text-[15.5px] shadow-xl shadow-violet-500/25 active:scale-[0.98] transition"
       >
-        {isJa ? "無料で1枚作る" : "Create 1 free worksheet"}
+        <Sparkles className="h-4 w-4" />
+        <span>{ctaLabel}</span>
         <ArrowRight className="h-4 w-4" />
       </button>
+      <p className="text-center text-[11px] text-muted-foreground/65">
+        {ctaSubLabel}
+      </p>
     </div>
   );
 }
+
+/* ── 旧 MobilePromptCta は廃止 (MobilePromptHeroBlock に統合) ── */
 
 /* ── 装飾: 黄色マーカー風アンダーライン ──
  * 全体が黒文字で重く見えるとの指摘を受けて、Hero H1 の核フレーズに薄い黄色の
@@ -649,44 +715,6 @@ function GradientWord({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ── モバイル: サンプルプロンプトチップ ──
- * タップすると prompt を onSubmit に渡し、ゲスト生成フローに即遷移する。
- * 「何を書いたらいいか分からない」を解消するためのワンタッチ起点。 */
-function MobileSamplePromptChips({ isJa, onSubmit }: { isJa: boolean; onSubmit: (prompt: string) => void }) {
-  const samples = isJa
-    ? [
-        "中2数学 一次関数の確認テスト10問",
-        "高校物理 運動方程式の基本問題",
-        "小学生向け 分数の計算プリント",
-        "回路の基本クイズ 解説付き",
-      ]
-    : [
-        "10 quadratic equation problems with answers",
-        "High school physics: forces and motion quiz",
-        "Grade 6 fractions worksheet with answer key",
-        "Circuit basics quiz with explanations",
-      ];
-  return (
-    <div className="mt-2.5">
-      <p className="text-[10.5px] font-semibold tracking-wide text-muted-foreground/70 mb-1.5">
-        {isJa ? "サンプルから始める：" : "Start from a sample:"}
-      </p>
-      <div className="flex flex-wrap gap-1.5">
-        {samples.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => onSubmit(s)}
-            className="text-[11.5px] px-2.5 py-1.5 rounded-full border border-foreground/[0.1] bg-card/60 text-foreground/85 hover:border-violet-500/35 active:scale-[0.97] transition text-left"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ── モバイル: Free でできること一覧 ──
  * 「無料でどこまで」を初見で明確化。Pro 機能より先に無料体験の価値を見せる。 */
 function MobileFreePerks({ isJa }: { isJa: boolean }) {
@@ -711,30 +739,6 @@ function MobileFreePerks({ isJa }: { isJa: boolean }) {
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-/* ── モバイル: Prompt → Worksheet PDF → Answer Key PDF フロー帯 ── */
-function MobileFlowStrip({ isJa }: { isJa: boolean }) {
-  const items = [
-    { icon: <Sparkles className="h-3 w-3" />, label: isJa ? "プロンプト" : "Prompt", tone: "from-blue-500 to-violet-500" },
-    { icon: <FileText className="h-3 w-3" />, label: isJa ? "問題 PDF" : "Worksheet", tone: "from-emerald-500 to-teal-500" },
-    { icon: <FileSignature className="h-3 w-3" />, label: isJa ? "解答 PDF" : "Answer key", tone: "from-amber-500 to-orange-500" },
-  ];
-  return (
-    <div className="mt-3 flex items-center justify-center gap-1 text-[10.5px] text-muted-foreground">
-      {items.map((it, i) => (
-        <React.Fragment key={it.label}>
-          <span className="inline-flex items-center gap-1 px-1.5 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.06]">
-            <span className={`inline-flex items-center justify-center h-4 w-4 rounded-full bg-gradient-to-br ${it.tone} text-white`}>
-              {it.icon}
-            </span>
-            <span className="font-medium text-foreground/80">{it.label}</span>
-          </span>
-          {i < items.length - 1 && <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" aria-hidden />}
-        </React.Fragment>
-      ))}
     </div>
   );
 }

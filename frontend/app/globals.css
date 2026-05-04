@@ -185,6 +185,14 @@
   scrollbar-color: hsl(var(--muted-foreground) / 0.18) transparent;
 }
 
+/* Hide scrollbars (used for mobile horizontal chip rails) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
 /* Smooth transitions */
 html {
   scroll-behavior: smooth;
