@@ -3425,80 +3425,125 @@ html {
 }
 
 /* ══════════════════════════════════════════════════════════
-   KaTeX 失敗時の「LaTeX ソース付き」フォールバック。
-   ⟨?⟩ プレースホルダだけだと何が書かれているか分からないため、
-   失敗した数式は実際の LaTeX ソースを monospace で見せる。
-   PDF 出力は LuaLaTeX でされるので、ここで描画できなくても問題ない。
+   KaTeX 失敗時のフォールバック — 生 LaTeX を絶対に出さない方針。
+   小さな Σ バッジだけを描画し、tooltip で「クリックで編集」を案内。
+   PDF 出力は LuaLaTeX で正常に出るので問題ない。
    ══════════════════════════════════════════════════════════ */
 .math-chip-fallback {
-  display: inline-block;
-  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 5px;
   margin: 0 1px;
-  font-size: 0.85em;
-  color: hsl(35 85% 40%);
-  background: hsl(35 85% 50% / 0.08);
-  border: 1px dashed hsl(35 85% 50% / 0.45);
-  border-radius: 4px;
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: hsl(35 88% 38%);
+  background:
+    linear-gradient(180deg, hsl(35 95% 96%), hsl(35 85% 92%));
+  border: 1px solid hsl(35 75% 55% / 0.35);
+  border-radius: 6px;
   vertical-align: 0.05em;
   user-select: none;
-  cursor: help;
+  cursor: pointer;
+  box-shadow: 0 1px 1px hsl(35 70% 30% / 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
-.math-chip-fallback code {
-  font-family: "SF Mono", "Menlo", "Consolas", ui-monospace, monospace;
+.math-chip-fallback:hover {
+  background: linear-gradient(180deg, hsl(35 95% 92%), hsl(35 85% 86%));
+  border-color: hsl(35 75% 50% / 0.55);
+  color: hsl(35 88% 32%);
+}
+.math-chip-fallback-icon {
+  font-family: "Latin Modern Math", "STIX Two Math", "Cambria Math", serif;
+  font-size: 1.05em;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+}
+.math-chip-fallback-label {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   font-size: 0.92em;
-  color: inherit;
-  background: transparent;
-  padding: 0;
 }
 .dark .math-chip-fallback {
-  color: hsl(35 85% 70%);
-  background: hsl(35 85% 60% / 0.10);
-  border-color: hsl(35 85% 60% / 0.45);
+  color: hsl(35 95% 78%);
+  background: linear-gradient(180deg, hsl(35 35% 18%), hsl(35 25% 14%));
+  border-color: hsl(35 65% 50% / 0.40);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.dark .math-chip-fallback:hover {
+  color: #fde68a;
+  border-color: hsl(35 75% 60% / 0.55);
 }
 
 .display-math-fallback {
-  display: block;
-  margin: 8px auto;
-  padding: 10px 14px;
-  max-width: 95%;
-  background: hsl(35 85% 50% / 0.06);
-  border: 1px dashed hsl(35 85% 50% / 0.45);
-  border-radius: 8px;
-  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px auto;
+  padding: 12px 18px;
+  max-width: 90%;
+  background:
+    linear-gradient(180deg, hsl(35 95% 97%), hsl(35 90% 93%));
+  border: 1px solid hsl(35 75% 55% / 0.32);
+  border-radius: 10px;
   user-select: none;
-  cursor: help;
+  cursor: pointer;
+  box-shadow:
+    0 1px 2px hsl(35 70% 30% / 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
-.display-math-fallback .display-math-fallback-label {
-  display: block;
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  font-size: 0.72em;
+.display-math-fallback:hover {
+  border-color: hsl(35 75% 50% / 0.55);
+  transform: translateY(-0.5px);
+  box-shadow:
+    0 6px 14px -4px hsl(35 70% 40% / 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.display-math-fallback-icon {
+  flex: 0 0 auto;
+  font-family: "Latin Modern Math", "STIX Two Math", "Cambria Math", serif;
+  font-size: 1.6em;
+  font-style: italic;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: hsl(35 85% 40%);
-  margin-bottom: 6px;
+  line-height: 1;
+  color: hsl(35 88% 38%);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.55), transparent 60%),
+    linear-gradient(135deg, #fde68a, #f59e0b);
+  color: #fff;
+  box-shadow: 0 4px 10px -2px hsl(35 70% 40% / 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.30);
 }
-.display-math-fallback code {
-  display: block;
-  font-family: "SF Mono", "Menlo", "Consolas", ui-monospace, monospace;
-  font-size: 0.88em;
-  color: hsl(220 15% 25%);
-  background: transparent;
-  padding: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.5;
+.display-math-fallback-label {
+  flex: 1;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: hsl(35 88% 32%);
+}
+.display-math-fallback-hint {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: hsl(35 70% 45% / 0.85);
+  text-transform: uppercase;
 }
 .dark .display-math-fallback {
-  background: hsl(35 85% 60% / 0.08);
-  border-color: hsl(35 85% 60% / 0.40);
+  background: linear-gradient(180deg, hsl(35 30% 16%), hsl(35 25% 12%));
+  border-color: hsl(35 65% 50% / 0.40);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
-.dark .display-math-fallback .display-math-fallback-label {
-  color: hsl(35 85% 70%);
-}
-.dark .display-math-fallback code {
-  color: hsl(220 15% 85%);
-}
+.dark .display-math-fallback-label { color: hsl(35 95% 80%); }
+.dark .display-math-fallback-hint { color: hsl(35 80% 65% / 0.85); }
 
 /* ══════════════════════════════════════════════════════════
    VisualEditor: tabular / center / sized / colored / framed の追加描画
@@ -4123,6 +4168,352 @@ html {
   animation: slide-up 0.15s ease-out;
 }
 
+/* ══════════════════════════════════════════════════════════
+   Math edit popover — premium glass dialog
+   ══════════════════════════════════════════════════════════ */
+.math-popover-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 16px 0;
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(245, 158, 11, 0.10), transparent 70%),
+    rgba(15, 17, 23, 0.42);
+  backdrop-filter: blur(8px) saturate(135%);
+  -webkit-backdrop-filter: blur(8px) saturate(135%);
+  animation: math-popover-overlay-in 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes math-popover-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.math-popover-card {
+  width: 100%;
+  max-width: 720px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(255, 252, 244, 0.985) 100%);
+  border: 1px solid rgba(15, 17, 23, 0.08);
+  box-shadow:
+    0 32px 80px -16px rgba(15, 17, 23, 0.30),
+    0 12px 32px -8px rgba(15, 17, 23, 0.16),
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 -1px 0 rgba(217, 119, 6, 0.06) inset;
+  animation: math-popover-card-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes math-popover-card-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dark .math-popover-card {
+  background:
+    linear-gradient(180deg, rgba(28, 22, 8, 0.98) 0%, rgba(20, 16, 6, 0.97) 100%);
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 36px 90px -18px rgba(0, 0, 0, 0.75),
+    0 12px 32px -8px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+/* Header */
+.math-popover-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 12px 16px;
+  border-bottom: 1px solid rgba(15, 17, 23, 0.05);
+  background:
+    linear-gradient(180deg, rgba(255, 248, 224, 0.55) 0%, transparent 100%);
+}
+.dark .math-popover-head {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.06) 0%, transparent 100%);
+}
+.math-popover-head-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.math-popover-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  width: 26px;
+  border-radius: 8px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.55), transparent 60%),
+    linear-gradient(135deg, #b45309 0%, #d97706 50%, #f59e0b 100%);
+  box-shadow:
+    0 4px 10px -2px rgba(217, 119, 6, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+}
+.math-popover-head-label {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground) / 0.92);
+}
+.math-popover-head-sub {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: hsl(var(--foreground) / 0.55);
+  letter-spacing: -0.005em;
+}
+.math-popover-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  width: 28px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--foreground) / 0.45);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.math-popover-close:hover {
+  background: rgba(15, 17, 23, 0.06);
+  color: hsl(var(--foreground) / 0.85);
+}
+.dark .math-popover-close:hover { background: rgba(255, 255, 255, 0.06); }
+
+/* Hero preview */
+.math-popover-hero {
+  position: relative;
+  margin: 14px 16px 0 16px;
+  padding: 14px 18px 16px 22px;
+  border-radius: 16px;
+  background:
+    radial-gradient(80% 60% at 50% 0%, rgba(245, 158, 11, 0.06), transparent 70%),
+    linear-gradient(180deg, rgba(255, 252, 240, 0.95), rgba(255, 248, 224, 0.85));
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  box-shadow:
+    0 8px 22px -10px rgba(217, 119, 6, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.dark .math-popover-hero {
+  background:
+    radial-gradient(80% 60% at 50% 0%, rgba(245, 158, 11, 0.10), transparent 70%),
+    linear-gradient(180deg, rgba(245, 158, 11, 0.06), rgba(217, 119, 6, 0.04));
+  border-color: rgba(245, 158, 11, 0.22);
+}
+.math-popover-hero.is-empty {
+  padding: 20px 18px;
+  background:
+    linear-gradient(180deg, rgba(15, 17, 23, 0.02), transparent);
+  border-style: dashed;
+  border-color: rgba(15, 17, 23, 0.10);
+}
+.dark .math-popover-hero.is-empty {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.math-popover-hero-rail {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d97706, #f59e0b);
+  opacity: 0.85;
+}
+.math-popover-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.math-popover-hero-meta-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: hsl(var(--foreground) / 0.55);
+}
+.math-popover-hero-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.math-popover-hero-status.is-ok {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.30);
+}
+.math-popover-hero-status.is-warn {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.32);
+}
+.math-popover-hero-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 78px;
+  padding: 6px 0;
+}
+.math-popover-hero-body .katex-display {
+  margin: 0;
+  font-size: 1.18em;
+}
+.math-popover-hero-fallback {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: hsl(35 88% 38%);
+  background: rgba(245, 158, 11, 0.10);
+  border: 1px dashed rgba(245, 158, 11, 0.40);
+  padding: 8px 16px;
+  border-radius: 10px;
+}
+.math-popover-hero-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: hsl(var(--foreground) / 0.55);
+}
+
+/* Tabs */
+.math-popover-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 14px 16px 0 16px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(15, 17, 23, 0.04);
+  border: 1px solid rgba(15, 17, 23, 0.04);
+}
+.dark .math-popover-tabs {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+.math-popover-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--foreground) / 0.65);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 160ms ease;
+}
+.math-popover-tab:hover { color: hsl(var(--foreground) / 0.92); }
+.math-popover-tab.is-active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 251, 235, 0.85));
+  color: #92400e;
+  box-shadow:
+    0 4px 10px -3px rgba(217, 119, 6, 0.20),
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 -1px 0 rgba(217, 119, 6, 0.10) inset,
+    0 0 0 1px rgba(217, 119, 6, 0.22);
+}
+.dark .math-popover-tab.is-active {
+  background:
+    linear-gradient(180deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.10));
+  color: #fde68a;
+  box-shadow:
+    0 4px 10px -3px rgba(0, 0, 0, 0.40),
+    0 0 0 1px rgba(245, 158, 11, 0.32);
+}
+.math-popover-tab-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.math-popover-tab-sub {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: hsl(var(--foreground) / 0.45);
+  letter-spacing: -0.005em;
+}
+.math-popover-tab.is-active .math-popover-tab-sub {
+  color: hsl(var(--foreground) / 0.55);
+}
+
+/* Body (children: JapaneseMathInput / EnglishMathInput) */
+.math-popover-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 12px 16px;
+}
+
+/* Footer */
+.math-popover-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 9px 16px 11px 16px;
+  border-top: 1px solid rgba(15, 17, 23, 0.05);
+  background: rgba(15, 17, 23, 0.015);
+}
+.dark .math-popover-footer {
+  border-top-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+}
+.math-popover-footer-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: hsl(var(--foreground) / 0.55);
+}
+.math-popover-footer-keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.95), rgba(254, 243, 199, 0.85));
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: rgba(120, 53, 15, 0.95);
+  box-shadow: 0 1px 0 rgba(217, 119, 6, 0.10);
+}
+.dark .math-popover-footer-keys kbd {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.10));
+  border-color: rgba(245, 158, 11, 0.30);
+  color: rgba(253, 230, 138, 0.95);
+}
+.math-popover-footer-sep {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
 /* Click-to-place cursor */
 .cursor-cell { cursor: cell; }
 
@@ -4358,6 +4749,72 @@ html {
    - DeletableBlock の左マージンに hover で出現
    - クリックで block-insert-menu を「直下に挿入」モードで起動
    ══════════════════════════════════════════════════════════ */
+/* ── Block type label (Notion の "Heading 1" 相当) ─────────────
+   各ブロックの右上に hover で薄く出るラベル。種別が一目で分かる。 */
+.block-type-label {
+  position: absolute;
+  top: -2px;
+  right: 6px;
+  z-index: 4;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: hsl(var(--foreground) / 0.45);
+  background:
+    linear-gradient(180deg, rgba(255, 251, 235, 0.95), rgba(254, 243, 199, 0.85));
+  border: 1px solid rgba(217, 119, 6, 0.22);
+  border-radius: 6px;
+  padding: 1.5px 7px;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  transform: translateY(-1px);
+  transition: opacity 140ms ease, transform 160ms ease, color 140ms ease;
+  box-shadow: 0 1px 2px rgba(217, 119, 6, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.deletable-block:hover > .block-type-label {
+  opacity: 1;
+  transform: translateY(0);
+  color: rgba(120, 53, 15, 0.85);
+}
+.dark .block-type-label {
+  color: hsl(var(--foreground) / 0.50);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.14), rgba(217, 119, 6, 0.06));
+  border-color: rgba(245, 158, 11, 0.28);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.30);
+}
+.dark .deletable-block:hover > .block-type-label {
+  color: rgba(253, 230, 138, 0.95);
+}
+/* Math ブロックは amber → emerald に変えて差別化 (数式は別カテゴリ感) */
+.deletable-block[data-block-kind="displayMath"] > .block-type-label {
+  color: hsl(160 65% 28%);
+  background: linear-gradient(180deg, rgba(209, 250, 229, 0.95), rgba(167, 243, 208, 0.85));
+  border-color: rgba(16, 185, 129, 0.30);
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.dark .deletable-block[data-block-kind="displayMath"] > .block-type-label {
+  color: hsl(160 70% 78%);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.16), rgba(5, 150, 105, 0.08));
+  border-color: rgba(16, 185, 129, 0.32);
+}
+/* 見出し系は violet — 構造の上位が一目で分かる */
+.deletable-block[data-block-kind^="section"] > .block-type-label,
+.deletable-block[data-block-kind="subsection"] > .block-type-label,
+.deletable-block[data-block-kind="subsubsection"] > .block-type-label {
+  color: hsl(265 55% 35%);
+  background: linear-gradient(180deg, rgba(237, 233, 254, 0.95), rgba(221, 214, 254, 0.85));
+  border-color: rgba(139, 92, 246, 0.28);
+}
+.dark .deletable-block[data-block-kind^="section"] > .block-type-label,
+.dark .deletable-block[data-block-kind="subsection"] > .block-type-label,
+.dark .deletable-block[data-block-kind="subsubsection"] > .block-type-label {
+  color: hsl(265 70% 80%);
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.16), rgba(124, 58, 237, 0.08));
+  border-color: rgba(139, 92, 246, 0.32);
+}
+
 .block-add-handle {
   position: absolute;
   left: -38px;

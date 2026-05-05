@@ -525,6 +525,29 @@ interface DeletableBlockProps {
   children: React.ReactNode;
 }
 
+/** ブロック種別を自然言語ラベルに変換 (Notion 風の type タグ表示用)。
+ *  生 LaTeX を露出させず、見ただけで「これは何ブロックか」が分かるようにする。 */
+function blockTypeLabel(kind: string, isJa: boolean): string {
+  switch (kind) {
+    case "section":       return isJa ? "見出し" : "Heading 1";
+    case "subsection":    return isJa ? "中見出し" : "Heading 2";
+    case "subsubsection": return isJa ? "小見出し" : "Heading 3";
+    case "displayMath":   return isJa ? "数式" : "Math";
+    case "paragraph":     return isJa ? "段落" : "Paragraph";
+    case "itemize":       return isJa ? "箇条書き" : "Bulleted";
+    case "enumerate":     return isJa ? "番号付き" : "Numbered";
+    case "table":         return isJa ? "表" : "Table";
+    case "daimon":        return isJa ? "問題" : "Problem";
+    case "center":        return isJa ? "中央寄せ" : "Centered";
+    case "container":     return isJa ? "枠" : "Container";
+    case "vspace":        return isJa ? "余白" : "Spacer";
+    case "pageBreak":     return isJa ? "改ページ" : "Page break";
+    case "bibliography":  return isJa ? "参考文献" : "Bibliography";
+    case "raw":           return isJa ? "図 / 表" : "Figure";
+    default:              return isJa ? "ブロック" : "Block";
+  }
+}
+
 function DeletableBlock({ segment, onDelete, onAddBlockBelow, children }: DeletableBlockProps) {
   const { locale } = useI18n();
   const isJa = locale === "ja";
@@ -564,9 +587,11 @@ function DeletableBlock({ segment, onDelete, onAddBlockBelow, children }: Deleta
     setPhase("idle");
   };
 
+  const typeLabel = blockTypeLabel(segment.kind, isJa);
   return (
     <div
       className="deletable-block group/del relative"
+      data-block-kind={segment.kind}
       onMouseLeave={() => { if (phase === "confirm") setPhase("idle"); }}
     >
       {/* Notion 風 「+」 ブロックハンドル — 左マージンに hover で出現。
@@ -586,6 +611,13 @@ function DeletableBlock({ segment, onDelete, onAddBlockBelow, children }: Deleta
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
         </button>
+      )}
+
+      {/* ブロック種別ラベル — hover で右上に薄く出る (Notion の "Heading 1" badge 相当) */}
+      {phase === "idle" && (
+        <span className="block-type-label" aria-hidden>
+          {typeLabel}
+        </span>
       )}
 
       {children}
