@@ -145,7 +145,17 @@ export function AnonymousTrialModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={showLimitReached ? "max-w-xl sm:max-w-[560px]" : "max-w-2xl"}>
+      {/* DialogContent は radix デフォルトでは max-h を持たないため、
+           モバイルで「上限到達 → プラン選択」のように縦に長いコンテンツを
+           出すと、固定配置のまま画面外に溢れて "固まってスクロールできない"
+           状態になっていた。max-h-[90dvh] (dynamic viewport) + overflow-y-auto
+           で内側スクロールを有効化。dvh フォールバックで vh も並記。
+           overscroll-contain で背面 LP のスクロール巻き込みも抑止。 */}
+      <DialogContent
+        className={`max-h-[90vh] max-h-[90dvh] overflow-y-auto overscroll-contain ${
+          showLimitReached ? "max-w-xl sm:max-w-[560px]" : "max-w-2xl"
+        }`}
+      >
         <DialogTitle className="flex items-center gap-2 text-[16px] font-bold">
           <Sparkles className="h-4 w-4 text-violet-500" />
           {showLimitReached
