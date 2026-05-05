@@ -226,10 +226,9 @@ export function MobileLanding({
             </span>
           </div>
 
-          {/* 信頼ライン — 学部より具体度の高い「情報工学科」表記に変更し、
-               「数式組版 × AI を扱える研究室出身」という暗黙の保証を読み取らせる。
-               中央揃え + 控えめサイズで主張しすぎない。 */}
-          <p className="mb-4 text-[10.5px] text-muted-foreground/75 inline-flex items-center justify-center gap-1.5 flex-wrap">
+          {/* 信頼ライン — 「情報工学科」表記で具体度を出しつつ、プリントを上に
+               押し上げるため余白を mb-4 → mb-2.5 に圧縮。 */}
+          <p className="mb-2.5 text-[10.5px] text-muted-foreground/75 inline-flex items-center justify-center gap-1.5 flex-wrap">
             <span className="font-semibold text-foreground/75">
               {isJa ? "名古屋大学 情報工学科 発" : "Built at Nagoya Univ. — CS & Engineering"}
             </span>
@@ -241,26 +240,17 @@ export function MobileLanding({
         </div>
 
         {/* ━━ 成果物の視覚的証拠 (Hero 直下・作成フローより上) ━━
-             ユーザー指示で、Hero 直下の証拠は新規ミニチュアではなく既存の
-             カラフルな WorksheetPreviewDuo (タブ切替式、KaTeX で問題/解答を実描画)
-             をそのまま昇格して使う。入力欄より上に置くことで、
-             「実際にどんなプリントが手に入るか」を 1 視認できる位置に。 */}
-        <div className={`mb-5 transition-all duration-700 delay-25 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
-          {/* divider 文言: "実際の出力" であることを明言 */}
-          <div className="flex items-center justify-center gap-1 mb-2 text-[10.5px] font-semibold text-muted-foreground/80">
-            <span className="h-px w-6 bg-foreground/15" />
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08]">
-              <FileText className="h-2.5 w-2.5 text-violet-500" aria-hidden />
-              {isJa ? "実際の出力 ↓ 問題 / 解答が同時に完成" : "Actual output ↓ worksheet & answer key"}
-            </span>
-            <span className="h-px w-6 bg-foreground/15" />
-          </div>
-          <WorksheetPreviewDuo isJa={isJa} onTapToGenerate={primaryCta.onClick} />
+             プリントが「ファーストビュー内で上部までしっかり見える」位置に
+             なるよう、ラッパーの上下マージンを最小化 (mb-5 → mb-3)。
+             入力例チップ → "このプリントが生成されます" → 実際のプリント
+             の流れを明示し、入力 ⇄ 出力の対応関係を 1 視覚で伝える。 */}
+        <div className={`mb-3 transition-all duration-700 delay-25 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+          <WorksheetPreviewDuo isJa={isJa} />
           {/* プレビュー直下に「自分の版を作る」橋渡し CTA */}
           <button
             type="button"
             onClick={primaryCta.onClick}
-            className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full border border-violet-500/35 bg-gradient-to-r from-violet-500/[0.07] to-fuchsia-500/[0.07] text-[11.5px] font-bold text-violet-700 dark:text-violet-300 active:scale-[0.98] transition"
+            className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full border border-violet-500/40 bg-gradient-to-r from-violet-500/[0.08] to-fuchsia-500/[0.08] text-[12px] font-bold text-violet-700 dark:text-violet-300 active:scale-[0.98] transition shadow-sm"
           >
             <Sparkles className="h-3 w-3" aria-hidden />
             {isJa ? "自分のテーマで作ってみる" : "Make one with my own topic"}
@@ -909,7 +899,7 @@ function MobilePromptHeroBlock({
  * 横 2 列の窮屈な並列ではなく、画面幅いっぱいに 1 枚ずつ表示し、
  * scroll-snap で横スワイプ切替。タブを押すと scrollIntoView でアニメ移動。
  * 右側の紙の端を peek として残して「もう1枚ある」アフォーダンスを出す。 */
-function WorksheetPreviewDuo({ isJa, onTapToGenerate }: { isJa: boolean; onTapToGenerate?: () => void }) {
+function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
   useEffect(() => { ensureKatexCssMobile(); }, []);
 
   const promptText = isJa ? "高1数学・関数と三角比 解答グラフ付き" : "Algebra & trig with graph answers";
@@ -949,16 +939,24 @@ function WorksheetPreviewDuo({ isJa, onTapToGenerate }: { isJa: boolean; onTapTo
 
   return (
     <div className="relative">
-      {/* Prompt → 60s フロー帯 */}
-      <div className="flex items-center justify-center gap-1.5 mb-3">
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-card border border-foreground/[0.1] text-[10.5px] font-medium text-foreground/85 shadow-sm max-w-[58vw]">
-          <Sparkles className="h-3 w-3 text-violet-500 shrink-0" />
+      {/* 入力 → 出力 フロー帯 — 縦 3 段で関係を明示
+           ①「入力例」チップ (擬似入力欄風)
+           ② ↓ + 「このプリントが生成されます」ラベル
+           ③ 60 秒で生成バッジ
+           こうすることで「上のチップを入れたら下のプリントが出る」が
+           1 視覚で読み取れる。プリントを画面上部に保ちつつ、入出力対応を強化。 */}
+      <div className="flex flex-col items-center gap-1 mb-2.5">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-card border border-foreground/[0.12] text-[11px] font-semibold text-foreground/90 shadow-sm max-w-[78vw]">
+          <Sparkles className="h-3 w-3 text-violet-500 shrink-0" aria-hidden />
           <span className="truncate">{promptText}</span>
         </span>
-        <ArrowRight className="h-3 w-3 text-muted-foreground/55 shrink-0" />
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-blue-500 text-white text-[10px] font-extrabold tracking-wider shadow-md shadow-violet-500/30 shrink-0">
-          <Zap className="h-3 w-3" />
-          {isJa ? "60秒" : "60s"}
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wide text-violet-700 dark:text-violet-300">
+          <ChevronDown className="h-3 w-3 animate-bounce" aria-hidden />
+          {isJa ? "このプリントが生成されます" : "Generates this worksheet"}
+          <span className="inline-flex items-center gap-0.5 ml-1 px-1.5 py-[1px] rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-blue-500 text-white text-[9px] font-extrabold tracking-wider shadow-sm">
+            <Zap className="h-2.5 w-2.5" aria-hidden />
+            {isJa ? "60秒" : "60s"}
+          </span>
         </span>
       </div>
 
@@ -995,7 +993,11 @@ function WorksheetPreviewDuo({ isJa, onTapToGenerate }: { isJa: boolean; onTapTo
       {/* カルーセル — 親の px-5 を相殺して 100vw を確保し、各カードを画面中央に snap。
            ・両端に 7vw 程度の peek (もう1枚の存在を示唆)
            ・カード幅 = 86vw (max 440px)、視覚中央軸 = 50vw に snap
-           ・スクロールパディングは要らない (snap-center は scroll-port 中心基準) */}
+           ・スクロールパディングは要らない (snap-center は scroll-port 中心基準)
+           ・カード本体は onClick を持たない (role/tabIndex も無し): スワイプとタップが
+             競合して「タップで即遷移 → 画面が固まったように見える」現象が起きていたため、
+             カードは "見るだけ" にし、明示ボタン (下の "タップしてあなたのプリントを作る") から
+             生成画面へ遷移する設計に統一。 */}
       <div
         ref={scrollRef}
         className="-mx-5 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3 pb-3 pt-1 px-[7vw]"
@@ -1004,22 +1006,14 @@ function WorksheetPreviewDuo({ isJa, onTapToGenerate }: { isJa: boolean; onTapTo
         <div
           ref={qRef}
           data-page="q"
-          onClick={onTapToGenerate}
-          role="button"
-          tabIndex={0}
-          aria-label={isJa ? "問題プリントのサンプル — タップでこの形式のプリントを作る" : "Worksheet sample — tap to generate"}
-          className="snap-center shrink-0 w-[86vw] max-w-[440px] cursor-pointer active:scale-[0.99] transition"
+          className="snap-center shrink-0 w-[86vw] max-w-[440px]"
         >
           <MobilePaperWorksheet isJa={isJa} />
         </div>
         <div
           ref={aRef}
           data-page="a"
-          onClick={onTapToGenerate}
-          role="button"
-          tabIndex={0}
-          aria-label={isJa ? "解答プリントのサンプル — タップでこの形式のプリントを作る" : "Answer-key sample — tap to generate"}
-          className="snap-center shrink-0 w-[86vw] max-w-[440px] cursor-pointer active:scale-[0.99] transition"
+          className="snap-center shrink-0 w-[86vw] max-w-[440px]"
         >
           <MobilePaperAnswerKey isJa={isJa} />
         </div>
@@ -1041,21 +1035,34 @@ function WorksheetPreviewDuo({ isJa, onTapToGenerate }: { isJa: boolean; onTapTo
         />
       </div>
 
-      <p className="mt-2 text-center text-[10px] text-muted-foreground/60 font-medium">
-        {isJa ? "← スワイプで切替 →" : "← swipe to switch →"}
-      </p>
-
-      <div className="mt-2 flex justify-center">
-        <button
-          type="button"
-          onClick={onTapToGenerate}
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-violet-500/25 bg-violet-500/[0.06] text-[11px] text-foreground/85 font-medium active:scale-[0.97] transition"
-        >
-          <Sparkles className="h-3 w-3 text-violet-500" />
-          {isJa ? "タップしてあなたのプリントを作る" : "Tap to generate your own"}
-          <ArrowRight className="h-3 w-3 text-violet-500" />
-        </button>
+      {/* プリント補足ラベル — 「成果物として何を意味するか」を 3 つのミニチップで即提示。
+           PDF / 印刷 / 授業 の 3 軸でカバーし、講師が「明日そのまま使える」を視認できる。 */}
+      <div className="mt-1.5 flex items-center justify-center gap-1 flex-wrap px-2">
+        {(isJa
+          ? [
+              { icon: <FileDown className="h-2.5 w-2.5" aria-hidden />, label: "そのまま配布できるPDF" },
+              { icon: <Printer className="h-2.5 w-2.5" aria-hidden />, label: "解答付きで印刷可能" },
+              { icon: <BookOpen className="h-2.5 w-2.5" aria-hidden />, label: "授業でそのまま使える" },
+            ]
+          : [
+              { icon: <FileDown className="h-2.5 w-2.5" aria-hidden />, label: "Distribute as PDF" },
+              { icon: <Printer className="h-2.5 w-2.5" aria-hidden />, label: "Print w/ answer key" },
+              { icon: <BookOpen className="h-2.5 w-2.5" aria-hidden />, label: "Class-ready" },
+            ]
+        ).map((it) => (
+          <span
+            key={it.label}
+            className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-[10px] font-semibold text-foreground/80"
+          >
+            <span className="text-violet-600 dark:text-violet-400">{it.icon}</span>
+            {it.label}
+          </span>
+        ))}
       </div>
+
+      <p className="mt-1.5 text-center text-[9.5px] text-muted-foreground/55 font-medium">
+        {isJa ? "← スワイプで問題 / 解答を切替 →" : "← swipe to switch worksheet / answers →"}
+      </p>
     </div>
   );
 }
