@@ -240,6 +240,66 @@ export function MobileLanding({
           </p>
         </div>
 
+        {/* ━━ 時間ベースの「生成→プレビュー→修正」サイクル可視化 ━━
+             モバイルで「実際どう動くか」が想像できないと購入動機にならないため、
+             ステップ番号 + 時間タグ + アイコン の 3 行カードでサイクルを脳内再生させる。
+             各ステップは「秒数」と「ターゲット視点の動詞」をペアにして、講師が
+             "Eddivom の前で何をしているか" を 1 秒で読み取れるようにする。 */}
+        <div className={`mb-5 transition-all duration-700 delay-50 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+          <div className="rounded-2xl border border-foreground/[0.08] bg-gradient-to-br from-violet-500/[0.04] via-fuchsia-500/[0.03] to-blue-500/[0.04] p-3.5 shadow-[0_2px_10px_-6px_rgba(139,92,246,0.25)]">
+            <p className="text-center text-[10px] font-bold tracking-[0.18em] uppercase text-violet-700 dark:text-violet-300 mb-2.5">
+              {isJa ? "1 タブで完結する作成サイクル" : "End-to-end in one tab"}
+            </p>
+            <ol className="space-y-1.5">
+              {(isJa
+                ? [
+                    { sec: "0:10", title: "AIに依頼", body: "「高1 三角比の小テスト10問、解答付きで」", icon: <Sparkles className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "0:30", title: "プレビュー即反映", body: "数式・図・解答までA4紙面で表示", icon: <FileText className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "0:50", title: "気になる箇所を修正", body: "「この問題だけ難易度上げて」と1行追加", icon: <Pencil className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "1:00", title: "PDFで保存・印刷", body: "解答付きPDFをそのまま配布できる", icon: <FileDown className="h-3.5 w-3.5" aria-hidden /> },
+                  ]
+                : [
+                    { sec: "0:10", title: "Ask the AI", body: "\"10 trig quiz items with answers\"", icon: <Sparkles className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "0:30", title: "Preview live", body: "Math, figures, answers — A4 page", icon: <FileText className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "0:50", title: "Tweak in one line", body: "\"Make problem 3 harder\"", icon: <Pencil className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "1:00", title: "Export PDF", body: "Answer-key PDF, ready to print", icon: <FileDown className="h-3.5 w-3.5" aria-hidden /> },
+                  ]
+              ).map((step, idx, arr) => (
+                <li key={step.sec} className="relative">
+                  <div className="flex items-start gap-2.5 text-left">
+                    {/* 時間タグ — タブ番号と秒数を一体で。violet の縦タイムライン */}
+                    <div className="flex flex-col items-center shrink-0 pt-[1px]">
+                      <span className="inline-flex items-center justify-center min-w-[34px] h-[18px] px-1.5 rounded-md bg-foreground text-background text-[9.5px] font-mono font-bold tabular-nums tracking-tight">
+                        {step.sec}
+                      </span>
+                      {idx < arr.length - 1 && (
+                        <span aria-hidden className="w-px flex-1 bg-gradient-to-b from-violet-500/40 to-violet-500/10 mt-0.5 h-3" />
+                      )}
+                    </div>
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0 pb-0.5">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-violet-600 dark:text-violet-400">{step.icon}</span>
+                        <span className="text-[12.5px] font-bold tracking-tight text-foreground">{step.title}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground/85 leading-snug">{step.body}</p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            {/* サイクルの強調 — このループを「1タップで何回でも」回せることを最後に明示 */}
+            <div className="mt-2.5 pt-2.5 border-t border-foreground/[0.06] flex items-center justify-center gap-1.5 text-[10.5px] font-semibold text-foreground/75">
+              <RefreshCw className="h-3 w-3 text-violet-600" aria-hidden />
+              {isJa ? (
+                <span>このサイクルを<span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent font-extrabold"> 1タップで何回でも </span>回せる</span>
+              ) : (
+                <span>Repeat the loop, <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent font-extrabold">1 tap any time</span></span>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* ── アクション集約 (入力 + チップ + 巨大プライマリ) ──
              ファーストビューに「触れる入力欄」を配置。free フローのみ。 */}
         {primaryCta.variant === "free" && onPromptSubmit ? (
@@ -271,16 +331,28 @@ export function MobileLanding({
         <div
           className={`mt-2 transition-all duration-700 delay-100 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}
         >
-          {/* "↓ こんなのが出てきます" — 60秒 + 類題量産 の二段訴求 */}
-          <div className="flex items-center justify-center gap-1 mb-2 text-[10.5px] font-semibold text-muted-foreground/75">
+          {/* divider 文言を「実際のアウトプット」に寄せ、下のプレビューが
+               "サンプル画像" ではなく "実物の出力例" であることを明示する。 */}
+          <div className="flex items-center justify-center gap-1 mb-2 text-[10.5px] font-semibold text-muted-foreground/80">
             <span className="h-px w-6 bg-foreground/15" />
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08]">
-              <Zap className="h-2.5 w-2.5 text-amber-500" aria-hidden />
-              {isJa ? "60秒で1枚 → 1タップで類題量産" : "60s for one → 1 tap for variants"}
+              <FileText className="h-2.5 w-2.5 text-violet-500" aria-hidden />
+              {isJa ? "実際の出力 ↓ 問題 / 解答が同時に完成" : "Actual output ↓ worksheet & answer key"}
             </span>
             <span className="h-px w-6 bg-foreground/15" />
           </div>
           <WorksheetPreviewDuo isJa={isJa} onTapToGenerate={primaryCta.onClick} />
+          {/* プレビュー直下に「あなたの版を作る」橋渡し CTA — 紙面を見て
+               "自分のテーマで作ってみたい" と思った瞬間を逃さない。 */}
+          <button
+            type="button"
+            onClick={primaryCta.onClick}
+            className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full border border-violet-500/35 bg-gradient-to-r from-violet-500/[0.07] to-fuchsia-500/[0.07] text-[11.5px] font-bold text-violet-700 dark:text-violet-300 active:scale-[0.98] transition"
+          >
+            <Sparkles className="h-3 w-3" aria-hidden />
+            {isJa ? "自分のテーマで作ってみる" : "Make one with my own topic"}
+            <ArrowRight className="h-3 w-3" aria-hidden />
+          </button>
         </div>
       </section>
 
@@ -763,18 +835,22 @@ function MobilePromptHeroBlock({
         />
       </div>
 
-      {/* タップ即送信のサンプルチップ — 横スクロール一行で親指の移動を最小化 */}
+      {/* タップ即送信のサンプルチップ — 横スクロール一行で親指の移動を最小化。
+           プレフィックスを「例：」から「タップで即生成 →」に変えて、
+           チップが "見本" ではなく "ワンタップ起動ボタン" であることを明示する。 */}
       <div className="-mx-5 px-5 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1.5 w-max pb-1">
-          <span className="text-[10.5px] font-semibold tracking-wide text-muted-foreground/70 shrink-0">
-            {isJa ? "例：" : "Try:"}
+          <span className="inline-flex items-center gap-1 shrink-0 text-[10.5px] font-bold tracking-wide text-violet-700 dark:text-violet-300">
+            <Zap className="h-2.5 w-2.5 text-amber-500" aria-hidden />
+            {isJa ? "タップで即生成" : "Tap to generate"}
+            <ArrowRight className="h-2.5 w-2.5 text-violet-500/70" aria-hidden />
           </span>
           {samples.map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => onSubmit(s)}
-              className="text-[11.5px] px-2.5 py-1.5 rounded-full border border-violet-500/25 bg-gradient-to-r from-blue-500/[0.06] to-violet-500/[0.06] text-foreground/85 hover:border-violet-500/45 active:scale-[0.96] transition shrink-0 whitespace-nowrap"
+              className="text-[11.5px] px-2.5 py-1.5 rounded-full border border-violet-500/30 bg-gradient-to-r from-blue-500/[0.07] to-violet-500/[0.08] text-foreground/90 font-medium hover:border-violet-500/50 active:scale-[0.96] transition shrink-0 whitespace-nowrap"
             >
               {s}
             </button>
