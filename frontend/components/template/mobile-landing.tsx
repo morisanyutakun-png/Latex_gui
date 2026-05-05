@@ -240,6 +240,16 @@ export function MobileLanding({
           </p>
         </div>
 
+        {/* ━━ 成果物の視覚的証拠 (Hero 直下・作成フローより上) ━━
+             "実際に生成されるプリント" を A4 比率のミニチュア 2 枚重ねで即提示。
+             問題プリント (前面) + 解答プリント (背面に斜めで覗く) で
+             「問題と解答が同時に完成する」を 1 視覚で伝える。
+             KaTeX で実際の数式を描画することで "サンプル画像" ではなく
+             "本物の出力" であることを伝え、購入前の視覚的不安を解消する。 */}
+        <div className={`mb-5 transition-all duration-700 delay-25 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
+          <HeroOutputProof isJa={isJa} onTapToGenerate={primaryCta.onClick} />
+        </div>
+
         {/* ━━ 時間ベースの「生成→プレビュー→修正」サイクル可視化 ━━
              モバイルで「実際どう動くか」が想像できないと購入動機にならないため、
              ステップ番号 + 時間タグ + アイコン の 3 行カードでサイクルを脳内再生させる。
@@ -1466,6 +1476,144 @@ function GradientWord({ children }: { children: React.ReactNode }) {
     <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
       {children}
     </span>
+  );
+}
+
+/* ── Hero 直下: 成果物の視覚的証拠 ──
+ *
+ * モバイル LP のコンバージョン上の最大の不安は「実際にどんなプリントが出るか分からない」。
+ * これを Hero 直下・作成フロー (サイクルカード) より上の位置で解消するため、
+ * A4 比率のミニチュア紙面 2 枚を斜めに重ねて見せる:
+ *
+ *   [ 問題プリント (前面) ]   ← KaTeX で実数式描画、3 問分のサンプル
+ *      └──────[ 解答プリント (背面・斜め) ]   ← 解答だけのページが裏に覗く
+ *
+ *  - 「問題と解答が同時に完成する」を 1 視覚で訴求
+ *  - 紙の質感はソフトシャドウ + neutral white カードで「印刷しても綺麗」を匂わせる
+ *  - 角に "A4 印刷品質" バッジ、下に "問題 + 解答 PDF が同時に手に入る" 一行注記
+ *  - 全体がタップ可能 → 紙面を見て触りたくなった瞬間にそのまま生成画面へ */
+function HeroOutputProof({ isJa, onTapToGenerate }: { isJa: boolean; onTapToGenerate?: () => void }) {
+  useEffect(() => { ensureKatexCssMobile(); }, []);
+
+  // 紙面の中身: 高 1〜2 数学レベルの典型問題を 3 つ並べる。具体性で「本物感」を出す。
+  const title = isJa ? "数学I・II  関数と三角比" : "Algebra & Trigonometry";
+  const eyebrow = isJa ? "EDDIVOM・確認テスト" : "EDDIVOM · Quiz";
+  const date = "2025・05";
+  const lead = isJa ? "次の各問に答えよ。" : "Answer each question.";
+
+  const problems = [
+    { num: "(1)", latex: "f(x)=x^{2}-2x-3", tail: isJa ? "の最小値を求めよ" : " — find the minimum" },
+    { num: "(2)", latex: "\\sin\\theta = \\tfrac{1}{2}", tail: isJa ? "を満たす θ を求めよ" : " — solve for θ" },
+    { num: "(3)", latex: "\\int_{0}^{1}(3x^{2}+1)\\,dx", tail: isJa ? "を計算せよ" : " — evaluate" },
+  ];
+  const answers = [
+    { num: "(1)", latex: "x=-1,\\ 3" },
+    { num: "(2)", latex: "\\theta=\\tfrac{\\pi}{6},\\ \\tfrac{5\\pi}{6}" },
+    { num: "(3)", latex: "2" },
+  ];
+
+  return (
+    <div className="relative">
+      {/* "実際に生成されるプリント" 帯 — サンプル画像ではなく実物であることを明言 */}
+      <div className="flex items-center justify-center gap-1.5 mb-2.5">
+        <span className="h-px w-6 bg-foreground/15" />
+        <span className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-[10px] font-bold tracking-wide text-foreground/75">
+          <FileText className="h-2.5 w-2.5 text-violet-500" aria-hidden />
+          {isJa ? "実際に生成されるプリント (例)" : "Actual generated worksheet (example)"}
+        </span>
+        <span className="h-px w-6 bg-foreground/15" />
+      </div>
+
+      {/* 紙面 2 枚を重ねたミニチュア */}
+      <button
+        type="button"
+        onClick={onTapToGenerate}
+        aria-label={isJa ? "サンプルをタップして生成画面を開く" : "Tap sample to open the generator"}
+        className="relative block w-full h-[252px] active:scale-[0.99] transition group"
+      >
+        {/* 解答プリント (背面・斜め) — 透けて見える "もう 1 枚" */}
+        <div
+          className="absolute right-0 top-3 w-[57%] h-[210px] rounded-md bg-white border border-gray-200/80 p-2.5 overflow-hidden"
+          style={{ transform: "rotate(3.5deg)", transformOrigin: "bottom left", boxShadow: "0 6px 20px -8px rgba(0,0,0,0.18)" }}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="inline-flex items-center gap-0.5 px-1 py-[1px] rounded text-[7px] font-extrabold tracking-[0.12em] text-violet-700 bg-violet-50 border border-violet-200">
+              {isJa ? "解 答" : "ANSWER"}
+            </span>
+            <span className="text-[7px] font-mono text-gray-400">{date}</span>
+          </div>
+          <h3 className="text-[9.5px] font-bold text-gray-900 leading-tight">{title}</h3>
+          <div className="h-px bg-gray-300 my-1" />
+          <ul className="space-y-1">
+            {answers.map((a) => (
+              <li key={a.num} className="flex items-baseline gap-1 text-[9px] text-gray-800">
+                <span className="font-bold text-gray-700 shrink-0">{a.num}</span>
+                <PreviewMathInline latex={a.latex} />
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* 問題プリント (前面) */}
+        <div
+          className="absolute left-0 top-0 w-[70%] h-[240px] rounded-md bg-white border border-gray-200/90 p-3 overflow-hidden"
+          style={{ boxShadow: "0 12px 32px -10px rgba(0,0,0,0.28)" }}
+        >
+          {/* eyebrow + 日付 */}
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[7.5px] font-bold tracking-[0.16em] text-violet-700">{eyebrow}</span>
+            <span className="text-[7px] font-mono text-gray-400">{date}</span>
+          </div>
+          {/* タイトル */}
+          <h3 className="text-[12px] font-bold text-gray-900 leading-tight">{title}</h3>
+          <p className="text-[8.5px] text-gray-600 mt-0.5 mb-1.5">{lead}</p>
+          <div className="h-[1.5px] bg-gray-800/85 mb-2" />
+          {/* 問題リスト */}
+          <ol className="space-y-1.5">
+            {problems.map((p) => (
+              <li key={p.num} className="flex items-baseline gap-1 text-[9.5px] text-gray-900 leading-snug">
+                <span className="font-bold text-gray-700 shrink-0">{p.num}</span>
+                <span className="min-w-0">
+                  <PreviewMathInline latex={p.latex} />
+                  <span className="text-gray-700">{p.tail}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {/* 左上: "A4 印刷品質" バッジ */}
+        <span className="absolute -top-1.5 -left-1 z-20 inline-flex items-center gap-0.5 px-1.5 py-[3px] rounded-md bg-foreground text-background text-[8.5px] font-bold tracking-wide shadow-md">
+          <Printer className="h-2.5 w-2.5" aria-hidden />
+          {isJa ? "A4 印刷品質" : "Print-ready"}
+        </span>
+
+        {/* 右下: 解答プリントの上に "解答付き" バッジ */}
+        <span className="absolute right-1 -top-1 z-20 inline-flex items-center gap-0.5 px-1.5 py-[3px] rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-[8.5px] font-extrabold tracking-wide shadow-md">
+          <FileSignature className="h-2.5 w-2.5" aria-hidden />
+          {isJa ? "解答 PDF 付" : "Answer PDF"}
+        </span>
+
+        {/* タップ示唆 — 押した瞬間だけフェードイン */}
+        <span className="absolute bottom-2 right-3 z-20 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-foreground/90 backdrop-blur-sm text-background text-[10px] font-bold opacity-0 group-active:opacity-100 transition pointer-events-none">
+          {isJa ? "タップで自分の版を生成" : "Tap to make yours"} <ArrowRight className="h-2.5 w-2.5" aria-hidden />
+        </span>
+      </button>
+
+      {/* 紙面の下: 「2枚同時に手に入る」を一行で念押し */}
+      <p className="text-center text-[10.5px] text-muted-foreground/75 mt-2.5 leading-snug font-medium">
+        {isJa ? (
+          <>
+            <span className="font-bold text-foreground/85">問題プリント + 解答プリント</span>
+            が同時に完成・<span className="font-bold text-foreground/85">PDF で保存可</span>
+          </>
+        ) : (
+          <>
+            <span className="font-bold text-foreground/85">Worksheet + answer key</span>, both ready · <span className="font-bold text-foreground/85">PDF export</span>
+          </>
+        )}
+      </p>
+    </div>
   );
 }
 
