@@ -249,49 +249,47 @@ function useFadeIn(delay = 0) {
   return { ref, isVisible };
 }
 
-/* ── Counter (旧 AnimatedCounter) ──
- * 旧実装は IntersectionObserver の発火を待って count を 0→value にカウントアップしていたが、
- * 初期描画時 / オフスクリーン時 / 観察失敗時は count=0 のまま表示され、
- * 「0s / 0 click / 0%」が出て CVR を損ねていた。
- * カウントアップ演出より「常に正しい数値が見えていること」の方が CVR 上は重要なので、
- * value を素のまま静的に出すだけのコンポーネントに置き換えた。 */
-function AnimatedCounter({ value, suffix = "" }: { value: number; suffix?: string }) {
-  return <span>{value.toLocaleString()}{suffix}</span>;
-}
-
 /* ── Step card ──
  * `planBadge` で「この手順はどのプランから使えるか」を明示する。
  * LP 上の整合性を保つためのラベルで、Free で完結するフローは "Freeでも" と書く。
+ *
+ * 編集方針: rainbow グラデのアイコン枠を廃し、エディトリアルな番号 + ライン
+ * アイコンの統一トリートメントで「人が組んだ」一貫性を出す。色は Eddivom の
+ * アイデンティティとして violet を 1 アクセントだけ残す。
  */
 type StepPlanBadge = "free" | "starter-plus" | "pro-plus";
 
-function StepCard({ num, icon, title, desc, color, planBadge }: {
-  num: string; icon: React.ReactNode; title: string; desc: string; color: string;
+// `color` プロパティは互換のため受けるだけで描画には使わない (旧 callers 影響を最小化)
+function StepCard({ num, icon, title, desc, planBadge }: {
+  num: string; icon: React.ReactNode; title: string; desc: string; color?: string;
   planBadge?: StepPlanBadge;
 }) {
-  // 各バッジのラベル + 配色。Free = エメラルド、Starter+ = エメラルド濃色、Pro+ = 紫
   const badgeMeta: Record<StepPlanBadge, { ja: string; en: string; className: string }> = {
-    "free":         { ja: "Freeでも",     en: "Free",        className: "text-emerald-700 bg-emerald-500/12 border-emerald-500/30 dark:text-emerald-300" },
-    "starter-plus": { ja: "Starter〜",    en: "Starter+",    className: "text-emerald-700 bg-emerald-500/15 border-emerald-500/40 dark:text-emerald-300" },
-    "pro-plus":     { ja: "Pro〜",        en: "Pro+",        className: "text-violet-700 bg-gradient-to-r from-blue-500/15 to-violet-500/15 border-violet-500/35 dark:text-violet-300" },
+    "free":         { ja: "Freeでも",  en: "Free",     className: "text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]" },
+    "starter-plus": { ja: "Starter〜", en: "Starter+", className: "text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]" },
+    "pro-plus":     { ja: "Pro〜",     en: "Pro+",     className: "text-violet-700 dark:text-violet-300 bg-violet-500/[0.06] border-violet-500/25" },
   };
 
   return (
-    <div className="relative flex flex-col items-start gap-3 p-6 rounded-2xl bg-card/50 backdrop-blur-sm border border-foreground/[0.06] hover:border-foreground/[0.12] hover:shadow-xl hover:-translate-y-0.5 transition-all duration-400 group">
+    <div className="relative flex flex-col gap-5 p-7 rounded-2xl bg-card border border-foreground/[0.06] hover:border-foreground/[0.14] hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)] transition-all duration-300">
       {planBadge && (
-        <span className={`absolute top-3 right-3 inline-flex items-center gap-1 text-[9px] font-bold tracking-wide px-1.5 py-0.5 rounded-md border ${badgeMeta[planBadge].className}`}>
+        <span className={`absolute top-4 right-4 inline-flex items-center text-[10px] font-medium tracking-wide px-1.5 py-0.5 rounded-md border ${badgeMeta[planBadge].className}`}>
           {badgeMeta[planBadge].ja}
         </span>
       )}
-      <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-md group-hover:scale-110 group-hover:shadow-lg transition-all duration-300 ${color}`}>
-        {icon}
+      <div className="flex items-baseline gap-3 pr-12">
+        <span
+          className="text-[26px] tabular-nums leading-none text-foreground/25 font-light tracking-tight"
+          style={{ fontFamily: 'ui-serif, "Iowan Old Style", "Apple Garamond", Georgia, serif' }}
+        >
+          {num}
+        </span>
+        <span aria-hidden className="h-px flex-1 bg-foreground/[0.07] mb-1.5" />
       </div>
+      <div className="text-foreground/75" aria-hidden>{icon}</div>
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-mono text-muted-foreground/40 font-bold tracking-wider">{num}</span>
-          <h3 className="text-[14px] font-semibold tracking-tight">{title}</h3>
-        </div>
-        <p className="text-[12px] text-muted-foreground leading-relaxed">{desc}</p>
+        <h3 className="text-[15px] font-semibold tracking-tight mb-2">{title}</h3>
+        <p className="text-[12.5px] text-muted-foreground leading-relaxed">{desc}</p>
       </div>
     </div>
   );
@@ -299,19 +297,19 @@ function StepCard({ num, icon, title, desc, color, planBadge }: {
 
 /* ── Pro 解放フローカード ──
  * Workflow セクションの「Pro で解放」ブロック内で使う、小さめのカード。
- * Free の 4 ステップと視覚的に差別化 (紫グラデ枠 + 小さめの装飾)。
+ * Free の 4 ステップと視覚的に差別化するが、rainbow ではなく「左に細い violet
+ * バー + 統一アイコン」だけで済ませる。
  */
 function ProWorkflowCard({
-  icon, title, desc, color,
+  icon, title, desc,
 }: {
-  icon: React.ReactNode; title: string; desc: string; color: string;
+  icon: React.ReactNode; title: string; desc: string; color?: string;
 }) {
   return (
-    <div className="relative flex flex-col items-start gap-2.5 p-4 rounded-xl bg-card/70 backdrop-blur-sm border border-foreground/[0.05] hover:border-violet-500/25 hover:shadow-lg hover:shadow-violet-500/[0.08] transition-all duration-300 group">
-      <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform duration-300 ${color}`}>
-        {icon}
-      </div>
-      <h4 className="text-[13px] font-bold tracking-tight">{title}</h4>
+    <div className="relative flex flex-col gap-2.5 p-5 pl-6 rounded-xl bg-card border border-foreground/[0.05] hover:border-violet-500/25 transition-colors duration-300">
+      <span aria-hidden className="absolute left-0 top-5 bottom-5 w-[2px] rounded-full bg-violet-500/40" />
+      <div className="text-foreground/70" aria-hidden>{icon}</div>
+      <h4 className="text-[13px] font-semibold tracking-tight">{title}</h4>
       <p className="text-[11.5px] text-muted-foreground leading-relaxed">{desc}</p>
     </div>
   );
@@ -2524,17 +2522,26 @@ function FigureDrawMockup({ isJa }: { isJa: boolean }) {
 }
 
 /* ── Persona card ── */
-function PersonaCard({ icon, title, desc, gradient }: {
-  icon: React.ReactNode; title: string; desc: string; gradient: string;
+// `gradient` プロパティは互換のため受けるだけで描画しない (旧 callers の影響を最小化)
+function PersonaCard({ icon, title, desc, bullets }: {
+  icon: React.ReactNode; title: string; desc?: string; gradient?: string; bullets?: string[];
 }) {
   return (
-    <div className="group flex items-start gap-4 p-6 rounded-2xl bg-card/60 backdrop-blur-sm border border-foreground/[0.06] hover:border-foreground/[0.12] hover:shadow-xl hover:-translate-y-0.5 transition-all duration-400">
-      <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white shadow-lg shrink-0 group-hover:scale-110 transition-transform duration-300`}>
-        {icon}
-      </div>
-      <div>
-        <h4 className="text-[14px] font-semibold tracking-tight mb-1.5">{title}</h4>
-        <p className="text-[12px] text-muted-foreground leading-relaxed">{desc}</p>
+    <div className="group flex flex-col gap-4 p-7 rounded-2xl bg-card border border-foreground/[0.06] hover:border-foreground/[0.14] hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)] transition-all duration-300">
+      <div className="text-foreground/75" aria-hidden>{icon}</div>
+      <div className="flex-1">
+        <h4 className="text-[15px] font-semibold tracking-tight mb-2">{title}</h4>
+        {desc && <p className="text-[12.5px] text-muted-foreground leading-relaxed">{desc}</p>}
+        {bullets && (
+          <ul className="space-y-1.5 mt-1">
+            {bullets.map((b) => (
+              <li key={b} className="text-[12.5px] text-muted-foreground leading-relaxed flex gap-2">
+                <span aria-hidden className="text-foreground/30 mt-[0.5em] shrink-0">—</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -2897,26 +2904,27 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
   return (
     // eslint-disable-next-line react-hooks/refs
     <section ref={fadeIn.ref} className={`relative py-28 border-t border-foreground/[0.04] overflow-hidden transition-all duration-1000 ${fadeIn.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_50%,hsl(var(--primary)/0.025),transparent_70%)]" />
       <div className="relative max-w-5xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
-            Before / After
+        <div className="text-center mb-16 max-w-2xl mx-auto">
+          <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center justify-center gap-3">
+            <span aria-hidden className="inline-block h-px w-6 bg-foreground/20" />
+            {isJa ? "ビフォー / アフター" : "Before / After"}
+            <span aria-hidden className="inline-block h-px w-6 bg-foreground/20" />
           </p>
-          <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
+          <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
             {isJa ? "古い教材が、3ステップで新品に。" : "Old worksheet → polished printout in 3 steps."}
           </h2>
-          <p className="text-muted-foreground text-[15px] max-w-md mx-auto mb-4">
+          <p className="text-muted-foreground text-[15px] max-w-md mx-auto mb-5 leading-relaxed">
             {isJa
-              ? "過去問・スキャン・古いPDF。何からでも始められます。"
+              ? "過去問・スキャン・古い PDF。何からでも始められます。"
               : "Start from any old worksheet, scan, or PDF — Eddivom handles the rest."}
           </p>
           {/* 整合性: PDF/画像取り込みは Pro+ 機能のため、LP 上で明示する。
               Free ユーザーは AI プロンプト or テンプレートから始める動線を利用する。 */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-blue-500/10 to-violet-500/10 border border-violet-500/25 text-[11px] font-semibold text-violet-700 dark:text-violet-300">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-500/[0.06] border border-violet-500/25 text-[11px] font-medium text-violet-700 dark:text-violet-300">
             <Crown className="h-3 w-3" />
             {isJa
-              ? "このPDF取り込みフローは Pro プラン以上でご利用いただけます"
+              ? "PDF 取り込みフローは Pro プラン以上で利用可能"
               : "PDF ingestion flow available on Pro plan and above"}
           </div>
         </div>
@@ -3004,17 +3012,13 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
             </p>
           </div>
 
-          {/* Steps connector — mobile */}
+          {/* Steps connector — mobile (rainbow を廃し、neutral & 統一トーンに) */}
           <div className="flex md:hidden items-center justify-center gap-3 py-2">
-            {[
-              { Icon: Upload, from: "from-blue-500", to: "to-violet-600" },
-              { Icon: PenLine, from: "from-violet-500", to: "to-fuchsia-500" },
-              { Icon: FileDown, from: "from-emerald-500", to: "to-teal-500" },
-            ].map(({ Icon, from, to }, i) => (
+            {[Upload, PenLine, FileDown].map((Icon, i) => (
               <React.Fragment key={i}>
-                {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/25" />}
-                <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${from} ${to} flex items-center justify-center shadow-md`}>
-                  <Icon className="h-4 w-4 text-white" />
+                {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30" />}
+                <div className="h-9 w-9 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] flex items-center justify-center text-foreground/70">
+                  <Icon className="h-4 w-4" strokeWidth={1.5} />
                 </div>
               </React.Fragment>
             ))}
@@ -3022,33 +3026,33 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
           {/* Steps connector — desktop */}
           <div className="hidden md:flex flex-col items-center justify-center min-w-[130px]">
             {[
-              { Icon: Upload, label: isJa ? "アップロード\nAI抽出" : "Upload\nAI extract", from: "from-blue-500", to: "to-violet-600", shadow: "shadow-violet-500/20" },
-              { Icon: PenLine, label: isJa ? "編集・類題\n追加" : "Edit &\nadd variants", from: "from-violet-500", to: "to-fuchsia-500", shadow: "shadow-fuchsia-500/20" },
-              { Icon: FileDown, label: isJa ? "PDF出力" : "Export PDF", from: "from-emerald-500", to: "to-teal-500", shadow: "shadow-emerald-500/20" },
-            ].map(({ Icon, label, from, to, shadow }, i) => (
+              { Icon: Upload, label: isJa ? "アップロード\nAI抽出" : "Upload\nAI extract" },
+              { Icon: PenLine, label: isJa ? "編集・類題\n追加" : "Edit &\nadd variants" },
+              { Icon: FileDown, label: isJa ? "PDF出力" : "Export PDF" },
+            ].map(({ Icon, label }, i) => (
               <React.Fragment key={i}>
                 {i > 0 && (
                   <div className="flex flex-col items-center my-0.5">
                     <div className="h-4 w-px bg-foreground/[0.08]" />
-                    <ChevronDown className="h-3 w-3 text-muted-foreground/20 -my-0.5" />
+                    <ChevronDown className="h-3 w-3 text-muted-foreground/25 -my-0.5" />
                   </div>
                 )}
-                <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${from} ${to} flex items-center justify-center shadow-lg ${shadow}`}>
-                  <Icon className="h-4 w-4 text-white" />
+                <div className="h-10 w-10 rounded-full bg-foreground/[0.04] border border-foreground/[0.08] flex items-center justify-center text-foreground/75">
+                  <Icon className="h-4 w-4" strokeWidth={1.5} />
                 </div>
-                <p className="text-[8px] text-muted-foreground/45 text-center leading-tight mt-1.5 whitespace-pre-line">{label}</p>
+                <p className="text-[9px] text-muted-foreground/55 text-center leading-tight mt-1.5 whitespace-pre-line">{label}</p>
               </React.Fragment>
             ))}
           </div>
 
           {/* After */}
           <div className="flex flex-col items-center gap-4">
-            <span className="text-[10px] font-bold tracking-wider uppercase px-3 py-1 rounded-full border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/[0.06]">
+            <span className="text-[10px] font-medium tracking-wider uppercase px-2.5 py-1 rounded-md border border-foreground/[0.1] text-foreground/65 bg-foreground/[0.02]">
               {isJa ? "完成品" : "After"}
             </span>
             <div className="relative w-full max-w-[270px] mx-auto">
-              {/* Ambient glow */}
-              <div className="absolute -inset-4 -z-10 bg-gradient-to-br from-blue-400/[0.06] via-violet-400/[0.06] to-emerald-400/[0.06] dark:from-blue-400/[0.03] dark:via-violet-400/[0.03] dark:to-emerald-400/[0.03] rounded-3xl blur-2xl" />
+              {/* Ambient glow — 単色の柔らかいシャドウだけに整理 */}
+              <div className="absolute -inset-4 -z-10 bg-foreground/[0.04] dark:bg-white/[0.03] rounded-3xl blur-2xl" />
               {/* Stacked pages */}
               <div className="absolute inset-0 translate-x-3 translate-y-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200/40 dark:border-gray-700/25 shadow-sm" />
               <div className="absolute inset-0 translate-x-1.5 translate-y-1.5 bg-white dark:bg-gray-900 rounded-lg border border-gray-200/50 dark:border-gray-700/35 shadow-md" />
@@ -3572,96 +3576,79 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
       <SampleShowcase isJa={isJa} onTryNow={primaryCta.onClick} ctaLabel={primaryCta.label} />
 
       {/* ━━ Who is this for ━━ */}
-      <section className="relative py-24 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_50%,hsl(var(--primary)/0.025),transparent_70%)]" />
+      <section className="relative py-24">
         <div
           ref={personaFade.ref}
-          className={`relative max-w-4xl mx-auto px-6 transition-all duration-1000 ${personaFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${personaFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <div className="text-center mb-14">
-            <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
-              {isJa ? "こんな先生に使われています" : "Built for tutors like you"}
+          <div className="mb-14 max-w-3xl">
+            <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
+              <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              {isJa ? "こんな先生に" : "Built for"}
             </p>
-            <h2 className="text-[clamp(1.6rem,4vw,2.6rem)] font-bold tracking-tight mb-4">
+            <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
               {isJa ? "毎週、生徒ごとにプリントを作る先生へ。" : "For tutors who build custom worksheets every week."}
             </h2>
-            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
+            <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
                 ? "生徒に合わせた教材を毎週手作りしていませんか？ Eddivom なら、過去問の再利用も類題の量産も数分で完了します。"
                 : "Tired of spending hours building custom problem sets for each student? Eddivom turns that into minutes."}
             </p>
           </div>
 
-          {/* Primary persona — individual tutors */}
-          <div className="relative p-8 rounded-[24px] bg-gradient-to-b from-violet-500/[0.05] to-blue-500/[0.03] border-2 border-violet-500/[0.15] shadow-xl shadow-violet-500/[0.06] mb-6">
-            <div className="flex flex-col sm:flex-row items-start gap-6">
-              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white shadow-lg shrink-0">
-                <GraduationCap className="h-7 w-7" strokeWidth={1.5} />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-[17px] font-bold tracking-tight mb-3">{isJa ? "個人塾・家庭教師" : "Tutors & Private Instructors"}</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    isJa ? "生徒ごとに違うプリントを毎週作る" : "Custom problem sets for each student, weekly",
-                    isJa ? "過去のプリントを数値だけ変えて再利用" : "Reuse past worksheets with different numbers",
-                    isJa ? "「あと5問」で類題を一瞬で追加" : "\"5 more like this\" generates variants instantly",
-                    isJa ? "解答付きPDFで採点・保護者説明も楽" : "Answer-key PDFs make grading and parent reports easy",
-                  ].map((text) => (
-                    <div key={text} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
-                      <span className="text-[13px] text-foreground/80">{text}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Secondary personas */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* 3 equal personas — no rainbow, consistent neutral cards. 主動線である
+              「個人塾・家庭教師」は冒頭に配置し、bullets を出すことで自然に注目を集める。 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <PersonaCard
-              icon={<Users className="h-5 w-5" strokeWidth={1.5} />}
-              gradient="from-blue-500 to-cyan-500"
+              icon={<GraduationCap className="h-6 w-6" strokeWidth={1.4} />}
+              title={isJa ? "個人塾・家庭教師" : "Tutors & Private Instructors"}
+              bullets={[
+                isJa ? "生徒ごとに違うプリントを毎週作る" : "Custom problem sets for each student, weekly",
+                isJa ? "過去のプリントを数値だけ変えて再利用" : "Reuse past worksheets with different numbers",
+                isJa ? "「あと5問」で類題を一瞬で追加" : "\"5 more like this\" generates variants instantly",
+                isJa ? "解答付きPDFで採点・保護者説明も楽" : "Answer-key PDFs make grading and parent reports easy",
+              ]}
+            />
+            <PersonaCard
+              icon={<Users className="h-6 w-6" strokeWidth={1.4} />}
               title={isJa ? "学校の教科担当" : "Math & STEM Teachers"}
               desc={isJa
-                ? "小テスト・定期テストを効率よく作成。解答付きPDFで採点も楽に。"
+                ? "小テスト・定期テストを効率よく作成。解答付きPDFで採点まで一気通貫。"
                 : "Create quizzes and assessments efficiently. Answer-key PDFs make grading painless."}
             />
             <PersonaCard
-              icon={<BookOpen className="h-5 w-5" strokeWidth={1.5} />}
-              gradient="from-emerald-500 to-teal-500"
+              icon={<BookOpen className="h-6 w-6" strokeWidth={1.4} />}
               title={isJa ? "教材制作・販売" : "Worksheet Creators & Sellers"}
               desc={isJa
-                ? "問題集やドリルを作って配布・販売。印刷品質のPDFを大量に。"
+                ? "問題集やドリルを作って配布・販売。印刷品質のPDFを大量に書き出せます。"
                 : "Build and sell problem sets. Export print-ready PDFs at scale."}
             />
           </div>
         </div>
       </section>
 
-      {/* ━━ Outcome stats ━━ */}
-      <section className="relative border-y border-foreground/[0.04] bg-foreground/[0.015] dark:bg-white/[0.02] overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_100%_at_50%_50%,hsl(var(--primary)/0.03),transparent_70%)]" />
-        <div className="relative max-w-4xl mx-auto px-6 py-16">
-          <p className="text-center text-[11px] font-bold tracking-[0.2em] uppercase text-primary/60 mb-10">
-            {isJa ? "Eddivom なら" : "With Eddivom"}
+      {/* ━━ Outcome stats ━━
+          「数値」を主役に。rainbow グラデを廃し、editorial な大きな数字 +
+          静かなキー線で人が組んだ印象を出す。 */}
+      <section className="relative border-y border-foreground/[0.05]">
+        <div className="relative max-w-5xl mx-auto px-6 py-20">
+          <p className="text-center text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-12 flex items-center justify-center gap-3">
+            <span aria-hidden className="inline-block h-px w-6 bg-foreground/20" />
+            {isJa ? "数字で見る Eddivom" : "Eddivom in numbers"}
+            <span aria-hidden className="inline-block h-px w-6 bg-foreground/20" />
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-foreground/[0.06]">
             {[
-              // 数値はカウントアップ、文字列値は静的に出す。"0s / 0p" のようなプレースホルダ
-              // が一瞬でも見えると CVR を損ねるので、display を持つ stat は AnimatedCounter を経由しない。
-              { display: isJa ? "30〜60秒" : "30–60 sec",     label: isJa ? "で1枚を生成"           : "to generate a worksheet" },
-              { value: 1,  suffix: isJa ? "クリック" : " click", label: isJa ? "で類題を作成"           : "to create variants" },
-              { display: "A4 / B5",                              label: isJa ? "印刷対応 PDF"            : "print-ready PDFs" },
-              { value: 100, suffix: "%",                         label: isJa ? "ブラウザ完結 · インストール不要" : "browser-based, no install" },
-            ].map((s) => (
-              <div key={s.label} className="group">
-                <p className="text-[clamp(2rem,5vw,3rem)] font-black tracking-tight bg-gradient-to-b from-foreground to-foreground/50 bg-clip-text text-transparent">
-                  {"display" in s
-                    ? <span>{s.display}</span>
-                    : <AnimatedCounter value={s.value} suffix={s.suffix} />}
+              { display: isJa ? "30–60s" : "30–60s", label: isJa ? "1枚を AI が組み上げる目安時間" : "to draft a full worksheet" },
+              { display: isJa ? "1 クリック" : "1 click", label: isJa ? "「あと5問」で類題を量産" : "to spin up variants" },
+              { display: "A4 / B5", label: isJa ? "印刷品質の PDF を出力" : "print-ready PDF formats" },
+              { display: isJa ? "ブラウザ完結" : "Browser-only", label: isJa ? "インストール不要・登録なしで開始" : "no install, no signup" },
+            ].map((s, i) => (
+              <div key={s.label} className={`px-4 ${i === 0 ? "pt-0 md:pl-0" : "pt-8 md:pt-0 md:pl-8"} ${i < 3 ? "pb-8 md:pb-0 md:pr-8" : ""}`}>
+                <p className="text-[clamp(1.6rem,3.4vw,2.4rem)] font-semibold tracking-tight text-foreground leading-[1.1] mb-3">
+                  {s.display}
                 </p>
-                <p className="text-[12px] text-muted-foreground mt-1.5 leading-snug">{s.label}</p>
+                <p className="text-[12.5px] text-muted-foreground leading-relaxed">{s.label}</p>
               </div>
             ))}
           </div>
@@ -3675,78 +3662,71 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
         その下に「Pro で解放される拡張機能」を別ブロックで見せる構成。
         (以前は 5 ステップで PDF 取り込み=OCR を最初に置いていたが、
         OCR は Pro+ 機能なので Free ユーザーが実行できず LP の整合性を損ねていた) */}
-      <section className="relative py-28 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_100%,hsl(var(--primary)/0.03),transparent_70%)]" />
+      <section className="relative py-28">
         <div
           ref={workflowFade.ref}
           className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${workflowFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <div className="text-center mb-14">
-            <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
-              {isJa ? "Eddivom のワークフロー" : "How Eddivom works"}
+          <div className="mb-14 max-w-3xl">
+            <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
+              <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              {isJa ? "ワークフロー" : "How it works"}
             </p>
-            <h2 className="text-[clamp(1.5rem,4vw,2.6rem)] font-bold tracking-tight mb-4">
+            <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
               {isJa ? "Free でも 4 ステップで 1 枚完成。" : "A worksheet in 4 steps — even on Free."}
             </h2>
-            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
+            <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
-                ? "AIに指示してから PDF 印刷まで、ブラウザだけで完結。Pro にアップグレードすれば PDF 取り込み・採点・バッチ量産が解放されます。"
+                ? "AI への指示から PDF 印刷まで、ブラウザだけで完結します。Pro にアップグレードすると、PDF 取り込み・採点・バッチ量産までフローが拡張されます。"
                 : "From AI prompt to print-ready PDF, entirely in the browser. Upgrade to Pro to unlock PDF ingestion, grading, and batch generation."}
             </p>
           </div>
 
           {/* ── Free で完結する 4 ステップ (主動線) ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-3">
-            <StepCard num="01" icon={<Sparkles className="h-5 w-5" strokeWidth={1.5} />}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StepCard num="01" icon={<Sparkles className="h-[18px] w-[18px]" strokeWidth={1.4} />}
               title={isJa ? "AIにお願い" : "Ask the AI"}
               desc={isJa ? "「二次方程式のプリントを10問」など自然言語で指示。テンプレ選択でもOK。" : "Describe what you need (e.g. \"10 quadratic problems\") or pick a template."}
-              color="bg-gradient-to-br from-blue-500 to-violet-500"
               planBadge="free" />
-            <StepCard num="02" icon={<PenLine className="h-5 w-5" strokeWidth={1.5} />}
+            <StepCard num="02" icon={<PenLine className="h-[18px] w-[18px]" strokeWidth={1.4} />}
               title={isJa ? "紙面で直接編集" : "Edit on the page"}
-              desc={isJa ? "数式・配点・設問を紙面でクリック編集。LaTeX の知識は不要。" : "Click and edit equations, points, prompts — no LaTeX knowledge required."}
-              color="bg-gradient-to-br from-emerald-500 to-teal-500"
+              desc={isJa ? "数式・配点・設問を紙面でクリック編集。LaTeX の知識は不要です。" : "Click and edit equations, points, prompts — no LaTeX knowledge required."}
               planBadge="free" />
-            <StepCard num="03" icon={<Copy className="h-5 w-5" strokeWidth={1.5} />}
+            <StepCard num="03" icon={<Copy className="h-[18px] w-[18px]" strokeWidth={1.4} />}
               title={isJa ? "AIで類題を追加" : "AI adds variants"}
-              desc={isJa ? "「もう5問」で数値・難易度を変えた類題が即追加。AI回数はプラン別。" : "\"5 more like this\" spawns fresh variants. AI call count depends on plan."}
-              color="bg-gradient-to-br from-amber-500 to-orange-500"
+              desc={isJa ? "「もう5問」で数値・難易度を変えた類題が即追加。AI 回数はプラン別。" : "\"5 more like this\" spawns fresh variants. AI call count depends on plan."}
               planBadge="free" />
-            <StepCard num="04" icon={<FileDown className="h-5 w-5" strokeWidth={1.5} />}
+            <StepCard num="04" icon={<FileDown className="h-[18px] w-[18px]" strokeWidth={1.4} />}
               title={isJa ? "PDF出力・印刷" : "Export & print"}
-              desc={isJa ? "生徒用・解答付きの2種類を PDF で書き出し。A4/B5 で即印刷。" : "Export student sheet + answer key. Print-ready A4/B5 PDF."}
-              color="bg-gradient-to-br from-slate-500 to-gray-600"
+              desc={isJa ? "生徒用と解答付きの 2 種類を PDF で書き出し。A4/B5 で即印刷できます。" : "Export student sheet + answer key. Print-ready A4/B5 PDF."}
               planBadge="free" />
           </div>
 
-          {/* ── Pro で解放される拡張フロー (副動線) ── */}
-          <div className="mt-10 relative rounded-[24px] p-7 bg-gradient-to-br from-blue-500/[0.04] via-violet-500/[0.05] to-fuchsia-500/[0.04] border border-violet-500/[0.18] overflow-hidden">
-            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-violet-500/[0.08] blur-3xl pointer-events-none" />
-            <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[10.5px] font-bold tracking-wide shadow-md">
+          {/* ── Pro で解放される拡張フロー (副動線) ──
+              violet を「Pro」のシグネチャ色として 1 アクセントだけ使い、装飾を控える。 */}
+          <div className="mt-12 relative rounded-2xl p-7 bg-foreground/[0.015] dark:bg-white/[0.015] border border-foreground/[0.07]">
+            <div className="relative flex flex-col sm:flex-row sm:items-baseline gap-3 mb-6">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-violet-500/[0.08] border border-violet-500/25 text-violet-700 dark:text-violet-300 text-[10.5px] font-semibold tracking-wide">
                 <Crown className="h-3 w-3" />
-                {isJa ? "Pro で解放" : "Unlocked on Pro"}
+                {isJa ? "Pro" : "Pro"}
               </span>
-              <h3 className="text-[15px] font-bold tracking-tight">
-                {isJa ? "Pro にアップグレードで、さらに以下のフローが追加されます。" : "Upgrading to Pro unlocks these extra workflows."}
+              <h3 className="text-[15px] font-semibold tracking-tight text-foreground/85">
+                {isJa ? "アップグレードで、以下のフローが追加されます。" : "Upgrading unlocks these extra workflows."}
               </h3>
             </div>
             <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-3">
               <ProWorkflowCard
-                icon={<Upload className="h-4 w-4" strokeWidth={1.6} />}
-                color="bg-gradient-to-br from-blue-500 to-cyan-500"
+                icon={<Upload className="h-4 w-4" strokeWidth={1.5} />}
                 title={isJa ? "PDF・画像から取り込み" : "PDF / image ingest"}
                 desc={isJa ? "過去問スキャンや古い PDF を AI が自動で問題に変換 (OCR)。" : "Scanned exams or old PDFs → editable problems via OCR."}
               />
               <ProWorkflowCard
-                icon={<ClipboardCheck className="h-4 w-4" strokeWidth={1.6} />}
-                color="bg-gradient-to-br from-rose-500 to-pink-600"
+                icon={<ClipboardCheck className="h-4 w-4" strokeWidth={1.5} />}
                 title={isJa ? "採点・自動赤入れ" : "AI grading & markup"}
                 desc={isJa ? "答案画像 → AI採点 → TikZ オーバーレイ赤入れ PDF を生成。" : "Answer images → AI grading → marked-up PDF with TikZ overlay."}
               />
               <ProWorkflowCard
-                icon={<Layers className="h-4 w-4" strokeWidth={1.6} />}
-                color="bg-gradient-to-br from-violet-500 to-fuchsia-600"
+                icon={<Layers className="h-4 w-4" strokeWidth={1.5} />}
                 title={isJa ? "バッチ量産 100〜300 行" : "Batch generate 100–300 rows"}
                 desc={isJa ? "CSV の変数データからクラス別・生徒別 PDF を一括出力。" : "Generate per-student or per-class PDFs from CSV variables."}
               />
@@ -3754,21 +3734,21 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           </div>
 
           {/* Workflow 下の主要 CTA — ユーザー状態に応じてラベル/動作が切り替わる */}
-          <div className="text-center mt-12">
+          <div className="mt-14 flex flex-col items-start gap-3">
             <button
               onClick={primaryCta.onClick}
-              className="group inline-flex items-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold text-[14px] shadow-2xl shadow-blue-500/25 hover:shadow-blue-500/35 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
+              className="group inline-flex items-center gap-2.5 pl-7 pr-6 h-12 rounded-full bg-foreground text-background font-semibold text-[14px] hover:opacity-90 active:scale-[0.98] transition-all duration-200"
             >
               {primaryCta.variant === "resume"
                 ? (isJa ? "このワークフローで続きから編集" : "Continue with this workflow")
                 : primaryCta.variant === "paid-new"
                 ? (isJa ? "このワークフローで1枚作ってみる" : "Run this workflow now")
                 : (isJa ? "このワークフローを無料で試す" : "Try this workflow free")}
-              <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform duration-200" />
             </button>
-            <p className="text-[12px] text-muted-foreground/50 mt-3">
+            <p className="text-[12px] text-muted-foreground/60">
               {isJa
-                ? "アップロード・画像・テキスト、どれからでもスタートできます。"
+                ? "アップロード・画像・テキスト、どれからでも始められます。"
                 : "Start from PDF, photo, or plain text — your choice."}
             </p>
           </div>
@@ -3778,25 +3758,22 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
       {/* ━━ Figure Drawing — Free でも使える図形描画 ━━
           AI 生成だけでは伝わらない「TikZ 図形を直接描ける」差別化ポイント。
           回路・幾何・力学・化学・生物まで対応する domain palette が無料プランで利用可能。 */}
-      <section className="relative py-24 overflow-hidden border-t border-foreground/[0.04]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(16,185,129,0.06),transparent_70%)]" />
+      <section className="relative py-28 border-t border-foreground/[0.05]">
         <div className="relative max-w-5xl mx-auto px-6">
-          <div className="text-center mb-10">
-            <p className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.22em] uppercase mb-3">
-              <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
-                {isJa ? "図形描画モード" : "Figure mode"}
-              </span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9.5px] font-extrabold tracking-wider shadow-sm shadow-emerald-500/30">
-                <Check className="h-2.5 w-2.5" />
-                FREE
+          <div className="mb-12 max-w-3xl">
+            <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
+              <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              {isJa ? "図形描画" : "Figure mode"}
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9.5px] font-medium tracking-wide border text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]">
+                {isJa ? "Freeでも" : "Free"}
               </span>
             </p>
-            <h2 className="text-[clamp(1.5rem,3.6vw,2.4rem)] font-bold tracking-tight mb-3">
+            <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
               {isJa ? "図も、Free で描ける。" : "Draw figures, free of charge."}
             </h2>
-            <p className="text-muted-foreground text-[14px] sm:text-[15px] max-w-xl mx-auto leading-relaxed">
+            <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
-                ? "回路図・力学・幾何・化学・生物・フローチャートまで。専用の図形パレットで、TikZ コードを書かずに教材用の図を直感的に描けます。無料プランで制限なく利用可能。"
+                ? "回路図・力学・幾何・化学・生物・フローチャートまで。専用の図形パレットで、TikZ コードを書かずに教材用の図を直感的に描けます。無料プランで制限なく利用できます。"
                 : "Circuits, mechanics, geometry, chemistry, biology, flowcharts. A built-in shape palette lets you draw textbook-quality figures without writing TikZ — and it's all free."}
             </p>
           </div>
@@ -3806,14 +3783,14 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           </IdleMount>
 
           {/* 補足チップ — 何が描けるかを列挙 (SEO 兼 ユーザー安心材料) */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-7">
+          <div className="flex flex-wrap items-center gap-2 mt-8">
             {(isJa
               ? ["回路図 (Circuitikz)", "力学・てこ・ばね", "幾何・座標・関数", "化学式・分子", "生物・細胞", "フローチャート"]
               : ["Circuits (Circuitikz)", "Mechanics", "Geometry & functions", "Chemistry", "Biology", "Flowcharts"]
             ).map((label) => (
               <span
                 key={label}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/[0.06] border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium"
+                className="inline-flex items-center px-2.5 py-1 rounded-md bg-foreground/[0.025] border border-foreground/[0.07] text-[11.5px] text-foreground/65 font-medium"
               >
                 {label}
               </span>
@@ -3822,178 +3799,167 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
         </div>
       </section>
 
-      {/* ━━ Features ━━ */}
-      <section className="relative py-24 overflow-hidden border-t border-foreground/[0.04]">
+      {/* ━━ Features ━━
+          編集方針: 6 つのカードに 6 種類の rainbow グラデを当てていた旧実装は
+          「AI が雑に並べた感」が強い。アイコンを統一トーンの thin-stroke に固定し、
+          カードサイズも統一して editorial に見せる。プラン区分は ChIP のみで表現。 */}
+      <section className="relative py-28 border-t border-foreground/[0.05]">
         <div
           ref={featuresFade.ref}
           className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${featuresFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <div className="text-center mb-16">
-            <p className="text-[11px] font-bold tracking-[0.25em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
-              {isJa ? "Eddivom の機能" : "Eddivom features"}
+          <div className="mb-16 max-w-3xl">
+            <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
+              <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              {isJa ? "機能" : "Features"}
             </p>
-            <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-bold tracking-tight mb-4">
+            <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
               {isJa ? "問題作成から配布まで、全部ここで。" : "Everything between \"I need a worksheet\" and \"it's printing.\""}
             </h2>
-            <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
-              {isJa ? "LaTeXの知識は不要。Eddivom が数式をきれいに仕上げます。" : "No LaTeX knowledge needed. Eddivom handles the typesetting."}
+            <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
+              {isJa
+                ? "LaTeX の知識は要りません。数式・図・採点まで、Eddivom が組版品質で仕上げます。"
+                : "No LaTeX knowledge needed. Eddivom handles typesetting, figures, and grading."}
             </p>
           </div>
 
-          {/* Big 3 cards — プラン整合性のため各カードに利用可能プランを明示 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+          {/* 6 features — 全カード同サイズ、同トーン。違いは「Free / Pro」の chip だけ。 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-foreground/[0.06] rounded-2xl overflow-hidden border border-foreground/[0.06]">
             {[
               {
-                icon: <Upload className="h-6 w-6" strokeWidth={1.5} />,
-                gradient: "from-blue-500 to-cyan-500",
-                shadow: "shadow-blue-500/20",
+                icon: <Upload className="h-5 w-5" strokeWidth={1.4} />,
                 title: isJa ? "PDF・画像から教材を再利用" : "Reuse your existing worksheets",
                 desc: isJa
-                  ? "既存の教材PDF・過去問・画像をアップロードするだけ。問題を自動で認識・抽出し、そのまま編集できます。"
+                  ? "既存の教材 PDF・過去問・画像をアップロードするだけ。問題を自動で認識・抽出し、そのまま編集できます。"
                   : "Upload a PDF you already made or a past exam photo. Problems are auto-extracted — equations intact — and ready to edit.",
-                // OCR は Pro+ なので明示
                 planBadge: "pro" as const,
               },
               {
-                icon: <PenLine className="h-6 w-6" strokeWidth={1.5} />,
-                gradient: "from-emerald-500 to-teal-500",
-                shadow: "shadow-emerald-500/20",
-                title: isJa ? "問題ごとにWord感覚で編集" : "Edit problem by problem",
+                icon: <PenLine className="h-5 w-5" strokeWidth={1.4} />,
+                title: isJa ? "問題ごとに Word 感覚で編集" : "Edit problem by problem",
                 desc: isJa
-                  ? "数式・選択肢・配点・解説をクリックして直接編集。問題の入れ替え・並べ替えも自在です。"
+                  ? "数式・選択肢・配点・解説をクリックして直接編集。問題の入れ替えや並べ替えも自在です。"
                   : "Click any equation, answer choice, or point value and just type. Reorder and rearrange problems freely.",
                 planBadge: "free" as const,
               },
               {
-                icon: <Copy className="h-6 w-6" strokeWidth={1.5} />,
-                gradient: "from-violet-500 to-fuchsia-500",
-                shadow: "shadow-violet-500/20",
+                icon: <Copy className="h-5 w-5" strokeWidth={1.4} />,
                 title: isJa ? "類題を即座に量産" : "Spin up variants instantly",
                 desc: isJa
-                  ? "1問から数値・条件・難易度を変えたバリエーションを一括生成。演習量を一気に増やせます。"
+                  ? "1 問から数値・条件・難易度を変えたバリエーションを一括生成。演習量を一気に増やせます。"
                   : "One problem becomes five — or fifty. Different numbers, different difficulty, same skill.",
+                planBadge: "free" as const,
+              },
+              {
+                icon: <CheckSquare className="h-5 w-5" strokeWidth={1.4} />,
+                title: isJa ? "解答付き PDF をワンクリック" : "Answer key included automatically",
+                desc: isJa
+                  ? "生徒用と解答付きの 2 種類をボタン一つで書き出し。採点・配布もすぐ始められます。"
+                  : "Student version and answer key export separately with one click.",
+                planBadge: "free" as const,
+              },
+              {
+                icon: <Printer className="h-5 w-5" strokeWidth={1.4} />,
+                title: isJa ? "印刷に強い A4 / B5 レイアウト" : "Print-ready, every time",
+                desc: isJa
+                  ? "プロ品質の組版で印刷配布に最適。余白・フォント・レイアウトも細かく調整できます。"
+                  : "Professional typesetting with clean margins and crisp equations. Prints beautifully.",
+                planBadge: "free" as const,
+              },
+              {
+                icon: <Sparkles className="h-5 w-5" strokeWidth={1.4} />,
+                title: isJa ? "テキストからも問題を生成" : "Generate problems from scratch",
+                desc: isJa
+                  ? "「二次方程式を 5 問」のように指示するだけで問題を自動生成。ゼロからでも始められます。"
+                  : "Type \"10 factoring problems, medium difficulty\" and get a full worksheet.",
                 planBadge: "free" as const,
               },
             ].map((f) => (
               <div
                 key={f.title}
-                className="group relative p-7 rounded-[20px] bg-card/70 backdrop-blur-xl border border-foreground/[0.05] hover:border-foreground/[0.1] hover:shadow-2xl hover:-translate-y-1 transition-all duration-500"
+                className="relative p-7 bg-card hover:bg-foreground/[0.015] dark:hover:bg-white/[0.02] transition-colors duration-300"
               >
-                {/* 利用プランバッジ */}
-                {f.planBadge === "pro" ? (
-                  <span className="absolute top-4 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-500/12 to-violet-500/12 border border-violet-500/30 text-[10px] font-bold text-violet-700 dark:text-violet-300">
-                    <Crown className="h-2.5 w-2.5" />
-                    {isJa ? "Pro〜" : "Pro+"}
-                  </span>
-                ) : (
-                  <span className="absolute top-4 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/12 border border-emerald-500/30 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
-                    {isJa ? "Freeでも" : "Free"}
-                  </span>
-                )}
-                <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-6 text-white shadow-lg ${f.shadow} group-hover:scale-110 group-hover:shadow-xl transition-all duration-500`}>
-                  {f.icon}
-                </div>
-                <h4 className="text-[15px] font-semibold mb-2.5 tracking-tight">{f.title}</h4>
-                <p className="text-[12px] text-muted-foreground leading-relaxed">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Smaller 3 cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {[
-              {
-                icon: <CheckSquare className="h-5 w-5" strokeWidth={1.5} />,
-                gradient: "from-amber-500 to-orange-500",
-                title: isJa ? "解答付きPDFをワンクリック" : "Answer key included automatically",
-                desc: isJa ? "生徒用と解答付きの2種類をボタン一つで書き出し。採点・配布がすぐできます。" : "Student version and answer key export separately with one click.",
-              },
-              {
-                icon: <Printer className="h-5 w-5" strokeWidth={1.5} />,
-                gradient: "from-slate-500 to-zinc-500",
-                title: isJa ? "印刷に強いA4/B5レイアウト" : "Print-ready, every time",
-                desc: isJa ? "プロ品質の組版で印刷配布に最適。余白・フォント・レイアウトも調整可能。" : "Professional typesetting with clean margins and crisp equations. Prints beautifully.",
-              },
-              {
-                icon: <Sparkles className="h-5 w-5" strokeWidth={1.5} />,
-                gradient: "from-pink-500 to-rose-500",
-                title: isJa ? "テキストからも問題を生成" : "Generate problems from scratch",
-                desc: isJa ? "「二次方程式を5問」のように指示するだけで問題を自動生成。ゼロからでも始められます。" : "Type \"10 factoring problems, medium difficulty\" and get a full worksheet.",
-              },
-            ].map((f) => (
-              <div
-                key={f.title}
-                className="group relative p-6 rounded-[18px] bg-card/50 backdrop-blur-xl border border-foreground/[0.05] hover:border-foreground/[0.1] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-500"
-              >
-                <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-4 text-white shadow-md group-hover:scale-110 transition-all duration-500`}>
-                  {f.icon}
-                </div>
-                <h4 className="text-[13px] font-semibold mb-1.5 tracking-tight">{f.title}</h4>
-                <p className="text-[11.5px] text-muted-foreground leading-relaxed">{f.desc}</p>
+                <span
+                  className={`absolute top-5 right-5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium tracking-wide border ${
+                    f.planBadge === "pro"
+                      ? "text-violet-700 dark:text-violet-300 bg-violet-500/[0.06] border-violet-500/25"
+                      : "text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]"
+                  }`}
+                >
+                  {f.planBadge === "pro" && <Crown className="h-2.5 w-2.5" />}
+                  {f.planBadge === "pro" ? (isJa ? "Pro〜" : "Pro+") : (isJa ? "Freeでも" : "Free")}
+                </span>
+                <div className="text-foreground/75 mb-5 pr-16" aria-hidden>{f.icon}</div>
+                <h4 className="text-[14.5px] font-semibold mb-2 tracking-tight">{f.title}</h4>
+                <p className="text-[12.5px] text-muted-foreground leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ━━ Differentiation ━━ */}
-      <section className="relative py-24 border-t border-foreground/[0.04] overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_50%,hsl(var(--primary)/0.02),transparent_70%)]" />
+      {/* ━━ Differentiation ━━
+          rainbow グラデと多色シャドウを廃して、editorial な比較表に整理。
+          Eddivom 列だけが foreground 100% で、左右は muted で薄める。 */}
+      <section className="relative py-28 border-t border-foreground/[0.05]">
         <div
           ref={diffFade.ref}
-          className={`relative max-w-4xl mx-auto px-6 transition-all duration-1000 ${diffFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+          className={`relative max-w-5xl mx-auto px-6 transition-all duration-1000 ${diffFade.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <div className="text-center mb-14">
-            <h2 className="text-[clamp(1.3rem,3.5vw,2.1rem)] font-bold tracking-tight mb-4">
+          <div className="mb-14 max-w-3xl">
+            <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
+              <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              {isJa ? "比較" : "How we compare"}
+            </p>
+            <h2 className="text-[clamp(1.6rem,3.6vw,2.3rem)] font-bold tracking-tight mb-5 leading-[1.25]">
               {isJa ? "Canva でもない、Overleaf でもない。" : "Canva can't do equations. Overleaf is overkill."}
             </h2>
-            <p className="text-muted-foreground text-[15px] max-w-lg mx-auto">
+            <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
                 ? "Eddivom は、数式教材の「運用」を速くする専用ツールです。"
                 : "Eddivom sits right in between — built specifically for math worksheet workflows."}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-2xl border border-foreground/[0.05] bg-foreground/[0.01] opacity-70">
-              <p className="text-[11px] text-muted-foreground/50 font-bold tracking-wider uppercase mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-foreground/[0.06] rounded-2xl overflow-hidden border border-foreground/[0.06]">
+            <div className="p-7 bg-card/60">
+              <p className="text-[11px] text-muted-foreground/55 font-medium tracking-[0.18em] uppercase mb-5">
                 {isJa ? "テンプレ系ツール" : "Canva / Google Docs"}
               </p>
-              <ul className="space-y-2.5 text-[12px] text-muted-foreground/50">
-                <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "数式の細かい編集が難しい" : "Equations break or look ugly"}</li>
-                <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "問題単位で管理できない" : "No per-problem management"}</li>
-                <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "類題生成ができない" : "No variant generation"}</li>
-                <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "解答PDFの自動生成なし" : "Answer key? Build it by hand"}</li>
+              <ul className="space-y-2.5 text-[12.5px] text-muted-foreground/65 leading-relaxed">
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/25 mt-0.5">✕</span> {isJa ? "数式の細かい編集が難しい" : "Equations break or look ugly"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/25 mt-0.5">✕</span> {isJa ? "問題単位で管理できない" : "No per-problem management"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/25 mt-0.5">✕</span> {isJa ? "類題生成ができない" : "No variant generation"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/25 mt-0.5">✕</span> {isJa ? "解答PDFの自動生成なし" : "Answer key? Build it by hand"}</li>
               </ul>
             </div>
 
-            <div className="p-6 rounded-2xl border-2 border-violet-500/25 bg-gradient-to-b from-violet-500/[0.04] to-blue-500/[0.04] shadow-xl shadow-violet-500/[0.08] relative">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold shadow-lg">
-                  {isJa ? "おすすめ" : "Best choice"}
+            <div className="relative p-7 bg-card">
+              <span aria-hidden className="absolute top-0 left-0 right-0 h-px bg-foreground" />
+              <div className="flex items-center gap-2 mb-5">
+                <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-foreground">Eddivom</p>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-foreground text-background text-[9.5px] font-semibold tracking-wide">
+                  {isJa ? "本サービス" : "This product"}
                 </span>
               </div>
-              <p className="text-[11px] font-black tracking-wider uppercase mb-4 bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent">
-                Eddivom
-              </p>
-              <ul className="space-y-2.5 text-[12px] text-foreground/80 font-medium">
-                <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> {isJa ? "PDF・画像から問題を再利用" : "Import from your existing PDFs"}</li>
-                <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> {isJa ? "問題ごとに編集・並べ替え" : "Edit each problem individually"}</li>
-                <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> {isJa ? "類題を1クリックで量産" : "Generate variants in one click"}</li>
-                <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> {isJa ? "生徒用 + 解答付きPDF出力" : "Auto answer-key PDF export"}</li>
-                <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> {isJa ? "印刷に最適な組版品質" : "Equations that actually look right"}</li>
+              <ul className="space-y-2.5 text-[12.5px] text-foreground/85 leading-relaxed">
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/55 mt-0.5">✓</span> {isJa ? "PDF・画像から問題を再利用" : "Import from your existing PDFs"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/55 mt-0.5">✓</span> {isJa ? "問題ごとに編集・並べ替え" : "Edit each problem individually"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/55 mt-0.5">✓</span> {isJa ? "類題を 1 クリックで量産" : "Generate variants in one click"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/55 mt-0.5">✓</span> {isJa ? "生徒用 + 解答付き PDF を出力" : "Auto answer-key PDF export"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/55 mt-0.5">✓</span> {isJa ? "印刷に最適な組版品質" : "Equations that actually look right"}</li>
               </ul>
             </div>
 
-            <div className="p-6 rounded-2xl border border-foreground/[0.05] bg-foreground/[0.01] opacity-70">
-              <p className="text-[11px] text-muted-foreground/50 font-bold tracking-wider uppercase mb-4">
+            <div className="p-7 bg-card/60">
+              <p className="text-[11px] text-muted-foreground/55 font-medium tracking-[0.18em] uppercase mb-5">
                 {isJa ? "LaTeX専用ツール" : "Overleaf / LaTeX"}
               </p>
-              <ul className="space-y-2.5 text-[12px] text-muted-foreground/50">
-                <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "LaTeXの知識が必須" : "You need to learn LaTeX first"}</li>
-                <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "問題単位の管理がない" : "No per-problem structure"}</li>
-                <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "類題の自動生成なし" : "No auto variant generation"}</li>
-                <li className="flex items-center gap-2"><span className="text-red-400/70 font-bold">✕</span> {isJa ? "教材ワークフロー非対応" : "Way more power than you need"}</li>
+              <ul className="space-y-2.5 text-[12.5px] text-muted-foreground/65 leading-relaxed">
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/25 mt-0.5">✕</span> {isJa ? "LaTeXの知識が必須" : "You need to learn LaTeX first"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/25 mt-0.5">✕</span> {isJa ? "問題単位の管理がない" : "No per-problem structure"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/25 mt-0.5">✕</span> {isJa ? "類題の自動生成なし" : "No auto variant generation"}</li>
+                <li className="flex items-start gap-2.5"><span aria-hidden className="text-foreground/25 mt-0.5">✕</span> {isJa ? "教材ワークフロー非対応" : "Way more power than you need"}</li>
               </ul>
             </div>
           </div>
@@ -4003,15 +3969,15 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
       {/* ━━ 開発者紹介 ━━
            Pricing 直前で「誰が作っているか」を示して、課金前の信頼感を底上げする。
            既存の構成 / 計測 / CTA には触らず、独立セクションで挟む形にしている。 */}
-      <section className="relative py-20 border-t border-foreground/[0.04] bg-foreground/[0.012] dark:bg-white/[0.015] overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_50%,hsl(var(--primary)/0.025),transparent_70%)]" />
+      <section className="relative py-24 border-t border-foreground/[0.05] bg-foreground/[0.012] dark:bg-white/[0.015]">
         <div className="relative max-w-3xl mx-auto px-6">
-          <p className="text-center text-[11px] font-bold tracking-[0.22em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-4">
+          <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
+            <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
             {isJa ? "開発者について" : "About the developer"}
           </p>
-          <h2 className="text-center text-[clamp(1.4rem,3.4vw,2rem)] font-bold tracking-tight mb-7 leading-snug">
+          <h2 className="text-[clamp(1.5rem,3.4vw,2.1rem)] font-bold tracking-tight mb-8 leading-[1.3]">
             {isJa
-              ? "ソフトウェアだけでなく、STEM教材を実際に作ってきた人間が設計しています。"
+              ? "ソフトウェアだけでなく、STEM 教材を実際に作ってきた人間が設計しています。"
               : "Built by someone who creates STEM materials, not just software."}
           </h2>
           <div className="space-y-4 text-[14px] sm:text-[15px] leading-relaxed text-foreground/80">
