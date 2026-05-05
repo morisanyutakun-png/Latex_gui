@@ -20,7 +20,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowRight, Sparkles, Check, ChevronRight, ChevronDown,
   Monitor, Zap, Shield, Printer, FileText, Pencil, RefreshCw,
-  Wrench, Crown, BookOpen, Mail, Smartphone, FileSignature,
+  Wrench, Crown, Mail, Smartphone, FileSignature,
   Save, FileDown, Play,
 } from "lucide-react";
 import { renderMathHTML } from "@/lib/katex-render";
@@ -148,26 +148,26 @@ export function MobileLanding({
           <div className="absolute top-20 right-0 w-[260px] h-[260px] rounded-full bg-gradient-to-br from-amber-400/15 via-orange-400/8 to-transparent blur-3xl" />
         </div>
 
-        {/* Hero 中央揃え。プリントをファーストビュー内に押し上げるため、
-             成果物チップ row / Before-After バッジ を撤去し、必須要素 (バッジ・H1・
-             サブ・信頼ライン) のみを残して縦長を最小化。
-             情報の重複部分:
-              - 成果物チップ (確認テスト/宿題/類題) は H1+サブと意味が重なる → 撤去
-              - Before/After (30分→60秒) は H1 の "60秒" と重複 → 撤去
-             残った要素間の mb も -1 ずつ縮め、Hero テキスト総高を約 100-130px 削減。 */}
+        {/* Hero 中央揃え。CV 最大化のため "説明" を削り "出力" を主役にする方針:
+              - バッジ: 「塾講師・教師向け · 類題生成エンジン NEW」(機能チップは最大2要素)
+              - H1: 維持 (60秒 / 1タップで類題)
+              - サブ: 短文化 (「小テスト・宿題プリント・解答付きPDFをすぐ作成。」)
+              - 権威性 (情報工学科) はプリント直下に移動
+              - Before/After は撤去
+             プリント上端を確実にファーストビューに乗せるための最終形。 */}
         <div className={`text-center transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          {/* 核機能バッジ — mb-3 → mb-1.5 */}
+          {/* 核機能バッジ */}
           <div className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-full bg-gradient-to-r from-violet-500/[0.14] via-fuchsia-500/[0.14] to-blue-500/[0.14] border border-violet-500/40 shadow-sm shadow-violet-500/15 mb-1.5">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10px] font-extrabold tracking-wider">
-              {isJa ? "塾講師・教師向け · 高精度 類題生成エンジン" : "For tutors · Precision Variant Engine"}
+              {isJa ? "塾講師・教師向け · 類題生成エンジン" : "For tutors · Variant Engine"}
             </span>
             <span className="inline-flex items-center px-1 py-[1px] rounded text-[8.5px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500">
               NEW
             </span>
           </div>
 
-          {/* H1 — leading を 1.15 → 1.1、mb-3 → mb-1.5 で縦圧縮 */}
+          {/* H1 — 維持 */}
           <h1 className="text-[clamp(1.5rem,7.2vw,2rem)] leading-[1.1] font-black tracking-[-0.03em] mb-1.5">
             {isJa ? (
               <>
@@ -182,22 +182,11 @@ export function MobileLanding({
             )}
           </h1>
 
-          {/* サブ — leading 1.65 → 1.5、mb-4 → mb-2 */}
+          {/* サブ — 短文化。1 行に収まる長さで「成果物 3 種」だけ伝える。 */}
           <p className="text-foreground/80 text-[13px] leading-[1.5] mb-2 font-medium max-w-[22rem] mx-auto">
             {isJa
-              ? "明日の授業の小テストも、今夜の宿題プリントも、解答付きPDFで今すぐ完成。"
-              : "Tomorrow's quiz, tonight's homework — answer-key PDFs ready right now."}
-          </p>
-
-          {/* 信頼ライン — 「情報工学科」表記。mb-2 で次のプリント帯に直結 */}
-          <p className="mb-2 text-[10.5px] text-muted-foreground/75 inline-flex items-center justify-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-foreground/75">
-              {isJa ? "名古屋大学 情報工学科 発" : "Built at Nagoya Univ. — CS & Engineering"}
-            </span>
-            <span aria-hidden className="text-foreground/30">·</span>
-            <span>
-              {isJa ? "高校数学・物理の教材設計に対応" : "Designed for high-school math & physics"}
-            </span>
+              ? "小テスト・宿題プリント・解答付きPDFをすぐ作成。"
+              : "Quizzes, homework & answer-key PDFs — instantly."}
           </p>
         </div>
 
@@ -901,47 +890,45 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
 
   return (
     <div className="relative">
-      {/* 入力 → 出力 フロー帯 — 縦 2 段に圧縮 (旧 3 段 → 2 段で約 18px 短縮)
-           ① 入力例チップ (擬似入力欄)  +  60秒バッジ を同行に
-           ② ↓ アイコン (animate-bounce) のみで「下のプリントが出る」を示唆
-           "このプリントが生成されます" の長文を撤去し、矢印 1 つで関係を伝える。 */}
-      <div className="flex flex-col items-center gap-0.5 mb-1.5">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card border border-foreground/[0.12] text-[11px] font-semibold text-foreground/90 shadow-sm max-w-[80vw]">
-          <Sparkles className="h-3 w-3 text-violet-500 shrink-0" aria-hidden />
+      {/* 入力例 + 実際の出力ラベル — 横 1 行に統合し縦長を最小化。
+           [✨ 入力例]  [実際の出力 ↓]
+           PDF への視線誘導のため、右側にバウンス矢印を入れる。 */}
+      <div className="flex items-center justify-center gap-1.5 mb-1 flex-wrap">
+        <span className="inline-flex items-center gap-1.5 px-2 py-[3px] rounded-full bg-card border border-foreground/[0.12] text-[10.5px] font-semibold text-foreground/85 shadow-sm max-w-[60vw]">
+          <Sparkles className="h-2.5 w-2.5 text-violet-500 shrink-0" aria-hidden />
           <span className="truncate">{promptText}</span>
-          <span className="inline-flex items-center gap-0.5 ml-0.5 px-1.5 py-[1px] rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-blue-500 text-white text-[9px] font-extrabold tracking-wider shadow-sm shrink-0">
-            <Zap className="h-2.5 w-2.5" aria-hidden />
-            {isJa ? "60秒" : "60s"}
-          </span>
         </span>
-        <ChevronDown className="h-3.5 w-3.5 text-violet-600 animate-bounce" aria-hidden />
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold tracking-wide text-violet-700 dark:text-violet-300">
+          {isJa ? "実際の出力" : "Actual output"}
+          <ChevronDown className="h-3 w-3 animate-bounce" aria-hidden />
+        </span>
       </div>
 
-      {/* タブ切替 — mb-2 → mb-1 */}
+      {/* タブ切替 — 小型化 (h-7→h-6, text-[11px]→[10px]) で PDF を主役に */}
       <div className="flex items-center justify-center mb-1">
         <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-foreground/[0.05] border border-foreground/[0.08]">
           <button
             type="button"
             onClick={() => goTo("q")}
-            className={`flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-bold transition ${
+            className={`flex items-center gap-1 h-6 px-2.5 rounded-full text-[10px] font-bold transition ${
               active === "q"
                 ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-sm shadow-violet-500/30"
                 : "text-foreground/60"
             }`}
           >
-            <FileText className="h-3 w-3" />
+            <FileText className="h-2.5 w-2.5" />
             {isJa ? "問題" : "Worksheet"}
           </button>
           <button
             type="button"
             onClick={() => goTo("a")}
-            className={`flex items-center gap-1 h-7 px-3 rounded-full text-[11px] font-bold transition ${
+            className={`flex items-center gap-1 h-6 px-2.5 rounded-full text-[10px] font-bold transition ${
               active === "a"
                 ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-500/30"
                 : "text-foreground/60"
             }`}
           >
-            <FileSignature className="h-3 w-3" />
+            <FileSignature className="h-2.5 w-2.5" />
             {isJa ? "解答" : "Answers"}
           </button>
         </div>
@@ -992,33 +979,35 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
         />
       </div>
 
-      {/* プリント補足ラベル — 「成果物として何を意味するか」を 3 つのミニチップで即提示。
-           PDF / 印刷 / 授業 の 3 軸でカバーし、講師が「明日そのまま使える」を視認できる。 */}
+      {/* プリント補足ラベル — 機能チップは最大 2 つ (PDF + 印刷)。
+           手作業 30 分→60 秒の Before/After も小さく統合し、
+           「速さ + 成果物形式」を 1 行で完結。 */}
       <div className="mt-1.5 flex items-center justify-center gap-1 flex-wrap px-2">
-        {(isJa
-          ? [
-              { icon: <FileDown className="h-2.5 w-2.5" aria-hidden />, label: "そのまま配布できるPDF" },
-              { icon: <Printer className="h-2.5 w-2.5" aria-hidden />, label: "解答付きで印刷可能" },
-              { icon: <BookOpen className="h-2.5 w-2.5" aria-hidden />, label: "授業でそのまま使える" },
-            ]
-          : [
-              { icon: <FileDown className="h-2.5 w-2.5" aria-hidden />, label: "Distribute as PDF" },
-              { icon: <Printer className="h-2.5 w-2.5" aria-hidden />, label: "Print w/ answer key" },
-              { icon: <BookOpen className="h-2.5 w-2.5" aria-hidden />, label: "Class-ready" },
-            ]
-        ).map((it) => (
-          <span
-            key={it.label}
-            className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-[10px] font-semibold text-foreground/80"
-          >
-            <span className="text-violet-600 dark:text-violet-400">{it.icon}</span>
-            {it.label}
+        <span className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-[10px] font-semibold text-foreground/80">
+          <FileDown className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" aria-hidden />
+          {isJa ? "そのまま配布できるPDF" : "Distribute as PDF"}
+        </span>
+        <span className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-[10px] font-semibold text-foreground/80">
+          <Printer className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" aria-hidden />
+          {isJa ? "解答付きで印刷可能" : "Print w/ answer key"}
+        </span>
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-[3px] rounded-full bg-gradient-to-r from-violet-500/[0.1] to-fuchsia-500/[0.1] border border-violet-500/30 text-[10px] font-bold">
+          <Zap className="h-2.5 w-2.5 text-amber-500" aria-hidden />
+          <span className="text-muted-foreground/65 line-through">{isJa ? "30分" : "30m"}</span>
+          <ArrowRight className="h-2 w-2 text-foreground/40" aria-hidden />
+          <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+            {isJa ? "60秒" : "60s"}
           </span>
-        ))}
+        </span>
       </div>
 
-      <p className="mt-1.5 text-center text-[9.5px] text-muted-foreground/55 font-medium">
-        {isJa ? "← スワイプで問題 / 解答を切替 →" : "← swipe to switch worksheet / answers →"}
+      {/* 権威性ライン — Hero から PDF 直下に移設。控えめサイズで圧迫しない。 */}
+      <p className="mt-1.5 text-center text-[9.5px] text-muted-foreground/65 leading-snug">
+        <span className="font-semibold text-foreground/65">
+          {isJa ? "名古屋大学 情報工学科 発" : "Built at Nagoya Univ. — CS & Eng."}
+        </span>
+        <span aria-hidden className="mx-1 text-foreground/25">·</span>
+        <span>{isJa ? "← スワイプで切替 →" : "← swipe →"}</span>
       </p>
     </div>
   );
