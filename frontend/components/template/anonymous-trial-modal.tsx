@@ -17,7 +17,7 @@
  *   - free_generate_limit_reached モーダルを開いた段階で既に使用済みだったとき
  */
 import React, { useEffect, useRef, useState } from "react";
-import { Sparkles, Loader2, Lock, ArrowRight, AlertCircle } from "lucide-react";
+import { Sparkles, Loader2, Lock, ArrowRight, AlertCircle, Check, Crown } from "lucide-react";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +28,7 @@ import {
   AnonymousTrialError,
 } from "@/lib/api";
 import { markAnonymousTrialUsed } from "@/lib/anonymous-trial";
+import { PLANS, type PlanId } from "@/lib/plans";
 import {
   trackFreeGenerateStart,
   trackFreeGenerateComplete,
@@ -38,12 +39,17 @@ import {
 interface AnonymousTrialModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** ログイン CTA を押されたときに発火 (signIn 等を呼び出す)。 */
+  /** ログイン CTA を押されたときに発火 (signIn 等を呼び出す)。
+   *  「上限到達」画面で Free を選んだときも、この関数が呼ばれる (= サインアップで Free 開始)。 */
   onLoginRequested: () => void;
   /** 親が open するタイミングで `hasUsedAnonymousTrial()` を評価して渡す。
-   *  true なら入力フェーズの代わりに「上限到達」UI を出す。
+   *  true なら入力フェーズの代わりに「上限到達 + プラン選択」UI を出す。
    *  state を effect で書き換えなくて済むようにフェーズ計算を props から導出する。 */
   alreadyUsed: boolean;
+  /** 「上限到達」画面で有料プランを選んだときに発火。
+   *  親側で Stripe Checkout (未ログインなら signIn → ?plan=xxx → checkout) に飛ばす。
+   *  未指定なら Free の場合と同じく onLoginRequested を呼ぶ (= 後方互換)。 */
+  onPlanSelect?: (planId: PlanId) => void;
 }
 
 type Phase = "input" | "loading" | "result";
@@ -64,6 +70,7 @@ export function AnonymousTrialModal({
   onOpenChange,
   onLoginRequested,
   alreadyUsed,
+  onPlanSelect,
 }: AnonymousTrialModalProps) {
   const { locale } = useI18n();
   const isJa = locale !== "en";
@@ -246,32 +253,144 @@ export function AnonymousTrialModal({
         )}
 
         {showLimitReached && (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/[0.06] border border-amber-500/[0.25]">
-              <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[13px] font-semibold mb-0.5">
-                  {isJa ? "無料お試しはこのブラウザで使い切りました" : "You've used your free trial on this browser"}
-                </p>
-                <p className="text-[11.5px] text-muted-foreground">
-                  {isJa
-                    ? "無料登録 (30秒) すると、引き続き AI 生成・編集・PDF ダウンロードまで使えます。"
-                    : "Free signup unlocks unlimited AI editing and PDF downloads."}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                {isJa ? "閉じる" : "Close"}
-              </Button>
-              <Button onClick={onLoginRequested} className="gap-2">
-                {isJa ? "無料登録する" : "Sign up free"}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+          <LimitReachedPlanPicker
+            isJa={isJa}
+            onClose={() => onOpenChange(false)}
+            onSelect={(planId) => {
+              // Free は従来通り signIn 経路、有料は親の onPlanSelect (Stripe Checkout) へ
+              if (planId === "free" || !onPlanSelect) {
+                onLoginRequested();
+              } else {
+                onPlanSelect(planId);
+              }
+            }}
+          />
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** 上限到達時のプラン選択ブロック。閉じる → サインアップの 2 アクションを廃して、
+ *  この場で Free / Starter / Pro を 1 タップで選べるようにする。
+ *
+ *  デザイン方針:
+ *    - 説明文は最小限 (1 文)
+ *    - Pro を highlight (おすすめ)、Starter は中間、Free は最下段
+ *    - 各カードに代表的な特徴 2-3 行だけ。詳細比較は LP の料金表に任せる
+ *    - 「閉じる」だけ右下に小さく残す (誤タップ回避)
+ */
+function LimitReachedPlanPicker({
+  isJa,
+  onClose,
+  onSelect,
+}: {
+  isJa: boolean;
+  onClose: () => void;
+  onSelect: (planId: PlanId) => void;
+}) {
+  // 上限到達直後の選択肢としては Pro / Starter / Free の 3 段で十分
+  // (Premium は組織契約ライク、ここで売り込むのは過剰)
+  const order: PlanId[] = ["pro", "starter", "free"];
+
+  // プラン別の「ここで売り込む 2-3 行」を絞り込む。features の頭から 3 件が
+  // ちょうど「枠を超える価値」を表現できているのでそのまま使う。
+  const featuresFor = (planId: PlanId): string[] => {
+    const def = PLANS[planId];
+    const list = isJa ? def.features : (def.featuresEn ?? def.features);
+    return list.slice(0, 3);
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/[0.06] border border-amber-500/[0.25]">
+        <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-[13px] font-semibold mb-0.5">
+            {isJa ? "無料お試しはこのブラウザで使い切りました" : "You've used your free trial on this browser"}
+          </p>
+          <p className="text-[11.5px] text-muted-foreground leading-relaxed">
+            {isJa
+              ? "プランを選ぶと、そのまま登録 → 続きから AI 生成・編集・PDF まで使えます。"
+              : "Pick a plan to sign up and unlock AI editing & PDF in the same flow."}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        {order.map((planId) => {
+          const def = PLANS[planId];
+          const isHighlight = planId === "pro";
+          const planName = isJa ? def.name : (def.nameEn ?? def.name);
+          const tagline = isJa ? def.tagline : (def.taglineEn ?? def.tagline);
+          const subLabel = planId === "free"
+            ? (isJa ? "永久無料" : "Free forever")
+            : (isJa ? "/ 月" : "/ mo");
+          const ctaLabel = planId === "free"
+            ? (isJa ? "無料で続ける" : "Continue free")
+            : (isJa ? `${planName} で続ける` : `Continue with ${planName}`);
+
+          return (
+            <button
+              key={planId}
+              type="button"
+              onClick={() => onSelect(planId)}
+              className={`relative text-left rounded-xl p-4 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 ${
+                isHighlight
+                  ? "bg-card border border-foreground/[0.18] shadow-[0_2px_12px_-6px_rgba(0,0,0,0.12)]"
+                  : "bg-card border border-foreground/[0.08] hover:border-foreground/[0.14]"
+              }`}
+            >
+              {isHighlight && (
+                <>
+                  <span aria-hidden className="absolute left-0 top-4 bottom-4 w-[3px] rounded-r-full bg-foreground" />
+                  <span className="absolute -top-2 right-3 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-foreground text-background text-[9.5px] font-semibold tracking-wide">
+                    <Crown className="h-2.5 w-2.5" />
+                    {isJa ? "おすすめ" : "RECOMMENDED"}
+                  </span>
+                </>
+              )}
+
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-[14px] font-semibold tracking-tight">{planName}</span>
+                <span className="ml-auto text-[18px] font-bold tabular-nums">{def.priceLabel}</span>
+                <span className="text-[10.5px] text-muted-foreground/70">{subLabel}</span>
+              </div>
+              {tagline && (
+                <p className="text-[11px] text-muted-foreground/75 mb-2 leading-snug">{tagline}</p>
+              )}
+              <ul className="space-y-1 mb-3">
+                {featuresFor(planId).map((f) => (
+                  <li key={f} className="flex items-start gap-1.5 text-[11.5px] text-foreground/80 leading-snug">
+                    <Check className="h-3 w-3 mt-[2px] shrink-0 text-foreground/55" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <span
+                className={`inline-flex items-center gap-1 text-[11.5px] font-semibold ${
+                  isHighlight ? "text-foreground" : "text-foreground/75"
+                }`}
+              >
+                {ctaLabel}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-[10.5px] text-muted-foreground/60 leading-relaxed">
+        {isJa
+          ? "クリック後、Google でサインイン → 自動的に決済画面 (Free はそのままエディタ) に進みます。"
+          : "After clicking, sign in with Google — you'll go straight to checkout (or editor for Free)."}
+      </p>
+
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground/70">
+          {isJa ? "閉じる" : "Close"}
+        </Button>
+      </div>
+    </div>
   );
 }

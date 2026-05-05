@@ -237,6 +237,7 @@ export function MobileLandingShell() {
         onOpenChange={setTrialOpen}
         onLoginRequested={handleTrialLoginRequested}
         alreadyUsed={trialAlreadyUsed}
+        onPlanSelect={handlePlanSelect}
       />
     </>
   );

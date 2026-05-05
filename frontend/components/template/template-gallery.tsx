@@ -3263,6 +3263,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           onOpenChange={setTrialOpen}
           onLoginRequested={handleTrialLoginRequested}
           alreadyUsed={trialAlreadyUsed}
+          onPlanSelect={handlePlanSelect}
         />
       </>
     );
