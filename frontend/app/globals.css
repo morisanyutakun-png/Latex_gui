@@ -3305,50 +3305,212 @@ html {
   box-shadow: 0 0 0 2px hsl(var(--foreground) / 0.035);
 }
 
-/* 数式チップは「本文の中の数式」として、装飾なし・KaTeX のフォントそのまま。
-   緑のホバー枠は控えめにして PDF っぽさを優先する。 */
-.visual-editor .math-chip {
-  background: transparent;
-  border-color: transparent;
-  vertical-align: baseline;
+/* ══════════════════════════════════════════════════════════
+   VisualEditor — 数式の "成果物に近い" 簡易プレビュー
+   方針:
+     - 紙の本文 (serif) に KaTeX (Computer Modern 系) を完全に溶け込ませる
+     - インライン数式は装飾ゼロ。本文と同じ baseline + ひと回り柔らかい色
+     - 表示数式は PDF の equation 環境のように
+         · 中央寄せ
+         · 上下 1.0em のゆとり
+         · 任意の段番号 (左右の余白に "(1)" のような番号を出すための CSS フック)
+     - hover / focus は紙を傷つけない透明感重視のスポット
+     - 失敗時 fallback (Σ バッジ) は親の rhythm を壊さないようインライン化
+   ══════════════════════════════════════════════════════════ */
+
+/* Baseline KaTeX の文字色 / フォントサイズ / レターレベルの整え。
+   visual-editor 内のすべての数式 (chip / display) で共有する。 */
+.visual-editor .katex {
+  font-size: 1.05em;
+  letter-spacing: normal;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
-.visual-editor .math-chip:hover {
-  background: hsl(220 70% 55% / 0.08);
-  border-color: transparent;
-  box-shadow: 0 0 0 1px hsl(220 70% 55% / 0.15);
-  border-radius: 3px;
+.visual-editor .katex .mord,
+.visual-editor .katex .mbin,
+.visual-editor .katex .mrel,
+.visual-editor .katex .mopen,
+.visual-editor .katex .mclose {
+  color: inherit; /* KaTeX のデフォ青みを紙のインク色に揃える */
+}
+/* 分数の罫線 / 根号バー / overline などを少し太めに描き、印刷時の視認性を再現 */
+.visual-editor .katex .frac-line,
+.visual-editor .katex .overline-line,
+.visual-editor .katex .underline-line {
+  border-bottom-width: 0.045em;
+  border-color: currentColor;
+}
+.visual-editor .katex .sqrt > .sqrt-line {
+  border-top-width: 0.045em;
 }
 
-/* 表示数式ブロックも、緑の枠ではなく PDF と同じく中央寄せ + 余白だけにする */
+/* ── インライン数式チップ ───────────────────────────────────
+   "本文の中に流し込まれた小さな数式" として、装飾は最小限に。
+   hover で控えめな amber underline を引き、クリック可能であることだけ示す。 */
+.visual-editor .math-chip {
+  position: relative;
+  background: transparent;
+  border: 0;
+  padding: 0 1px;
+  margin: 0;
+  vertical-align: baseline;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+.visual-editor .math-chip::after {
+  /* 控えめなインクライン (印刷物風) — hover 時にだけ可視化 */
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -1px;
+  height: 1px;
+  border-radius: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(217, 119, 6, 0.55),
+    transparent);
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+.visual-editor .math-chip:hover {
+  background: rgba(245, 158, 11, 0.07);
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.18);
+}
+.visual-editor .math-chip:hover::after { opacity: 1; }
+.visual-editor .math-chip-render {
+  display: inline-block;
+  vertical-align: baseline;
+}
+.visual-editor .math-chip-render .katex { font-size: 1.04em; }
+
+/* ── 表示数式 (display math) ───────────────────────────────
+   PDF の equation 環境を再現: 中央寄せ + 上下 1.0em の余白 + 微妙な
+   左右ガター。番号付き数式 (\tag) があれば右に "(1)" として出る。
+   通常時は完全に紙と一体、hover で薄い ink halo + 左ガターに amber 細罫。 */
 .visual-editor .display-math-block {
   display: block;
-  border: none;
+  position: relative;
+  border: 0;
   background: transparent;
   color: inherit;
   text-align: center;
-  padding: 8px 0;
-  margin: 12px 0;
-  border-radius: 0;
+  padding: 14px 28px;
+  margin: 20px 0;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  outline: none;
+  transition: background-color 200ms ease, box-shadow 200ms ease;
+}
+.visual-editor .display-math-block::before {
+  /* 左に縦の amber rail — hover でフェードイン (Notion 風の "ここは数式" 識別) */
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d97706, #f59e0b);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.visual-editor .display-math-block::after {
+  /* 右上に "Math" ラベル相当のドット — focus 時のみ。デカく出さない */
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #d97706;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(217, 119, 6, 0.55);
 }
 .visual-editor .display-math-block:hover {
-  background: hsl(220 70% 55% / 0.05);
-  border-radius: 4px;
+  background:
+    radial-gradient(80% 70% at 50% 50%, rgba(245, 158, 11, 0.045), transparent 80%);
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.10);
 }
+.visual-editor .display-math-block:hover::before { opacity: 0.65; }
 .visual-editor .display-math-block:focus {
-  background: hsl(220 70% 55% / 0.07);
-  box-shadow: 0 0 0 2px hsl(220 70% 55% / 0.18);
-  border-radius: 4px;
-  outline: none;
+  background:
+    radial-gradient(80% 70% at 50% 50%, rgba(245, 158, 11, 0.07), transparent 80%);
+  box-shadow:
+    inset 0 0 0 1px rgba(217, 119, 6, 0.22),
+    0 0 0 4px rgba(245, 158, 11, 0.10);
+}
+.visual-editor .display-math-block:focus::before,
+.visual-editor .display-math-block:focus::after { opacity: 1; }
+.dark .visual-editor .display-math-block:hover {
+  background:
+    radial-gradient(80% 70% at 50% 50%, rgba(245, 158, 11, 0.07), transparent 80%);
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.18);
+}
+.dark .visual-editor .display-math-block:focus {
+  box-shadow:
+    inset 0 0 0 1px rgba(245, 158, 11, 0.32),
+    0 0 0 4px rgba(245, 158, 11, 0.12);
 }
 
-/* KaTeX のフォントサイズを本文と同じスケールに固定 */
-.visual-editor .katex {
-  font-size: 1.04em;
-}
+/* KaTeX 自身の display レイアウトは全幅中央寄せに */
 .visual-editor .display-math-block .katex-display {
   margin: 0;
+  display: block;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 17, 23, 0.18) transparent;
+}
+.visual-editor .display-math-block .katex-display::-webkit-scrollbar {
+  height: 6px;
+}
+.visual-editor .display-math-block .katex-display::-webkit-scrollbar-thumb {
+  background: rgba(15, 17, 23, 0.16);
+  border-radius: 999px;
+}
+.visual-editor .display-math-block .katex-display > .katex {
+  /* 表示数式は本文より少し大きめに (PDF の \displaystyle に合わせる) */
+  font-size: 1.18em;
+  display: inline-block;
+}
+
+/* タグ番号 \tag{...} を持つ数式は右にズレるので、コンテナ側で
+   PDF と同じく "中央 + 番号は右" に見えるように余白を取る */
+.visual-editor .display-math-block .katex-display .eqno {
+  color: hsl(var(--foreground) / 0.55);
+  font-style: italic;
+}
+
+/* 整列環境 (align / aligned / cases / matrix) — 行間を PDF に近づける */
+.visual-editor .display-math-block .katex .arraycolsep,
+.visual-editor .display-math-block .katex .col-align-c,
+.visual-editor .display-math-block .katex .col-align-l,
+.visual-editor .display-math-block .katex .col-align-r {
+  line-height: 1.45;
+}
+
+/* インライン数式の中の root / frac / sub / sup は本文の行間を崩さない */
+.visual-editor .math-chip .katex {
+  display: inline-block;
+  line-height: 0;
+  vertical-align: -0.18em;
+}
+.visual-editor .math-chip .katex .vlist {
+  line-height: 1;
+}
+
+/* インライン Σ / フォールバックは紙の rhythm に揃える */
+.visual-editor .math-chip-fallback {
+  vertical-align: -0.05em;
 }
 
 /* ══════════════════════════════════════════════════════════
