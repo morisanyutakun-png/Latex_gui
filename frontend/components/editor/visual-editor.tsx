@@ -99,8 +99,8 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
     return style;
   }, [latex]);
 
-  // 末尾の常時編集可能な段落 (Word ライクな「白紙の上にカーソル」感)
-  const trailingRef = useRef<HTMLParagraphElement | null>(null);
+  // 末尾の "+ ブロックを追加" ボタン要素。inline math などの fallback target。
+  const trailingRef = useRef<HTMLElement | null>(null);
 
   // ─── 数式編集ポップオーバー (シングルトン) ───
   // 子要素から openMathEditor(req) で開く。apply されたかどうかを appliedRef で追跡し、
@@ -256,16 +256,57 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
       }
 
       if (item.action === "inline-math") {
-        // インライン数式: 直前のフォーカス位置に挿入。slash 起動なら trailing 内へ。
-        const target = ctx?.slashContext?.node
-          ?? (lastFocusedEditableRef.current && document.body.contains(lastFocusedEditableRef.current)
-            ? lastFocusedEditableRef.current
-            : trailingRef.current);
-        if (!target) return;
-        if (document.activeElement !== target) {
-          target.focus();
+        // インライン数式の挿入経路は 2 種類。
+        //
+        //  (1) 既存 editable にフォーカスがある (本文中で打鍵 / `/` で発火) →
+        //      その場に math chip を直接挿入し、即座に MathEditPopover を開く。
+        //
+        //  (2) trailing block adder などフォーカス editable が無い状況 →
+        //      新しい段落として `$ \quad $` を挿入し、placeholder を MathEditPopover の
+        //      apply で `$<本文>$` に差し替える (display-math と同じ手法)。
+        const editableTarget =
+          ctx?.slashContext?.node && document.body.contains(ctx.slashContext.node)
+            ? ctx.slashContext.node
+            : (lastFocusedEditableRef.current && document.body.contains(lastFocusedEditableRef.current)
+                ? lastFocusedEditableRef.current
+                : null);
+
+        if (editableTarget) {
+          if (document.activeElement !== editableTarget) editableTarget.focus();
+          insertEmptyMathChipAndEdit(editableTarget, openMathEditor);
+          return;
         }
-        insertEmptyMathChipAndEdit(target, openMathEditor);
+
+        // (2) フォールバック — 段落として inline math を新規挿入する
+        const INLINE_PLACEHOLDER = "$ \\quad $";
+        const wrapInline = (b: string) => `$${b}$`;
+        if (ctx?.afterRange) {
+          handleInsertAfterRange(ctx.afterRange, INLINE_PLACEHOLDER);
+        } else {
+          handleInsertNewParagraph(INLINE_PLACEHOLDER);
+        }
+        openMathEditor({
+          initialLatex: "",
+          onApply: (newBody) => {
+            const trimmed = newBody.trim();
+            if (!trimmed) return;
+            const after = latexRef.current;
+            const idx = after.lastIndexOf(INLINE_PLACEHOLDER);
+            if (idx === -1) {
+              handleInsertNewParagraph(wrapInline(trimmed));
+              return;
+            }
+            const next = after.slice(0, idx) + wrapInline(trimmed) + after.slice(idx + INLINE_PLACEHOLDER.length);
+            smartOnChange(next);
+          },
+          onCancel: () => {
+            const after = latexRef.current;
+            const idx = after.lastIndexOf(INLINE_PLACEHOLDER);
+            if (idx === -1) return;
+            const next = after.slice(0, idx) + after.slice(idx + INLINE_PLACEHOLDER.length);
+            smartOnChange(next.replace(/\n{3,}/g, "\n\n"));
+          },
+        });
         return;
       }
 
@@ -340,7 +381,7 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
     return true;
   });
 
-  // ページ上の余白クリックで末尾の編集可能段落にカーソルを移す (Word ライク)
+  // ページ上の余白クリックで末尾の "+ ブロックを追加" ボタンにフォーカス
   const handlePageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
     const node = trailingRef.current;
@@ -350,11 +391,7 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
     if (typeof window !== "undefined") {
       const sel = window.getSelection();
       if (sel) {
-        const range = window.document.createRange();
-        range.selectNodeContents(node);
-        range.collapse(false);
         sel.removeAllRanges();
-        sel.addRange(range);
       }
     }
   };
@@ -392,10 +429,14 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
                   />
                 </DeletableBlock>
               ))}
-              <TrailingEditableParagraph
+              <TrailingBlockAdder
                 innerRef={trailingRef}
-                placeholder={t("doc.editor.visual.type_here")}
-                onInsert={handleInsertNewParagraph}
+                onOpenMenu={(rect) => {
+                  setBlockMenu({
+                    anchor: { x: rect.left, y: rect.top },
+                    placement: "above",
+                  });
+                }}
                 onSlashOpen={(node, slashRange, anchorRect) => {
                   setBlockMenu({
                     anchor: { x: anchorRect.left, y: anchorRect.bottom },
@@ -1942,158 +1983,102 @@ function FigureSnippetPreview({
 }
 
 // ─────────────────────────────────────
-// TrailingEditableParagraph — 本文末尾に常時ある「白紙の入力枠」
+// TrailingBlockAdder — 本文末尾に常時ある「+ ブロックを追加」ゾーン (Notion 風)
 //
-// Word ライクに「ページ上のどこをクリックしても入力できる」感を実現するため、
-// 常に末尾に空の contentEditable を 1 つ置いておく。
-// 入力 → blur で本文末尾 (\end{document} の直前) に新しい段落として挿入する。
-// 空のときは placeholder テキストを CSS で描画する。
+// 旧 TrailingEditableParagraph は contentEditable な「白紙」だったが、
+// ブロック単位の編集モデルに完全移行したため明示メニュー方式に切り替えた。
+// クリック / Enter / Space / `/` のいずれでも BlockInsertMenu が開き、
+// 段落・数式・表・見出しなどあらゆるブロックを 1 アクションで挿入できる。
+// 数式は MathEditPopover が日本語自然言語入力 (latexToJapanese 由来) と
+// LaTeX 直接入力 (英語ロケール) を locale で切替えてくれる。
+//
+// この要素自体も innerRef に流して、他の editable と同じく
+// "lastFocusedEditableRef" のトラッキング対象になる (= 後続の inline math 等が
+// fallback target としてここを参照できる)。
 // ─────────────────────────────────────
 
-interface TrailingEditableParagraphProps {
-  placeholder: string;
-  onInsert: (text: string) => void;
-  innerRef: React.MutableRefObject<HTMLParagraphElement | null>;
-  /** `/` 打鍵時に slash menu を開く要求。確定時に "/" 含むレンジを置換できるよう、
-   *  ホスト要素・"/" を含む Range・anchor の bounding rect を渡す。 */
+interface TrailingBlockAdderProps {
+  /** メニュー起動時の anchor として bounding rect を渡す。 */
+  onOpenMenu: (rect: DOMRect) => void;
+  /** 旧 slash 経路 (互換用) — `/` を打鍵したときに親側へ通知する。 */
   onSlashOpen?: (
     node: HTMLElement,
     slashRange: globalThis.Range,
     anchorRect: { left: number; bottom: number },
   ) => void;
+  innerRef: React.MutableRefObject<HTMLElement | null>;
 }
 
-function TrailingEditableParagraph({ placeholder, onInsert, innerRef, onSlashOpen }: TrailingEditableParagraphProps) {
-  const openMathEditor = useMathEditor();
+function TrailingBlockAdder({ onOpenMenu, onSlashOpen, innerRef }: TrailingBlockAdderProps) {
+  const { locale } = useI18n();
+  const isJa = locale === "ja";
+  const btnRef = useRef<HTMLButtonElement | null>(null);
 
-  // onInsert は親の closure で毎回作り直されがち。listener を一度だけ取り付けるため ref 経由で参照する。
-  const onInsertRef = useRef(onInsert);
-  useEffect(() => {
-    onInsertRef.current = onInsert;
-  }, [onInsert]);
+  const openMenu = useCallback(() => {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) onOpenMenu(rect);
+  }, [onOpenMenu]);
 
-  // 数式チップ click → ポップオーバー (生 LaTeX を見せない)
-  // FAB / Cmd+M 経由で挿入された新規チップの commit も COMMIT_EVENT で受ける
-  useEffect(() => {
-    const node = innerRef.current;
-    if (!node) return;
-    const onMouseDown = (e: MouseEvent) => {
-      const chip = findEnclosingChip(e.target as HTMLElement | null);
-      if (!chip) return;
-      e.preventDefault();
-      e.stopPropagation();
-      openMathEditor({
-        initialLatex: chip.dataset.source ?? "",
-        onApply: (newLatex) => {
-          renderChipPreview(chip, newLatex);
-          node.dispatchEvent(new CustomEvent(COMMIT_EVENT, { bubbles: false }));
-        },
-      });
-    };
-    const onCommitNow = () => {
-      const text = serializeContentEditableDOM(node).replace(/\u200B/g, "").trim();
-      if (text) {
-        node.textContent = "";
-        onInsertRef.current(text);
-      }
-    };
-    node.addEventListener("mousedown", onMouseDown);
-    node.addEventListener(COMMIT_EVENT, onCommitNow);
-    return () => {
-      node.removeEventListener("mousedown", onMouseDown);
-      node.removeEventListener(COMMIT_EVENT, onCommitNow);
-    };
-  }, [innerRef, openMathEditor]);
-
-  // ── IME composition tracking ──
-  const composingRef = useRef(false);
-  const onCompositionStart = useCallback(() => { composingRef.current = true; }, []);
-  const onCompositionEnd = useCallback(() => {
-    setTimeout(() => { composingRef.current = false; }, 50);
-  }, []);
-
-  // Enter = commit (insert paragraph), Shift+Enter = line break, Cmd/Ctrl+M = math chip,
-  // `/` (空段落の先頭) = Notion 風 slash menu を開く
-  // IME 変換中の Enter は無視 → 文字確定 Enter とブロック確定 Enter を分離
   const onKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLElement>) => {
-      // Cmd/Ctrl+M → 数式チップ挿入
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "m") {
+    (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (e.nativeEvent.isComposing) return;
+      // `/` 専用フローを slash menu 互換で立ち上げる (kbd 親が dummy slashRange を持つ)
+      if (e.key === "/" && onSlashOpen) {
         e.preventDefault();
-        e.stopPropagation();
-        const node = innerRef.current;
-        if (!node) return;
-        insertEmptyMathChipAndEdit(node, openMathEditor);
+        const node = btnRef.current;
+        if (!node) return openMenu();
+        const r = node.getBoundingClientRect();
+        const dummy = window.document.createRange();
+        dummy.setStart(node, 0);
+        dummy.collapse(true);
+        onSlashOpen(node, dummy, { left: r.left, bottom: r.bottom });
         return;
       }
-
-      // `/` を空段落の先頭で打ったときは slash menu を開く (IME 中はスルー)。
-      if (e.key === "/" && !e.nativeEvent.isComposing && !composingRef.current && onSlashOpen) {
-        const node = innerRef.current;
-        if (!node) return;
-        // 段落が空 (テキストノードなし or 空白のみ) のときだけ起動。
-        // ZWS / <br> しか入っていない場合も「空」とみなす。
-        const text = (node.textContent || "").replace(/[​ \s]/g, "");
-        if (text.length > 0) return;
+      if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        // "/" を実際に挿入してから Range を取得 → onSlashOpen に渡す。
-        // 確定時に slashRange.deleteContents() で除去できる。
-        if (typeof window === "undefined") return;
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return;
-        // キャレットを node 末尾に置き直す
-        const range = window.document.createRange();
-        range.selectNodeContents(node);
-        range.collapse(false);
-        const slashTextNode = window.document.createTextNode("/");
-        range.insertNode(slashTextNode);
-        // slash 文字を覆う range を作る (確定時に削除する用)
-        const slashRange = window.document.createRange();
-        slashRange.selectNode(slashTextNode);
-        // 画面座標を slash の bounding rect から取る (キャレット直下に menu)
-        const rect = slashRange.getBoundingClientRect();
-        onSlashOpen(node, slashRange, { left: rect.left, bottom: rect.bottom });
-        return;
+        openMenu();
       }
-
-      // Enter (without Shift, not composing) → commit by blurring
-      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
-        e.preventDefault();
-        (e.currentTarget as HTMLElement).blur();
-        return;
-      }
-      // Shift+Enter → default line break (allow contentEditable default)
     },
-    [innerRef, openMathEditor, onSlashOpen]
+    [openMenu, onSlashOpen]
   );
 
   return (
-    <p
-      ref={(node: HTMLParagraphElement | null) => {
-        innerRef.current = node;
-      }}
-      contentEditable
-      suppressContentEditableWarning
-      spellCheck={false}
-      data-placeholder={placeholder}
-      className="trailing-editable editable-text-box text-[15px] leading-[1.75] text-foreground/85 my-3 outline-none cursor-text whitespace-pre-wrap min-h-[1.75em]"
-      onKeyDown={onKeyDown}
-      onCompositionStart={onCompositionStart}
-      onCompositionEnd={onCompositionEnd}
-      onBlur={(e) => {
-        const el = e.currentTarget as HTMLElement;
-        // 子孫 (math chip) にフォーカスが移っただけなら commit しない
-        const next = e.relatedTarget as Node | null;
-        if (next && el.contains(next)) return;
-        const text = serializeContentEditableDOM(el).replace(/\u200B/g, "").trim();
-        if (text) {
-          el.textContent = "";
-          onInsert(text);
-        }
-      }}
-    />
+    <div className="trailing-block-adder-wrap" data-block-adder>
+      <button
+        ref={(n: HTMLButtonElement | null) => {
+          btnRef.current = n;
+          innerRef.current = n;
+        }}
+        type="button"
+        onClick={openMenu}
+        onKeyDown={onKeyDown}
+        className="trailing-block-adder"
+        aria-label={isJa ? "ブロックを追加" : "Add a block"}
+      >
+        <span className="trailing-block-adder-plus">＋</span>
+        <span className="trailing-block-adder-text">
+          <span className="trailing-block-adder-title">
+            {isJa ? "ブロックを追加" : "Add a block"}
+          </span>
+          <span className="trailing-block-adder-sub">
+            {isJa
+              ? "テキスト・数式・表・見出し … から選択"
+              : "Text, math, table, heading and more"}
+          </span>
+        </span>
+        <span className="trailing-block-adder-keys">
+          <kbd>/</kbd>
+          <span className="trailing-block-adder-keys-or">{isJa ? "または" : "or"}</span>
+          <span className="trailing-block-adder-keys-click">
+            {isJa ? "クリック" : "click"}
+          </span>
+        </span>
+      </button>
+    </div>
   );
 }
+
+// ─────────────────────────────────────
 
 // ─────────────────────────────────────
 // inlines → HTML 変換 + DOM serializer

@@ -894,6 +894,26 @@ html {
 /* ── Block delete UI — ergonomic 2-phase delete ── */
 .deletable-block {
   position: relative;
+  border-radius: 8px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+/* hover で「これは独立したブロックです」と分かる subtle 枠 (Notion 風)。
+   左端の amber stripe で識別性を強化、内側 hairline で紙との段差を出す。 */
+.deletable-block:hover {
+  background:
+    linear-gradient(90deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.0) 80%);
+  box-shadow:
+    inset 2px 0 0 rgba(217, 119, 6, 0.32),
+    inset 0 0 0 1px rgba(15, 17, 23, 0.04);
+}
+.dark .deletable-block:hover {
+  background:
+    linear-gradient(90deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.0) 80%);
+  box-shadow:
+    inset 2px 0 0 rgba(245, 158, 11, 0.40),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 /* Phase 1: ghost button — appears on hover, top-right corner */
@@ -2474,53 +2494,152 @@ html {
   border-left-color: rgba(245, 158, 11, 0.18);
 }
 
-/* ── VisualEditor: 末尾の常時編集可能段落 ──
-   空のときは「ここに本文を追加」と分かる drop-zone 風の見た目にする。
-   入力中 / フォーカス中はチラつかないように装飾を控えめにする。 */
-.trailing-editable {
-  position: relative;
+/* ══════════════════════════════════════════════════════════
+   Trailing Block Adder — 本文末尾の "+ ブロックを追加" カード
+   旧: contentEditable な「ここをクリックして本文を追加」
+   新: Notion-like の明示的なメニュートリガー (テキスト・数式・表 etc.)
+   ══════════════════════════════════════════════════════════ */
+.trailing-block-adder-wrap {
+  margin: 18px 0 6px;
 }
-.trailing-editable:empty {
-  border: 1.5px dashed hsl(var(--foreground) / 0.18);
-  background: hsl(var(--foreground) / 0.018);
-  border-radius: 8px;
-  padding: 14px 16px;
-  cursor: text;
-  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+.trailing-block-adder {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1.25px dashed rgba(15, 17, 23, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 251, 240, 0.55) 0%, rgba(255, 247, 224, 0.30) 100%);
+  color: hsl(var(--foreground) / 0.62);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease,
+              box-shadow 200ms ease, transform 160ms ease, color 160ms ease;
 }
-.trailing-editable:empty:hover {
-  border-color: hsl(263, 70%, 60% / 0.55);
-  background: hsl(263, 70%, 60% / 0.05);
-  box-shadow: 0 0 0 4px hsl(263, 70%, 60% / 0.06);
+.dark .trailing-block-adder {
+  border-color: rgba(255, 255, 255, 0.10);
+  background:
+    linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  color: hsl(var(--foreground) / 0.72);
 }
-.trailing-editable:empty::before {
-  content: "+ " attr(data-placeholder);
-  display: block;
-  color: hsl(var(--foreground) / 0.42);
-  font-style: normal;
-  font-weight: 500;
-  pointer-events: none;
-  user-select: none;
-  letter-spacing: 0.005em;
-}
-.trailing-editable:empty:hover::before {
-  color: hsl(263, 70%, 50%);
-}
-.dark .trailing-editable:empty:hover::before {
-  color: hsl(263, 70%, 75%);
-}
-/* contentEditable は focus 中に空でも <br> が入って :empty が外れることがある。
-   focus 中で本物のテキストが無いケースもプレースホルダを隠すには空時のみ表示すれば十分。 */
-.trailing-editable:focus:empty {
+.trailing-block-adder:hover,
+.trailing-block-adder:focus-visible {
+  outline: none;
   border-style: solid;
-  border-color: hsl(263, 70%, 60% / 0.5);
-  background: hsl(263, 70%, 60% / 0.04);
-  box-shadow: 0 0 0 4px hsl(263, 70%, 60% / 0.08);
+  border-color: rgba(217, 119, 6, 0.55);
+  background:
+    linear-gradient(180deg, rgba(255, 248, 224, 0.95) 0%, rgba(254, 243, 199, 0.75) 100%);
+  color: #92400e;
+  box-shadow:
+    0 0 0 4px rgba(245, 158, 11, 0.10),
+    0 12px 26px -10px rgba(217, 119, 6, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transform: translateY(-1px);
 }
-.trailing-editable:focus:empty::before {
-  opacity: 0.4;
-  content: attr(data-placeholder);
+.dark .trailing-block-adder:hover,
+.dark .trailing-block-adder:focus-visible {
+  border-color: rgba(245, 158, 11, 0.55);
+  background:
+    linear-gradient(180deg, rgba(245, 158, 11, 0.14) 0%, rgba(217, 119, 6, 0.08) 100%);
+  color: #fde68a;
+  box-shadow:
+    0 0 0 4px rgba(245, 158, 11, 0.12),
+    0 14px 28px -10px rgba(0, 0, 0, 0.55);
 }
+.trailing-block-adder:active { transform: translateY(0) scale(0.998); }
+
+.trailing-block-adder-plus {
+  flex: 0 0 36px;
+  height: 36px;
+  width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #b45309 0%, #d97706 50%, #f59e0b 100%);
+  box-shadow:
+    0 6px 14px -4px rgba(217, 119, 6, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -1px 0 rgba(120, 53, 15, 0.20);
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+.trailing-block-adder:hover .trailing-block-adder-plus {
+  transform: rotate(90deg) scale(1.06);
+  filter: saturate(1.08) brightness(1.04);
+  box-shadow:
+    0 10px 22px -4px rgba(217, 119, 6, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.trailing-block-adder-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.trailing-block-adder-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: hsl(var(--foreground) / 0.86);
+}
+.trailing-block-adder:hover .trailing-block-adder-title { color: #92400e; }
+.dark .trailing-block-adder:hover .trailing-block-adder-title { color: #fde68a; }
+.trailing-block-adder-sub {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: hsl(var(--foreground) / 0.50);
+  line-height: 1.45;
+}
+
+.trailing-block-adder-keys {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: hsl(var(--foreground) / 0.45);
+}
+.trailing-block-adder-keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.95), rgba(254, 243, 199, 0.85));
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: rgba(120, 53, 15, 0.95);
+  box-shadow: 0 1px 0 rgba(217, 119, 6, 0.10);
+}
+.dark .trailing-block-adder-keys kbd {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.10));
+  border-color: rgba(245, 158, 11, 0.30);
+  color: rgba(253, 230, 138, 0.95);
+}
+.trailing-block-adder-keys-or {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: hsl(var(--foreground) / 0.35);
+}
+.trailing-block-adder-keys-click {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(180, 83, 9, 0.85);
+}
+.dark .trailing-block-adder-keys-click { color: rgba(251, 191, 36, 0.85); }
 
 /* ══════════════════════════════════════════════════════════
    VisualEditor: 編集可能ボックス
@@ -4239,25 +4358,28 @@ html {
    - DeletableBlock の左マージンに hover で出現
    - クリックで block-insert-menu を「直下に挿入」モードで起動
    ══════════════════════════════════════════════════════════ */
-.deletable-block { position: relative; }
 .block-add-handle {
   position: absolute;
-  left: -34px;
+  left: -38px;
   top: 4px;
-  height: 24px;
-  width: 24px;
+  height: 26px;
+  width: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
-  border: 0;
-  background: rgba(15, 17, 23, 0.04);
-  color: hsl(var(--foreground) / 0.55);
+  border-radius: 8px;
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 251, 240, 0.95), rgba(254, 243, 199, 0.55));
+  color: rgba(180, 83, 9, 0.85);
   cursor: pointer;
   opacity: 0;
-  transform: translateX(2px);
-  transition: opacity 120ms ease, transform 120ms ease, background-color 120ms ease, color 120ms ease;
+  transform: translateX(4px);
+  transition: opacity 140ms ease, transform 160ms ease, background-color 140ms ease, color 140ms ease, box-shadow 160ms ease, border-color 140ms ease;
   pointer-events: none;
+  box-shadow:
+    0 1px 2px rgba(217, 119, 6, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 .deletable-block:hover .block-add-handle,
 .block-add-handle:focus-visible {
@@ -4266,13 +4388,23 @@ html {
   transform: translateX(0);
 }
 .block-add-handle:hover {
-  background: linear-gradient(135deg, #d97706, #f59e0b);
+  background: linear-gradient(135deg, #b45309, #d97706 50%, #f59e0b);
   color: #fff;
-  box-shadow: 0 4px 12px -2px rgba(217, 119, 6, 0.45), inset 0 1px 0 rgba(255,255,255,0.18);
+  border-color: rgba(120, 53, 15, 0.30);
+  box-shadow:
+    0 6px 14px -2px rgba(217, 119, 6, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transform: translateX(0) scale(1.05);
 }
+.block-add-handle:active { transform: scale(0.96); }
 .dark .block-add-handle {
-  background: rgba(255, 255, 255, 0.05);
-  color: hsl(var(--foreground) / 0.6);
+  background:
+    linear-gradient(180deg, rgba(245, 158, 11, 0.10), rgba(217, 119, 6, 0.04));
+  color: rgba(251, 191, 36, 0.85);
+  border-color: rgba(245, 158, 11, 0.22);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .dark .block-add-handle:hover {
   background: linear-gradient(135deg, #d97706, #f59e0b);
