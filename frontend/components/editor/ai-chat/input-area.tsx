@@ -59,7 +59,6 @@ export function InputArea({
   const [showQuick, setShowQuick] = useState(true);
   const hasInput = input.trim().length > 0;
   const composingRef = useRef(false);
-  const accent = MODE_ACCENTS[mode];
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -415,29 +414,21 @@ export function InputArea({
               key={qa.labelKey}
               type="button"
               onClick={() => handleQuick(qa.labelKey)}
-              className={`group inline-flex items-center gap-1.5 rounded-full font-medium text-foreground/65 bg-foreground/[0.04] hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 border border-foreground/[0.06] hover:border-amber-200/60 dark:hover:border-amber-500/20 transition-all shrink-0 snap-start ${
+              className={`chat-quick-chip group inline-flex items-center gap-1.5 rounded-full font-semibold shrink-0 snap-start ${
                 isMobile ? "h-9 px-3.5 text-[12.5px]" : "h-7 px-2.5 text-[11px]"
               }`}
             >
-              <span className="text-amber-500/70 group-hover:text-amber-500">{qa.icon}</span>
+              <span className="chat-quick-chip-icon">{qa.icon}</span>
               <span className="whitespace-nowrap">{t(qa.labelKey)}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Input box — focus ring tinted by the current agent mode */}
-      <div
-        style={{
-          borderRadius: isMobile ? 22 : 16,
-          background: "var(--color-background, #fff)",
-          boxShadow: focused
-            ? `0 0 0 1.5px ${accent.ring}, 0 0 0 4px ${accent.ringSoft}`
-            : "0 0 0 1px rgba(0,0,0,0.10)",
-          transition: "box-shadow 0.15s ease",
-        }}
-      >
-        <div className={`flex items-end gap-1.5 ${isMobile ? "px-2.5 py-1.5" : "px-3 py-2"}`}>
+      {/* Input box — premium amber glass card with focus halo */}
+      <div className={`chat-composer-card ${focused ? "is-focused" : ""} ${enhanceOn && !enhanceLocked ? "is-boost" : ""} ${isMobile ? "is-mobile" : "is-desktop"}`}>
+        <span className="chat-composer-sheen" aria-hidden />
+        <div className={`chat-composer-row ${isMobile ? "px-2.5 py-1.5" : "px-3 py-2"}`}>
           {onAttach && (
             <button
               type="button"
@@ -445,7 +436,7 @@ export function InputArea({
               disabled={isChatLoading}
               title={t("chat.attach.tooltip")}
               aria-label={t("chat.attach.tooltip")}
-              className={`${iconBtnSize} rounded-xl flex items-center justify-center text-foreground/45 hover:text-foreground/80 hover:bg-foreground/[0.06] active:scale-95 transition-all disabled:opacity-30 shrink-0 mb-0.5`}
+              className={`chat-composer-icon-btn ${iconBtnSize} mb-0.5`}
             >
               <Paperclip className={isMobile ? "h-5 w-5" : "h-3.5 w-3.5"} />
             </button>
@@ -471,21 +462,11 @@ export function InputArea({
             inputMode="text"
             enterKeyHint="send"
             autoCapitalize="sentences"
+            className="chat-composer-textarea"
             style={{
               minHeight: textareaMinH,
               maxHeight: isMobile ? 160 : 200,
               fontSize: textareaFontSize,
-              lineHeight: 1.55,
-              resize: "none",
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              boxShadow: "none",
-              padding: 0,
-              margin: 0,
-              color: "inherit",
-              fontFamily: "inherit",
             }}
           />
 
@@ -494,7 +475,7 @@ export function InputArea({
               type="button"
               onClick={() => { setInput(""); textareaRef.current?.focus(); }}
               aria-label={t("chat.input.clear") as string || "Clear"}
-              className={`${iconBtnSize} rounded-xl flex items-center justify-center text-foreground/35 hover:text-foreground/70 hover:bg-foreground/[0.06] active:scale-95 transition-all shrink-0 mb-0.5`}
+              className={`chat-composer-icon-btn ${iconBtnSize} mb-0.5`}
             >
               <X className={isMobile ? "h-4.5 w-4.5" : "h-3.5 w-3.5"} />
             </button>
@@ -513,12 +494,8 @@ export function InputArea({
                   ? (locale === "en" ? "Prompt boost ON — auto-structures every send" : "強化ON — 送信ごとに自動で構造化")
                   : (locale === "en" ? "Prompt boost OFF — normal send" : "強化OFF — 通常送信")
               }
-              className={`${iconBtnSize} rounded-xl flex items-center justify-center active:scale-95 transition-all shrink-0 mb-0.5 ${
-                enhanceLocked
-                  ? "text-violet-500/70 bg-violet-500/[0.06] border border-violet-500/30"
-                  : enhanceOn
-                    ? "text-white bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-sm shadow-violet-500/30 ring-2 ring-violet-500/30"
-                    : "text-foreground/40 hover:text-violet-500 hover:bg-violet-500/[0.08]"
+              className={`chat-composer-boost-btn ${iconBtnSize} mb-0.5 ${
+                enhanceLocked ? "is-locked" : enhanceOn ? "is-on" : "is-off"
               }`}
             >
               {enhanceLocked
@@ -537,22 +514,8 @@ export function InputArea({
             disabled={!isChatLoading && !hasInput}
             aria-label={isChatLoading ? (t("chat.stop") as string || "Stop") : t("chat.send") as string}
             title={isChatLoading ? (t("chat.stop") as string || "Stop") : t("chat.send") as string}
-            style={
-              !isChatLoading && hasInput
-                ? {
-                    background: `linear-gradient(135deg, ${accent.btnFrom} 0%, ${accent.btnTo} 100%)`,
-                    boxShadow: `0 2px 8px ${accent.btnShadow}`,
-                  }
-                : isChatLoading
-                ? { background: "#0f172a", color: "#fff" }
-                : undefined
-            }
-            className={`${sendBtnSize} rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 focus:outline-none mb-0.5 ${
-              isChatLoading
-                ? "text-white active:scale-95"
-                : hasInput
-                ? "text-white hover:scale-105 active:scale-95"
-                : "bg-foreground/[0.06] text-foreground/25 cursor-not-allowed"
+            className={`chat-composer-send-btn ${sendBtnSize} mb-0.5 ${
+              isChatLoading ? "is-stop" : hasInput ? "is-active" : "is-idle"
             }`}
           >
             {isChatLoading
@@ -565,16 +528,24 @@ export function InputArea({
 
       {/* Footer — モバイルでは隠して縦スペース節約 */}
       {!isMobile && (
-        <div className="flex items-center justify-between mt-1.5 px-1">
-          <div
-            className="flex items-center gap-1 text-[10px] font-medium transition-colors duration-150"
-            style={{ color: accent.accent, opacity: 0.65 }}
-          >
+        <div className="chat-composer-footer">
+          <span className="chat-composer-footer-mode">
             <Sparkles className="h-2.5 w-2.5" />
             <span>{t("chat.model.badge")} · {mode}</span>
-          </div>
-          <span className="text-[10px] text-muted-foreground/30 font-mono tracking-wide">
-            {input.length > 0 ? `${input.length} ${t("status.chars")}` : t("chat.input.hint")}
+          </span>
+          <span className="chat-composer-footer-meta">
+            {input.length > 0 ? (
+              <>
+                <span className="chat-composer-footer-count tabular-nums">{input.length}</span>
+                <span className="chat-composer-footer-sep">·</span>
+                <span className="chat-composer-footer-hint">{t("status.chars")}</span>
+              </>
+            ) : (
+              <>
+                <kbd className="chat-composer-kbd">↵</kbd>
+                <span className="chat-composer-footer-hint">{t("chat.input.hint")}</span>
+              </>
+            )}
           </span>
         </div>
       )}

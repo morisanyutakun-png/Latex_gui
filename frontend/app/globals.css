@@ -1380,6 +1380,449 @@ html {
     0 1px 4px rgba(0, 0, 0, 0.30);
 }
 
+/* ══════════════════════════════════════════════════════════
+   Chat composer — premium amber glass card
+   方針:
+   - オレンジ系統 (amber / orange / クリーム) を維持しつつ、
+     "薄っぺらい input" から "高級な紙のフィールド" に格上げする
+   - 背景は cream → off-white の縦グラデ + 内側 highlight
+   - 上端の hairline は amber gloss、下端は ink shadow
+   - focus 時は amber halo (双層 ring + soft glow + 内側 1px line) で
+     "受け止めている" 感を出す
+   - 強化 ON のときは violet-accented halo に切り替え
+   - boost / send / icon ボタンは独立したカテゴリで再設計
+   ══════════════════════════════════════════════════════════ */
+.chat-composer-card {
+  position: relative;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 251, 240, 0.96) 100%);
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 -1px 0 rgba(217, 119, 6, 0.08) inset,
+    0 12px 28px -14px rgba(217, 119, 6, 0.22),
+    0 4px 10px -2px rgba(15, 17, 23, 0.06);
+  overflow: hidden;
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.chat-composer-card.is-mobile { border-radius: 22px; }
+.chat-composer-card::before {
+  /* 上端 1px の amber gloss line — "ガラスの天面" */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+  height: 50%;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.50) 0%,
+    rgba(255, 255, 255, 0.0) 100%);
+  pointer-events: none;
+}
+.chat-composer-card::after {
+  /* 微細な紙目 / cream wash */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(60% 80% at 100% 0%, rgba(245, 158, 11, 0.06), transparent 70%),
+    radial-gradient(50% 70% at 0% 100%, rgba(251, 191, 36, 0.04), transparent 75%);
+  pointer-events: none;
+}
+.dark .chat-composer-card {
+  background:
+    linear-gradient(180deg,
+      rgba(28, 22, 8, 0.92) 0%,
+      rgba(20, 16, 6, 0.92) 100%);
+  border-color: rgba(245, 158, 11, 0.24);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.30) inset,
+    0 16px 36px -16px rgba(0, 0, 0, 0.55),
+    0 4px 10px -2px rgba(0, 0, 0, 0.28);
+}
+.dark .chat-composer-card::before {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.0) 100%);
+}
+
+/* hover (まだ focus してない) — 薄く暖色を立ち上げて "押せる" シグナル */
+.chat-composer-card:hover {
+  border-color: rgba(217, 119, 6, 0.32);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 -1px 0 rgba(217, 119, 6, 0.10) inset,
+    0 14px 32px -14px rgba(217, 119, 6, 0.30),
+    0 4px 10px -2px rgba(15, 17, 23, 0.06);
+}
+.dark .chat-composer-card:hover {
+  border-color: rgba(245, 158, 11, 0.36);
+}
+
+/* focus — amber halo (二重 ring) + 強い inner gloss + 微細 lift */
+.chat-composer-card.is-focused {
+  border-color: rgba(217, 119, 6, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(217, 119, 6, 0.45),
+    0 0 0 5px rgba(245, 158, 11, 0.14),
+    0 0 24px rgba(245, 158, 11, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 0 rgba(217, 119, 6, 0.14) inset,
+    0 18px 40px -16px rgba(217, 119, 6, 0.36),
+    0 6px 14px -3px rgba(15, 17, 23, 0.08);
+  transform: translateY(-0.5px);
+}
+.dark .chat-composer-card.is-focused {
+  border-color: rgba(245, 158, 11, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, 0.50),
+    0 0 0 5px rgba(245, 158, 11, 0.16),
+    0 0 28px rgba(245, 158, 11, 0.24),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 18px 40px -16px rgba(0, 0, 0, 0.55);
+}
+
+/* boost ON — violet-accent ring を amber と複合 (強化中だけ visual hint) */
+.chat-composer-card.is-boost {
+  border-color: rgba(168, 85, 247, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(168, 85, 247, 0.35),
+    0 0 0 5px rgba(168, 85, 247, 0.10),
+    0 0 24px rgba(168, 85, 247, 0.16),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 14px 32px -14px rgba(168, 85, 247, 0.28);
+}
+.chat-composer-card.is-boost.is-focused {
+  border-color: rgba(217, 119, 6, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(217, 119, 6, 0.50),
+    0 0 0 4px rgba(245, 158, 11, 0.14),
+    0 0 0 8px rgba(168, 85, 247, 0.08),
+    0 0 24px rgba(245, 158, 11, 0.20),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 18px 40px -16px rgba(217, 119, 6, 0.36);
+}
+
+/* focus 時に上端を横切る薄い shimmer (1 回 / 1.6s) */
+.chat-composer-sheen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(245, 158, 11, 0.65) 50%,
+    transparent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.chat-composer-card.is-focused .chat-composer-sheen { transform: scaleX(1); }
+
+.chat-composer-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.chat-composer-textarea {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  padding: 4px 2px;
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.55;
+  resize: none;
+  caret-color: #d97706;
+}
+.chat-composer-textarea::placeholder {
+  color: hsl(var(--foreground) / 0.40);
+  font-weight: 500;
+}
+.dark .chat-composer-textarea { caret-color: #fbbf24; }
+
+/* ── Composer 内のセカンダリ icon ボタン (添付 / クリア) ── */
+.chat-composer-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: hsl(var(--foreground) / 0.45);
+  transition: background-color 140ms ease, color 140ms ease, transform 120ms ease, border-color 140ms ease;
+  flex-shrink: 0;
+}
+.chat-composer-icon-btn:hover {
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.10), rgba(217, 119, 6, 0.06));
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.18);
+}
+.dark .chat-composer-icon-btn:hover {
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+.chat-composer-icon-btn:active { transform: scale(0.95); }
+.chat-composer-icon-btn:disabled { opacity: 0.30; cursor: not-allowed; }
+
+/* ── Boost ボタン (✨) ── */
+.chat-composer-boost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 160ms ease, transform 120ms ease;
+}
+.chat-composer-boost-btn:active { transform: scale(0.95); }
+.chat-composer-boost-btn.is-off {
+  color: hsl(var(--foreground) / 0.42);
+  background: transparent;
+  border-color: rgba(168, 85, 247, 0.10);
+}
+.chat-composer-boost-btn.is-off:hover {
+  color: #8b5cf6;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.10), rgba(217, 70, 239, 0.05));
+  border-color: rgba(168, 85, 247, 0.30);
+}
+.chat-composer-boost-btn.is-on {
+  color: #fff;
+  background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%);
+  border-color: rgba(168, 85, 247, 0.45);
+  box-shadow:
+    0 4px 10px -2px rgba(168, 85, 247, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.chat-composer-boost-btn.is-locked {
+  color: rgba(168, 85, 247, 0.65);
+  background: rgba(168, 85, 247, 0.06);
+  border-color: rgba(168, 85, 247, 0.30);
+}
+
+/* ── Send ボタン — 看板の amber コンパス ── */
+.chat-composer-send-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 160ms ease,
+              filter 160ms ease;
+}
+.chat-composer-send-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.45), 0 8px 18px -4px rgba(217, 119, 6, 0.45);
+}
+
+.chat-composer-send-btn.is-idle {
+  background: rgba(15, 17, 23, 0.05);
+  color: hsl(var(--foreground) / 0.30);
+  cursor: not-allowed;
+  box-shadow: inset 0 0 0 1px rgba(15, 17, 23, 0.05);
+}
+.dark .chat-composer-send-btn.is-idle {
+  background: rgba(255, 255, 255, 0.05);
+  color: hsl(var(--foreground) / 0.35);
+}
+
+.chat-composer-send-btn.is-active {
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.12), transparent 35%),
+    linear-gradient(135deg, #b45309 0%, #d97706 50%, #f59e0b 100%);
+  box-shadow:
+    0 0 0 1px rgba(120, 53, 15, 0.35),
+    0 8px 18px -4px rgba(217, 119, 6, 0.55),
+    0 2px 4px rgba(217, 119, 6, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -1px 0 rgba(120, 53, 15, 0.30);
+}
+.chat-composer-send-btn.is-active::after {
+  /* 送信ボタンに常時走る微細な sheen — "押せる準備ができた" 状態 */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.32) 50%,
+    transparent 65%);
+  transform: translateX(-110%);
+  animation: chat-send-sheen 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  pointer-events: none;
+}
+@keyframes chat-send-sheen {
+  0%   { transform: translateX(-110%); }
+  55%  { transform: translateX(140%); }
+  100% { transform: translateX(140%); }
+}
+.chat-composer-send-btn.is-active:hover {
+  transform: translateY(-1px) scale(1.04);
+  filter: saturate(1.08) brightness(1.04);
+  box-shadow:
+    0 0 0 1px rgba(120, 53, 15, 0.40),
+    0 12px 24px -4px rgba(217, 119, 6, 0.62),
+    0 4px 8px rgba(217, 119, 6, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.chat-composer-send-btn.is-active:active {
+  transform: scale(0.96);
+  filter: saturate(1) brightness(0.98);
+}
+
+.chat-composer-send-btn.is-stop {
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.10), transparent 35%),
+    linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  box-shadow:
+    0 0 0 2px rgba(245, 158, 11, 0.42),
+    0 8px 18px -4px rgba(15, 23, 42, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.chat-composer-send-btn.is-stop:active { transform: scale(0.95); }
+
+/* ══════════════════════════════════════════════════════════
+   Quick action chips — Notion 寄りの cream amber pill
+   ══════════════════════════════════════════════════════════ */
+.chat-quick-chip {
+  position: relative;
+  color: hsl(var(--foreground) / 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 251, 240, 0.55) 100%);
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 1px 2px rgba(217, 119, 6, 0.06);
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease, box-shadow 160ms ease;
+  letter-spacing: 0.005em;
+}
+.chat-quick-chip:hover {
+  color: #b45309;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 235, 0.95) 0%, rgba(254, 243, 199, 0.85) 100%);
+  border-color: rgba(217, 119, 6, 0.42);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 4px 10px -2px rgba(217, 119, 6, 0.22),
+    0 1px 2px rgba(217, 119, 6, 0.08);
+  transform: translateY(-0.5px);
+}
+.chat-quick-chip:active { transform: translateY(0) scale(0.98); }
+.chat-quick-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(217, 119, 6, 0.85);
+  transition: color 160ms ease, transform 160ms ease;
+}
+.chat-quick-chip:hover .chat-quick-chip-icon {
+  color: #d97706;
+  transform: scale(1.08);
+}
+.dark .chat-quick-chip {
+  color: hsl(var(--foreground) / 0.75);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(245, 158, 11, 0.04) 100%);
+  border-color: rgba(245, 158, 11, 0.20);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+.dark .chat-quick-chip:hover {
+  color: #fde68a;
+  background:
+    linear-gradient(180deg, rgba(245, 158, 11, 0.14) 0%, rgba(217, 119, 6, 0.08) 100%);
+  border-color: rgba(245, 158, 11, 0.40);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 10px -2px rgba(245, 158, 11, 0.20);
+}
+.dark .chat-quick-chip-icon { color: rgba(251, 191, 36, 0.85); }
+.dark .chat-quick-chip:hover .chat-quick-chip-icon { color: #fbbf24; }
+
+/* ══════════════════════════════════════════════════════════
+   Composer footer — モデル badge / 文字数 / Enter ヒント
+   ══════════════════════════════════════════════════════════ */
+.chat-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 7px;
+  padding: 0 4px;
+}
+.chat-composer-footer-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(180, 83, 9, 0.78);
+  text-transform: uppercase;
+}
+.dark .chat-composer-footer-mode { color: rgba(251, 191, 36, 0.78); }
+.chat-composer-footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: hsl(var(--foreground) / 0.40);
+}
+.chat-composer-footer-count {
+  font-weight: 700;
+  color: rgba(180, 83, 9, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+.dark .chat-composer-footer-count { color: rgba(251, 191, 36, 0.85); }
+.chat-composer-footer-sep {
+  color: hsl(var(--foreground) / 0.20);
+}
+.chat-composer-footer-hint {
+  font-weight: 500;
+  letter-spacing: 0.005em;
+}
+.chat-composer-kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 14px;
+  min-width: 14px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 235, 0.95), rgba(254, 243, 199, 0.85));
+  border: 1px solid rgba(217, 119, 6, 0.22);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: rgba(120, 53, 15, 0.85);
+  box-shadow: 0 1px 0 rgba(217, 119, 6, 0.10);
+}
+.dark .chat-composer-kbd {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.14), rgba(217, 119, 6, 0.08));
+  border-color: rgba(245, 158, 11, 0.30);
+  color: rgba(253, 230, 138, 0.95);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.30);
+}
+
 /* ── Send button — soft amber halo ── */
 .chat-send-btn {
   background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
