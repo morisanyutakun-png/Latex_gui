@@ -149,38 +149,60 @@ export function MobileLanding({
         </div>
 
         <div className={`transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          {/* 核機能バッジ — テキストを短縮 (12 字) */}
+          {/* 核機能バッジ — 「誰のため」 + 「何のエンジン」を 1 行で。
+               旧: "高精度 類題生成エンジン搭載"
+               新: "塾講師・教師向け · 高精度 類題生成エンジン"
+               文字数増に対応するため text を 10.5→10px に微調整、"搭載" を落として全長を抑える。 */}
           <div className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-full bg-gradient-to-r from-violet-500/[0.14] via-fuchsia-500/[0.14] to-blue-500/[0.14] border border-violet-500/40 shadow-sm shadow-violet-500/15 mb-3">
             <Sparkles className="h-3 w-3 text-violet-500" />
-            <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10.5px] font-extrabold tracking-wider">
-              {isJa ? "高精度 類題生成エンジン搭載" : "Precision Variant Engine inside"}
+            <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10px] font-extrabold tracking-wider">
+              {isJa ? "塾講師・教師向け · 高精度 類題生成エンジン" : "For tutors · Precision Variant Engine"}
             </span>
             <span className="inline-flex items-center px-1 py-[1px] rounded text-[8.5px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500">
               NEW
             </span>
           </div>
 
-          {/* H1 — モバイル最大級のフォントサイズで「視覚的支配力」を確保 (28-36px range) */}
-          <h1 className="text-[clamp(1.75rem,8.4vw,2.4rem)] leading-[1.05] font-black tracking-[-0.03em] mb-3">
+          {/* H1 — 旧版より語数が増えた (「60秒で教材プリント1枚」) ため、最大値を 2.4rem→2rem
+               に下げて 320px 幅でも 1 行に収まる範囲に調整。CJK char ≈ 1em で、計 11.8em 程度。 */}
+          <h1 className="text-[clamp(1.5rem,7.2vw,2rem)] leading-[1.1] font-black tracking-[-0.03em] mb-3">
             {isJa ? (
               <>
-                <GradientWord>60秒で1枚</GradientWord>。<br />
-                あとは<HighlightMark>1タップ</HighlightMark>。
+                <GradientWord>60秒で教材プリント1枚</GradientWord>。<br />
+                あとは<HighlightMark>1タップで類題作成</HighlightMark>。
               </>
             ) : (
               <>
-                <GradientWord>60s for one</GradientWord>.<br />
-                Then <HighlightMark>1 tap</HighlightMark>.
+                <GradientWord>One worksheet in 60s</GradientWord>.<br />
+                Then <HighlightMark>1 tap for variants</HighlightMark>.
               </>
             )}
           </h1>
 
-          {/* サブ — 1 行に圧縮。3 つの強調を撤去して「核ベネフィット」だけに */}
-          <p className="text-foreground/70 text-[14px] leading-relaxed mb-4 font-medium max-w-[18rem]">
+          {/* サブ — 「誰向けに、何が、どんな形で出るか」を一文に圧縮。
+               高校数学・物理 / 確認テスト・宿題プリント / 解答付き PDF を明示し、
+               抽象訴求 (旧: 瞬時に・無制限に) を具体ベネフィットに置換。 */}
+          <p className="text-foreground/75 text-[13.5px] leading-[1.65] mb-3 font-medium max-w-[20rem]">
             {isJa
-              ? "数学・理科プリントを瞬時に・無制限に。"
-              : "Math & science worksheets, instantly. Unlimited."}
+              ? "高校数学・物理の確認テスト、宿題プリント、解答付きPDFをAIで即作成。"
+              : "Build high-school math & physics quizzes, homework sheets and answer-key PDFs with AI."}
           </p>
+
+          {/* Before / After 訴求バッジ — 「手作業 30分」を打ち消し線で見せ、
+               視覚的に「Eddivom なら 60 秒」へジャンプさせる。
+               色面積を抑えるため、左は neutral chip / 右だけ violet グラデで強調。 */}
+          <div className="flex items-center gap-1.5 mb-4 text-[11px] flex-wrap">
+            <span className="inline-flex items-center px-2 py-[3px] rounded-md bg-foreground/[0.04] border border-foreground/[0.08] text-muted-foreground/70 line-through decoration-from-font">
+              {isJa ? "手作業 30分" : "By hand · 30 min"}
+            </span>
+            <ArrowRight className="h-3 w-3 text-foreground/40" aria-hidden />
+            <span className="inline-flex items-center gap-1 px-2 py-[3px] rounded-md bg-gradient-to-r from-violet-500/[0.12] to-fuchsia-500/[0.12] border border-violet-500/35 font-bold">
+              <Zap className="h-2.5 w-2.5 text-amber-500" aria-hidden />
+              <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+                {isJa ? "Eddivomなら 60秒" : "Eddivom · 60s"}
+              </span>
+            </span>
+          </div>
         </div>
 
         {/* ── アクション集約 (入力 + チップ + 巨大プライマリ) ──
@@ -588,7 +610,7 @@ export function MobileLanding({
             <ArrowRight className="h-4 w-4" />
           </button>
           <p className="text-center text-[10px] text-muted-foreground/60 mt-1">
-            {isJa ? "登録不要 · 30〜60秒で1枚" : "No signup · 30–60s per sheet"}
+            {isJa ? "登録不要・まずは1枚無料・PDF保存対応" : "No signup · First sheet free · PDF export"}
           </p>
         </div>
       )}
@@ -668,22 +690,24 @@ function MobilePromptHeroBlock({
   onPrimary: () => void;
 }) {
   const [value, setValue] = useState("");
+  // Placeholder: 高校物理を起点に「学年・分野・問題数・解答付き」の指示パターンを暗示。
+  // 旧 (二次方程式10問) は範囲が抽象だったため、対象学年と用途まで含めた版に差し替え。
   const placeholder = isJa
-    ? "二次方程式の問題を10問、解答付きで"
-    : "Create 10 quadratic equation problems with answers";
+    ? "高校物理 運動方程式の基本確認テスト10問、解答付きで"
+    : "High school physics: 10 motion-equation quiz items with answers";
 
+  // サンプルチップ: 「学年 + 分野 + 用途」のフォーマットで揃え、ターゲット (中高数学/物理)
+  // を即時に伝える。タップ即送信なので、各チップは単独で意味の通るプロンプトにする。
   const samples = isJa
     ? [
-        "中2数学 一次関数の確認テスト10問",
-        "高校物理 運動方程式の基本問題",
-        "小学生向け 分数の計算プリント",
-        "回路の基本クイズ 解説付き",
+        "中2数学 一次関数の小テスト",
+        "高1数学 関数と三角比 グラフ付き",
+        "高校物理 運動量保存の演習",
       ]
     : [
-        "10 quadratic equation problems with answers",
-        "High school physics: forces and motion quiz",
-        "Grade 6 fractions worksheet with answer key",
-        "Circuit basics quiz with explanations",
+        "Grade 8 linear functions quiz",
+        "Algebra & trig with graph answers",
+        "High school physics: momentum practice",
       ];
 
   const submitWithValue = () => onSubmit(value);

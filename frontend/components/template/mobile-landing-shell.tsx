@@ -212,11 +212,11 @@ export function MobileLandingShell() {
     }
 
     // 未ログイン (status="unauthenticated" or "loading"): ゲストお試し CTA
-    // 顧客目線: "1 枚作る" だけだとリピート価値が伝わらない →
-    // CTA で「60秒で1枚 → 類題はボタン1つで何枚でも」のサイクルを暗示。
+    // CTA 下の安心材料は「ハードル (登録不要・無料)」+「成果物 (PDF 保存対応)」の
+    // 2 軸を 1 行に詰めて、購入導線の不安要素を一括で解消する。
     return {
       label: isJa ? "60秒で最初の1枚を作る" : "Make my first sheet in 60s",
-      subLabel: isJa ? "登録不要 · 完成後は1タップで何枚でも類題" : "No sign-up · 1-tap variants after",
+      subLabel: isJa ? "登録不要・まずは1枚無料・PDF保存対応" : "No signup · First sheet free · PDF export",
       onClick: () => { void openTrialOrLimit("hero"); },
       variant: "free" as const,
     };
