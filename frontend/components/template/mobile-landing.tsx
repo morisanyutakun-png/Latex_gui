@@ -141,19 +141,23 @@ export function MobileLanding({
            モバイル最適化: 文字情報を大幅削減し、「H1 + 1行サブ + 即触れる入力」を主役に。
            target band, 3 段強調文, 重複フレーズを scroll-down 領域へ降ろす。
            タイポグラフィは iOS HIG 準拠 (H1 32px / sub 14px / meta 11px) で 3 段階のみ。 */}
-      <section className="relative overflow-hidden pt-3 pb-6 px-5">
+      <section className="relative overflow-hidden pt-1.5 pb-3 px-5">
         {/* 背景グロー — 視覚的アンカー */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-[55vh] pointer-events-none -z-10">
           <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[420px] h-[420px] rounded-full bg-gradient-to-br from-violet-500/15 via-fuchsia-500/10 to-transparent blur-3xl" />
           <div className="absolute top-20 right-0 w-[260px] h-[260px] rounded-full bg-gradient-to-br from-amber-400/15 via-orange-400/8 to-transparent blur-3xl" />
         </div>
 
-        {/* Hero 全体を中央揃えに統一。モバイルで視線が左右に振れないことで、
-             バッジ → H1 → 成果物バッジ群 → 信頼帯 → CTA という縦の流れが
-             一直線に通り、視認性が上がる。テキストブロックは max-w で中央寄せ。 */}
+        {/* Hero 中央揃え。プリントをファーストビュー内に押し上げるため、
+             成果物チップ row / Before-After バッジ を撤去し、必須要素 (バッジ・H1・
+             サブ・信頼ライン) のみを残して縦長を最小化。
+             情報の重複部分:
+              - 成果物チップ (確認テスト/宿題/類題) は H1+サブと意味が重なる → 撤去
+              - Before/After (30分→60秒) は H1 の "60秒" と重複 → 撤去
+             残った要素間の mb も -1 ずつ縮め、Hero テキスト総高を約 100-130px 削減。 */}
         <div className={`text-center transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          {/* 核機能バッジ — 「誰のため」 + 「何のエンジン」を 1 行で */}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-full bg-gradient-to-r from-violet-500/[0.14] via-fuchsia-500/[0.14] to-blue-500/[0.14] border border-violet-500/40 shadow-sm shadow-violet-500/15 mb-3">
+          {/* 核機能バッジ — mb-3 → mb-1.5 */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-full bg-gradient-to-r from-violet-500/[0.14] via-fuchsia-500/[0.14] to-blue-500/[0.14] border border-violet-500/40 shadow-sm shadow-violet-500/15 mb-1.5">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10px] font-extrabold tracking-wider">
               {isJa ? "塾講師・教師向け · 高精度 類題生成エンジン" : "For tutors · Precision Variant Engine"}
@@ -163,8 +167,8 @@ export function MobileLanding({
             </span>
           </div>
 
-          {/* H1 — 中央揃え。長文化に合わせて clamp 最大を 2rem に抑制 */}
-          <h1 className="text-[clamp(1.5rem,7.2vw,2rem)] leading-[1.15] font-black tracking-[-0.03em] mb-3">
+          {/* H1 — leading を 1.15 → 1.1、mb-3 → mb-1.5 で縦圧縮 */}
+          <h1 className="text-[clamp(1.5rem,7.2vw,2rem)] leading-[1.1] font-black tracking-[-0.03em] mb-1.5">
             {isJa ? (
               <>
                 <GradientWord>60秒で教材プリント1枚</GradientWord>。<br />
@@ -178,57 +182,15 @@ export function MobileLanding({
             )}
           </h1>
 
-          {/* サブ — 「明日の授業で使えるアウトプット」をターゲット視点で提示。
-               中央揃えは max-w + mx-auto で文字間隔を読みやすく整える。 */}
-          <p className="text-foreground/80 text-[13.5px] leading-[1.65] mb-4 font-medium max-w-[22rem] mx-auto">
+          {/* サブ — leading 1.65 → 1.5、mb-4 → mb-2 */}
+          <p className="text-foreground/80 text-[13px] leading-[1.5] mb-2 font-medium max-w-[22rem] mx-auto">
             {isJa
               ? "明日の授業の小テストも、今夜の宿題プリントも、解答付きPDFで今すぐ完成。"
               : "Tomorrow's quiz, tonight's homework — answer-key PDFs ready right now."}
           </p>
 
-          {/* 成果物プレビューチップ — 「何が手に入るか」を 3 件のチップで具体化。
-               旧チェックリストは "やれること" だったが、こちらは "受け取れる成果物" として
-               講師の言葉 (確認テスト / 宿題 / 類題演習) で並べ、購入後の使用シーンを想起させる。 */}
-          <div className="flex items-center justify-center gap-1.5 mb-3.5 flex-wrap">
-            {(isJa
-              ? [
-                  { icon: <FileText className="h-3 w-3" aria-hidden />, label: "確認テストPDF" },
-                  { icon: <FileSignature className="h-3 w-3" aria-hidden />, label: "解答付き宿題プリント" },
-                  { icon: <RefreshCw className="h-3 w-3" aria-hidden />, label: "1タップ類題演習" },
-                ]
-              : [
-                  { icon: <FileText className="h-3 w-3" aria-hidden />, label: "Quiz PDF" },
-                  { icon: <FileSignature className="h-3 w-3" aria-hidden />, label: "Homework + answers" },
-                  { icon: <RefreshCw className="h-3 w-3" aria-hidden />, label: "1-tap variants" },
-                ]
-            ).map((it) => (
-              <span
-                key={it.label}
-                className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-card border border-foreground/[0.1] text-[11px] font-semibold text-foreground/85 shadow-[0_1px_2px_-1px_rgba(0,0,0,0.06)]"
-              >
-                <span className="text-violet-600">{it.icon}</span>
-                {it.label}
-              </span>
-            ))}
-          </div>
-
-          {/* Before / After — 中央配置で「30分→60秒」を視覚的にジャンプさせる */}
-          <div className="flex items-center justify-center gap-1.5 mb-2.5 text-[11px] flex-wrap">
-            <span className="inline-flex items-center px-2 py-[3px] rounded-md bg-foreground/[0.04] border border-foreground/[0.08] text-muted-foreground/70 line-through decoration-from-font">
-              {isJa ? "手作業 30分" : "By hand · 30 min"}
-            </span>
-            <ArrowRight className="h-3 w-3 text-foreground/40" aria-hidden />
-            <span className="inline-flex items-center gap-1 px-2 py-[3px] rounded-md bg-gradient-to-r from-violet-500/[0.12] to-fuchsia-500/[0.12] border border-violet-500/35 font-bold">
-              <Zap className="h-2.5 w-2.5 text-amber-500" aria-hidden />
-              <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
-                {isJa ? "Eddivomなら 60秒" : "Eddivom · 60s"}
-              </span>
-            </span>
-          </div>
-
-          {/* 信頼ライン — 「情報工学科」表記で具体度を出しつつ、プリントを上に
-               押し上げるため余白を mb-4 → mb-2.5 に圧縮。 */}
-          <p className="mb-2.5 text-[10.5px] text-muted-foreground/75 inline-flex items-center justify-center gap-1.5 flex-wrap">
+          {/* 信頼ライン — 「情報工学科」表記。mb-2 で次のプリント帯に直結 */}
+          <p className="mb-2 text-[10.5px] text-muted-foreground/75 inline-flex items-center justify-center gap-1.5 flex-wrap">
             <span className="font-semibold text-foreground/75">
               {isJa ? "名古屋大学 情報工学科 発" : "Built at Nagoya Univ. — CS & Engineering"}
             </span>
@@ -939,29 +901,24 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
 
   return (
     <div className="relative">
-      {/* 入力 → 出力 フロー帯 — 縦 3 段で関係を明示
-           ①「入力例」チップ (擬似入力欄風)
-           ② ↓ + 「このプリントが生成されます」ラベル
-           ③ 60 秒で生成バッジ
-           こうすることで「上のチップを入れたら下のプリントが出る」が
-           1 視覚で読み取れる。プリントを画面上部に保ちつつ、入出力対応を強化。 */}
-      <div className="flex flex-col items-center gap-1 mb-2.5">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-card border border-foreground/[0.12] text-[11px] font-semibold text-foreground/90 shadow-sm max-w-[78vw]">
+      {/* 入力 → 出力 フロー帯 — 縦 2 段に圧縮 (旧 3 段 → 2 段で約 18px 短縮)
+           ① 入力例チップ (擬似入力欄)  +  60秒バッジ を同行に
+           ② ↓ アイコン (animate-bounce) のみで「下のプリントが出る」を示唆
+           "このプリントが生成されます" の長文を撤去し、矢印 1 つで関係を伝える。 */}
+      <div className="flex flex-col items-center gap-0.5 mb-1.5">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card border border-foreground/[0.12] text-[11px] font-semibold text-foreground/90 shadow-sm max-w-[80vw]">
           <Sparkles className="h-3 w-3 text-violet-500 shrink-0" aria-hidden />
           <span className="truncate">{promptText}</span>
-        </span>
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wide text-violet-700 dark:text-violet-300">
-          <ChevronDown className="h-3 w-3 animate-bounce" aria-hidden />
-          {isJa ? "このプリントが生成されます" : "Generates this worksheet"}
-          <span className="inline-flex items-center gap-0.5 ml-1 px-1.5 py-[1px] rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-blue-500 text-white text-[9px] font-extrabold tracking-wider shadow-sm">
+          <span className="inline-flex items-center gap-0.5 ml-0.5 px-1.5 py-[1px] rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-blue-500 text-white text-[9px] font-extrabold tracking-wider shadow-sm shrink-0">
             <Zap className="h-2.5 w-2.5" aria-hidden />
             {isJa ? "60秒" : "60s"}
           </span>
         </span>
+        <ChevronDown className="h-3.5 w-3.5 text-violet-600 animate-bounce" aria-hidden />
       </div>
 
-      {/* タブ切替 */}
-      <div className="flex items-center justify-center mb-2">
+      {/* タブ切替 — mb-2 → mb-1 */}
+      <div className="flex items-center justify-center mb-1">
         <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-foreground/[0.05] border border-foreground/[0.08]">
           <button
             type="button"
@@ -1000,7 +957,7 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
              生成画面へ遷移する設計に統一。 */}
       <div
         ref={scrollRef}
-        className="-mx-5 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3 pb-3 pt-1 px-[7vw]"
+        className="-mx-5 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3 pb-1.5 pt-0.5 px-[7vw]"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         <div
