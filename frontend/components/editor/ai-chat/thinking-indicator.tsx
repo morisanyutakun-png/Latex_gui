@@ -2,7 +2,7 @@ import React from "react";
 import { ThinkingStep } from "@/lib/types";
 import {
   Sparkles, Brain, Terminal, AlertCircle,
-  Search, Wrench, Eye, Hammer, BookOpen,
+  Search, Wrench, Eye, Hammer, BookOpen, CheckCircle2, Loader2,
 } from "lucide-react";
 import { formatDuration } from "./utils";
 import { useI18n } from "@/lib/i18n";
@@ -109,157 +109,172 @@ export function ThinkingIndicator({
   // フェーズ推定を流用する (= 「何秒かかってる」を体感してもらう)。
   const progressFraction = Math.min(0.95, Math.max(0.04, elapsed / 60));
 
+  const pctNow = Math.min(99, Math.round(progressFraction * 100));
+
   return (
-    <div className="flex gap-3">
-      {/* Avatar — animated halo */}
-      <div className="h-7 w-7 rounded-full chat-avatar-ai flex items-center justify-center shrink-0 mt-0.5">
-        <Sparkles className="h-3.5 w-3.5 text-white/90" />
+    <div className="thinking-indicator-row">
+      {/* Avatar — animated halo + concentric pulse */}
+      <div className="thinking-avatar">
+        <div className="h-7 w-7 rounded-full chat-avatar-ai flex items-center justify-center relative">
+          <Sparkles className="h-3.5 w-3.5 text-white/95 thinking-avatar-spark" />
+        </div>
+        <span className="thinking-avatar-pulse" aria-hidden />
       </div>
 
-      <div className="flex-1 min-w-0">
-        {/* Name + status */}
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-[12px] font-semibold tracking-wide text-foreground/60 uppercase">Eddivom AI</span>
-          {activeRewriteKind && (
-            <span
-              className={`inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full text-[9.5px] font-extrabold tracking-wider text-white shadow-sm shrink-0 ${
-                activeRewriteKind === "variant"
-                  ? "bg-gradient-to-r from-violet-500 to-fuchsia-500"
-                  : "bg-gradient-to-r from-blue-500 to-violet-500"
-              }`}
-              title={
-                activeRewriteKind === "variant"
-                  ? (isJa ? "高精度エンジンで類題を生成中" : "Generating variants via Precision Variant Engine")
-                  : (isJa ? "出題ノウハウでプロンプトを強化中" : "Enhancing prompt with authoring playbook")
-              }
-            >
-              <Sparkles className="h-2.5 w-2.5" />
-              {activeRewriteKind === "variant"
-                ? (isJa ? "類題生成中" : "Variant")
-                : (isJa ? "強化送信中" : "Enhanced")}
+      <div className="thinking-card">
+        {/* sheen overlay (CSS animated) */}
+        <span className="thinking-card-sheen" aria-hidden />
+
+        {/* Top header strip — brand + status + elapsed */}
+        <div className="thinking-card-head">
+          <div className="thinking-card-head-left">
+            <span className="thinking-card-brand">
+              <span className="thinking-card-brand-dot" aria-hidden />
+              EDDIVOM AI
             </span>
-          )}
-          <span className="flex items-center gap-1.5 text-[11px] text-amber-600/75 dark:text-amber-400/75 font-medium min-w-0 truncate">
-            <span className="thinking-dot-ripple shrink-0">
-              <span className="h-1.5 w-1.5 rounded-full inline-block bg-amber-500" />
-            </span>
-            <span className="truncate">{statusText}</span>
+            {activeRewriteKind && (
+              <span
+                className={`thinking-card-tag ${
+                  activeRewriteKind === "variant" ? "is-variant" : "is-enhance"
+                }`}
+                title={
+                  activeRewriteKind === "variant"
+                    ? (isJa ? "高精度エンジンで類題を生成中" : "Generating variants via Precision Variant Engine")
+                    : (isJa ? "出題ノウハウでプロンプトを強化中" : "Enhancing prompt with authoring playbook")
+                }
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                {activeRewriteKind === "variant"
+                  ? (isJa ? "類題生成" : "Variant")
+                  : (isJa ? "強化送信" : "Enhanced")}
+              </span>
+            )}
+          </div>
+          <span className="thinking-card-elapsed tabular-nums">
+            <span className="thinking-card-elapsed-tick" aria-hidden />
+            {elapsedSec}s
           </span>
-          <span className="text-[10px] text-muted-foreground/30 tabular-nums ml-auto shrink-0">{elapsedSec}s</span>
         </div>
-        {/* Progress bar — 「セッションが生きている」ことを伝える主要シグナル。
-            非ストリーミング (ゲスト) でも live phase 推定で滑らかに伸びる。
-            完了前に 100% にしないため上限は 95%。 */}
+
+        {/* Status row — current activity */}
+        <div className="thinking-card-status">
+          <span className="thinking-status-glyph" aria-hidden>
+            <Loader2 className="h-3.5 w-3.5 thinking-status-spin" />
+          </span>
+          <span className="thinking-status-text">{statusText}</span>
+          <span className="thinking-status-pct tabular-nums">{pctNow}%</span>
+        </div>
+
+        {/* Premium progress bar — gradient track + comet head + ambient glow */}
         <div
-          className="h-[3px] rounded-full bg-foreground/[0.06] overflow-hidden mb-2"
+          className="thinking-progress"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(progressFraction * 100)}
+          aria-valuenow={pctNow}
           aria-label={isJa ? "AI 生成の進行状況" : "AI generation progress"}
         >
           <div
-            className="h-full bg-gradient-to-r from-amber-400 via-violet-500 to-fuchsia-500 transition-[width] duration-300 ease-out"
+            className="thinking-progress-fill"
             style={{ width: `${progressFraction * 100}%` }}
-          />
+          >
+            <span className="thinking-progress-shimmer" aria-hidden />
+            <span className="thinking-progress-head" aria-hidden />
+          </div>
         </div>
 
-        {/* Activity log card */}
-        <div className="chat-thinking-card rounded-2xl rounded-tl-sm overflow-hidden">
-          <div className="px-3.5 py-3 space-y-2 text-[12px] min-h-[44px] max-h-[260px] overflow-y-auto scroll-smooth scrollbar-thin">
-            {hasSteps && liveSteps.map((step, i) => {
-              const Icon = step.tool
-                ? (TOOL_ICONS[step.tool] || Terminal)
-                : step.type === "thinking" ? Brain
-                : step.type === "error" ? AlertCircle
-                : Eye;
+        {/* Activity log */}
+        <div className="thinking-card-log scrollbar-thin">
+          {hasSteps && liveSteps.map((step, i) => {
+            const Icon = step.tool
+              ? (TOOL_ICONS[step.tool] || Terminal)
+              : step.type === "thinking" ? Brain
+              : step.type === "error" ? AlertCircle
+              : Eye;
 
-              const isCompleted = step.type === "tool_result";
-              const isError = step.type === "error";
-              const isThinking = step.type === "thinking";
+            const isCompleted = step.type === "tool_result";
+            const isError = step.type === "error";
+            const isThinking = step.type === "thinking";
+            const variant = isError
+              ? "is-error"
+              : isCompleted
+                ? "is-done"
+                : isThinking
+                  ? "is-think"
+                  : "is-run";
 
-              return (
-                <div key={i} className="flex items-start gap-2.5">
-                  <div className={`h-5 w-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
-                    isError   ? "bg-red-100/80 dark:bg-red-500/12" :
-                    isCompleted ? "bg-emerald-100/80 dark:bg-emerald-500/12" :
-                    isThinking  ? "bg-violet-100/60 dark:bg-violet-500/10" :
-                    "bg-indigo-100/60 dark:bg-indigo-500/10"
-                  }`}>
-                    <Icon className={`h-3 w-3 ${
-                      isError     ? "text-red-500" :
-                      isCompleted ? "text-emerald-500" :
-                      isThinking  ? "text-violet-400" :
-                      "text-indigo-400"
-                    }`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className={`leading-relaxed break-all ${
-                      isError     ? "text-red-500/80" :
-                      isCompleted ? "text-emerald-600/80 dark:text-emerald-400/70" :
-                      isThinking  ? "text-muted-foreground/50" :
-                      "text-indigo-500/80 dark:text-indigo-400/70"
-                    }`}>{step.text}</span>
-                  </div>
-                  {step.duration != null && step.duration > 0 && (
-                    <span className="text-muted-foreground/25 shrink-0 text-[10px] tabular-nums">{formatDuration(step.duration)}</span>
+            return (
+              <div key={i} className={`thinking-step ${variant}`}>
+                <span className="thinking-step-rail" aria-hidden />
+                <span className="thinking-step-icon">
+                  {isCompleted ? (
+                    <CheckCircle2 className="h-3 w-3" />
+                  ) : (
+                    <Icon className="h-3 w-3" />
                   )}
-                </div>
-              );
-            })}
+                </span>
+                <span className="thinking-step-text">{step.text}</span>
+                {step.duration != null && step.duration > 0 && (
+                  <span className="thinking-step-time tabular-nums">{formatDuration(step.duration)}</span>
+                )}
+              </div>
+            );
+          })}
 
-            {/* Currently running tool */}
-            {currentTool && (
-              <div className="flex items-center gap-2.5">
-                <div className="h-5 w-5 rounded-md bg-amber-100/70 dark:bg-amber-500/12 flex items-center justify-center shrink-0">
-                  {(() => {
-                    const Icon = TOOL_ICONS[currentTool] || Terminal;
-                    return <Icon className="h-3 w-3 text-amber-600/80 dark:text-amber-400/80 animate-pulse" />;
-                  })()}
-                </div>
-                <span className="text-amber-600/70 dark:text-amber-400/70 animate-pulse">
-                  {getToolLabel(currentTool, t)}...
+          {/* Currently running tool */}
+          {currentTool && (
+            <div className="thinking-step is-running">
+              <span className="thinking-step-rail is-pulsing" aria-hidden />
+              <span className="thinking-step-icon">
+                {(() => {
+                  const Icon = TOOL_ICONS[currentTool] || Terminal;
+                  return <Icon className="h-3 w-3" />;
+                })()}
+              </span>
+              <span className="thinking-step-text">{getToolLabel(currentTool, t)}…</span>
+              <span className="thinking-step-dots" aria-hidden>
+                <span /><span /><span />
+              </span>
+            </div>
+          )}
+
+          {/* Synthetic phase — non-streaming (guest / sync fallback) */}
+          {useSynthetic && (
+            <>
+              <div className="thinking-step is-think">
+                <span className="thinking-step-rail" aria-hidden />
+                <span className="thinking-step-icon">
+                  <Brain className="h-3 w-3" />
+                </span>
+                <span className="thinking-step-text">{phase.label}</span>
+                <span className="thinking-step-dots" aria-hidden>
+                  <span /><span /><span />
                 </span>
               </div>
-            )}
+              <p className="thinking-card-note">
+                {isGuest
+                  ? (isJa
+                      ? "ログインなしで生成中。通常 30〜60 秒で完成し、自動でプレビューに切り替わります。"
+                      : "Generating without sign-in. Typically completes in 30–60s and auto-opens the preview.")
+                  : (isJa
+                      ? "セッション接続中です。完了するまでこの画面のままお待ちください。"
+                      : "Session is alive — please keep this screen open until completion.")}
+              </p>
+            </>
+          )}
 
-            {/* Generic thinking — 段階フェーズ + 想定タイム + 安心フッター */}
-            {useSynthetic && (
-              <>
-                <div className="flex items-center gap-2.5">
-                  <div className="h-5 w-5 rounded-md bg-amber-100/60 dark:bg-amber-500/10 flex items-center justify-center shrink-0">
-                    <Brain className="h-3 w-3 text-amber-500/70 dark:text-amber-400/60 animate-pulse" />
-                  </div>
-                  <span className="text-foreground/70">{phase.label}</span>
-                  <span className="ml-auto text-[10.5px] text-muted-foreground/50 tabular-nums shrink-0">
-                    {Math.min(99, Math.round(progressFraction * 100))}%
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground/55 leading-snug">
-                  {isGuest
-                    ? (isJa
-                        ? "ログインなしで生成中。通常 30〜60 秒で完成し、自動でプレビューに切り替わります。"
-                        : "Generating without sign-in. Typically completes in 30–60s and auto-opens the preview.")
-                    : (isJa
-                        ? "セッション接続中です。完了するまでこの画面のままお待ちください。"
-                        : "Session is alive — please keep this screen open until completion.")}
-                </p>
-              </>
-            )}
+          {isLongWait && (
+            <div className="thinking-card-longwait">
+              <span className="thinking-card-longwait-dot" aria-hidden />
+              <span className="leading-snug">
+                {isJa
+                  ? `${elapsedSec} 秒経過 — AI サーバとの接続は維持されています。途中で閉じないでください。`
+                  : `${elapsedSec}s elapsed — connection to the AI server is alive. Please keep this tab open.`}
+              </span>
+            </div>
+          )}
 
-            {isLongWait && (
-              <div className="flex items-center gap-2 pt-0.5 text-[11px] text-amber-500/70 border-t border-amber-200/20 dark:border-amber-500/10">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-                <span className="leading-snug">
-                  {isJa
-                    ? `${elapsedSec} 秒経過 — AI サーバとの接続は維持されています。途中で閉じないでください。`
-                    : `${elapsedSec}s elapsed — connection to the AI server is alive. Please keep this tab open.`}
-                </span>
-              </div>
-            )}
-
-            <div ref={logEndRef} />
-          </div>
+          <div ref={logEndRef} />
         </div>
       </div>
     </div>
