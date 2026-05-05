@@ -145,7 +145,7 @@ export function AnonymousTrialModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={showLimitReached ? "max-w-3xl" : "max-w-2xl"}>
+      <DialogContent className={showLimitReached ? "max-w-xl sm:max-w-[560px]" : "max-w-2xl"}>
         <DialogTitle className="flex items-center gap-2 text-[16px] font-bold">
           <Sparkles className="h-4 w-4 text-violet-500" />
           {showLimitReached
@@ -275,14 +275,13 @@ export function AnonymousTrialModal({
 
 /** 上限到達時のプラン選択ブロック。
  *
- *  デザイン方針 (前回 3 列で潰れていた問題への対応):
- *    - **Pro / Starter の 2 列 hero レイアウト** (3 カラムを廃止して横幅を確保)
- *    - **Pro はダーク反転で視覚優位**: black bg + white text + 白の塗り CTA + おすすめスタンプ
- *    - **Starter は明るい outline カード**: 比較対象として並べるが目立ちすぎない
- *    - **Free は別行のスリムな "もっと控えめに続ける" リンク** (= 売り込みたい順序: Pro → Starter → Free)
- *    - 各カードの特徴は **2 行だけ** に削って、長文の折返しを排除
- *    - CTA は <button> 全体クリック + 内部の filled / outlined ボタンで明示
- *    - モバイル <640px は単純スタック (Pro が最上)
+ *  デザイン方針 (前回までの 2-3 列レイアウトが幅不足で潰れていた反省):
+ *    - **縦スタック構造** に変更。Pro を full-width hero として大きく見せて、
+ *      Starter / Free は その下に「もう少し控えめな選択肢」として並べる
+ *    - Pro は **黒地白字 + 大きい価格 + full-width filled CTA** でドミナント
+ *    - Starter / Free は同サイズの 2 カラム slim カード
+ *    - dialog 幅も `max-w-[560px]` に絞って、横の窮屈さを完全排除
+ *    - 折返しが起きない短文に絞る (「月500回・1日40回」を「月500回 (40/日)」等)
  */
 function LimitReachedPlanPicker({
   isJa,
@@ -293,140 +292,157 @@ function LimitReachedPlanPicker({
   onClose: () => void;
   onSelect: (planId: PlanId) => void;
 }) {
-  // プランごとに「売り文句として最も効く 2 行」を厳選。features を 3-4 件取って
-  // 長すぎるものを外したい場合のために手書きで選定する。
-  const proFeatures = isJa
-    ? ["高性能AI 月500回 (1日40回)", "教材PDF・Pro テンプレ無制限"]
-    : ["Premium AI 500 / mo (40 / day)", "Unlimited PDF + Pro templates"];
-  const starterFeatures = isJa
-    ? ["高性能AI 月150回 (1日15回)", "教材PDF出力 無制限"]
-    : ["Premium AI 150 / mo (15 / day)", "Unlimited PDF export"];
-
   const proDef = PLANS.pro;
   const starterDef = PLANS.starter;
+  const freeDef = PLANS.free;
   const proName = isJa ? proDef.name : (proDef.nameEn ?? proDef.name);
   const starterName = isJa ? starterDef.name : (starterDef.nameEn ?? starterDef.name);
+  const freeName = isJa ? freeDef.name : (freeDef.nameEn ?? freeDef.name);
+
+  // 折返しを起こさない短い文言に厳選 (full-width Pro なら 3 行入る)
+  const proFeatures = isJa
+    ? ["高性能AI 月500回 (1日40回まで)", "教材PDF・Pro テンプレ 無制限", "採点・OCR・バッチ生成まで全機能"]
+    : ["Premium AI 500/mo (40/day)", "Unlimited PDF & Pro templates", "Grading, OCR, batch — everything"];
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* 上限到達アラート — 視覚的に強い amber、文字情報は最小限 */}
-      <div className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-500/[0.07] border border-amber-500/30">
-        <Lock className="h-[18px] w-[18px] text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+    <div className="flex flex-col gap-4">
+      {/* 上限到達アラート — slim な 1 段 */}
+      <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/[0.07] border border-amber-500/30">
+        <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-[3px] shrink-0" />
         <div className="min-w-0">
-          <p className="text-[13.5px] font-bold tracking-tight mb-0.5">
+          <p className="text-[13px] font-bold tracking-tight leading-snug">
             {isJa ? "無料お試しはこのブラウザで使い切りました" : "You've used your free trial on this browser"}
           </p>
-          <p className="text-[12px] text-muted-foreground leading-relaxed">
+          <p className="text-[11.5px] text-muted-foreground leading-relaxed mt-0.5">
             {isJa
-              ? "プランを選ぶと、そのまま登録 → 続きから AI 生成・編集・PDF まで使えます。"
-              : "Pick a plan to sign up and continue with AI editing & PDF — same flow, same browser."}
+              ? "プランを選ぶと、Google サインインからそのまま続きが使えます。"
+              : "Pick a plan to sign up with Google and continue right away."}
           </p>
         </div>
       </div>
 
-      {/* Pro / Starter の 2 列 hero。Pro は反転スタイルで視覚的に支配。 */}
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-        {/* ── Pro (3/5 wide on desktop): 黒地白字でドミナント ── */}
-        <button
-          type="button"
-          onClick={() => onSelect("pro")}
-          className="relative text-left rounded-2xl p-6 sm:p-7 sm:col-span-3 bg-foreground text-background overflow-hidden group transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
-        >
-          {/* 「おすすめ」スタンプ — 反転コントラストで視認性を上げる */}
-          <span className="absolute top-4 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-foreground text-[10px] font-bold tracking-wider uppercase">
-            <Crown className="h-3 w-3" />
-            {isJa ? "おすすめ" : "Recommended"}
-          </span>
+      {/* ── Pro Hero (full width / 黒地白字 / 価格大) ── */}
+      <button
+        type="button"
+        onClick={() => onSelect("pro")}
+        className="group relative text-left rounded-2xl px-6 py-6 bg-foreground text-background overflow-hidden transition active:scale-[0.995] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+      >
+        {/* 微妙な装飾 — 右上の角に光のグラデを敷いて完全な黒を回避 (生っぽさ) */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-violet-500/20 blur-3xl"
+        />
 
-          {/* プラン名 + tagline */}
-          <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-background/60 mb-3">
-            {isJa ? "毎日使うなら" : "For daily use"}
-          </p>
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-[22px] font-bold tracking-tight">{proName}</span>
-          </div>
-          <div className="flex items-baseline gap-1.5 mb-5">
-            <span className="text-[34px] font-bold tabular-nums tracking-tight leading-none">{proDef.priceLabel}</span>
-            <span className="text-[12.5px] text-background/65">{isJa ? "/ 月" : "/ mo"}</span>
+        <div className="relative flex flex-col gap-5">
+          {/* 上段: 「おすすめ」スタンプ + tagline + 価格 */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10.5px] font-semibold tracking-[0.22em] uppercase text-background/55 mb-2 flex items-center gap-1.5">
+                <Crown className="h-3 w-3" />
+                {isJa ? "毎日使うならこのプラン" : "For daily users — recommended"}
+              </p>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-[24px] font-bold tracking-tight leading-none">{proName}</span>
+                <span className="text-[10.5px] text-background/55">
+                  {isJa ? "Eddivom の主力プラン" : "Eddivom's flagship plan"}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[40px] font-bold tabular-nums tracking-tight leading-none">{proDef.priceLabel}</span>
+                <span className="text-[13px] text-background/65">{isJa ? "/ 月 (税込)" : "/ mo"}</span>
+              </div>
+            </div>
           </div>
 
-          <ul className="space-y-2 mb-6">
+          {/* 中段: 特徴 3 行 (full width なので折返しなし) */}
+          <ul className="space-y-2">
             {proFeatures.map((f) => (
-              <li key={f} className="flex items-start gap-2 text-[13px] leading-relaxed">
-                <Check className="h-3.5 w-3.5 mt-[3px] shrink-0 text-background/85" strokeWidth={2.5} />
+              <li key={f} className="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-background/95">
+                <Check className="h-4 w-4 mt-[3px] shrink-0 text-background" strokeWidth={2.6} />
                 <span>{f}</span>
               </li>
             ))}
           </ul>
 
-          {/* 反転 CTA — Pro はここをタップ */}
-          <span className="inline-flex items-center justify-center gap-2 w-full sm:w-auto sm:min-w-[180px] h-11 px-5 rounded-full bg-background text-foreground text-[13.5px] font-semibold group-hover:bg-background/90 transition">
-            {isJa ? `${proName} で続ける` : `Continue with ${proName}`}
+          {/* 下段: full-width filled CTA — 押せる場所が明確 */}
+          <span className="inline-flex items-center justify-center gap-2 w-full h-12 px-6 rounded-full bg-background text-foreground text-[14px] font-semibold group-hover:bg-background/90 transition">
+            {isJa ? `${proName} で登録 / 決済へ進む` : `Sign up with ${proName} & continue`}
             <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
           </span>
-        </button>
+          <p className="text-[11px] text-background/55 text-center -mt-2">
+            {isJa ? "Google サインイン後、Stripe 決済画面に直行します" : "Sign in with Google → straight to Stripe checkout"}
+          </p>
+        </div>
+      </button>
 
-        {/* ── Starter (2/5 wide on desktop): 比較対象として並ぶ outline カード ── */}
+      {/* "もしくは" ディバイダ */}
+      <div className="flex items-center gap-3 my-1">
+        <span aria-hidden className="h-px flex-1 bg-foreground/[0.08]" />
+        <span className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/55">
+          {isJa ? "もしくは" : "or"}
+        </span>
+        <span aria-hidden className="h-px flex-1 bg-foreground/[0.08]" />
+      </div>
+
+      {/* Starter / Free の slim 2 カラム — 同サイズで control の対称性を出す */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <button
           type="button"
           onClick={() => onSelect("starter")}
-          className="relative text-left rounded-2xl p-6 sm:col-span-2 bg-card border border-foreground/[0.1] hover:border-foreground/[0.2] transition group active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+          className="group relative text-left rounded-xl p-4 bg-card border border-foreground/[0.1] hover:border-foreground/[0.22] hover:shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08)] transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
         >
-          <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-muted-foreground/65 mb-3">
-            {isJa ? "個人塾向け" : "For individuals"}
-          </p>
           <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-[20px] font-bold tracking-tight">{starterName}</span>
+            <span className="text-[14.5px] font-bold tracking-tight">{starterName}</span>
+            <span className="ml-auto text-[18px] font-bold tabular-nums">{starterDef.priceLabel}</span>
+            <span className="text-[10.5px] text-muted-foreground/65">{isJa ? "/ 月" : "/ mo"}</span>
           </div>
-          <div className="flex items-baseline gap-1.5 mb-5">
-            <span className="text-[28px] font-bold tabular-nums tracking-tight leading-none text-foreground/90">{starterDef.priceLabel}</span>
-            <span className="text-[12px] text-muted-foreground/70">{isJa ? "/ 月" : "/ mo"}</span>
-          </div>
-
-          <ul className="space-y-2 mb-6">
-            {starterFeatures.map((f) => (
-              <li key={f} className="flex items-start gap-2 text-[12.5px] text-foreground/80 leading-relaxed">
-                <Check className="h-3.5 w-3.5 mt-[3px] shrink-0 text-foreground/50" strokeWidth={2.4} />
-                <span>{f}</span>
-              </li>
-            ))}
-          </ul>
-
-          <span className="inline-flex items-center justify-center gap-2 w-full sm:w-auto sm:min-w-[160px] h-10 px-5 rounded-full bg-foreground/[0.06] border border-foreground/[0.12] text-foreground text-[13px] font-semibold group-hover:bg-foreground/[0.09] transition">
+          <p className="text-[11.5px] text-muted-foreground/80 leading-snug mb-3">
+            {isJa ? "高性能AI 月150回 / PDF 出力 無制限" : "Premium AI 150/mo · unlimited PDF"}
+          </p>
+          <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground/85 group-hover:text-foreground transition">
             {isJa ? `${starterName} で続ける` : `Continue with ${starterName}`}
+            <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelect("free")}
+          className="group relative text-left rounded-xl p-4 bg-card border border-foreground/[0.07] hover:border-foreground/[0.18] transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+        >
+          {/* タイトル行 — 価格と「ずっと無料」サブラベルを 1 ペアに統合して
+              "¥0 + 永久無料" の重複を解消 */}
+          <div className="flex items-baseline gap-2 mb-0.5">
+            <span className="text-[14.5px] font-bold tracking-tight">{freeName}</span>
+            <span
+              className="ml-auto text-[15px] font-bold tracking-tight"
+              style={{ fontFamily: 'ui-serif, "Iowan Old Style", Georgia, serif' }}
+            >
+              {isJa ? "ずっと無料" : "Always free"}
+            </span>
+          </div>
+
+          {/* 信頼感を底上げする一行 — クレカ不要を明示 */}
+          <p className="text-[10.5px] font-medium text-emerald-700/85 dark:text-emerald-400/85 mb-2">
+            {isJa ? "クレジットカード登録なしで開始" : "No credit card required"}
+          </p>
+
+          <p className="text-[11.5px] text-muted-foreground/80 leading-snug mb-3">
+            {isJa
+              ? "高性能AI 月3回・PDF 月1回。気に入ったら後でアップグレード。"
+              : "Premium AI 3/mo, 1 PDF/mo. Upgrade later when you're ready."}
+          </p>
+
+          <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground/80 group-hover:text-foreground transition">
+            {isJa ? "このまま無料で登録する" : "Sign up free →"}
             <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
           </span>
         </button>
       </div>
 
-      {/* Free 行 — カード化せず、横長のスリムな選択肢として配置 */}
-      <button
-        type="button"
-        onClick={() => onSelect("free")}
-        className="group flex items-center justify-between gap-3 px-5 py-3.5 rounded-xl border border-foreground/[0.08] bg-foreground/[0.015] hover:bg-foreground/[0.04] transition text-left active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
-      >
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold tracking-tight">
-            {isJa ? "まずは Free のまま続ける" : "Continue on Free"}
-            <span className="ml-2 text-[11px] font-normal text-muted-foreground/70">
-              {isJa ? "¥0 · 永久無料" : "$0 · forever"}
-            </span>
-          </p>
-          <p className="text-[11.5px] text-muted-foreground/75 mt-0.5 leading-snug">
-            {isJa ? "高性能AI 月3回 / PDF 月1回。後からいつでもアップグレード可能。" : "Premium AI 3/mo, 1 PDF/mo. Upgrade anytime."}
-          </p>
-        </div>
-        <ArrowRight className="h-4 w-4 text-muted-foreground/55 shrink-0 group-hover:translate-x-0.5 group-hover:text-foreground transition" />
-      </button>
-
-      {/* フッター: 注釈 + 閉じる */}
-      <div className="flex items-end justify-between gap-3 pt-1">
-        <p className="text-[10.5px] text-muted-foreground/60 leading-relaxed max-w-[42ch]">
-          {isJa
-            ? "クリック後、Google でサインイン → 有料は決済画面、Free はそのままエディタへ進みます。"
-            : "After clicking, sign in with Google — paid plans go to checkout, Free goes straight to the editor."}
-        </p>
-        <Button variant="ghost" size="sm" onClick={onClose} className="shrink-0 text-muted-foreground/65">
+      {/* フッター */}
+      <div className="flex items-center justify-end pt-1">
+        <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground/60">
           {isJa ? "閉じる" : "Close"}
         </Button>
       </div>

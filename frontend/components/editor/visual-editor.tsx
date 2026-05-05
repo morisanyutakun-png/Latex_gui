@@ -7,7 +7,7 @@ import {
   renderInlineMathOrPlaceholder,
   renderDisplayMathOrPlaceholder,
 } from "@/lib/katex-render";
-import { Sigma, Trash2, Undo2 } from "lucide-react";
+import { Plus, Trash2, Undo2 } from "lucide-react";
 import {
   parseLatexToSegments,
   replaceRange,
@@ -19,6 +19,7 @@ import {
 } from "@/lib/latex-segments";
 import { useI18n } from "@/lib/i18n";
 import { MathEditPopover } from "./math-edit-popover";
+import { BlockInsertMenu, type BlockMenuItem } from "./block-insert-menu";
 
 // 数式チップ挿入後にホスト editable へ「内容を commit せよ」と通知するためのカスタムイベント名。
 // 各 editable block (ContentEditableBlock / TrailingEditableParagraph) はこのイベントを購読し、
@@ -79,6 +80,12 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
   const segments = useMemo(() => parseLatexToSegments(latex), [latex]);
   const templateId = template ?? "blank";
 
+  // 表示数式ブロックを挿入後、ユーザが数式を確定したときに「最新の latex」を読むための ref。
+  // openMathEditor の onApply 経由で発火するため closure は古い latex を握ってしまう。
+  // 毎レンダで ref を更新し、実時間の latex を参照できるようにする。
+  const latexRef = useRef(latex);
+  useEffect(() => { latexRef.current = latex; }, [latex]);
+
   // ユーザーのソースに含まれる \definecolor を CSS 色として畳み、
   // \titleformat{\section}{...\color{X}...} 等から見出し色を引き出して
   // CSS 変数として root に流し込む (簡易プレビューを PDF に近づける)。
@@ -106,6 +113,20 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
     setMathEditRequest(req);
   }, []);
 
+  // ─── ブロック挿入メニュー (Notion 風) ───
+  // FAB / 各ブロックの hover「+」ハンドル / 末尾段落での `/` 打鍵から起動する。
+  // anchor は画面座標。afterRange があれば「そのレンジ直後」に挿入、無ければ本文末尾に挿入する。
+  const [blockMenu, setBlockMenu] = useState<{
+    anchor: { x: number; y: number };
+    placement: "above" | "left-bottom" | "right-bottom";
+    afterRange?: Range;
+    /** trailing 段落での slash menu 起動時、ノードと現在のカーソル range を保持し、
+     *  確定時に置換できるようにする (trailing は contentEditable なので range で扱う)。 */
+    slashContext?: { node: HTMLElement; slashRange: globalThis.Range };
+    /** 検索クエリ初期値 (`/` 起動時は空文字、FAB 起動時も空) */
+    initialQuery?: string;
+  } | null>(null);
+
   // ─── 「数式を挿入」ボタン用: 最後にフォーカスがあった editable を追跡 ───
   // ボタンを mousedown.preventDefault で押すと選択範囲が消えないので、ボタンクリック時に
   // window.getSelection() を読めば十分だが、念のためフォールバック先として保持しておく。
@@ -124,32 +145,6 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
     window.document.addEventListener("focusin", onFocusIn);
     return () => window.document.removeEventListener("focusin", onFocusIn);
   }, []);
-
-  /** ツールバー / FAB から「カーソル位置に数式を挿入」を発動する */
-  const requestInsertMath = useCallback(() => {
-    let target: HTMLElement | null = lastFocusedEditableRef.current;
-    if (!target || !window.document.body.contains(target)) {
-      target = trailingRef.current;
-    }
-    if (!target) return;
-
-    // 現在の選択範囲が target の中になければ末尾に caret を置く
-    const sel = window.getSelection();
-    const inside =
-      sel && sel.anchorNode && target.contains(sel.anchorNode);
-    if (!inside) {
-      target.focus();
-      const range = window.document.createRange();
-      range.selectNodeContents(target);
-      range.collapse(false);
-      const sel2 = window.getSelection();
-      if (sel2) {
-        sel2.removeAllRanges();
-        sel2.addRange(range);
-      }
-    }
-    insertEmptyMathChipAndEdit(target, openMathEditor);
-  }, [openMathEditor]);
 
   // ── 動的プリアンブルパッケージ注入 ──
   // LaTeX ソースを更新する前に、本文の内容に応じて不足パッケージをプリアンブルに追加する。
@@ -227,6 +222,117 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
     [latex, smartOnChange]
   );
 
+  // 任意の range 直後に LaTeX スニペットを挿入する (Notion 風 + ハンドル用)。
+  // 既存ブロックと隣接しないよう前後を改行で囲み、新しいブロックとして独立させる。
+  const handleInsertAfterRange = useCallback(
+    (range: Range, snippet: string) => {
+      const trimmed = snippet.trim();
+      if (!trimmed) return;
+      const before = latex.slice(0, range.end);
+      const after = latex.slice(range.end);
+      // before の末尾を 1 行に揃え、blank line で snippet を挟む
+      const padBefore = before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+      const padAfter = after.startsWith("\n\n") || after.length === 0 ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+      const next = before + padBefore + trimmed + padAfter + after;
+      smartOnChange(next);
+    },
+    [latex, smartOnChange]
+  );
+
+  // ブロックメニューから 1 件選んだときの共通ハンドラ。
+  // - "snippet": LaTeX をそのまま挿入 (afterRange があればその直後 / 無ければ末尾)
+  // - "inline-math": 現在フォーカス中の editable に math chip を挿入
+  // - "display-math": 表示数式ブロックを挿入し、即座に MathEditPopover で中身を編集させる
+  const handleBlockMenuSelect = useCallback(
+    (item: BlockMenuItem) => {
+      const ctx = blockMenu;
+      setBlockMenu(null);
+
+      // slash menu 起動時は、入力済みの "/" 含むレンジを削除しておく必要がある
+      if (ctx?.slashContext) {
+        try {
+          ctx.slashContext.slashRange.deleteContents();
+        } catch { /* ignore */ }
+      }
+
+      if (item.action === "inline-math") {
+        // インライン数式: 直前のフォーカス位置に挿入。slash 起動なら trailing 内へ。
+        const target = ctx?.slashContext?.node
+          ?? (lastFocusedEditableRef.current && document.body.contains(lastFocusedEditableRef.current)
+            ? lastFocusedEditableRef.current
+            : trailingRef.current);
+        if (!target) return;
+        if (document.activeElement !== target) {
+          target.focus();
+        }
+        insertEmptyMathChipAndEdit(target, openMathEditor);
+        return;
+      }
+
+      if (item.action === "display-math") {
+        // 表示数式: 空ボディの \[...\] を挿入し、その瞬間に MathEditPopover を開く。
+        // ユーザが apply した時点で、本文中の "\\[ \\quad \\]" を新しい本文付きに差し替える。
+        const PLACEHOLDER = "\\[ \\quad \\]";
+        const insertSnippet = (snippetBody: string) =>
+          `\\[\n${snippetBody}\n\\]`;
+
+        // 一旦 placeholder を挿入
+        if (ctx?.afterRange) {
+          handleInsertAfterRange(ctx.afterRange, PLACEHOLDER);
+        } else {
+          handleInsertNewParagraph(PLACEHOLDER);
+        }
+        // 次に MathEditPopover を開いて、apply 時に同じ範囲を本文付きに差し替える
+        // 挿入直後の状態は保証できないので、ファイル末尾の最後の "\\[ \\quad \\]" を置換する
+        // という素朴な戦略を取る (ユーザが連打すると壊れるが UX 上は十分)。
+        openMathEditor({
+          initialLatex: "",
+          onApply: (newBody) => {
+            const trimmed = newBody.trim();
+            if (!trimmed) return;
+            // ref から最新の latex を読む (smartOnChange で placeholder が入った後の状態)。
+            const after = latexRef.current;
+            const placeholderIdx = after.lastIndexOf(PLACEHOLDER);
+            if (placeholderIdx === -1) {
+              // 既に上書きされていた場合のフォールバックとして末尾に追加
+              handleInsertNewParagraph(insertSnippet(trimmed));
+              return;
+            }
+            const next = after.slice(0, placeholderIdx) + insertSnippet(trimmed) + after.slice(placeholderIdx + PLACEHOLDER.length);
+            smartOnChange(next);
+          },
+          onCancel: () => {
+            // placeholder を残しても良いが、ユーザは中身を入れずキャンセルしたので削除しておく。
+            const after = latexRef.current;
+            const placeholderIdx = after.lastIndexOf(PLACEHOLDER);
+            if (placeholderIdx === -1) return;
+            const next = after.slice(0, placeholderIdx) + after.slice(placeholderIdx + PLACEHOLDER.length);
+            // 余分な空行を 1 行に圧縮
+            smartOnChange(next.replace(/\n{3,}/g, "\n\n"));
+          },
+        });
+        return;
+      }
+
+      // 通常スニペット
+      if (ctx?.afterRange) {
+        handleInsertAfterRange(ctx.afterRange, item.latex);
+      } else {
+        handleInsertNewParagraph(item.latex);
+      }
+    },
+    [blockMenu, handleInsertAfterRange, handleInsertNewParagraph, openMathEditor, smartOnChange]
+  );
+
+  /** FAB クリックでブロックメニューを開く (画面右下のボタン上に "above" 配置) */
+  const openBlockMenuFromFab = useCallback((evt: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = (evt.currentTarget as HTMLElement).getBoundingClientRect();
+    setBlockMenu({
+      anchor: { x: rect.left + rect.width / 2, y: rect.top },
+      placement: "above",
+    });
+  }, []);
+
   // 表示対象となるセグメント (preamble / documentEnd / hidden raw を除外)
   const visibleSegments = segments.filter((seg) => {
     if (seg.kind === "preamble" || seg.kind === "documentEnd") return false;
@@ -257,13 +363,13 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
     <MathEditorContext.Provider value={openMathEditor}>
       <div className="relative h-full w-full">
         <div
-          className="visual-editor h-full w-full overflow-y-auto bg-stone-200/60 dark:bg-stone-950/60 scrollbar-thin"
+          className="visual-editor h-full w-full overflow-y-auto scrollbar-thin"
           data-template={templateId}
           style={docColorVars as CSSProperties}
         >
-          <div className="visual-editor-paper mx-auto my-10 w-full max-w-3xl bg-white dark:bg-zinc-900 shadow-[0_2px_24px_-4px_rgba(0,0,0,0.18)] dark:shadow-[0_2px_24px_-4px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/5 rounded-sm">
+          <div className="visual-editor-paper mx-auto my-10 w-full max-w-3xl">
             <div
-              className="px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)] cursor-text"
+              className="visual-editor-paper-body px-16 py-20 space-y-4 min-h-[calc(100vh-8rem)] cursor-text"
               onMouseDown={handlePageMouseDown}
             >
               {visibleSegments.map((seg, idx) => (
@@ -271,6 +377,13 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
                   key={`${idx}-${seg.kind}`}
                   segment={seg}
                   onDelete={() => applyRangeEdit(seg.range, "")}
+                  onAddBlockBelow={(rect) => {
+                    setBlockMenu({
+                      anchor: { x: rect.left, y: rect.bottom },
+                      placement: "right-bottom",
+                      afterRange: seg.range,
+                    });
+                  }}
                 >
                   <SegmentRenderer
                     segment={seg}
@@ -283,23 +396,49 @@ export function VisualEditor({ latex, onChange, template }: VisualEditorProps) {
                 innerRef={trailingRef}
                 placeholder={t("doc.editor.visual.type_here")}
                 onInsert={handleInsertNewParagraph}
+                onSlashOpen={(node, slashRange, anchorRect) => {
+                  setBlockMenu({
+                    anchor: { x: anchorRect.left, y: anchorRect.bottom },
+                    placement: "right-bottom",
+                    slashContext: { node, slashRange },
+                  });
+                }}
               />
             </div>
           </div>
         </div>
-        {/* 「数式を挿入」フローティングボタン — スクロールに追従せず常に右下に表示 */}
+        {/* 「+ ブロックを追加」フローティングボタン — Notion 風コマンドメニューを開く */}
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={requestInsertMath}
-          title={t("doc.editor.math.insert.tooltip")}
-          aria-label={t("doc.editor.math.insert")}
-          className="absolute bottom-6 right-6 z-10 flex items-center gap-1.5 rounded-full bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-600/30 hover:bg-violet-700 hover:shadow-violet-600/40 active:scale-95 transition-all"
+          onClick={openBlockMenuFromFab}
+          title={t("doc.editor.block.insert.tooltip")}
+          aria-label={t("doc.editor.block.insert")}
+          className="visual-editor-fab absolute bottom-6 right-6 z-10 flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white active:scale-95 transition-all"
         >
-          <Sigma className="h-4 w-4" />
-          {t("doc.editor.math.insert")}
+          <Plus className="h-4 w-4" strokeWidth={2.4} />
+          <span>{t("doc.editor.block.insert")}</span>
+          <kbd className="hidden lg:inline-block ml-1 px-1.5 py-[1px] text-[10px] font-mono font-bold rounded bg-white/20 border border-white/25">/</kbd>
         </button>
       </div>
+      {blockMenu && (
+        <BlockInsertMenu
+          anchor={blockMenu.anchor}
+          placement={blockMenu.placement}
+          initialQuery={blockMenu.initialQuery ?? ""}
+          onSelect={handleBlockMenuSelect}
+          onClose={() => {
+            // slash menu 起動でユーザがキャンセルした場合は、自動で挿入された "/" 文字を
+            // 取り除いておく。さもないと末尾段落の onBlur で "/" 1 文字の段落が本文に
+            // commit されてしまう。
+            const slash = blockMenu.slashContext?.slashRange;
+            if (slash) {
+              try { slash.deleteContents(); } catch { /* ignore */ }
+            }
+            setBlockMenu(null);
+          }}
+        />
+      )}
       {mathEditRequest && (
         <MathEditPopover
           initialLatex={mathEditRequest.initialLatex}
@@ -339,14 +478,18 @@ const DELETABLE_KINDS = new Set([
 interface DeletableBlockProps {
   segment: Segment;
   onDelete: () => void;
+  /** hover 時の "+ 下にブロックを追加" ハンドルから呼ばれる。
+   *  ハンドルの bounding rect を渡すので、メニュー側で右下にポップアップする。 */
+  onAddBlockBelow?: (rect: DOMRect) => void;
   children: React.ReactNode;
 }
 
-function DeletableBlock({ segment, onDelete, children }: DeletableBlockProps) {
+function DeletableBlock({ segment, onDelete, onAddBlockBelow, children }: DeletableBlockProps) {
   const { locale } = useI18n();
   const isJa = locale === "ja";
   const [phase, setPhase] = useState<"idle" | "confirm">("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addHandleRef = useRef<HTMLButtonElement | null>(null);
 
   // Auto-cancel confirmation after 3 seconds
   useEffect(() => {
@@ -385,6 +528,25 @@ function DeletableBlock({ segment, onDelete, children }: DeletableBlockProps) {
       className="deletable-block group/del relative"
       onMouseLeave={() => { if (phase === "confirm") setPhase("idle"); }}
     >
+      {/* Notion 風 「+」 ブロックハンドル — 左マージンに hover で出現。
+          クリックでこのブロックの直下に新ブロック挿入メニューを開く。 */}
+      {onAddBlockBelow && phase === "idle" && (
+        <button
+          ref={addHandleRef}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            const r = addHandleRef.current?.getBoundingClientRect();
+            if (r) onAddBlockBelow(r);
+          }}
+          className="block-add-handle"
+          aria-label={isJa ? "下にブロックを追加" : "Insert block below"}
+          title={isJa ? "下にブロックを追加 (/ でも開く)" : "Insert block below (also: type /)"}
+        >
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+        </button>
+      )}
+
       {children}
 
       {/* Phase 1: subtle trash icon on hover */}
@@ -1792,9 +1954,16 @@ interface TrailingEditableParagraphProps {
   placeholder: string;
   onInsert: (text: string) => void;
   innerRef: React.MutableRefObject<HTMLParagraphElement | null>;
+  /** `/` 打鍵時に slash menu を開く要求。確定時に "/" 含むレンジを置換できるよう、
+   *  ホスト要素・"/" を含む Range・anchor の bounding rect を渡す。 */
+  onSlashOpen?: (
+    node: HTMLElement,
+    slashRange: globalThis.Range,
+    anchorRect: { left: number; bottom: number },
+  ) => void;
 }
 
-function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: TrailingEditableParagraphProps) {
+function TrailingEditableParagraph({ placeholder, onInsert, innerRef, onSlashOpen }: TrailingEditableParagraphProps) {
   const openMathEditor = useMathEditor();
 
   // onInsert は親の closure で毎回作り直されがち。listener を一度だけ取り付けるため ref 経由で参照する。
@@ -1843,7 +2012,8 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
     setTimeout(() => { composingRef.current = false; }, 50);
   }, []);
 
-  // Enter = commit (insert paragraph), Shift+Enter = line break, Cmd/Ctrl+M = math chip
+  // Enter = commit (insert paragraph), Shift+Enter = line break, Cmd/Ctrl+M = math chip,
+  // `/` (空段落の先頭) = Notion 風 slash menu を開く
   // IME 変換中の Enter は無視 → 文字確定 Enter とブロック確定 Enter を分離
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLElement>) => {
@@ -1856,6 +2026,36 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
         insertEmptyMathChipAndEdit(node, openMathEditor);
         return;
       }
+
+      // `/` を空段落の先頭で打ったときは slash menu を開く (IME 中はスルー)。
+      if (e.key === "/" && !e.nativeEvent.isComposing && !composingRef.current && onSlashOpen) {
+        const node = innerRef.current;
+        if (!node) return;
+        // 段落が空 (テキストノードなし or 空白のみ) のときだけ起動。
+        // ZWS / <br> しか入っていない場合も「空」とみなす。
+        const text = (node.textContent || "").replace(/[​ \s]/g, "");
+        if (text.length > 0) return;
+        e.preventDefault();
+        // "/" を実際に挿入してから Range を取得 → onSlashOpen に渡す。
+        // 確定時に slashRange.deleteContents() で除去できる。
+        if (typeof window === "undefined") return;
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        // キャレットを node 末尾に置き直す
+        const range = window.document.createRange();
+        range.selectNodeContents(node);
+        range.collapse(false);
+        const slashTextNode = window.document.createTextNode("/");
+        range.insertNode(slashTextNode);
+        // slash 文字を覆う range を作る (確定時に削除する用)
+        const slashRange = window.document.createRange();
+        slashRange.selectNode(slashTextNode);
+        // 画面座標を slash の bounding rect から取る (キャレット直下に menu)
+        const rect = slashRange.getBoundingClientRect();
+        onSlashOpen(node, slashRange, { left: rect.left, bottom: rect.bottom });
+        return;
+      }
+
       // Enter (without Shift, not composing) → commit by blurring
       if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
         e.preventDefault();
@@ -1864,7 +2064,7 @@ function TrailingEditableParagraph({ placeholder, onInsert, innerRef }: Trailing
       }
       // Shift+Enter → default line break (allow contentEditable default)
     },
-    [innerRef, openMathEditor]
+    [innerRef, openMathEditor, onSlashOpen]
   );
 
   return (

@@ -272,6 +272,8 @@ const ja = {
   "doc.editor.math.popover.cancel": "キャンセル",
   "doc.editor.math.insert": "数式を挿入",
   "doc.editor.math.insert.tooltip": "カーソル位置に数式を挿入 (Cmd+M / Ctrl+M)",
+  "doc.editor.block.insert": "ブロックを追加",
+  "doc.editor.block.insert.tooltip": "数式 / 表 / 見出しなどのブロックを挿入 (空行で / でも開く)",
 
   // Editor sidebar / page
   "side.tooltip.ai": "AIアシスタント",
@@ -787,6 +789,8 @@ const en = {
   "doc.editor.math.popover.cancel": "Cancel",
   "doc.editor.math.insert": "Insert formula",
   "doc.editor.math.insert.tooltip": "Insert a formula at the cursor (Cmd+M / Ctrl+M)",
+  "doc.editor.block.insert": "Add block",
+  "doc.editor.block.insert.tooltip": "Insert a math, table, heading or other block (or type / on an empty line)",
 
   // Editor sidebar / page
   "side.tooltip.ai": "AI Assistant",
