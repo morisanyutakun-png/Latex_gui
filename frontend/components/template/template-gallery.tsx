@@ -249,72 +249,6 @@ function useFadeIn(delay = 0) {
   return { ref, isVisible };
 }
 
-/* ── Step card ──
- * `planBadge` で「この手順はどのプランから使えるか」を明示する。
- * LP 上の整合性を保つためのラベルで、Free で完結するフローは "Freeでも" と書く。
- *
- * 編集方針: rainbow グラデのアイコン枠を廃し、エディトリアルな番号 + ライン
- * アイコンの統一トリートメントで「人が組んだ」一貫性を出す。色は Eddivom の
- * アイデンティティとして violet を 1 アクセントだけ残す。
- */
-type StepPlanBadge = "free" | "starter-plus" | "pro-plus";
-
-// `color` プロパティは互換のため受けるだけで描画には使わない (旧 callers 影響を最小化)
-function StepCard({ num, icon, title, desc, planBadge }: {
-  num: string; icon: React.ReactNode; title: string; desc: string; color?: string;
-  planBadge?: StepPlanBadge;
-}) {
-  const badgeMeta: Record<StepPlanBadge, { ja: string; en: string; className: string }> = {
-    "free":         { ja: "Freeでも",  en: "Free",     className: "text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]" },
-    "starter-plus": { ja: "Starter〜", en: "Starter+", className: "text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]" },
-    "pro-plus":     { ja: "Pro〜",     en: "Pro+",     className: "text-violet-700 dark:text-violet-300 bg-violet-500/[0.06] border-violet-500/25" },
-  };
-
-  return (
-    <div className="relative flex flex-col gap-5 p-7 rounded-2xl bg-card border border-foreground/[0.06] hover:border-foreground/[0.14] hover:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.08)] transition-all duration-300">
-      {planBadge && (
-        <span className={`absolute top-4 right-4 inline-flex items-center text-[10px] font-medium tracking-wide px-1.5 py-0.5 rounded-md border ${badgeMeta[planBadge].className}`}>
-          {badgeMeta[planBadge].ja}
-        </span>
-      )}
-      <div className="flex items-baseline gap-3 pr-12">
-        <span
-          className="text-[26px] tabular-nums leading-none text-foreground/25 font-light tracking-tight"
-          style={{ fontFamily: 'ui-serif, "Iowan Old Style", "Apple Garamond", Georgia, serif' }}
-        >
-          {num}
-        </span>
-        <span aria-hidden className="h-px flex-1 bg-foreground/[0.07] mb-1.5" />
-      </div>
-      <div className="text-foreground/75" aria-hidden>{icon}</div>
-      <div>
-        <h3 className="text-[15px] font-semibold tracking-tight mb-2">{title}</h3>
-        <p className="text-[12.5px] text-muted-foreground leading-relaxed">{desc}</p>
-      </div>
-    </div>
-  );
-}
-
-/* ── Pro 解放フローカード ──
- * Workflow セクションの「Pro で解放」ブロック内で使う、小さめのカード。
- * Free の 4 ステップと視覚的に差別化するが、rainbow ではなく「左に細い violet
- * バー + 統一アイコン」だけで済ませる。
- */
-function ProWorkflowCard({
-  icon, title, desc,
-}: {
-  icon: React.ReactNode; title: string; desc: string; color?: string;
-}) {
-  return (
-    <div className="relative flex flex-col gap-2.5 p-5 pl-6 rounded-xl bg-card border border-foreground/[0.05] hover:border-violet-500/25 transition-colors duration-300">
-      <span aria-hidden className="absolute left-0 top-5 bottom-5 w-[2px] rounded-full bg-violet-500/40" />
-      <div className="text-foreground/70" aria-hidden>{icon}</div>
-      <h4 className="text-[13px] font-semibold tracking-tight">{title}</h4>
-      <p className="text-[11.5px] text-muted-foreground leading-relaxed">{desc}</p>
-    </div>
-  );
-}
-
 /* ── Hero: プロンプト入力風 CTA ──
  * Free 無料お試し動線専用。ユーザの prompt を sessionStorage に預けてエディタへ遷移し、
  * エディタ側 (app/editor/page.tsx) がマウント時に拾って AI チャットに即流す。
@@ -3699,55 +3633,145 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
             </p>
           </div>
 
-          {/* ── Free で完結する 4 ステップ (主動線) ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StepCard num="01" icon={<Sparkles className="h-[18px] w-[18px]" strokeWidth={1.4} />}
-              title={isJa ? "AIにお願い" : "Ask the AI"}
-              desc={isJa ? "「二次方程式のプリントを10問」など自然言語で指示。テンプレ選択でもOK。" : "Describe what you need (e.g. \"10 quadratic problems\") or pick a template."}
-              planBadge="free" />
-            <StepCard num="02" icon={<PenLine className="h-[18px] w-[18px]" strokeWidth={1.4} />}
-              title={isJa ? "紙面で直接編集" : "Edit on the page"}
-              desc={isJa ? "数式・配点・設問を紙面でクリック編集。LaTeX の知識は不要です。" : "Click and edit equations, points, prompts — no LaTeX knowledge required."}
-              planBadge="free" />
-            <StepCard num="03" icon={<Copy className="h-[18px] w-[18px]" strokeWidth={1.4} />}
-              title={isJa ? "AIで類題を追加" : "AI adds variants"}
-              desc={isJa ? "「もう5問」で数値・難易度を変えた類題が即追加。AI 回数はプラン別。" : "\"5 more like this\" spawns fresh variants. AI call count depends on plan."}
-              planBadge="free" />
-            <StepCard num="04" icon={<FileDown className="h-[18px] w-[18px]" strokeWidth={1.4} />}
-              title={isJa ? "PDF出力・印刷" : "Export & print"}
-              desc={isJa ? "生徒用と解答付きの 2 種類を PDF で書き出し。A4/B5 で即印刷できます。" : "Export student sheet + answer key. Print-ready A4/B5 PDF."}
-              planBadge="free" />
-          </div>
+          {/* ── Free で完結する 4 ステップ ──
+              編集方針: 完璧な 4 列カードグリッドは "AI が組んだ" 感が強いので、
+              編集記事ライクな番号付きリストに置き換える。各エントリは:
+                ① セリフ体の特大番号 (微回転) を margin に hanging
+                ② アイコンはタイトル横に小さい inline glyph として
+                ③ 説明文は max-w で改行を制御
+                ④ 一部のステップだけ余白に italic の脚注 — 全部つけないことで「人が選んだ」感
+              アイコン位置・有無・余白を意図的に揃えないことで、完璧さを壊す。 */}
+          <ol className="border-t border-foreground/[0.08]">
+            {[
+              {
+                num: "01",
+                rotate: "-1.5deg",
+                icon: <Sparkles className="h-4 w-4" strokeWidth={1.5} />,
+                title: isJa ? "AIにお願い" : "Ask the AI",
+                desc: isJa ? "「二次方程式のプリントを10問」など、自然言語で投げるだけ。テンプレ選択から始めてもOK。" : "Describe what you need — e.g. \"10 quadratic problems\". Or start from a template.",
+                aside: isJa ? "たいてい数十秒で 1 枚目が組み上がります。" : "Usually drafts the first sheet in seconds.",
+              },
+              {
+                num: "02",
+                rotate: "0.8deg",
+                icon: <PenLine className="h-4 w-4" strokeWidth={1.5} />,
+                title: isJa ? "紙面で直接編集" : "Edit on the page",
+                desc: isJa ? "数式・配点・設問を、出来上がった紙面の上でクリックして直す。LaTeX の知識は要りません。" : "Click any equation, score, or prompt right on the rendered sheet. No LaTeX needed.",
+                aside: null,
+              },
+              {
+                num: "03",
+                rotate: "-0.6deg",
+                icon: <Copy className="h-4 w-4" strokeWidth={1.5} />,
+                title: isJa ? "AIで類題を追加" : "AI adds variants",
+                desc: isJa ? "「もう5問」と頼むと、数値や難易度を変えた類題が即追加されます。" : "\"5 more like this\" — fresh variants with different numbers or difficulty.",
+                aside: isJa ? "* AI の呼び出し回数はプランごとに上限があります。" : "* AI call quota depends on your plan.",
+              },
+              {
+                num: "04",
+                rotate: "1.2deg",
+                icon: <FileDown className="h-4 w-4" strokeWidth={1.5} />,
+                title: isJa ? "PDF 出力・印刷" : "Export & print",
+                desc: isJa ? "生徒用と解答付きの 2 種類を、まとめて PDF へ。A4 / B5 そのまま印刷できます。" : "Student sheet + answer key, exported together. Prints clean on A4 or B5.",
+                aside: isJa ? "印刷したまま配れる組版品質。" : "Print-grade typesetting.",
+              },
+            ].map((s) => (
+              <li
+                key={s.num}
+                className="grid grid-cols-[64px_1fr] sm:grid-cols-[110px_1fr_auto] gap-x-6 sm:gap-x-8 gap-y-2 items-baseline py-8 sm:py-9 border-b border-foreground/[0.08]"
+              >
+                <span
+                  className="text-[44px] sm:text-[56px] font-light text-foreground/25 tabular-nums leading-none tracking-tight inline-block select-none"
+                  style={{
+                    fontFamily: 'ui-serif, "Iowan Old Style", "Apple Garamond", Georgia, serif',
+                    transform: `rotate(${s.rotate})`,
+                    transformOrigin: "left baseline",
+                  }}
+                  aria-hidden
+                >
+                  {s.num}.
+                </span>
+                <div className="min-w-0 max-w-[44ch]">
+                  <h3 className="text-[16px] sm:text-[17px] font-semibold tracking-tight mb-2 flex items-baseline gap-2 flex-wrap">
+                    <span aria-hidden className="text-foreground/55 self-center -mb-0.5">{s.icon}</span>
+                    <span>{s.title}</span>
+                  </h3>
+                  <p className="text-[13px] text-muted-foreground leading-[1.7]">{s.desc}</p>
+                  {s.aside && (
+                    <p
+                      className="mt-2.5 text-[11.5px] italic text-muted-foreground/70 leading-relaxed"
+                      style={{ fontFamily: 'ui-serif, "Iowan Old Style", Georgia, serif' }}
+                    >
+                      {s.aside}
+                    </p>
+                  )}
+                </div>
+                <span className="hidden sm:inline-flex justify-self-end self-start items-center text-[10px] font-medium tracking-wide px-1.5 py-0.5 rounded-md border text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]">
+                  {isJa ? "Freeでも" : "Free"}
+                </span>
+              </li>
+            ))}
+          </ol>
 
-          {/* ── Pro で解放される拡張フロー (副動線) ──
-              violet を「Pro」のシグネチャ色として 1 アクセントだけ使い、装飾を控える。 */}
-          <div className="mt-12 relative rounded-2xl p-7 bg-foreground/[0.015] dark:bg-white/[0.015] border border-foreground/[0.07]">
-            <div className="relative flex flex-col sm:flex-row sm:items-baseline gap-3 mb-6">
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-violet-500/[0.08] border border-violet-500/25 text-violet-700 dark:text-violet-300 text-[10.5px] font-semibold tracking-wide">
-                <Crown className="h-3 w-3" />
-                {isJa ? "Pro" : "Pro"}
-              </span>
-              <h3 className="text-[15px] font-semibold tracking-tight text-foreground/85">
-                {isJa ? "アップグレードで、以下のフローが追加されます。" : "Upgrading unlocks these extra workflows."}
-              </h3>
-            </div>
-            <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <ProWorkflowCard
-                icon={<Upload className="h-4 w-4" strokeWidth={1.5} />}
-                title={isJa ? "PDF・画像から取り込み" : "PDF / image ingest"}
-                desc={isJa ? "過去問スキャンや古い PDF を AI が自動で問題に変換 (OCR)。" : "Scanned exams or old PDFs → editable problems via OCR."}
-              />
-              <ProWorkflowCard
-                icon={<ClipboardCheck className="h-4 w-4" strokeWidth={1.5} />}
-                title={isJa ? "採点・自動赤入れ" : "AI grading & markup"}
-                desc={isJa ? "答案画像 → AI採点 → TikZ オーバーレイ赤入れ PDF を生成。" : "Answer images → AI grading → marked-up PDF with TikZ overlay."}
-              />
-              <ProWorkflowCard
-                icon={<Layers className="h-4 w-4" strokeWidth={1.5} />}
-                title={isJa ? "バッチ量産 100〜300 行" : "Batch generate 100–300 rows"}
-                desc={isJa ? "CSV の変数データからクラス別・生徒別 PDF を一括出力。" : "Generate per-student or per-class PDFs from CSV variables."}
-              />
-            </div>
+          {/* ── Pro で解放される拡張フロー ──
+              主ステップ (01–04) と視覚的に差別化: ローマ数字 (i / ii / iii) を margin に置く
+              アノテーション形式。カードを廃して「同じ行に並んだ脚注」のような扱い。 */}
+          <div className="mt-16 relative pt-7 border-t-[1.5px] border-foreground/15">
+            <span className="absolute -top-3 left-0 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-background border border-violet-500/30 text-violet-700 dark:text-violet-300 text-[10.5px] font-semibold tracking-wide">
+              <Crown className="h-3 w-3" />
+              {isJa ? "Pro 以上で解放" : "Unlocked on Pro"}
+            </span>
+            <p className="text-[13px] text-muted-foreground/85 mb-7 max-w-[44ch] leading-relaxed">
+              {isJa
+                ? "ここから先は、有料プランでさらに広がるフロー。お持ちの素材から始めたり、採点まで一気に流せます。"
+                : "Paid plans extend the flow — start from existing materials, or run all the way through grading."}
+            </p>
+            <ol className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-7">
+              {[
+                {
+                  numeral: "i",
+                  icon: <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />,
+                  title: isJa ? "PDF・画像から取り込み" : "PDF / image ingest",
+                  desc: isJa ? "過去問のスキャンや古い PDF を、AI が自動で編集可能な問題に起こします (OCR)。" : "Scanned exams or old PDFs become editable problems via OCR.",
+                },
+                {
+                  numeral: "ii",
+                  icon: <ClipboardCheck className="h-3.5 w-3.5" strokeWidth={1.5} />,
+                  title: isJa ? "採点・自動赤入れ" : "AI grading & markup",
+                  desc: isJa ? "答案画像を投げると、AI 採点 → TikZ で赤入れした PDF まで一気通貫で出ます。" : "Answer images → AI grading → marked-up PDF with TikZ overlay.",
+                },
+                {
+                  numeral: "iii",
+                  icon: <Layers className="h-3.5 w-3.5" strokeWidth={1.5} />,
+                  title: isJa ? "CSV からバッチ生成" : "Batch from CSV",
+                  desc: isJa ? "変数を含む CSV を流し込むと、クラス別・生徒別の PDF が一括で書き出されます。" : "Pour in a CSV of variables, get per-student or per-class PDFs in one go.",
+                  aside: isJa ? "Pro 100 行 / Premium 300 行まで。" : "Up to 100 rows on Pro, 300 on Premium.",
+                },
+              ].map((p) => (
+                <li key={p.numeral} className="relative pl-7">
+                  <span
+                    aria-hidden
+                    className="absolute left-0 top-0 text-[15px] italic font-medium text-violet-600/70 dark:text-violet-400/70 tabular-nums select-none"
+                    style={{ fontFamily: 'ui-serif, "Iowan Old Style", Georgia, serif' }}
+                  >
+                    {p.numeral}.
+                  </span>
+                  <h4 className="text-[14px] font-semibold tracking-tight mb-1.5 flex items-baseline gap-2">
+                    <span aria-hidden className="text-foreground/55 self-center -mb-0.5">{p.icon}</span>
+                    <span>{p.title}</span>
+                  </h4>
+                  <p className="text-[12.5px] text-muted-foreground leading-[1.7]">{p.desc}</p>
+                  {"aside" in p && p.aside && (
+                    <p
+                      className="mt-2 text-[11px] italic text-muted-foreground/65"
+                      style={{ fontFamily: 'ui-serif, "Iowan Old Style", Georgia, serif' }}
+                    >
+                      — {p.aside}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ol>
           </div>
 
           {/* Workflow 下の主要 CTA — ユーザー状態に応じてラベル/動作が切り替わる */}

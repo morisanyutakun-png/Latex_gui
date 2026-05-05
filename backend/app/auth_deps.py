@@ -17,9 +17,51 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .database import get_db
-from .db_models import User
+from .db_models import Subscription, User
 from .plan_limits import Feature, FEATURE_MIN_PLAN, can_use_feature, get_effective_plan
 from .usage_service import check_ai_quota, check_pdf_quota
+
+
+def _ensure_free_subscription_row(db: Session, user_id: str) -> None:
+    """User に対して Free pseudo subscription 行を「無ければだけ」入れる。
+
+    重複挿入は絶対にしない。既存 subscription 行 (status 問わず) を 1 SELECT
+    でチェックし、何かあれば挿入をスキップする。挿入は「行が完全に存在しない
+    ユーザー」に対してのみ。
+
+    挙動 (status=既存行の状態):
+        - 行が 1 件も無い        → Free 行を INSERT
+        - 既に何か行がある       → INSERT しない (重複回避)
+            * active/trialing/past_due → そのままで良い (有料 or 既存 Free)
+            * canceled              → 解約済みは尊重して触らない
+                                       (再度 Free にしたい時は明示的に
+                                        POST /subscription/checkout で
+                                        activate_free_plan を呼ぶ)
+
+    Stripe API は叩かない (Stripe customer 作成は upgrade 時に遅延)。
+    """
+    # 1 SELECT で「この user_id の subscription 行が存在するか」だけを判定
+    has_any_row = db.query(
+        db.query(Subscription).filter(Subscription.user_id == user_id).exists()
+    ).scalar()
+    if has_any_row:
+        return
+
+    sub = Subscription(
+        id=f"free_{user_id}",
+        user_id=user_id,
+        stripe_price_id="",
+        plan_id="free",
+        status="active",
+        cancel_at_period_end=False,
+    )
+    db.add(sub)
+    try:
+        db.commit()
+    except IntegrityError:
+        # 並行リクエストで別プロセスが先に挿入したケース — もう一方が成功
+        # しているので rollback して撤退するだけ。重複は発生しない。
+        db.rollback()
 
 
 # プラン表示用 (日本語)
@@ -104,6 +146,10 @@ def _resolve_user(
                 raise
         else:
             db.refresh(user)
+            # 新規 User と同時に Free subscription 行を upsert する。
+            # これが無いと「users は増えるが subscriptions に Free 行が無い」状態になり、
+            # 集計時に「Free ユーザー数 = 不明」になってしまう (= 旧バグ)。
+            _ensure_free_subscription_row(db, user.id)
         return user
 
     changed = False

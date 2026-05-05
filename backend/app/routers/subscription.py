@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..auth_deps import _ensure_free_subscription_row
 from ..database import get_db, get_db_info
 from ..db_models import User, Subscription, UsageLog
 from .. import stripe_service
@@ -108,6 +109,9 @@ def _upsert_user(
         else:
             db.refresh(user)
             logger.info("Created new user %s (%s)", user_id, email)
+            # users と subscriptions の整合を保つため、新規 User 作成と同時に
+            # Free pseudo 行を入れる。Stripe を叩かない軽量版なので待ち時間ゼロ。
+            _ensure_free_subscription_row(db, user.id)
         return user
 
     # 既存ユーザー: 名前/メールを最新に同期 (unique 衝突しない範囲で)
@@ -144,7 +148,13 @@ async def get_my_subscription(
     user: Optional[User] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """現在のユーザーのサブスクリプション状態を返す。"""
+    """現在のユーザーのサブスクリプション状態を返す。
+
+    Self-heal: subscription 行が 1 件も無いレガシーユーザーに限り、Free 行を
+    1 回だけ挿入する。重複挿入はしない (`_ensure_free_subscription_row` が
+    存在チェック付きで挿入する)。canceled 行だけ持つユーザーには新規挿入
+    せず、従来通り "free" を返すだけにする。
+    """
     if not user:
         return SubscriptionStatus(plan_id="free", status="free")
 
@@ -160,7 +170,25 @@ async def get_my_subscription(
     )
 
     if not sub:
-        return SubscriptionStatus(plan_id="free", status="free")
+        # 既に何らかの subscription 行を持っているか (canceled 含む) を確認。
+        # 1 件も無い時だけ Free 行を挿入。canceled 行を持つ人には触らない。
+        try:
+            _ensure_free_subscription_row(db, user.id)
+        except Exception as e:
+            logger.warning("self-heal free row failed for user=%s: %s", user.id, e)
+            return SubscriptionStatus(plan_id="free", status="free")
+        sub = (
+            db.query(Subscription)
+            .filter(
+                Subscription.user_id == user.id,
+                Subscription.status.in_(["active", "trialing"]),
+            )
+            .order_by(Subscription.updated_at.desc())
+            .first()
+        )
+        if not sub:
+            # 挿入されなかった (canceled 行が既存 / 並行挿入失敗 / DB エラー) 場合
+            return SubscriptionStatus(plan_id="free", status="free")
 
     return SubscriptionStatus(
         plan_id=sub.plan_id,
@@ -436,6 +464,45 @@ def _classify_secret_key(v: str) -> str:
     if v.startswith("sk_test_"):
         return "test"
     return "invalid"
+
+
+@router.post("/backfill-free-rows")
+async def backfill_free_subscriptions(
+    db: Session = Depends(get_db),
+    x_internal_secret: Optional[str] = Header(default=None, alias="x-internal-secret"),
+):
+    """既存ユーザーで `subscriptions` に active 行が無い人へ Free pseudo 行を一括 upsert。
+
+    旧コードでは User 作成時に Free 行を挿入しておらず、`POST /subscription/checkout`
+    を `plan_id=free` で踏まない限り subscriptions に行が無いまま蓄積していた。
+    その結果「users 行 > subscriptions 行」のズレが発生する。これは一回叩いて整合
+    させるためのバックフィル。複数回叩いても冪等 (active 行が既にある人はスキップ)。
+
+    INTERNAL_SECRET 必須 (本番でブラウザから叩かれない保証)。
+    """
+    if INTERNAL_SECRET and x_internal_secret != INTERNAL_SECRET:
+        raise HTTPException(status_code=401, detail="invalid internal secret")
+
+    # Subscription 行が 1 件も無い User だけを抽出 (status 問わず)。
+    # canceled だけ持つユーザーには Free 行を新規挿入しない方針 (重複回避)。
+    users_without_any_sub = db.query(User).filter(
+        ~db.query(Subscription).filter(
+            Subscription.user_id == User.id,
+        ).exists()
+    ).all()
+
+    inserted = 0
+    failed = 0
+    for u in users_without_any_sub:
+        try:
+            _ensure_free_subscription_row(db, u.id)
+            inserted += 1
+        except Exception as e:
+            logger.warning("backfill: failed for user %s: %s", u.id, e)
+            failed += 1
+
+    logger.info("backfill-free-rows: inserted=%d failed=%d", inserted, failed)
+    return {"inserted": inserted, "failed": failed, "total_users_checked": len(users_without_any_sub)}
 
 
 @router.post("/dedupe")
