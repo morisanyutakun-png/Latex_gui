@@ -182,16 +182,30 @@ export function MobileLanding({
           {/* サブ — 「誰向けに、何が、どんな形で出るか」を一文に圧縮。
                高校数学・物理 / 確認テスト・宿題プリント / 解答付き PDF を明示し、
                抽象訴求 (旧: 瞬時に・無制限に) を具体ベネフィットに置換。 */}
-          <p className="text-foreground/75 text-[13.5px] leading-[1.65] mb-3 font-medium max-w-[20rem]">
+          <p className="text-foreground/80 text-[13.5px] leading-[1.6] mb-3 font-medium max-w-[21rem]">
             {isJa
-              ? "高校数学・物理の確認テスト、宿題プリント、解答付きPDFをAIで即作成。"
-              : "Build high-school math & physics quizzes, homework sheets and answer-key PDFs with AI."}
+              ? "高校数学・物理の確認テストを、解答付きPDFで即作成。"
+              : "High-school math & physics quizzes — generated as answer-key PDFs in seconds."}
           </p>
 
-          {/* Before / After 訴求バッジ — 「手作業 30分」を打ち消し線で見せ、
-               視覚的に「Eddivom なら 60 秒」へジャンプさせる。
-               色面積を抑えるため、左は neutral chip / 右だけ violet グラデで強調。 */}
-          <div className="flex items-center gap-1.5 mb-4 text-[11px] flex-wrap">
+          {/* 具体的な使いどころ (3 ユースケース) — 「何ができるか」を一目で示す。
+               テキストだけだと埋もれるので、左に細い violet ルールを入れて editorial に。
+               旧版はこのブロックがなく、サブ→Before/After バッジでいきなり数字訴求になっていた。 */}
+          <ul className="mb-3.5 pl-2.5 border-l-[2px] border-violet-500/40 space-y-[5px]">
+            {(isJa
+              ? ["授業後の小テストを 60 秒で", "宿題プリントを解答付きで", "1 タップで類題演習を量産"]
+              : ["After-class quizzes in 60s", "Homework with answer keys", "1-tap variant practice"]
+            ).map((line) => (
+              <li key={line} className="flex items-start gap-1.5 text-[12.5px] text-foreground/85 leading-[1.45]">
+                <Check className="h-3 w-3 mt-[3px] text-violet-600 shrink-0" aria-hidden />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+
+          {/* Before / After + 信頼帯 を 1 段にまとめる。
+               Before/After で「速さ」、右の信頼チップで「誰が・何のために作っているか」を即伝達。 */}
+          <div className="flex items-center gap-1.5 mb-2 text-[11px] flex-wrap">
             <span className="inline-flex items-center px-2 py-[3px] rounded-md bg-foreground/[0.04] border border-foreground/[0.08] text-muted-foreground/70 line-through decoration-from-font">
               {isJa ? "手作業 30分" : "By hand · 30 min"}
             </span>
@@ -203,6 +217,19 @@ export function MobileLanding({
               </span>
             </span>
           </div>
+
+          {/* 信頼ライン — 控えめなプレフィックスで「誇張せず自然に」開発元を示す。
+               H1 直近に置くことで「課金して大丈夫か?」の不安を Hero 内で解消する。 */}
+          <p className="mb-4 text-[10.5px] text-muted-foreground/75 flex items-center gap-1.5 flex-wrap">
+            <span aria-hidden className="inline-block h-px w-3 bg-foreground/25" />
+            <span className="font-medium text-foreground/70">
+              {isJa ? "名大工学部発" : "Built at Nagoya Univ. (Engineering)"}
+            </span>
+            <span aria-hidden className="text-foreground/30">·</span>
+            <span>
+              {isJa ? "高校数学・物理の教材設計に対応" : "Designed for high-school math & physics"}
+            </span>
+          </p>
         </div>
 
         {/* ── アクション集約 (入力 + チップ + 巨大プライマリ) ──
@@ -696,18 +723,18 @@ function MobilePromptHeroBlock({
     ? "高校物理 運動方程式の基本確認テスト10問、解答付きで"
     : "High school physics: 10 motion-equation quiz items with answers";
 
-  // サンプルチップ: 「学年 + 分野 + 用途」のフォーマットで揃え、ターゲット (中高数学/物理)
-  // を即時に伝える。タップ即送信なので、各チップは単独で意味の通るプロンプトにする。
+  // サンプルチップ: 「学年 + 分野 + 用途 (テスト/演習/解答付き)」を 1 チップで完結させる。
+  // レベル感 (中2 / 高1 / 高校) と出力形式 (解答付き / グラフ付き / 演習) が即読み取れるように。
   const samples = isJa
     ? [
-        "中2数学 一次関数の小テスト",
-        "高1数学 関数と三角比 グラフ付き",
-        "高校物理 運動量保存の演習",
+        "高校物理 運動方程式の基本確認テスト10問",
+        "中2数学 一次関数の小テスト 解答付き",
+        "高1数学 関数と三角比 グラフ付き演習",
       ]
     : [
-        "Grade 8 linear functions quiz",
-        "Algebra & trig with graph answers",
-        "High school physics: momentum practice",
+        "High-school physics: 10 motion-equation quiz items",
+        "Grade 8 linear functions quiz with answers",
+        "Algebra & trig: graph-based practice",
       ];
 
   const submitWithValue = () => onSubmit(value);
@@ -761,9 +788,17 @@ function MobilePromptHeroBlock({
         <span>{ctaLabel}</span>
         <ArrowRight className="h-4 w-4" />
       </button>
-      <p className="text-center text-[11px] text-muted-foreground/65">
-        {ctaSubLabel}
-      </p>
+      {/* CTA 直下の安心材料 — 1 行 (登録不要 + 1 枚無料 + PDF 保存) +
+           1 行 (1 タップで類題量産) の 2 段で、購入前の不安と継続価値を同時に潰す。 */}
+      <div className="text-center space-y-0.5">
+        <p className="text-[11px] text-muted-foreground/75 font-medium">
+          {ctaSubLabel}
+        </p>
+        <p className="text-[10.5px] text-muted-foreground/60 inline-flex items-center justify-center gap-1">
+          <RefreshCw className="h-2.5 w-2.5" aria-hidden />
+          {isJa ? "気に入ったら 1 タップで類題を追加生成" : "Like it? 1 tap to add variants"}
+        </p>
+      </div>
     </div>
   );
 }
