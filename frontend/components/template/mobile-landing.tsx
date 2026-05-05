@@ -148,11 +148,11 @@ export function MobileLanding({
           <div className="absolute top-20 right-0 w-[260px] h-[260px] rounded-full bg-gradient-to-br from-amber-400/15 via-orange-400/8 to-transparent blur-3xl" />
         </div>
 
-        <div className={`transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          {/* 核機能バッジ — 「誰のため」 + 「何のエンジン」を 1 行で。
-               旧: "高精度 類題生成エンジン搭載"
-               新: "塾講師・教師向け · 高精度 類題生成エンジン"
-               文字数増に対応するため text を 10.5→10px に微調整、"搭載" を落として全長を抑える。 */}
+        {/* Hero 全体を中央揃えに統一。モバイルで視線が左右に振れないことで、
+             バッジ → H1 → 成果物バッジ群 → 信頼帯 → CTA という縦の流れが
+             一直線に通り、視認性が上がる。テキストブロックは max-w で中央寄せ。 */}
+        <div className={`text-center transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          {/* 核機能バッジ — 「誰のため」 + 「何のエンジン」を 1 行で */}
           <div className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-full bg-gradient-to-r from-violet-500/[0.14] via-fuchsia-500/[0.14] to-blue-500/[0.14] border border-violet-500/40 shadow-sm shadow-violet-500/15 mb-3">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10px] font-extrabold tracking-wider">
@@ -163,9 +163,8 @@ export function MobileLanding({
             </span>
           </div>
 
-          {/* H1 — 旧版より語数が増えた (「60秒で教材プリント1枚」) ため、最大値を 2.4rem→2rem
-               に下げて 320px 幅でも 1 行に収まる範囲に調整。CJK char ≈ 1em で、計 11.8em 程度。 */}
-          <h1 className="text-[clamp(1.5rem,7.2vw,2rem)] leading-[1.1] font-black tracking-[-0.03em] mb-3">
+          {/* H1 — 中央揃え。長文化に合わせて clamp 最大を 2rem に抑制 */}
+          <h1 className="text-[clamp(1.5rem,7.2vw,2rem)] leading-[1.15] font-black tracking-[-0.03em] mb-3">
             {isJa ? (
               <>
                 <GradientWord>60秒で教材プリント1枚</GradientWord>。<br />
@@ -179,33 +178,42 @@ export function MobileLanding({
             )}
           </h1>
 
-          {/* サブ — 「誰向けに、何が、どんな形で出るか」を一文に圧縮。
-               高校数学・物理 / 確認テスト・宿題プリント / 解答付き PDF を明示し、
-               抽象訴求 (旧: 瞬時に・無制限に) を具体ベネフィットに置換。 */}
-          <p className="text-foreground/80 text-[13.5px] leading-[1.6] mb-3 font-medium max-w-[21rem]">
+          {/* サブ — 「明日の授業で使えるアウトプット」をターゲット視点で提示。
+               中央揃えは max-w + mx-auto で文字間隔を読みやすく整える。 */}
+          <p className="text-foreground/80 text-[13.5px] leading-[1.65] mb-4 font-medium max-w-[22rem] mx-auto">
             {isJa
-              ? "高校数学・物理の確認テストを、解答付きPDFで即作成。"
-              : "High-school math & physics quizzes — generated as answer-key PDFs in seconds."}
+              ? "明日の授業の小テストも、今夜の宿題プリントも、解答付きPDFで今すぐ完成。"
+              : "Tomorrow's quiz, tonight's homework — answer-key PDFs ready right now."}
           </p>
 
-          {/* 具体的な使いどころ (3 ユースケース) — 「何ができるか」を一目で示す。
-               テキストだけだと埋もれるので、左に細い violet ルールを入れて editorial に。
-               旧版はこのブロックがなく、サブ→Before/After バッジでいきなり数字訴求になっていた。 */}
-          <ul className="mb-3.5 pl-2.5 border-l-[2px] border-violet-500/40 space-y-[5px]">
+          {/* 成果物プレビューチップ — 「何が手に入るか」を 3 件のチップで具体化。
+               旧チェックリストは "やれること" だったが、こちらは "受け取れる成果物" として
+               講師の言葉 (確認テスト / 宿題 / 類題演習) で並べ、購入後の使用シーンを想起させる。 */}
+          <div className="flex items-center justify-center gap-1.5 mb-3.5 flex-wrap">
             {(isJa
-              ? ["授業後の小テストを 60 秒で", "宿題プリントを解答付きで", "1 タップで類題演習を量産"]
-              : ["After-class quizzes in 60s", "Homework with answer keys", "1-tap variant practice"]
-            ).map((line) => (
-              <li key={line} className="flex items-start gap-1.5 text-[12.5px] text-foreground/85 leading-[1.45]">
-                <Check className="h-3 w-3 mt-[3px] text-violet-600 shrink-0" aria-hidden />
-                <span>{line}</span>
-              </li>
+              ? [
+                  { icon: <FileText className="h-3 w-3" aria-hidden />, label: "確認テストPDF" },
+                  { icon: <FileSignature className="h-3 w-3" aria-hidden />, label: "解答付き宿題プリント" },
+                  { icon: <RefreshCw className="h-3 w-3" aria-hidden />, label: "1タップ類題演習" },
+                ]
+              : [
+                  { icon: <FileText className="h-3 w-3" aria-hidden />, label: "Quiz PDF" },
+                  { icon: <FileSignature className="h-3 w-3" aria-hidden />, label: "Homework + answers" },
+                  { icon: <RefreshCw className="h-3 w-3" aria-hidden />, label: "1-tap variants" },
+                ]
+            ).map((it) => (
+              <span
+                key={it.label}
+                className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-card border border-foreground/[0.1] text-[11px] font-semibold text-foreground/85 shadow-[0_1px_2px_-1px_rgba(0,0,0,0.06)]"
+              >
+                <span className="text-violet-600">{it.icon}</span>
+                {it.label}
+              </span>
             ))}
-          </ul>
+          </div>
 
-          {/* Before / After + 信頼帯 を 1 段にまとめる。
-               Before/After で「速さ」、右の信頼チップで「誰が・何のために作っているか」を即伝達。 */}
-          <div className="flex items-center gap-1.5 mb-2 text-[11px] flex-wrap">
+          {/* Before / After — 中央配置で「30分→60秒」を視覚的にジャンプさせる */}
+          <div className="flex items-center justify-center gap-1.5 mb-2.5 text-[11px] flex-wrap">
             <span className="inline-flex items-center px-2 py-[3px] rounded-md bg-foreground/[0.04] border border-foreground/[0.08] text-muted-foreground/70 line-through decoration-from-font">
               {isJa ? "手作業 30分" : "By hand · 30 min"}
             </span>
@@ -218,12 +226,12 @@ export function MobileLanding({
             </span>
           </div>
 
-          {/* 信頼ライン — 控えめなプレフィックスで「誇張せず自然に」開発元を示す。
-               H1 直近に置くことで「課金して大丈夫か?」の不安を Hero 内で解消する。 */}
-          <p className="mb-4 text-[10.5px] text-muted-foreground/75 flex items-center gap-1.5 flex-wrap">
-            <span aria-hidden className="inline-block h-px w-3 bg-foreground/25" />
-            <span className="font-medium text-foreground/70">
-              {isJa ? "名大工学部発" : "Built at Nagoya Univ. (Engineering)"}
+          {/* 信頼ライン — 学部より具体度の高い「情報工学科」表記に変更し、
+               「数式組版 × AI を扱える研究室出身」という暗黙の保証を読み取らせる。
+               中央揃え + 控えめサイズで主張しすぎない。 */}
+          <p className="mb-4 text-[10.5px] text-muted-foreground/75 inline-flex items-center justify-center gap-1.5 flex-wrap">
+            <span className="font-semibold text-foreground/75">
+              {isJa ? "名古屋大学 情報工学科 発" : "Built at Nagoya Univ. — CS & Engineering"}
             </span>
             <span aria-hidden className="text-foreground/30">·</span>
             <span>
@@ -637,7 +645,7 @@ export function MobileLanding({
             <ArrowRight className="h-4 w-4" />
           </button>
           <p className="text-center text-[10px] text-muted-foreground/60 mt-1">
-            {isJa ? "登録不要・まずは1枚無料・PDF保存対応" : "No signup · First sheet free · PDF export"}
+            {isJa ? "登録不要・まずは1枚無料・解答付きPDFで保存" : "No signup · First sheet free · Answer-key PDF"}
           </p>
         </div>
       )}
@@ -788,15 +796,29 @@ function MobilePromptHeroBlock({
         <span>{ctaLabel}</span>
         <ArrowRight className="h-4 w-4" />
       </button>
-      {/* CTA 直下の安心材料 — 1 行 (登録不要 + 1 枚無料 + PDF 保存) +
-           1 行 (1 タップで類題量産) の 2 段で、購入前の不安と継続価値を同時に潰す。 */}
-      <div className="text-center space-y-0.5">
-        <p className="text-[11px] text-muted-foreground/75 font-medium">
+      {/* CTA 直下の安心材料 — 「無料の入口」+ 「課金後に手に入る成果物」を 2 段で。
+           ① 入口の不安 (登録不要・1枚無料・PDF保存) を解消
+           ② 継続価値: 1 タップで類題、解答付き PDF、A4 印刷品質 を成果物として明示
+           講師視点で「明日の授業にそのまま使える」イメージを Hero 内で完結させる。 */}
+      <div className="text-center space-y-1 pt-0.5">
+        <p className="text-[11.5px] text-foreground/80 font-semibold">
           {ctaSubLabel}
         </p>
-        <p className="text-[10.5px] text-muted-foreground/60 inline-flex items-center justify-center gap-1">
-          <RefreshCw className="h-2.5 w-2.5" aria-hidden />
-          {isJa ? "気に入ったら 1 タップで類題を追加生成" : "Like it? 1 tap to add variants"}
+        <p className="text-[10.5px] text-muted-foreground/70 inline-flex items-center justify-center gap-1.5 flex-wrap">
+          <RefreshCw className="h-2.5 w-2.5 text-violet-500" aria-hidden />
+          {isJa ? (
+            <>
+              気に入ったら<span className="font-bold text-foreground/85">1タップで類題</span>・
+              <span className="font-bold text-foreground/85">解答付きPDF</span>・
+              <span className="font-bold text-foreground/85">A4印刷品質</span>
+            </>
+          ) : (
+            <>
+              Then <span className="font-bold text-foreground/85">1-tap variants</span> ·
+              <span className="font-bold text-foreground/85">answer-key PDF</span> ·
+              <span className="font-bold text-foreground/85">print-ready A4</span>
+            </>
+          )}
         </p>
       </div>
     </div>

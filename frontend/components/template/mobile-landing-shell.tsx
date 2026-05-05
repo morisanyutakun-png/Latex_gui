@@ -212,11 +212,11 @@ export function MobileLandingShell() {
     }
 
     // 未ログイン (status="unauthenticated" or "loading"): ゲストお試し CTA
-    // CTA 下の安心材料は「ハードル (登録不要・無料)」+「成果物 (PDF 保存対応)」の
-    // 2 軸を 1 行に詰めて、購入導線の不安要素を一括で解消する。
+    // CTA 下の安心材料は「ハードル解消 (登録不要・無料)」+「成果物 (解答付き PDF)」の
+    // 2 軸を 1 行に詰めて、講師視点で「明日の授業にそのまま使える」を即伝達する。
     return {
       label: isJa ? "60秒で最初の1枚を作る" : "Make my first sheet in 60s",
-      subLabel: isJa ? "登録不要・まずは1枚無料・PDF保存対応" : "No signup · First sheet free · PDF export",
+      subLabel: isJa ? "登録不要・まずは1枚無料・解答付きPDFで保存" : "No signup · First sheet free · Answer-key PDF",
       onClick: () => { void openTrialOrLimit("hero"); },
       variant: "free" as const,
     };
