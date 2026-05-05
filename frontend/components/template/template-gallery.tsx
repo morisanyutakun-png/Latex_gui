@@ -2908,6 +2908,7 @@ function BeforeAfterSection({ isJa }: { isJa: boolean }) {
         <div className="text-center mb-16 max-w-2xl mx-auto">
           <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center justify-center gap-3">
             <span aria-hidden className="inline-block h-px w-6 bg-foreground/20" />
+            <span className="font-mono text-[10px] text-foreground/45">§ 03</span>
             {isJa ? "ビフォー / アフター" : "Before / After"}
             <span aria-hidden className="inline-block h-px w-6 bg-foreground/20" />
           </p>
@@ -3584,10 +3585,15 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           <div className="mb-14 max-w-3xl">
             <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
               <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              <span className="font-mono text-[10px] text-foreground/45">§ 01</span>
               {isJa ? "こんな先生に" : "Built for"}
             </p>
             <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
-              {isJa ? "毎週、生徒ごとにプリントを作る先生へ。" : "For tutors who build custom worksheets every week."}
+              {isJa ? (
+                <>毎週、生徒ごとに <span className="italic font-serif font-semibold text-foreground/85">プリントを手作り</span> する先生へ。</>
+              ) : (
+                <>For tutors who <span className="italic font-serif font-semibold text-foreground/85">hand-craft</span> a worksheet every week.</>
+              )}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
@@ -3634,6 +3640,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
         <div className="relative max-w-5xl mx-auto px-6 py-20">
           <p className="text-center text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-12 flex items-center justify-center gap-3">
             <span aria-hidden className="inline-block h-px w-6 bg-foreground/20" />
+            <span className="font-mono text-[10px] text-foreground/45">§ 02</span>
             {isJa ? "数字で見る Eddivom" : "Eddivom in numbers"}
             <span aria-hidden className="inline-block h-px w-6 bg-foreground/20" />
           </p>
@@ -3652,6 +3659,11 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               </div>
             ))}
           </div>
+          <p className="text-center text-[11px] text-muted-foreground/55 mt-12 italic">
+            {isJa
+              ? "* 実測値。LuaLaTeX による組版で、A4 / B5 共に 600dpi 級の印刷品質を出します。"
+              : "* Measured numbers. LuaLaTeX-typeset, print-grade at A4 and B5."}
+          </p>
         </div>
       </section>
 
@@ -3670,10 +3682,15 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           <div className="mb-14 max-w-3xl">
             <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
               <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              <span className="font-mono text-[10px] text-foreground/45">§ 04</span>
               {isJa ? "ワークフロー" : "How it works"}
             </p>
             <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
-              {isJa ? "Free でも 4 ステップで 1 枚完成。" : "A worksheet in 4 steps — even on Free."}
+              {isJa ? (
+                <>Free でも、<span className="italic font-serif font-semibold text-foreground/85">4 ステップ</span> で 1 枚完成。</>
+              ) : (
+                <>A worksheet in <span className="italic font-serif font-semibold text-foreground/85">four steps</span> — even on Free.</>
+              )}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
@@ -3763,13 +3780,18 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           <div className="mb-12 max-w-3xl">
             <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
               <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              <span className="font-mono text-[10px] text-foreground/45">§ 05</span>
               {isJa ? "図形描画" : "Figure mode"}
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9.5px] font-medium tracking-wide border text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]">
                 {isJa ? "Freeでも" : "Free"}
               </span>
             </p>
             <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
-              {isJa ? "図も、Free で描ける。" : "Draw figures, free of charge."}
+              {isJa ? (
+                <>図も、<span className="italic font-serif font-semibold text-foreground/85">手で</span> 描ける。</>
+              ) : (
+                <>Figures, drawn <span className="italic font-serif font-semibold text-foreground/85">by hand</span>.</>
+              )}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
@@ -3811,10 +3833,15 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           <div className="mb-16 max-w-3xl">
             <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
               <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              <span className="font-mono text-[10px] text-foreground/45">§ 06</span>
               {isJa ? "機能" : "Features"}
             </p>
             <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
-              {isJa ? "問題作成から配布まで、全部ここで。" : "Everything between \"I need a worksheet\" and \"it's printing.\""}
+              {isJa ? (
+                <>問題作成から配布まで、<span className="italic font-serif font-semibold text-foreground/85">全部ここで</span>。</>
+              ) : (
+                <>Everything between &ldquo;I need a worksheet&rdquo; and <span className="italic font-serif font-semibold text-foreground/85">&ldquo;it&rsquo;s printing.&rdquo;</span></>
+              )}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
@@ -3909,10 +3936,15 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           <div className="mb-14 max-w-3xl">
             <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
               <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+              <span className="font-mono text-[10px] text-foreground/45">§ 07</span>
               {isJa ? "比較" : "How we compare"}
             </p>
             <h2 className="text-[clamp(1.6rem,3.6vw,2.3rem)] font-bold tracking-tight mb-5 leading-[1.25]">
-              {isJa ? "Canva でもない、Overleaf でもない。" : "Canva can't do equations. Overleaf is overkill."}
+              {isJa ? (
+                <>Canva でもない、<span className="italic font-serif font-semibold text-foreground/85">Overleaf でもない</span>。</>
+              ) : (
+                <>Canva can&rsquo;t do equations. <span className="italic font-serif font-semibold text-foreground/85">Overleaf is overkill</span>.</>
+              )}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
@@ -3973,14 +4005,20 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
         <div className="relative max-w-3xl mx-auto px-6">
           <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
             <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
+            <span className="font-mono text-[10px] text-foreground/45">§ 08</span>
             {isJa ? "開発者について" : "About the developer"}
           </p>
           <h2 className="text-[clamp(1.5rem,3.4vw,2.1rem)] font-bold tracking-tight mb-8 leading-[1.3]">
-            {isJa
-              ? "ソフトウェアだけでなく、STEM 教材を実際に作ってきた人間が設計しています。"
-              : "Built by someone who creates STEM materials, not just software."}
+            {isJa ? (
+              <>ソフトウェアだけでなく、<span className="italic font-serif font-semibold text-foreground/85">STEM 教材を実際に作ってきた人間</span> が設計しています。</>
+            ) : (
+              <>Built by <span className="italic font-serif font-semibold text-foreground/85">someone who creates STEM materials</span>, not just software.</>
+            )}
           </h2>
-          <div className="space-y-4 text-[14px] sm:text-[15px] leading-relaxed text-foreground/80">
+          <div
+            className="space-y-4 text-[15px] sm:text-[16px] leading-[1.85] text-foreground/85"
+            style={{ fontFamily: 'ui-serif, "Iowan Old Style", "Apple Garamond", Georgia, serif' }}
+          >
             <p>
               {isJa
                 ? "Eddivom は、名古屋大学工学部の学生で、物理の学習教材も自作している森 祐太によって開発されています。"
@@ -3997,6 +4035,9 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 : "That is why Eddivom focuses on equations, answer keys, printable PDFs, and editable problem-by-problem workflows — not just generic AI chat."}
             </p>
           </div>
+          <p className="mt-6 text-[12px] text-muted-foreground/55 italic">
+            — {isJa ? "教える人が作り、教える人のために組んだ道具です。" : "a tool built by, and for, people who teach."}
+          </p>
         </div>
       </section>
 

@@ -234,34 +234,23 @@ export function MobileLanding({
         </section>
       )}
 
-      {/* ━━ Trust 行 — 3 アイコン × 数値で視覚優先。文字情報を最小化 ━━ */}
-      <section className="px-5 pb-5">
-        <div className="grid grid-cols-3 gap-2">
+      {/* ━━ Trust 行 — rainbow の 3 タイル → 罫線で区切る editorial な数字バンド ━━ */}
+      <section className="px-5 pb-6">
+        <div className="grid grid-cols-3 divide-x divide-foreground/[0.08] border-y border-foreground/[0.08] py-4">
           {[
-            { icon: Zap,        valueJa: "60秒",       valueEn: "60s",        labelJa: "1枚生成",      labelEn: "to make 1",     tone: "amber"   as const },
-            { icon: Sparkles,   valueJa: "∞",          valueEn: "∞",          labelJa: "類題量産",     labelEn: "variants",       tone: "violet"  as const },
-            { icon: Shield,     valueJa: "0",          valueEn: "0",          labelJa: "登録不要",     labelEn: "to start",       tone: "emerald" as const },
-          ].map(({ icon: Icon, valueJa, valueEn, labelJa, labelEn, tone }) => {
-            const toneRing =
-              tone === "amber" ? "border-amber-500/25 bg-amber-500/[0.06]" :
-              tone === "violet" ? "border-violet-500/30 bg-violet-500/[0.06]" :
-              "border-emerald-500/25 bg-emerald-500/[0.06]";
-            const toneText =
-              tone === "amber" ? "text-amber-600" :
-              tone === "violet" ? "text-violet-600" :
-              "text-emerald-600";
-            return (
-              <div key={labelJa} className={`flex flex-col items-center gap-0.5 rounded-2xl border ${toneRing} px-2 py-2.5`}>
-                <Icon className={`h-3.5 w-3.5 ${toneText}`} strokeWidth={2.2} />
-                <span className={`text-[18px] font-black tabular-nums leading-none ${toneText}`}>
-                  {isJa ? valueJa : valueEn}
-                </span>
-                <span className="text-[10px] text-muted-foreground/80 font-medium leading-none">
-                  {isJa ? labelJa : labelEn}
-                </span>
-              </div>
-            );
-          })}
+            { valueJa: "60秒",  valueEn: "60s",  labelJa: "1枚を生成",  labelEn: "to make one" },
+            { valueJa: "∞",     valueEn: "∞",    labelJa: "類題を量産",  labelEn: "for variants" },
+            { valueJa: "0円",   valueEn: "$0",   labelJa: "登録なしで",  labelEn: "no signup" },
+          ].map(({ valueJa, valueEn, labelJa, labelEn }, i) => (
+            <div key={labelJa} className={`flex flex-col items-start ${i === 0 ? "pl-1 pr-3" : "px-3"}`}>
+              <span className="text-[20px] font-semibold tabular-nums leading-none text-foreground tracking-tight mb-1.5">
+                {isJa ? valueJa : valueEn}
+              </span>
+              <span className="text-[10.5px] text-muted-foreground/70 leading-tight">
+                {isJa ? labelJa : labelEn}
+              </span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -276,15 +265,19 @@ export function MobileLanding({
       </section>
 
       {/* ━━ DEMO STRIP (30s editor) — モバイル向けに横スクロールではなく等比縮小 ━━ */}
-      <section id="sample-output" className="relative pt-6 pb-10 px-3 overflow-hidden">
-        <div className="px-2 mb-4 text-center">
-          <p className="inline-flex items-center gap-1.5 text-[10.5px] font-bold tracking-[0.2em] uppercase mb-2 text-violet-600 dark:text-violet-400">
-            <Play className="h-2.5 w-2.5 fill-current" />
-            {isJa ? "30秒で全部見せます" : "Watch it all in 30s"}
+      <section id="sample-output" className="relative pt-8 pb-12 px-3 overflow-hidden">
+        <div className="px-2 mb-5">
+          <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
+            <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
+            <span className="font-mono text-[10px] text-foreground/45">§ 02</span>
+            {isJa ? "実際の動き" : "How it actually moves"}
           </p>
-          <h2 className="text-[22px] font-black tracking-[-0.02em] leading-tight">
-            {isJa ? "依頼 → 紙面に即反映。" : "Ask. See it. Done."}
+          <h2 className="text-[22px] font-bold tracking-[-0.015em] leading-[1.3]">
+            {isJa ? (<>依頼 <span className="text-foreground/40">→</span> 紙面に即反映。</>) : "Ask. See it. Done."}
           </h2>
+          <p className="text-[12px] text-muted-foreground/75 mt-2 leading-relaxed">
+            {isJa ? "AI に投げた瞬間、印刷品質の紙面が組み上がります。" : "The moment you ask, a print-quality sheet builds itself."}
+          </p>
         </div>
 
         {/* MockupShrink: 端末幅から逆算して transform: scale で縮小 */}
@@ -297,15 +290,15 @@ export function MobileLanding({
           </MockupShrink>
         </IdleMount>
 
-        <div className="flex flex-wrap items-center justify-center gap-1.5 mt-5 px-3">
+        <div className="flex flex-wrap items-center gap-1.5 mt-6 px-2">
           {[
-            { icon: <Sparkles className="h-3 w-3" />, label: isJa ? "AI即反映" : "AI instant" },
-            { icon: <FileText className="h-3 w-3" />, label: isJa ? "PDF出力" : "PDF" },
-            { icon: <Pencil className="h-3 w-3" />, label: isJa ? "直接編集" : "Edit" },
-            { icon: <RefreshCw className="h-3 w-3" />, label: isJa ? "類題量産" : "Variants" },
-          ].map((c) => (
-            <span key={c.label} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-foreground/[0.04] border border-foreground/[0.06] text-[10.5px] text-muted-foreground">
-              <span className="text-primary/70">{c.icon}</span>{c.label}
+            isJa ? "AI即反映" : "AI instant",
+            isJa ? "PDF出力" : "PDF",
+            isJa ? "直接編集" : "Edit",
+            isJa ? "類題量産" : "Variants",
+          ].map((label) => (
+            <span key={label} className="inline-flex items-center px-2 py-0.5 rounded-md bg-foreground/[0.025] border border-foreground/[0.07] text-[10.5px] text-foreground/70 font-medium">
+              {label}
             </span>
           ))}
         </div>
@@ -327,19 +320,27 @@ export function MobileLanding({
         </div>
       </section>
 
-      {/* ━━ FIGURE DRAW DEMO ━━ */}
-      <section className="pt-8 pb-10 px-3 bg-gradient-to-b from-emerald-50/30 to-transparent dark:from-emerald-500/[0.04]">
-        <div className="px-2 mb-4 text-center">
-          <p className="inline-flex items-center gap-1.5 text-[10.5px] font-bold tracking-[0.2em] uppercase mb-2 text-emerald-600 dark:text-emerald-400">
-            {isJa ? "図形描画モード" : "Figure mode"}
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9px] font-extrabold tracking-wider shadow-sm shadow-emerald-500/30">
-              <Check className="h-2 w-2" />
-              FREE
+      {/* ━━ FIGURE DRAW DEMO ━━
+           "綺麗すぎ" を避けるため、emerald グラデの薄い帯と FREE グラデバッジを廃し、
+           editorial な eyebrow + neutral chip だけにする。 */}
+      <section className="pt-10 pb-10 px-5">
+        <div className="mb-5">
+          <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
+            <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
+            <span className="font-mono text-[10px] text-foreground/45">§ 04</span>
+            {isJa ? "図形描画" : "Figure mode"}
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9.5px] font-medium tracking-wide border text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]">
+              {isJa ? "Freeでも" : "Free"}
             </span>
           </p>
-          <h2 className="text-[22px] font-black tracking-[-0.02em] leading-tight">
-            {isJa ? "図も、無料で描ける。" : "Figures, free."}
+          <h2 className="text-[22px] font-bold tracking-[-0.015em] leading-[1.3]">
+            {isJa ? (<>図も、<span className="italic font-serif text-foreground/85">手で</span>描ける。</>) : (<>Figures, drawn <span className="italic font-serif text-foreground/85">by hand</span>.</>)}
           </h2>
+          <p className="text-[12px] text-muted-foreground/75 mt-2 leading-relaxed max-w-[20rem]">
+            {isJa
+              ? "回路・力学・幾何・化学・生物まで、TikZ コードを書かずに描ける図形パレット。"
+              : "Circuits, mechanics, geometry, chemistry, biology — a shape palette that skips TikZ."}
+          </p>
         </div>
 
         <IdleMount minHeight="320px">
@@ -349,50 +350,77 @@ export function MobileLanding({
         </IdleMount>
       </section>
 
-      {/* ━━ WHO IS THIS FOR — 3 アイコン横並び (簡潔・視覚優先) ━━ */}
-      <section className="px-5 py-8">
-        <h2 className="text-[22px] font-black tracking-[-0.02em] mb-5 text-center leading-tight">
-          {isJa ? "誰のため？" : "Built for"}
+      {/* ━━ WHO IS THIS FOR — 3 アイコン横並びを「人が組んだ」感の縦リストに刷新 ━━
+           rainbow グラデのアイコンタイル → 線画アイコン + 番号 + bullet。 */}
+      <section className="px-5 py-10 border-t border-foreground/[0.05]">
+        <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
+          <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
+          <span className="font-mono text-[10px] text-foreground/45">§ 05</span>
+          {isJa ? "こんな先生に" : "Built for"}
+        </p>
+        <h2 className="text-[22px] font-bold tracking-[-0.015em] leading-[1.3] mb-1">
+          {isJa ? "毎週、教材を手作りしている方へ。" : "For tutors who hand-craft worksheets."}
         </h2>
-        <div className="grid grid-cols-3 gap-2">
+        <p className="text-[12px] text-muted-foreground/75 leading-relaxed mb-6 max-w-[22rem]">
+          {isJa
+            ? "一枚ずつ作っていた時間を、生徒に向き合う時間に戻したい。Eddivom はそのための道具です。"
+            : "Take back the hours spent hand-building worksheets — and spend them with students instead."}
+        </p>
+        <ul className="space-y-4">
           {[
-            { gradient: "from-blue-500 to-cyan-500",     icon: <BookOpen className="h-4 w-4 text-white" />, title: isJa ? "塾講師" : "Tutors" },
-            { gradient: "from-emerald-500 to-teal-500",  icon: <Pencil className="h-4 w-4 text-white" />,   title: isJa ? "教員" : "Teachers" },
-            { gradient: "from-violet-500 to-fuchsia-500",icon: <Wrench className="h-4 w-4 text-white" />,   title: isJa ? "教材作家" : "Creators" },
+            { num: "01", title: isJa ? "個人塾・家庭教師" : "Tutors & Private Instructors", desc: isJa ? "生徒ごとに違うプリントを毎週。「あと5問」で類題を即追加。" : "Different worksheet per student, each week. \"5 more like this\" in seconds." },
+            { num: "02", title: isJa ? "学校の教科担当" : "Math & STEM Teachers", desc: isJa ? "小テスト・定期テストを効率よく。解答付き PDF で採点まで一気通貫。" : "Quick quizzes, with answer-key PDFs that make grading painless." },
+            { num: "03", title: isJa ? "教材制作・販売" : "Creators & Sellers", desc: isJa ? "問題集やドリルを印刷品質で量産。配布・販売にそのまま使える。" : "Build print-quality problem sets ready to distribute or sell." },
           ].map((p) => (
-            <div key={p.title} className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-card border border-foreground/[0.06]">
-              <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${p.gradient} flex items-center justify-center shadow-md`}>
-                {p.icon}
+            <li key={p.num} className="flex gap-3 pb-4 border-b border-foreground/[0.05] last:border-b-0 last:pb-0">
+              <span
+                className="text-[18px] tabular-nums leading-none text-foreground/30 font-light tracking-tight pt-0.5 shrink-0"
+                style={{ fontFamily: 'ui-serif, "Iowan Old Style", "Apple Garamond", Georgia, serif' }}
+              >
+                {p.num}
+              </span>
+              <div>
+                <h4 className="text-[13.5px] font-semibold tracking-tight mb-1">{p.title}</h4>
+                <p className="text-[12px] text-muted-foreground/80 leading-relaxed">{p.desc}</p>
               </div>
-              <span className="text-[12px] font-bold tracking-tight text-center">{p.title}</span>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
 
       {/* ━━ 開発者紹介 — モバイルは超圧縮で 1 段落のみ ━━ */}
-      <section className="px-5 py-6 border-t border-foreground/[0.05] bg-foreground/[0.012]">
-        <p className="text-center text-[10px] font-bold tracking-[0.22em] uppercase text-violet-600/85 dark:text-violet-400/85 mb-2">
-          {isJa ? "開発者" : "Developer"}
+      <section className="px-5 py-8 border-t border-foreground/[0.05] bg-foreground/[0.012]">
+        <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
+          <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
+          <span className="font-mono text-[10px] text-foreground/45">§ 06</span>
+          {isJa ? "開発者について" : "About the developer"}
         </p>
-        <p className="text-center text-[12.5px] leading-relaxed text-foreground/80 max-w-[20rem] mx-auto">
+        <p
+          className="text-[14px] leading-[1.75] text-foreground/85"
+          style={{ fontFamily: 'ui-serif, "Iowan Old Style", "Apple Garamond", Georgia, serif' }}
+        >
           {isJa
-            ? "STEM 教材を実際に作ってきた人間 (名古屋大学・森 祐太) が設計。「手早く・印刷品質で」を守るために生まれました。"
-            : "Designed by Yuta Mori (Nagoya Univ.) — an engineering student who actually creates STEM materials. Built around: fast, print-quality."}
+            ? "STEM 教材を実際に作ってきた人間 — 名古屋大学・森 祐太 — が設計しています。「手早く・印刷品質で」を守るために生まれた道具です。"
+            : "Designed by Yuta Mori, an engineering student at Nagoya University who actually creates STEM materials. Built around one belief: worksheets should be fast to make, but print-quality every time."}
+        </p>
+        <p className="text-[10.5px] text-muted-foreground/55 mt-3 italic">
+          {isJa ? "— a tool built by, and for, people who teach" : "— a tool built by, and for, people who teach"}
         </p>
       </section>
 
       {/* ━━ PRICING — 必ず PC 版と同じ PLANS データから派生させる
           (Free / Starter / Pro / Premium の 4 種、価格・特徴は SSOT) ━━ */}
-      <section id="pricing" className="px-5 py-8 bg-foreground/[0.015]">
-        <div className="text-center mb-5">
-          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-violet-600/85 dark:text-violet-400/85 mb-1.5">
+      <section id="pricing" className="px-5 py-10 bg-foreground/[0.015]">
+        <div className="mb-6">
+          <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
+            <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
+            <span className="font-mono text-[10px] text-foreground/45">§ 07</span>
             {isJa ? "料金プラン" : "Pricing"}
           </p>
-          <h2 className="text-[24px] font-black tracking-[-0.02em] leading-tight">
-            {isJa ? "用途で選ぶ" : "Pick what fits"}
+          <h2 className="text-[24px] font-bold tracking-[-0.015em] leading-[1.25]">
+            {isJa ? "用途で選ぶ。" : "Pick what fits."}
           </h2>
-          <p className="text-[11px] text-muted-foreground/65 mt-1">
+          <p className="text-[11.5px] text-muted-foreground/70 mt-2">
             {isJa ? "税込・月額・いつでも解約" : "Monthly · tax incl. · cancel anytime"}
           </p>
         </div>
@@ -407,30 +435,34 @@ export function MobileLanding({
               : (isJa ? "/ 月" : "/ mo");
             // モバイルでは特徴を 4 件までに切り詰めて占有面積を抑える
             const items = features.slice(0, 4);
-            // Premium は紫グラデで差別化、Pro は highlight (PC と同じ扱い)
+            // 編集方針: rainbow グラデで差別化していた highlight / premium カードを単色化。
+            // 強調は「左の細い violet バー + 黒地の chip」だけで表現する。
             const isPremium = planId === "premium";
             const cardClass = highlight
-              ? "bg-gradient-to-br from-violet-500/[0.07] to-fuchsia-500/[0.04] border-2 border-violet-500/40 shadow-lg shadow-violet-500/10"
+              ? "relative bg-card border border-foreground/[0.18] shadow-[0_2px_12px_-6px_rgba(0,0,0,0.12)]"
               : isPremium
-                ? "bg-gradient-to-br from-amber-500/[0.05] to-rose-500/[0.04] border-2 border-amber-500/30"
+                ? "bg-card border border-foreground/[0.12]"
                 : "bg-card border border-foreground/[0.08]";
             return (
               <button
                 key={planId}
                 type="button"
                 onClick={() => onPlanSelect(planId)}
-                className={`relative text-left rounded-2xl p-4 active:scale-[0.99] transition ${cardClass}`}
+                className={`relative text-left rounded-2xl p-5 active:scale-[0.99] transition ${cardClass}`}
               >
                 {highlight && (
-                  <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-[9.5px] font-extrabold tracking-wider shadow-sm">
-                    <Crown className="h-2.5 w-2.5" />
-                    {isJa ? (def.badge || "人気 No.1") : "POPULAR"}
-                  </span>
+                  <>
+                    <span aria-hidden className="absolute left-0 top-5 bottom-5 w-[3px] rounded-r-full bg-foreground" />
+                    <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-foreground text-background text-[9.5px] font-semibold tracking-wide">
+                      <Crown className="h-2.5 w-2.5" />
+                      {isJa ? (def.badge || "おすすめ") : "RECOMMENDED"}
+                    </span>
+                  </>
                 )}
                 {isPremium && !highlight && (
-                  <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[9.5px] font-extrabold tracking-wider shadow-sm">
+                  <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-violet-700 dark:text-violet-300 bg-violet-500/[0.06] border border-violet-500/25 text-[9.5px] font-medium tracking-wide">
                     <Crown className="h-2.5 w-2.5" />
-                    {isJa ? "教育機関向け" : "ENTERPRISE"}
+                    {isJa ? "教育機関向け" : "Enterprise"}
                   </span>
                 )}
                 <div className="flex items-baseline gap-2 mb-1">
@@ -447,28 +479,20 @@ export function MobileLanding({
                 )}
                 <ul className="space-y-1.5 mb-2">
                   {items.map((it) => (
-                    <li key={it} className="flex items-start gap-1.5 text-[12px] text-foreground/80 leading-snug">
-                      <Check className={`h-3 w-3 mt-0.5 shrink-0 ${
-                        highlight ? "text-violet-500" : isPremium ? "text-amber-600" : "text-emerald-500"
-                      }`} />
+                    <li key={it} className="flex items-start gap-2 text-[12px] text-foreground/80 leading-snug">
+                      <span aria-hidden className="text-foreground/40 mt-[1px]">—</span>
                       <span>{it}</span>
                     </li>
                   ))}
                   {features.length > items.length && (
-                    <li className="text-[10.5px] text-muted-foreground/55 pl-4.5 ml-3">
+                    <li className="text-[10.5px] text-muted-foreground/55 pl-5">
                       {isJa
                         ? `他 ${features.length - items.length} 件`
                         : `+${features.length - items.length} more`}
                     </li>
                   )}
                 </ul>
-                <div className={`flex items-center justify-end gap-1 text-[11.5px] font-semibold ${
-                  highlight
-                    ? "text-violet-600 dark:text-violet-400"
-                    : isPremium
-                      ? "text-amber-700 dark:text-amber-400"
-                      : "text-foreground/70"
-                }`}>
+                <div className="flex items-center justify-end gap-1 text-[11.5px] font-medium text-foreground/75">
                   {planId === "free"
                     ? (isJa ? "無料で始める" : "Start free")
                     : (isJa ? "選ぶ" : "Choose")}
@@ -481,13 +505,15 @@ export function MobileLanding({
       </section>
 
       {/* ━━ FAQ — mobile accordion ━━ */}
-      <section className="px-5 py-9">
-        <div className="text-center mb-5">
-          <p className="text-[10.5px] font-bold tracking-[0.22em] uppercase bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent mb-2">
+      <section className="px-5 py-10">
+        <div className="mb-5">
+          <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
+            <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
+            <span className="font-mono text-[10px] text-foreground/45">§ 08</span>
             {isJa ? "よくある質問" : "FAQ"}
           </p>
-          <h2 className="text-[18px] font-bold tracking-tight leading-snug">
-            {isJa ? "気になるところに、先にお答え" : "Quick answers"}
+          <h2 className="text-[20px] font-bold tracking-[-0.015em] leading-[1.3]">
+            {isJa ? "気になるところに、先にお答え。" : "Answers, before you ask."}
           </h2>
         </div>
         <div className="flex flex-col gap-2">
@@ -512,29 +538,35 @@ export function MobileLanding({
         </p>
       </section>
 
-      {/* ━━ Final CTA ━━ */}
-      <section className="px-5 py-10 text-center bg-gradient-to-b from-transparent to-foreground/[0.02]">
-        <h2 className="text-[26px] font-black tracking-[-0.02em] mb-2 leading-tight">
+      {/* ━━ Final CTA ━━
+           虹色グラデの目立ちすぎボタンを廃し、黒地のミニマル CTA に。
+           "綺麗すぎ" を避けるため左下に小さな手書き風の矢印スタブを差し込む。 */}
+      <section className="px-5 py-12 border-t border-foreground/[0.05]">
+        <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
+          <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
+          <span className="font-mono text-[10px] text-foreground/45">§ 09</span>
+          {isJa ? "はじめてみる" : "Get started"}
+        </p>
+        <h2 className="text-[26px] font-bold tracking-[-0.02em] mb-2 leading-[1.25]">
           {isJa ? (
-            <>今、<HighlightMark>1枚</HighlightMark>作ろう。</>
+            <>今、<HighlightMark>1枚</HighlightMark>だけ作ってみる。</>
           ) : (
-            <>Make <HighlightMark>1 sheet</HighlightMark> now.</>
+            <>Make just <HighlightMark>one sheet</HighlightMark>.</>
           )}
         </h2>
-        <p className="text-[12.5px] text-muted-foreground mb-5">
-          {isJa ? "登録不要 · 30 秒で始められる。" : "No signup · 30 seconds."}
+        <p className="text-[12.5px] text-muted-foreground/80 mb-6 leading-relaxed">
+          {isJa ? "登録不要、30 秒で完成。気に入らなければそのまま閉じて構いません。" : "No signup, 30 seconds. Close the tab if you don't like it."}
         </p>
         <button
           onClick={primaryCta.onClick}
-          className="flex items-center justify-center gap-2 w-full h-13 py-3 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 text-white font-bold text-[15px] shadow-xl shadow-violet-500/25 active:scale-[0.98] transition"
+          className="group flex items-center justify-center gap-2.5 w-full h-13 py-3 rounded-full bg-foreground text-background font-semibold text-[14.5px] active:scale-[0.98] transition-all"
         >
-          <Sparkles className="h-4 w-4" />
           {primaryCta.label}
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight className="h-4 w-4 group-active:translate-x-0.5 transition-transform" />
         </button>
-        <p className="text-[10.5px] text-muted-foreground/45 mt-3 inline-flex items-center gap-1 justify-center">
+        <p className="text-[10.5px] text-muted-foreground/55 mt-3 inline-flex items-center gap-1.5">
           <Monitor className="h-3 w-3" />
-          {isJa ? "PC ブラウザだとさらに快適" : "Even better on desktop"}
+          {isJa ? "PC ブラウザだと、さらに快適に動きます。" : "Even better on desktop."}
         </p>
       </section>
 
@@ -549,10 +581,9 @@ export function MobileLanding({
         >
           <button
             onClick={primaryCta.onClick}
-            className="flex items-center justify-center gap-2 w-full h-12 rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 text-white font-bold text-[14.5px] shadow-lg shadow-violet-500/30 active:scale-[0.98] transition"
+            className="flex items-center justify-center gap-2 w-full h-12 rounded-full bg-foreground text-background font-semibold text-[14px] active:scale-[0.98] transition"
             aria-label={primaryCta.label}
           >
-            <Sparkles className="h-4 w-4" />
             <span>{primaryCta.label}</span>
             <ArrowRight className="h-4 w-4" />
           </button>
@@ -843,13 +874,13 @@ function WorksheetPreviewDuo({ isJa, onTapToGenerate }: { isJa: boolean; onTapTo
           type="button"
           aria-label={isJa ? "問題ページ" : "Worksheet page"}
           onClick={() => goTo("q")}
-          className={`h-1.5 rounded-full transition-all ${active === "q" ? "w-6 bg-gradient-to-r from-blue-500 to-violet-500" : "w-1.5 bg-foreground/20"}`}
+          className={`h-1.5 rounded-full transition-all ${active === "q" ? "w-6 bg-foreground/80" : "w-1.5 bg-foreground/20"}`}
         />
         <button
           type="button"
           aria-label={isJa ? "解答ページ" : "Answer page"}
           onClick={() => goTo("a")}
-          className={`h-1.5 rounded-full transition-all ${active === "a" ? "w-6 bg-gradient-to-r from-emerald-500 to-teal-500" : "w-1.5 bg-foreground/20"}`}
+          className={`h-1.5 rounded-full transition-all ${active === "a" ? "w-6 bg-foreground/80" : "w-1.5 bg-foreground/20"}`}
         />
       </div>
 
@@ -1293,15 +1324,15 @@ function MobileFreePerks({ isJa }: { isJa: boolean }) {
     { icon: <Save className="h-3 w-3" />,          label: isJa ? "無料アカウントで保存"          : "Save with a free account" },
   ];
   return (
-    <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] p-2.5">
-      <p className="inline-flex items-center gap-1 text-[10.5px] font-bold tracking-wide text-emerald-700 dark:text-emerald-300 mb-1.5">
-        <Check className="h-3 w-3" />
-        {isJa ? "Free でできること" : "Free users can do this"}
+    <div className="mt-3 rounded-xl border border-foreground/[0.08] bg-foreground/[0.02] p-3">
+      <p className="text-[10px] font-medium tracking-[0.2em] uppercase text-muted-foreground/70 mb-2 flex items-center gap-1.5">
+        <span aria-hidden className="inline-block h-px w-4 bg-foreground/25" />
+        {isJa ? "Free でできること" : "Free includes"}
       </p>
       <ul className="grid grid-cols-1 gap-1">
         {items.map((it) => (
-          <li key={it.label} className="flex items-center gap-1.5 text-[11.5px] text-foreground/85">
-            <span className="text-emerald-600 dark:text-emerald-400">{it.icon}</span>
+          <li key={it.label} className="flex items-center gap-2 text-[11.5px] text-foreground/80">
+            <span aria-hidden className="text-foreground/35">—</span>
             <span>{it.label}</span>
           </li>
         ))}
