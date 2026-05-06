@@ -34,6 +34,8 @@ import {
   trackFreeGenerateComplete,
   trackFreeGenerateError,
   trackFreeGenerateLimitReached,
+  trackSignupClickFromLimit,
+  trackUpgradeClickFromLimit,
 } from "@/lib/gtag";
 
 interface AnonymousTrialModalProps {
@@ -269,6 +271,15 @@ export function AnonymousTrialModal({
             isJa={isJa}
             onClose={() => onOpenChange(false)}
             onSelect={(planId) => {
+              // GA4: 上限到達画面でどのプランが選ばれたかを別イベントで分解計測。
+              // Free → 無料登録 (signup_click_from_limit)、それ以外 → 有料アップグレード
+              // (upgrade_click_from_limit)。free_trial → 課金 へのアップグレード経路の
+              // 主要 KPI として、Pro / Starter どちらが押されているかを後で比較する。
+              if (planId === "free") {
+                trackSignupClickFromLimit({ placement: "anonymous_trial_modal" });
+              } else {
+                trackUpgradeClickFromLimit({ plan_id: planId, placement: "anonymous_trial_modal" });
+              }
               // Free は従来通り signIn 経路、有料は親の onPlanSelect (Stripe Checkout) へ
               if (planId === "free" || !onPlanSelect) {
                 onLoginRequested();

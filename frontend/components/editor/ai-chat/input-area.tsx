@@ -27,6 +27,7 @@ export function InputArea({
   input, setInput, onSend, onStop, onKeyDown, isChatLoading,
   textareaRef, onAttach, mode, onModeChange,
   enhanceOn, onEnhanceToggle, enhanceLocked,
+  hideQuickChips,
 }: {
   input: string;
   setInput: (v: string) => void;
@@ -53,6 +54,10 @@ export function InputArea({
    *  この場合 `onEnhanceToggle` 内で signup を発火させてもよいので、ここでは
    *  単に「視覚的にロックされている」フラグだけ受け取る。 */
   enhanceLocked?: boolean;
+  /** ゲスト初回画面 (上に GuestStarterCard を出す画面) で、既存の汎用 Quick chips
+   *  (create / math / table / fix) を二重表示しないために抑止するフラグ。
+   *  通常ユーザーには影響しない。 */
+  hideQuickChips?: boolean;
 }) {
   const { t, locale } = useI18n();
   const [focused, setFocused] = useState(false);
@@ -399,8 +404,10 @@ export function InputArea({
           </button>
         </div>
       )}
-      {/* Quick action chips — モバイルでは折り返さず横スクロール (ChatGPT 風) */}
-      {showQuick && !isChatLoading && (
+      {/* Quick action chips — モバイルでは折り返さず横スクロール (ChatGPT 風)
+           ゲスト初回画面では上の GuestStarterCard が starter chips を出すので、
+           ここでは通常の汎用 chips を抑止する (hideQuickChips=true)。 */}
+      {showQuick && !isChatLoading && !hideQuickChips && (
         <div
           className={`mb-2 px-0.5 animate-in fade-in slide-in-from-bottom-1 duration-200 ${
             isMobile

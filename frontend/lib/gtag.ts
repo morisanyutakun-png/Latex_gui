@@ -330,6 +330,50 @@ export function trackGuestSignupClick(extra?: FreeGenerateEventParams & { placem
   return fireGa4Event("guest_signup_click", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
 }
 
+// ─── ゲスト初回エディタ体験 (guest_editor_open → free_generate_start CVR 改善用) ──
+// `guest_editor_open` 後に「何を入力すればいいか分からず離脱」を解消するための補助 CTA
+// (サンプルプロンプトチップ / 初回プライマリボタン) のクリック数と、入力欄編集が
+// 始まったかを 3 イベントで分解計測する。
+
+/**
+ * ゲストエディタの「サンプルプロンプトチップ」(Math quiz / Science worksheet / Exam review 等) を
+ * 押した瞬間。chip_id でどの内容が刺さるかを A/B 比較。
+ */
+export function trackExamplePromptClick(extra?: { chip_id?: string; placement?: string }): boolean {
+  return fireGa4Event("example_prompt_click", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/**
+ * ユーザーが入力欄を編集し始めた最初の 1 回。1 セッション内で重複送信しないよう
+ * 呼び出し側 (input-area / chat panel) で sessionStorage 等で dedup する想定。
+ */
+export function trackPromptInputStarted(extra?: { placement?: string }): boolean {
+  return fireGa4Event("prompt_input_started", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/**
+ * 生成ボタンをクリックした瞬間。free_generate_start は「実際に API リクエストを開始した」
+ * タイミングなので、その手前の "ボタン押下→ガード前" の数も別途取って差分を可視化。
+ */
+export function trackGenerateButtonClick(extra?: { is_guest?: boolean; is_first?: boolean; placement?: string }): boolean {
+  return fireGa4Event("generate_button_click", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/**
+ * 無料上限到達画面 (LimitReachedPlanPicker) で Free / 無料アカウント作成を選んだ瞬間。
+ */
+export function trackSignupClickFromLimit(extra?: { placement?: string }): boolean {
+  return fireGa4Event("signup_click_from_limit", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
+/**
+ * 無料上限到達画面 (LimitReachedPlanPicker) で有料プラン (Starter / Pro / Premium) を
+ * 選んだ瞬間。plan_id でアップグレード先別の歩留まりを見る。
+ */
+export function trackUpgradeClickFromLimit(extra?: { plan_id?: string; placement?: string }): boolean {
+  return fireGa4Event("upgrade_click_from_limit", { ...DEFAULT_FREE_GENERATE_PARAMS, ...extra });
+}
+
 // ─── Variant generation (REM ノウハウ) ファネル ───────────────────────────
 // Pro+ 限定機能。Free は localStorage で 1 回だけ体験できるフリーミアム動線。
 // "click" → "used" → "paywall_hit" の 3 段階で、どこで止まっているか可視化する。
