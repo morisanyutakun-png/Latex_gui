@@ -3337,7 +3337,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[11px] sm:text-[12px] font-extrabold tracking-wider">
                 {isJa
                   ? "高精度 類題生成エンジン搭載 · 1問から何枚でも瞬時に量産"
-                  : "Weekly quiz maker · for teachers and tutors"}
+                  : "Built for teachers · Every week"}
               </span>
               <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[9px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500 shadow-sm">
                 NEW
@@ -3353,8 +3353,8 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 </>
               ) : (
                 <>
-                  <GradientWord>Weekly quizzes in 5 minutes</GradientWord>.{" "}
-                  <HighlightMark>Variants in one click</HighlightMark>.
+                  <GradientWord>5 minutes per quiz</GradientWord>.{" "}
+                  <HighlightMark>One tap for the next</HighlightMark>.
                 </>
               )}
             </h1>
@@ -3368,9 +3368,9 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 </>
               ) : (
                 <>
-                  Build printable quizzes, homework, and answer keys for math &amp; science classes.{" "}
-                  <span className="text-violet-700 dark:text-violet-300 font-semibold">Make a fresh worksheet for every student with one click.</span>{" "}
-                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">First quiz is free — no signup.</span>
+                  Quizzes, homework, answer keys —{" "}
+                  <span className="text-violet-700 dark:text-violet-300 font-semibold">ready for tomorrow&apos;s class.</span>{" "}
+                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">First quiz free, no signup.</span>
                 </>
               )}
             </p>
@@ -3379,7 +3379,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               <GraduationCap className="h-3.5 w-3.5" />
               {isJa
                 ? "生徒ごとに数値だけ変えたい先生へ — 毎週のプリント作りを 数十分 → 数秒 に。"
-                : "For high-school math &amp; physics teachers — cut weekly worksheet prep from hours to minutes."}
+                : "For math &amp; physics teachers — get your evenings back."}
             </p>
           </div>
 
