@@ -493,6 +493,11 @@ export function MobileLanding({
           <p className="text-[11.5px] text-muted-foreground/70 mt-2">
             {isJa ? "税込・月額・いつでも解約" : "Monthly · tax incl. · cancel anytime"}
           </p>
+          {/* 視線を Starter に誘導するサブコピー — emerald で本セクションの "推し" を可視化 */}
+          <p className="text-[11.5px] mt-1.5 font-semibold text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1">
+            <Zap className="h-3 w-3" aria-hidden />
+            {isJa ? "迷ったら、無料から最も近い Starter から。" : "Not sure? Start with Starter — the closest step up from free."}
+          </p>
         </div>
         <div className="flex flex-col gap-3">
           {(["free", "starter", "pro", "premium"] as const).map((planId: PlanId) => {
@@ -505,14 +510,18 @@ export function MobileLanding({
               : (isJa ? "/ 月" : "/ mo");
             // モバイルでは特徴を 4 件までに切り詰めて占有面積を抑える
             const items = features.slice(0, 4);
-            // 編集方針: rainbow グラデで差別化していた highlight / premium カードを単色化。
-            // 強調は「左の細い violet バー + 黒地の chip」だけで表現する。
             const isPremium = planId === "premium";
+            const isStarter = planId === "starter";
+            // Pro 推奨は SSOT (PLANS.highlight) のままに、Starter にも視覚強調を追加。
+            // 「無料 → ¥1,980」が最も自然なステップであることを強調するため、
+            // emerald 系の border + 微弱 shadow で Pro と対等に見せる。
             const cardClass = highlight
               ? "relative bg-card border border-foreground/[0.18] shadow-[0_2px_12px_-6px_rgba(0,0,0,0.12)]"
               : isPremium
                 ? "bg-card border border-foreground/[0.12]"
-                : "bg-card border border-foreground/[0.08]";
+                : isStarter
+                  ? "bg-card border border-emerald-500/40 shadow-[0_2px_12px_-6px_rgba(16,185,129,0.18)]"
+                  : "bg-card border border-foreground/[0.08]";
             return (
               <button
                 key={planId}
@@ -526,6 +535,18 @@ export function MobileLanding({
                     <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-foreground text-background text-[9.5px] font-semibold tracking-wide">
                       <Crown className="h-2.5 w-2.5" />
                       {isJa ? (def.badge || "おすすめ") : "RECOMMENDED"}
+                    </span>
+                  </>
+                )}
+                {isStarter && (
+                  <>
+                    {/* 左の細い emerald バー — Pro の foreground バーと対称 */}
+                    <span aria-hidden className="absolute left-0 top-5 bottom-5 w-[3px] rounded-r-full bg-emerald-500" />
+                    {/* "無料からの最初の一歩" バッジ — Pro の "おすすめ" と並立する第二の軸として
+                         「無料との価格差が小さい = アップグレードしやすい」を訴求 */}
+                    <span className="absolute -top-2 right-4 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[9.5px] font-semibold tracking-wide shadow-sm">
+                      <Zap className="h-2.5 w-2.5" />
+                      {isJa ? "無料からの最初の一歩" : "BEST FIRST UPGRADE"}
                     </span>
                   </>
                 )}
@@ -544,6 +565,15 @@ export function MobileLanding({
                   </span>
                   <span className="text-[11px] text-muted-foreground/65">{sub}</span>
                 </div>
+                {/* Starter には「1日あたり ¥66」のコスト訴求を追加。
+                     ¥1,980 / 30日 ≈ ¥66/日 で、Pro の ¥4,980 (≒¥166/日) との対比で
+                     "毎日のコーヒー1杯より安い" レベルを暗示。 */}
+                {isStarter && (
+                  <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mb-1.5 inline-flex items-center gap-1">
+                    <Zap className="h-2.5 w-2.5" />
+                    {isJa ? "1日あたり約 ¥66 ・ 無料からの最も小さなステップ" : "About ¥66/day · the smallest step up from free"}
+                  </p>
+                )}
                 {tagline && (
                   <p className="text-[11.5px] text-muted-foreground/70 mb-2">{tagline}</p>
                 )}

@@ -17,7 +17,7 @@
  *   - free_generate_limit_reached モーダルを開いた段階で既に使用済みだったとき
  */
 import React, { useEffect, useRef, useState } from "react";
-import { Sparkles, Loader2, Lock, ArrowRight, AlertCircle, Check, Crown } from "lucide-react";
+import { Sparkles, Loader2, Lock, ArrowRight, AlertCircle, Check, Crown, Zap } from "lucide-react";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -285,13 +285,13 @@ export function AnonymousTrialModal({
 
 /** 上限到達時のプラン選択ブロック。
  *
- *  デザイン方針 (前回までの 2-3 列レイアウトが幅不足で潰れていた反省):
- *    - **縦スタック構造** に変更。Pro を full-width hero として大きく見せて、
- *      Starter / Free は その下に「もう少し控えめな選択肢」として並べる
- *    - Pro は **黒地白字 + 大きい価格 + full-width filled CTA** でドミナント
- *    - Starter / Free は同サイズの 2 カラム slim カード
- *    - dialog 幅も `max-w-[560px]` に絞って、横の窮屈さを完全排除
- *    - 折返しが起きない短文に絞る (「月500回・1日40回」を「月500回 (40/日)」等)
+ *  デザイン方針 (CV 重視で Starter を主推奨に変更):
+ *    - **無料 → ¥1,980 のステップは ¥4,980 と比べて心理的ハードルが圧倒的に低い**。
+ *      コスト乖離を最小化するため、hero を Pro → **Starter** に格下げ移行。
+ *    - Starter は full-width hero (黒地白字) + ¥1,980 大価格 + filled CTA でドミナント。
+ *    - Pro は「もっと使うなら」のセカンダリ枠で Free と並ぶ slim 2 カラムに格下げ。
+ *      "人気No.1" バッジで Pro の存在感は残しつつ、選択行動の主軸は Starter に。
+ *    - Free はクレカ不要訴求のままセカンダリ枠に維持。
  */
 function LimitReachedPlanPicker({
   isJa,
@@ -309,10 +309,11 @@ function LimitReachedPlanPicker({
   const starterName = isJa ? starterDef.name : (starterDef.nameEn ?? starterDef.name);
   const freeName = isJa ? freeDef.name : (freeDef.nameEn ?? freeDef.name);
 
-  // 折返しを起こさない短い文言に厳選 (full-width Pro なら 3 行入る)
-  const proFeatures = isJa
-    ? ["高性能AI 月500回 (1日40回まで)", "教材PDF・Pro テンプレ 無制限", "採点・OCR・バッチ生成まで全機能"]
-    : ["Premium AI 500/mo (40/day)", "Unlimited PDF & Pro templates", "Grading, OCR, batch — everything"];
+  // Starter Hero に出す特徴 3 行 — 「毎日 1〜数枚作りたい」典型ユーザに刺さる文言。
+  // 月 150 回 ≒ 1 日 5 回ペースで「無理なく毎日」が成立することを訴求。
+  const starterFeatures = isJa
+    ? ["高性能AI 月150回 (1日5回ペースで毎日使える)", "教材PDF 出力 無制限", "テンプレート・数式・図形すべて利用可"]
+    : ["Premium AI 150/mo (~5/day, every day)", "Unlimited PDF export", "All templates, math & figures included"];
 
   return (
     <div className="flex flex-col gap-4">
@@ -331,52 +332,58 @@ function LimitReachedPlanPicker({
         </div>
       </div>
 
-      {/* ── Pro Hero (full width / 黒地白字 / 価格大) ── */}
+      {/* ── Starter Hero (full width / 黒地白字 / 価格大)
+           無料 → ¥1,980 の "最も自然な" アップグレード経路を主推奨にする。
+           "無料からのアップグレードに最適" でコスト乖離の小ささを言語化。 */}
       <button
         type="button"
-        onClick={() => onSelect("pro")}
-        className="group relative text-left rounded-2xl px-6 py-6 bg-foreground text-background overflow-hidden transition active:scale-[0.995] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+        onClick={() => onSelect("starter")}
+        className="group relative text-left rounded-2xl px-6 py-6 bg-foreground text-background overflow-hidden transition active:scale-[0.995] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
       >
-        {/* 微妙な装飾 — 右上の角に光のグラデを敷いて完全な黒を回避 (生っぽさ) */}
+        {/* 装飾 — emerald 寄りのグロー (Pro の violet と差別化) */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-violet-500/20 blur-3xl"
+          className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-emerald-500/25 blur-3xl"
         />
 
         <div className="relative flex flex-col gap-5">
-          {/* 上段: 「おすすめ」スタンプ + tagline + 価格 */}
+          {/* 上段: ラベル + 名前 + 価格 */}
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[10.5px] font-semibold tracking-[0.22em] uppercase text-background/55 mb-2 flex items-center gap-1.5">
-                <Crown className="h-3 w-3" />
-                {isJa ? "毎日使うならこのプラン" : "For daily users — recommended"}
+              <p className="text-[10.5px] font-semibold tracking-[0.22em] uppercase text-emerald-300 mb-2 flex items-center gap-1.5">
+                <Zap className="h-3 w-3" />
+                {isJa ? "無料からのアップグレードに最適" : "Best first upgrade from free"}
               </p>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-[24px] font-bold tracking-tight leading-none">{proName}</span>
+                <span className="text-[24px] font-bold tracking-tight leading-none">{starterName}</span>
                 <span className="text-[10.5px] text-background/55">
-                  {isJa ? "Eddivom の主力プラン" : "Eddivom's flagship plan"}
+                  {isJa ? "毎日無理なく使えるプラン" : "Comfortable daily-use plan"}
                 </span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-[40px] font-bold tabular-nums tracking-tight leading-none">{proDef.priceLabel}</span>
+                <span className="text-[40px] font-bold tabular-nums tracking-tight leading-none">{starterDef.priceLabel}</span>
                 <span className="text-[13px] text-background/65">{isJa ? "/ 月 (税込)" : "/ mo"}</span>
               </div>
+              {/* 価格訴求 — Pro との差を明示せず、無料との対比で「ハードル低」を強調 */}
+              <p className="text-[11px] text-background/60 mt-1.5">
+                {isJa ? "1日あたり約 ¥66 ・ いつでも解約 OK" : "About ¥66/day · cancel anytime"}
+              </p>
             </div>
           </div>
 
-          {/* 中段: 特徴 3 行 (full width なので折返しなし) */}
+          {/* 中段: 特徴 3 行 */}
           <ul className="space-y-2">
-            {proFeatures.map((f) => (
+            {starterFeatures.map((f) => (
               <li key={f} className="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-background/95">
-                <Check className="h-4 w-4 mt-[3px] shrink-0 text-background" strokeWidth={2.6} />
+                <Check className="h-4 w-4 mt-[3px] shrink-0 text-emerald-300" strokeWidth={2.6} />
                 <span>{f}</span>
               </li>
             ))}
           </ul>
 
-          {/* 下段: full-width filled CTA — 押せる場所が明確 */}
+          {/* 下段: full-width filled CTA */}
           <span className="inline-flex items-center justify-center gap-2 w-full h-12 px-6 rounded-full bg-background text-foreground text-[14px] font-semibold group-hover:bg-background/90 transition">
-            {isJa ? `${proName} で登録 / 決済へ進む` : `Sign up with ${proName} & continue`}
+            {isJa ? `${starterName} で登録 / 決済へ進む` : `Sign up with ${starterName} & continue`}
             <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
           </span>
           <p className="text-[11px] text-background/55 text-center -mt-2">
@@ -394,23 +401,29 @@ function LimitReachedPlanPicker({
         <span aria-hidden className="h-px flex-1 bg-foreground/[0.08]" />
       </div>
 
-      {/* Starter / Free の slim 2 カラム — 同サイズで control の対称性を出す */}
+      {/* Pro / Free の slim 2 カラム — Pro は「人気No.1」バッジで存在感を残しつつ
+           主行動軸は Starter Hero に渡し、ここでは "もっと大量に使うなら" の代替肢扱い。 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <button
           type="button"
-          onClick={() => onSelect("starter")}
-          className="group relative text-left rounded-xl p-4 bg-card border border-foreground/[0.1] hover:border-foreground/[0.22] hover:shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08)] transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+          onClick={() => onSelect("pro")}
+          className="group relative text-left rounded-xl p-4 bg-card border border-foreground/[0.14] hover:border-foreground/[0.28] hover:shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08)] transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
         >
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-[14.5px] font-bold tracking-tight">{starterName}</span>
-            <span className="ml-auto text-[18px] font-bold tabular-nums">{starterDef.priceLabel}</span>
+          {/* "人気No.1" バッジ — Pro の存在感は残す */}
+          <span className="absolute -top-2 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-foreground text-background text-[9.5px] font-semibold tracking-wide">
+            <Crown className="h-2.5 w-2.5" />
+            {isJa ? "人気No.1" : "POPULAR"}
+          </span>
+          <div className="flex items-baseline gap-2 mb-1 mt-1">
+            <span className="text-[14.5px] font-bold tracking-tight">{proName}</span>
+            <span className="ml-auto text-[18px] font-bold tabular-nums">{proDef.priceLabel}</span>
             <span className="text-[10.5px] text-muted-foreground/65">{isJa ? "/ 月" : "/ mo"}</span>
           </div>
           <p className="text-[11.5px] text-muted-foreground/80 leading-snug mb-3">
-            {isJa ? "高性能AI 月150回 / PDF 出力 無制限" : "Premium AI 150/mo · unlimited PDF"}
+            {isJa ? "毎日大量に作るなら · 月500回 (40/日) + 採点・OCR" : "Heavy use · 500/mo (40/day) + grading & OCR"}
           </p>
           <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground/85 group-hover:text-foreground transition">
-            {isJa ? `${starterName} で続ける` : `Continue with ${starterName}`}
+            {isJa ? `${proName} で続ける` : `Continue with ${proName}`}
             <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
           </span>
         </button>
@@ -420,8 +433,7 @@ function LimitReachedPlanPicker({
           onClick={() => onSelect("free")}
           className="group relative text-left rounded-xl p-4 bg-card border border-foreground/[0.07] hover:border-foreground/[0.18] transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
         >
-          {/* タイトル行 — 価格と「ずっと無料」サブラベルを 1 ペアに統合して
-              "¥0 + 永久無料" の重複を解消 */}
+          {/* タイトル行 — 価格と「ずっと無料」サブラベルを 1 ペアに統合 */}
           <div className="flex items-baseline gap-2 mb-0.5">
             <span className="text-[14.5px] font-bold tracking-tight">{freeName}</span>
             <span

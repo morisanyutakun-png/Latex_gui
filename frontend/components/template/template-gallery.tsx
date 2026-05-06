@@ -4132,11 +4132,15 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               </ul>
             </div>
 
-            {/* Starter — entry paid tier */}
-            <div className="relative p-6 rounded-[20px] bg-card/70 backdrop-blur-xl border border-emerald-500/[0.2] hover:border-emerald-500/[0.35] transition-all duration-300">
+            {/* Starter — entry paid tier
+                 「アップグレード販促時は必ず Starter を進める」方針に合わせて、
+                 バッジ文言を "手軽に始める" → "無料からの最初の一歩" に強化。
+                 Pro の "人気 No.1" と並立する購入訴求の軸として機能させる。 */}
+            <div className="relative p-6 rounded-[20px] bg-card/70 backdrop-blur-xl border-2 border-emerald-500/[0.3] hover:border-emerald-500/[0.5] shadow-xl shadow-emerald-500/[0.08] hover:shadow-emerald-500/[0.15] transition-all duration-300">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/95 text-white font-bold shadow">
-                  {isJa ? "手軽に始める" : "Easy start"}
+                <span className="text-[10px] px-3 py-0.5 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-lg flex items-center gap-1">
+                  <Zap className="h-3 w-3" />
+                  {isJa ? "無料からの最初の一歩" : "Best first upgrade"}
                 </span>
               </div>
               <p className="text-[11px] font-bold tracking-wider uppercase text-emerald-600 dark:text-emerald-400 mb-1">Starter</p>
