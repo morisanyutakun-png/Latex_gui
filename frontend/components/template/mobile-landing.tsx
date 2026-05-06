@@ -156,40 +156,46 @@ export function MobileLanding({
               - Before/After は撤去
              プリント上端を確実にファーストビューに乗せるための最終形。 */}
         <div className={`text-center transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          {/* 核機能バッジ — EN 文言を「教師の道具」軸に変更
-               旧: For tutors · Variant Engine (機能ベース)
-               新: For teachers & tutors · Weekly quiz maker (ベネフィットベース) */}
+          {/* 核機能バッジ — 「ターゲット + 用途」を最短語で。
+               旧: 塾講師・教師向け · 類題生成エンジン / For teachers · Weekly quiz maker
+               新: 塾講師・教師の毎週へ / For teachers · Every week
+               機能名 (類題生成エンジン / Quiz maker) は H1 で訴求済みなので、バッジは
+               "誰のため + どの頻度" に絞って短く深く刺す。 */}
           <div className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-full bg-gradient-to-r from-violet-500/[0.14] via-fuchsia-500/[0.14] to-blue-500/[0.14] border border-violet-500/40 shadow-sm shadow-violet-500/15 mb-1.5">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10px] font-extrabold tracking-wider">
-              {isJa ? "塾講師・教師向け · 類題生成エンジン" : "For teachers · Weekly quiz maker"}
+              {isJa ? "塾講師・教師の毎週へ" : "Built for teachers · Every week"}
             </span>
             <span className="inline-flex items-center px-1 py-[1px] rounded text-[8.5px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500">
               NEW
             </span>
           </div>
 
-          {/* H1 — EN は「5分で週テスト」「ワンタップで類題」のベネフィット2軸
-               日本語は "60秒で1枚" を維持 (既存の文化に合致するため変更しない) */}
-          <h1 className="text-[clamp(1.5rem,7.2vw,2rem)] leading-[1.1] font-black tracking-[-0.03em] mb-1.5">
+          {/* H1 — 句読点リズムで深く刺す。
+               旧: 「60秒で教材プリント1枚。あとは1タップで類題作成。」
+               新: 「60秒で、1枚。あとは、1タップ。」
+               → 単語数を半減させ、数字 (60秒/1枚/1タップ) を主役に。
+               EN も同じく短文スタッカートで「per quiz / for the next」のリズム。 */}
+          <h1 className="text-[clamp(1.65rem,8vw,2.25rem)] leading-[1.05] font-black tracking-[-0.035em] mb-1.5">
             {isJa ? (
               <>
-                <GradientWord>60秒で教材プリント1枚</GradientWord>。<br />
-                あとは<HighlightMark>1タップで類題作成</HighlightMark>。
+                <GradientWord>60秒で、1枚</GradientWord>。<br />
+                あとは、<HighlightMark>1タップ</HighlightMark>。
               </>
             ) : (
               <>
-                <GradientWord>Weekly quizzes in 5 minutes</GradientWord>.<br />
-                <HighlightMark>Variants in one tap</HighlightMark>.
+                <GradientWord>5 minutes per quiz</GradientWord>.<br />
+                <HighlightMark>One tap for the next</HighlightMark>.
               </>
             )}
           </h1>
 
-          {/* サブ — EN は「印刷可・解答付き・教師向け」を 1 文で。AI 訴求は外す。 */}
-          <p className="text-foreground/80 text-[13px] leading-[1.5] mb-2 font-medium max-w-[22rem] mx-auto">
+          {/* サブ — 「成果物」だけだった旧版に、使用シーン (明日の授業へ) を 1 句加えて
+               教師の翌朝のシーンを想起させる。文字数は維持。 */}
+          <p className="text-foreground/85 text-[13px] leading-[1.55] mb-2 font-medium max-w-[22rem] mx-auto">
             {isJa
-              ? "小テスト・宿題プリント・解答付きPDFをすぐ作成。"
-              : "Printable quizzes, homework & answer keys — built for math & science teachers."}
+              ? "小テストも、宿題も、解答付きPDFで明日の授業へ。"
+              : "Quizzes, homework, answer keys — ready for tomorrow's class."}
           </p>
         </div>
 
@@ -888,7 +894,8 @@ function MobilePromptHeroBlock({
 function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
   useEffect(() => { ensureKatexCssMobile(); }, []);
 
-  const promptText = isJa ? "高1数学・関数と三角比 解答グラフ付き" : "Algebra II weekly quiz · graph answers";
+  // 入力例 — 教師が普段口にする粒度の短文に。「学年 · 単元 · 形式」を中点で区切るリズム。
+  const promptText = isJa ? "高1・三角比の小テスト10問" : "Algebra II quiz · 10 items";
 
   // タブ状態 + スクロール先 ref
   const [active, setActive] = React.useState<"q" | "a">("q");
@@ -934,7 +941,7 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
           <span className="truncate">{promptText}</span>
         </span>
         <span className="inline-flex items-center gap-0.5 text-[10px] font-bold tracking-wide text-violet-700 dark:text-violet-300">
-          {isJa ? "実際の出力" : "Real output"}
+          {isJa ? "これが完成品" : "This prints"}
           <ChevronDown className="h-3 w-3 animate-bounce" aria-hidden />
         </span>
       </div>
