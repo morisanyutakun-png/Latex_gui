@@ -156,18 +156,21 @@ export function MobileLanding({
               - Before/After は撤去
              プリント上端を確実にファーストビューに乗せるための最終形。 */}
         <div className={`text-center transition-all duration-700 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          {/* 核機能バッジ */}
+          {/* 核機能バッジ — EN 文言を「教師の道具」軸に変更
+               旧: For tutors · Variant Engine (機能ベース)
+               新: For teachers & tutors · Weekly quiz maker (ベネフィットベース) */}
           <div className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-full bg-gradient-to-r from-violet-500/[0.14] via-fuchsia-500/[0.14] to-blue-500/[0.14] border border-violet-500/40 shadow-sm shadow-violet-500/15 mb-1.5">
             <Sparkles className="h-3 w-3 text-violet-500" />
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[10px] font-extrabold tracking-wider">
-              {isJa ? "塾講師・教師向け · 類題生成エンジン" : "For tutors · Variant Engine"}
+              {isJa ? "塾講師・教師向け · 類題生成エンジン" : "For teachers · Weekly quiz maker"}
             </span>
             <span className="inline-flex items-center px-1 py-[1px] rounded text-[8.5px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500">
               NEW
             </span>
           </div>
 
-          {/* H1 — 維持 */}
+          {/* H1 — EN は「5分で週テスト」「ワンタップで類題」のベネフィット2軸
+               日本語は "60秒で1枚" を維持 (既存の文化に合致するため変更しない) */}
           <h1 className="text-[clamp(1.5rem,7.2vw,2rem)] leading-[1.1] font-black tracking-[-0.03em] mb-1.5">
             {isJa ? (
               <>
@@ -176,17 +179,17 @@ export function MobileLanding({
               </>
             ) : (
               <>
-                <GradientWord>One worksheet in 60s</GradientWord>.<br />
-                Then <HighlightMark>1 tap for variants</HighlightMark>.
+                <GradientWord>Weekly quizzes in 5 minutes</GradientWord>.<br />
+                <HighlightMark>Variants in one tap</HighlightMark>.
               </>
             )}
           </h1>
 
-          {/* サブ — 短文化。1 行に収まる長さで「成果物 3 種」だけ伝える。 */}
+          {/* サブ — EN は「印刷可・解答付き・教師向け」を 1 文で。AI 訴求は外す。 */}
           <p className="text-foreground/80 text-[13px] leading-[1.5] mb-2 font-medium max-w-[22rem] mx-auto">
             {isJa
               ? "小テスト・宿題プリント・解答付きPDFをすぐ作成。"
-              : "Quizzes, homework & answer-key PDFs — instantly."}
+              : "Printable quizzes, homework & answer keys — built for math & science teachers."}
           </p>
         </div>
 
@@ -204,7 +207,7 @@ export function MobileLanding({
             className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full border border-violet-500/40 bg-gradient-to-r from-violet-500/[0.08] to-fuchsia-500/[0.08] text-[12px] font-bold text-violet-700 dark:text-violet-300 active:scale-[0.98] transition shadow-sm"
           >
             <Sparkles className="h-3 w-3" aria-hidden />
-            {isJa ? "自分のテーマで作ってみる" : "Make one with my own topic"}
+            {isJa ? "自分のテーマで作ってみる" : "Try it with my own topic"}
             <ArrowRight className="h-3 w-3" aria-hidden />
           </button>
         </div>
@@ -217,7 +220,7 @@ export function MobileLanding({
         <div className={`mb-5 transition-all duration-700 delay-50 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}`}>
           <div className="rounded-2xl border border-foreground/[0.08] bg-gradient-to-br from-violet-500/[0.04] via-fuchsia-500/[0.03] to-blue-500/[0.04] p-3.5 shadow-[0_2px_10px_-6px_rgba(139,92,246,0.25)]">
             <p className="text-center text-[10px] font-bold tracking-[0.18em] uppercase text-violet-700 dark:text-violet-300 mb-2.5">
-              {isJa ? "1 タブで完結する作成サイクル" : "End-to-end in one tab"}
+              {isJa ? "1 タブで完結する作成サイクル" : "Topic to printed PDF — one workflow"}
             </p>
             <ol className="space-y-1.5">
               {(isJa
@@ -228,10 +231,12 @@ export function MobileLanding({
                     { sec: "1:00", title: "PDFで保存・印刷", body: "解答付きPDFをそのまま配布できる", icon: <FileDown className="h-3.5 w-3.5" aria-hidden /> },
                   ]
                 : [
-                    { sec: "0:10", title: "Ask the AI", body: "\"10 trig quiz items with answers\"", icon: <Sparkles className="h-3.5 w-3.5" aria-hidden /> },
-                    { sec: "0:30", title: "Preview live", body: "Math, figures, answers — A4 page", icon: <FileText className="h-3.5 w-3.5" aria-hidden /> },
-                    { sec: "0:50", title: "Tweak in one line", body: "\"Make problem 3 harder\"", icon: <Pencil className="h-3.5 w-3.5" aria-hidden /> },
-                    { sec: "1:00", title: "Export PDF", body: "Answer-key PDF, ready to print", icon: <FileDown className="h-3.5 w-3.5" aria-hidden /> },
+                    // EN: 教師の典型作業を 5 分の時間軸に乗せる。"AI" 訴求は title から外し、
+                    //     代わりに "Type the topic" "See the page" など教師の動作で表現する。
+                    { sec: "0:30", title: "Type the topic", body: "\"Algebra II quiz, 10 items, answer key\"", icon: <Sparkles className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "1:30", title: "See the page", body: "Real A4 layout — math, figures, answers", icon: <FileText className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "3:00", title: "Edit in one line", body: "\"Make problem 3 a bit harder\"", icon: <Pencil className="h-3.5 w-3.5" aria-hidden /> },
+                    { sec: "5:00", title: "Print or share", body: "Printable answer-key PDF, ready for class", icon: <FileDown className="h-3.5 w-3.5" aria-hidden /> },
                   ]
               ).map((step, idx, arr) => (
                 <li key={step.sec} className="relative">
@@ -263,7 +268,7 @@ export function MobileLanding({
               {isJa ? (
                 <span>このサイクルを<span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent font-extrabold"> 1タップで何回でも </span>回せる</span>
               ) : (
-                <span>Repeat the loop, <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent font-extrabold">1 tap any time</span></span>
+                <span>Run it again — <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent font-extrabold">one click, any time</span></span>
               )}
             </div>
           </div>
@@ -308,8 +313,8 @@ export function MobileLanding({
       <section className="px-5 pb-6">
         <div className="grid grid-cols-3 divide-x divide-foreground/[0.08] border-y border-foreground/[0.08] py-4">
           {[
-            { valueJa: "60秒",  valueEn: "60s",  labelJa: "1枚を生成",  labelEn: "to make one" },
-            { valueJa: "∞",     valueEn: "∞",    labelJa: "類題を量産",  labelEn: "for variants" },
+            { valueJa: "60秒",  valueEn: "5 min", labelJa: "1枚を生成",  labelEn: "weekly quiz" },
+            { valueJa: "∞",     valueEn: "1-tap", labelJa: "類題を量産",  labelEn: "for variants" },
             { valueJa: "0円",   valueEn: "$0",   labelJa: "登録なしで",  labelEn: "no signup" },
           ].map(({ valueJa, valueEn, labelJa, labelEn }, i) => (
             <div key={labelJa} className={`flex flex-col items-start ${i === 0 ? "pl-1 pr-3" : "px-3"}`}>
@@ -329,7 +334,7 @@ export function MobileLanding({
         <div className="flex items-center gap-2.5 rounded-2xl bg-foreground/[0.03] dark:bg-white/[0.03] border border-foreground/[0.08] px-3 py-2.5">
           <Smartphone className="h-4 w-4 text-foreground/55 shrink-0" />
           <p className="text-[11.5px] text-foreground/75 leading-snug font-medium flex-1">
-            {isJa ? "モバイルで動きます · 編集は PC が快適" : "Works on mobile · Best editing on desktop"}
+            {isJa ? "モバイルで動きます · 編集は PC が快適" : "Works on mobile · Best on desktop for editing"}
           </p>
         </div>
       </section>
@@ -340,13 +345,13 @@ export function MobileLanding({
           <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
             <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
             <span className="font-mono text-[10px] text-foreground/45">§ 02</span>
-            {isJa ? "実際の動き" : "How it actually moves"}
+            {isJa ? "実際の動き" : "How a weekly quiz comes together"}
           </p>
           <h2 className="text-[22px] font-bold tracking-[-0.015em] leading-[1.3]">
-            {isJa ? (<>依頼 <span className="text-foreground/40">→</span> 紙面に即反映。</>) : "Ask. See it. Done."}
+            {isJa ? (<>依頼 <span className="text-foreground/40">→</span> 紙面に即反映。</>) : (<>Type a topic <span className="text-foreground/40">→</span> see the page <span className="text-foreground/40">→</span> print.</>)}
           </h2>
           <p className="text-[12px] text-muted-foreground/75 mt-2 leading-relaxed">
-            {isJa ? "AI に投げた瞬間、印刷品質の紙面が組み上がります。" : "The moment you ask, a print-quality sheet builds itself."}
+            {isJa ? "AI に投げた瞬間、印刷品質の紙面が組み上がります。" : "From an idea to a printable A4 quiz — under five minutes."}
           </p>
         </div>
 
@@ -362,10 +367,10 @@ export function MobileLanding({
 
         <div className="flex flex-wrap items-center gap-1.5 mt-6 px-2">
           {[
-            isJa ? "AI即反映" : "AI instant",
-            isJa ? "PDF出力" : "PDF",
-            isJa ? "直接編集" : "Edit",
-            isJa ? "類題量産" : "Variants",
+            isJa ? "AI即反映" : "Instant preview",
+            isJa ? "PDF出力" : "Printable PDF",
+            isJa ? "直接編集" : "Edit on page",
+            isJa ? "類題量産" : "1-click variants",
           ].map((label) => (
             <span key={label} className="inline-flex items-center px-2 py-0.5 rounded-md bg-foreground/[0.025] border border-foreground/[0.07] text-[10.5px] text-foreground/70 font-medium">
               {label}
@@ -378,10 +383,10 @@ export function MobileLanding({
       <section className="px-5 py-5 border-y border-foreground/[0.05] bg-foreground/[0.012]">
         <div className="grid grid-cols-2 gap-2">
           {[
-            { icon: <Zap className="h-3.5 w-3.5" />, label: isJa ? "LuaLaTeX 組版" : "LuaLaTeX" },
-            { icon: <Shield className="h-3.5 w-3.5" />, label: isJa ? "無料・登録不要" : "Free · No signup" },
-            { icon: <Printer className="h-3.5 w-3.5" />, label: isJa ? "A4/B5 印刷対応" : "Print-ready" },
-            { icon: <Sparkles className="h-3.5 w-3.5" />, label: isJa ? "数式・図対応" : "Math & figures" },
+            { icon: <Zap className="h-3.5 w-3.5" />, label: isJa ? "LuaLaTeX 組版" : "Print-quality typesetting" },
+            { icon: <Shield className="h-3.5 w-3.5" />, label: isJa ? "無料・登録不要" : "Free · no signup" },
+            { icon: <Printer className="h-3.5 w-3.5" />, label: isJa ? "A4/B5 印刷対応" : "Ready for A4/B5 printing" },
+            { icon: <Sparkles className="h-3.5 w-3.5" />, label: isJa ? "数式・図対応" : "Math & diagrams included" },
           ].map((t) => (
             <div key={t.label} className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-background border border-foreground/[0.06] text-[11.5px] text-muted-foreground/85">
               <span className="text-primary/70">{t.icon}</span>{t.label}
@@ -398,18 +403,18 @@ export function MobileLanding({
           <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
             <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
             <span className="font-mono text-[10px] text-foreground/45">§ 04</span>
-            {isJa ? "図形描画" : "Figure mode"}
+            {isJa ? "図形描画" : "Diagrams, drag-and-drop"}
             <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9.5px] font-medium tracking-wide border text-foreground/55 bg-foreground/[0.04] border-foreground/[0.08]">
-              {isJa ? "Freeでも" : "Free"}
+              {isJa ? "Freeでも" : "Free plan too"}
             </span>
           </p>
           <h2 className="text-[22px] font-bold tracking-[-0.015em] leading-[1.3]">
-            {isJa ? (<>図も、<span className="italic font-serif text-foreground/85">手で</span>描ける。</>) : (<>Figures, drawn <span className="italic font-serif text-foreground/85">by hand</span>.</>)}
+            {isJa ? (<>図も、<span className="italic font-serif text-foreground/85">手で</span>描ける。</>) : (<>Diagrams, drawn <span className="italic font-serif text-foreground/85">by hand</span>.</>)}
           </h2>
           <p className="text-[12px] text-muted-foreground/75 mt-2 leading-relaxed max-w-[20rem]">
             {isJa
               ? "回路・力学・幾何・化学・生物まで、TikZ コードを書かずに描ける図形パレット。"
-              : "Circuits, mechanics, geometry, chemistry, biology — a shape palette that skips TikZ."}
+              : "Geometry, circuits, force diagrams — drop shapes into the page. No code, no LaTeX."}
           </p>
         </div>
 
@@ -426,21 +431,21 @@ export function MobileLanding({
         <p className="text-[10.5px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-3 flex items-center gap-2">
           <span aria-hidden className="inline-block h-px w-5 bg-foreground/25" />
           <span className="font-mono text-[10px] text-foreground/45">§ 05</span>
-          {isJa ? "こんな先生に" : "Built for"}
+          {isJa ? "こんな先生に" : "Built for teachers"}
         </p>
         <h2 className="text-[22px] font-bold tracking-[-0.015em] leading-[1.3] mb-1">
-          {isJa ? "毎週、教材を手作りしている方へ。" : "For tutors who hand-craft worksheets."}
+          {isJa ? "毎週、教材を手作りしている方へ。" : "Save hours of weekly worksheet prep."}
         </h2>
         <p className="text-[12px] text-muted-foreground/75 leading-relaxed mb-6 max-w-[22rem]">
           {isJa
             ? "一枚ずつ作っていた時間を、生徒に向き合う時間に戻したい。Eddivom はそのための道具です。"
-            : "Take back the hours spent hand-building worksheets — and spend them with students instead."}
+            : "Spend less time formatting worksheets, and more time teaching."}
         </p>
         <ul className="space-y-4">
           {[
-            { num: "01", title: isJa ? "個人塾・家庭教師" : "Tutors & Private Instructors", desc: isJa ? "生徒ごとに違うプリントを毎週。「あと5問」で類題を即追加。" : "Different worksheet per student, each week. \"5 more like this\" in seconds." },
-            { num: "02", title: isJa ? "学校の教科担当" : "Math & STEM Teachers", desc: isJa ? "小テスト・定期テストを効率よく。解答付き PDF で採点まで一気通貫。" : "Quick quizzes, with answer-key PDFs that make grading painless." },
-            { num: "03", title: isJa ? "教材制作・販売" : "Creators & Sellers", desc: isJa ? "問題集やドリルを印刷品質で量産。配布・販売にそのまま使える。" : "Build print-quality problem sets ready to distribute or sell." },
+            { num: "01", title: isJa ? "個人塾・家庭教師" : "High-school teachers", desc: isJa ? "生徒ごとに違うプリントを毎週。「あと5問」で類題を即追加。" : "Build a fresh weekly quiz in 5 minutes. Print, hand out, done." },
+            { num: "02", title: isJa ? "学校の教科担当" : "Math & physics tutors", desc: isJa ? "小テスト・定期テストを効率よく。解答付き PDF で採点まで一気通貫。" : "One-on-one homework with answer keys — and \"5 more like this\" for the next student." },
+            { num: "03", title: isJa ? "教材制作・販売" : "Cram-school instructors", desc: isJa ? "問題集やドリルを印刷品質で量産。配布・販売にそのまま使える。" : "Print-ready weekly problem sets, every week, without rebuilding from scratch." },
           ].map((p) => (
             <li key={p.num} className="flex gap-3 pb-4 border-b border-foreground/[0.05] last:border-b-0 last:pb-0">
               <span
@@ -471,10 +476,10 @@ export function MobileLanding({
         >
           {isJa
             ? "STEM 教材を実際に作ってきた人間 — 名古屋大学・森 祐太 — が設計しています。「手早く・印刷品質で」を守るために生まれた道具です。"
-            : "Designed by Yuta Mori, an engineering student at Nagoya University who actually creates STEM materials. Built around one belief: worksheets should be fast to make, but print-quality every time."}
+            : "Designed by Yuta Mori (Nagoya University, CS & Engineering) — someone who has spent late nights formatting his own worksheets. Built around one belief: a quiz should take five minutes, not the whole evening."}
         </p>
         <p className="text-[10.5px] text-muted-foreground/55 mt-3 italic">
-          {isJa ? "— a tool built by, and for, people who teach" : "— a tool built by, and for, people who teach"}
+          {isJa ? "— a tool built by, and for, people who teach" : "— a tool built by, and for, the people who teach"}
         </p>
       </section>
 
@@ -651,11 +656,11 @@ export function MobileLanding({
           {isJa ? (
             <>今、<HighlightMark>1枚</HighlightMark>だけ作ってみる。</>
           ) : (
-            <>Make just <HighlightMark>one sheet</HighlightMark>.</>
+            <>Try <HighlightMark>one quiz</HighlightMark>.</>
           )}
         </h2>
         <p className="text-[12.5px] text-muted-foreground/80 mb-6 leading-relaxed">
-          {isJa ? "登録不要、30 秒で完成。気に入らなければそのまま閉じて構いません。" : "No signup, 30 seconds. Close the tab if you don't like it."}
+          {isJa ? "登録不要、30 秒で完成。気に入らなければそのまま閉じて構いません。" : "Five minutes, no signup. If it's not for you, close the tab — no strings."}
         </p>
         <button
           onClick={primaryCta.onClick}
@@ -688,7 +693,7 @@ export function MobileLanding({
             <ArrowRight className="h-4 w-4" />
           </button>
           <p className="text-center text-[10px] text-muted-foreground/60 mt-1">
-            {isJa ? "登録不要・まずは1枚無料・解答付きPDFで保存" : "No signup · First sheet free · Answer-key PDF"}
+            {isJa ? "登録不要・まずは1枚無料・解答付きPDFで保存" : "No signup · First quiz free · Answer-key PDF included"}
           </p>
         </div>
       )}
@@ -768,14 +773,14 @@ function MobilePromptHeroBlock({
   onPrimary: () => void;
 }) {
   const [value, setValue] = useState("");
-  // Placeholder: 高校物理を起点に「学年・分野・問題数・解答付き」の指示パターンを暗示。
-  // 旧 (二次方程式10問) は範囲が抽象だったため、対象学年と用途まで含めた版に差し替え。
+  // Placeholder: 教師の "週テスト作成" の典型作業を擬似化したプロンプト。
+  // EN は AI 文言を避け、"weekly quiz" "answer key" "printable" を中心に。
   const placeholder = isJa
     ? "高校物理 運動方程式の基本確認テスト10問、解答付きで"
-    : "High school physics: 10 motion-equation quiz items with answers";
+    : "Algebra II — 10-item weekly quiz with answer key";
 
-  // サンプルチップ: 「学年 + 分野 + 用途 (テスト/演習/解答付き)」を 1 チップで完結させる。
-  // レベル感 (中2 / 高1 / 高校) と出力形式 (解答付き / グラフ付き / 演習) が即読み取れるように。
+  // サンプルチップ: 教師の日常タスクをそのまま提示
+  // - Weekly quiz / Homework / Variant practice の 3 軸でカバー
   const samples = isJa
     ? [
         "高校物理 運動方程式の基本確認テスト10問",
@@ -783,9 +788,9 @@ function MobilePromptHeroBlock({
         "高1数学 関数と三角比 グラフ付き演習",
       ]
     : [
-        "High-school physics: 10 motion-equation quiz items",
-        "Grade 8 linear functions quiz with answers",
-        "Algebra & trig: graph-based practice",
+        "Algebra II weekly quiz · 10 items · answer key",
+        "Geometry homework · Pythagorean theorem · 8 problems",
+        "Physics review · kinematics · printable PDF",
       ];
 
   const submitWithValue = () => onSubmit(value);
@@ -813,7 +818,7 @@ function MobilePromptHeroBlock({
         <div className="flex items-center gap-1.5 w-max pb-1">
           <span className="inline-flex items-center gap-1 shrink-0 text-[10.5px] font-bold tracking-wide text-violet-700 dark:text-violet-300">
             <Zap className="h-2.5 w-2.5 text-amber-500" aria-hidden />
-            {isJa ? "タップで即生成" : "Tap to generate"}
+            {isJa ? "タップで即生成" : "Tap to build"}
             <ArrowRight className="h-2.5 w-2.5 text-violet-500/70" aria-hidden />
           </span>
           {samples.map((s) => (
@@ -861,9 +866,9 @@ function MobilePromptHeroBlock({
             </>
           ) : (
             <>
-              Then <span className="font-bold text-foreground/85">1-tap variants</span> ·
+              Then <span className="font-bold text-foreground/85">one-click variants</span> ·
               <span className="font-bold text-foreground/85">answer-key PDF</span> ·
-              <span className="font-bold text-foreground/85">print-ready A4</span>
+              <span className="font-bold text-foreground/85">printable A4</span>
             </>
           )}
         </p>
@@ -883,7 +888,7 @@ function MobilePromptHeroBlock({
 function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
   useEffect(() => { ensureKatexCssMobile(); }, []);
 
-  const promptText = isJa ? "高1数学・関数と三角比 解答グラフ付き" : "Algebra & trig with graph answers";
+  const promptText = isJa ? "高1数学・関数と三角比 解答グラフ付き" : "Algebra II weekly quiz · graph answers";
 
   // タブ状態 + スクロール先 ref
   const [active, setActive] = React.useState<"q" | "a">("q");
@@ -929,7 +934,7 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
           <span className="truncate">{promptText}</span>
         </span>
         <span className="inline-flex items-center gap-0.5 text-[10px] font-bold tracking-wide text-violet-700 dark:text-violet-300">
-          {isJa ? "実際の出力" : "Actual output"}
+          {isJa ? "実際の出力" : "Real output"}
           <ChevronDown className="h-3 w-3 animate-bounce" aria-hidden />
         </span>
       </div>
@@ -1015,7 +1020,7 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
       <div className="mt-1.5 flex items-center justify-center gap-1 flex-wrap px-2">
         <span className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-[10px] font-semibold text-foreground/80">
           <FileDown className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" aria-hidden />
-          {isJa ? "そのまま配布できるPDF" : "Distribute as PDF"}
+          {isJa ? "そのまま配布できるPDF" : "Hand out as PDF"}
         </span>
         <span className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full bg-foreground/[0.04] border border-foreground/[0.08] text-[10px] font-semibold text-foreground/80">
           <Printer className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" aria-hidden />
@@ -1023,10 +1028,10 @@ function WorksheetPreviewDuo({ isJa }: { isJa: boolean }) {
         </span>
         <span className="inline-flex items-center gap-0.5 px-1.5 py-[3px] rounded-full bg-gradient-to-r from-violet-500/[0.1] to-fuchsia-500/[0.1] border border-violet-500/30 text-[10px] font-bold">
           <Zap className="h-2.5 w-2.5 text-amber-500" aria-hidden />
-          <span className="text-muted-foreground/65 line-through">{isJa ? "30分" : "30m"}</span>
+          <span className="text-muted-foreground/65 line-through">{isJa ? "30分" : "30 min"}</span>
           <ArrowRight className="h-2 w-2 text-foreground/40" aria-hidden />
           <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
-            {isJa ? "60秒" : "60s"}
+            {isJa ? "60秒" : "5 min"}
           </span>
         </span>
       </div>
@@ -1456,18 +1461,18 @@ function GradientWord({ children }: { children: React.ReactNode }) {
  * 「無料でどこまで」を初見で明確化。Pro 機能より先に無料体験の価値を見せる。 */
 function MobileFreePerks({ isJa }: { isJa: boolean }) {
   const items = [
-    { icon: <Sparkles className="h-3 w-3" />,      label: isJa ? "プリントを1枚生成"           : "Generate 1 worksheet" },
-    { icon: <Pencil className="h-3 w-3" />,        label: isJa ? "問題を画面で編集"             : "Edit problems on the page" },
-    { icon: <FileDown className="h-3 w-3" />,      label: isJa ? "問題プリントを PDF 出力"      : "Export worksheet PDF" },
-    { icon: <FileSignature className="h-3 w-3" />, label: isJa ? "解答 PDF を出力"               : "Export answer-key PDF" },
-    { icon: <Sparkles className="h-3 w-3" />,      label: isJa ? "類題ジェネレータ (お試し1回)" : "Variant Studio (1 free trial)" },
+    { icon: <Sparkles className="h-3 w-3" />,      label: isJa ? "プリントを1枚生成"           : "Build 1 weekly quiz" },
+    { icon: <Pencil className="h-3 w-3" />,        label: isJa ? "問題を画面で編集"             : "Edit problems right on the page" },
+    { icon: <FileDown className="h-3 w-3" />,      label: isJa ? "問題プリントを PDF 出力"      : "Export the printable PDF" },
+    { icon: <FileSignature className="h-3 w-3" />, label: isJa ? "解答 PDF を出力"               : "Export the answer-key PDF" },
+    { icon: <Sparkles className="h-3 w-3" />,      label: isJa ? "類題ジェネレータ (お試し1回)" : "Try one-click variants (1 free)" },
     { icon: <Save className="h-3 w-3" />,          label: isJa ? "無料アカウントで保存"          : "Save with a free account" },
   ];
   return (
     <div className="mt-3 rounded-xl border border-foreground/[0.08] bg-foreground/[0.02] p-3">
       <p className="text-[10px] font-medium tracking-[0.2em] uppercase text-muted-foreground/70 mb-2 flex items-center gap-1.5">
         <span aria-hidden className="inline-block h-px w-4 bg-foreground/25" />
-        {isJa ? "Free でできること" : "Free includes"}
+        {isJa ? "Free でできること" : "Free plan includes"}
       </p>
       <ul className="grid grid-cols-1 gap-1">
         {items.map((it) => (

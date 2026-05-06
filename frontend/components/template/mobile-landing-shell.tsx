@@ -215,8 +215,8 @@ export function MobileLandingShell() {
     // CTA 下の安心材料は「ハードル解消 (登録不要・無料)」+「成果物 (解答付き PDF)」の
     // 2 軸を 1 行に詰めて、講師視点で「明日の授業にそのまま使える」を即伝達する。
     return {
-      label: isJa ? "60秒で最初の1枚を作る" : "Make my first sheet in 60s",
-      subLabel: isJa ? "登録不要・まずは1枚無料・解答付きPDFで保存" : "No signup · First sheet free · Answer-key PDF",
+      label: isJa ? "60秒で最初の1枚を作る" : "Build my first quiz — free",
+      subLabel: isJa ? "登録不要・まずは1枚無料・解答付きPDFで保存" : "No signup · First quiz free · Answer-key PDF included",
       onClick: () => { void openTrialOrLimit("hero"); },
       variant: "free" as const,
     };

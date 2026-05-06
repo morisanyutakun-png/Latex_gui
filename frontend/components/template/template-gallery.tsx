@@ -3236,7 +3236,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
     // 触らせることが先 (CVR 検証用)。登録動線は結果画面の登録 CTA に集約する。
     // 顧客目線: "1 枚作る" よりも「60秒 + 類題は何枚でも」の循環価値を訴求。
     return {
-      label: isJa ? "60秒で最初の1枚を作る" : "Make my first sheet in 60s",
+      label: isJa ? "60秒で最初の1枚を作る" : "Build my first quiz — free",
       subLabel: isJa ? "登録不要 · 完成後は1タップで何枚でも類題" : "No sign-up · 1-tap variants after",
       onClick: () => openTrialOrLimit("hero"),
       variant: "free" as const,
@@ -3337,7 +3337,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-blue-600 bg-clip-text text-transparent text-[11px] sm:text-[12px] font-extrabold tracking-wider">
                 {isJa
                   ? "高精度 類題生成エンジン搭載 · 1問から何枚でも瞬時に量産"
-                  : "Precision Variant Engine inside · 1 problem, infinite variants in seconds"}
+                  : "Weekly quiz maker · for teachers and tutors"}
               </span>
               <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[9px] font-extrabold tracking-wider text-white bg-gradient-to-r from-violet-500 to-fuchsia-500 shadow-sm">
                 NEW
@@ -3353,8 +3353,8 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 </>
               ) : (
                 <>
-                  <GradientWord>60s for one</GradientWord>. Then{" "}
-                  <HighlightMark>one tap for more variants</HighlightMark>.
+                  <GradientWord>Weekly quizzes in 5 minutes</GradientWord>.{" "}
+                  <HighlightMark>Variants in one click</HighlightMark>.
                 </>
               )}
             </h1>
@@ -3368,9 +3368,9 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 </>
               ) : (
                 <>
-                  Generate math &amp; science worksheets in 60 seconds.{" "}
-                  <span className="text-violet-700 dark:text-violet-300 font-semibold">Then crank out variants on the same topic with one tap.</span>{" "}
-                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">No sign-up for your first sheet.</span>
+                  Build printable quizzes, homework, and answer keys for math &amp; science classes.{" "}
+                  <span className="text-violet-700 dark:text-violet-300 font-semibold">Make a fresh worksheet for every student with one click.</span>{" "}
+                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">First quiz is free — no signup.</span>
                 </>
               )}
             </p>
@@ -3379,7 +3379,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
               <GraduationCap className="h-3.5 w-3.5" />
               {isJa
                 ? "生徒ごとに数値だけ変えたい先生へ — 毎週のプリント作りを 数十分 → 数秒 に。"
-                : "For teachers who tweak numbers per student — weekly prep from minutes to seconds."}
+                : "For high-school math &amp; physics teachers — cut weekly worksheet prep from hours to minutes."}
             </p>
           </div>
 
@@ -3400,7 +3400,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 <span className="h-px w-8 bg-foreground/15" />
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-foreground/[0.04] border border-foreground/[0.08]">
                   <Zap className="h-3 w-3 text-amber-500" />
-                  {isJa ? "60秒で1枚 → 1タップで類題量産" : "60s for one → 1 tap for more variants"}
+                  {isJa ? "60秒で1枚 → 1タップで類題量産" : "5 min for the first quiz → 1 click for variants"}
                 </span>
                 <span className="h-px w-8 bg-foreground/15" />
               </div>
@@ -3427,7 +3427,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           <div className={`relative transition-all duration-1000 delay-200 ${heroLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
             <p className="inline-flex items-center gap-1.5 text-[11px] text-violet-500/80 font-semibold mb-3">
               <Play className="h-3 w-3 fill-current" />
-              {isJa ? "30 秒で実際の画面を見る" : "Watch the real app — 30s"}
+              {isJa ? "30 秒で実際の画面を見る" : "Watch a real teacher build a quiz — 30s"}
             </p>
             {/* IdleMount: モバイルで FCP/LCP を圧迫する 700+ 行の JSX を idle まで遅らせる。
                  LCP 候補は上の <h1> に移り、ヒーロー文字が先に paint されるようになる。
@@ -3439,10 +3439,10 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
             {/* 機能チップ — モバイルでは折り返し */}
             <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
               {[
-                { icon: <Sparkles className="h-3 w-3" />, label: isJa ? "AIに指示→即反映" : "Prompt → instant result" },
-                { icon: <FileText className="h-3 w-3" />, label: isJa ? "コンパイル済みPDF" : "Compiled PDF" },
-                { icon: <Pencil className="h-3 w-3" />, label: isJa ? "紙面を直接編集" : "Edit on page" },
-                { icon: <RefreshCw className="h-3 w-3" />, label: isJa ? "類題を一瞬で量産" : "Variants in 1 click" },
+                { icon: <Sparkles className="h-3 w-3" />, label: isJa ? "AIに指示→即反映" : "Type a topic → see the page" },
+                { icon: <FileText className="h-3 w-3" />, label: isJa ? "コンパイル済みPDF" : "Printable PDF" },
+                { icon: <Pencil className="h-3 w-3" />, label: isJa ? "紙面を直接編集" : "Edit right on the page" },
+                { icon: <RefreshCw className="h-3 w-3" />, label: isJa ? "類題を一瞬で量産" : "1-click variants" },
               ].map((chip) => (
                 <div key={chip.label} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-foreground/[0.03] border border-foreground/[0.06] text-[10.5px] text-muted-foreground">
                   <span className="text-primary/70">{chip.icon}</span>
@@ -3477,7 +3477,7 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
                 onClick={scrollToSample}
                 className="group flex items-center gap-2.5 px-6 py-3 rounded-full border border-foreground/[0.12] text-foreground font-medium text-[14px] hover:bg-foreground/[0.04] hover:border-foreground/[0.2] active:scale-[0.98] transition-all duration-300"
               >
-                {isJa ? "サンプル出力を見る" : "See sample output"}
+                {isJa ? "サンプル出力を見る" : "See a real worksheet"}
                 <ChevronRight className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
               </button>
             </div>
@@ -3502,10 +3502,10 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
       {/* ━━ Trust signals bar ━━ */}
       <section className="border-y border-foreground/[0.04] bg-foreground/[0.008] dark:bg-white/[0.01] py-5">
         <div className="max-w-5xl mx-auto px-6 flex flex-wrap items-center justify-center gap-3">
-          <TrustBadge icon={<Zap className="h-3.5 w-3.5" />} label={isJa ? "LuaLaTeX 組版エンジン" : "LuaLaTeX typesetting"} />
-          <TrustBadge icon={<Shield className="h-3.5 w-3.5" />} label={isJa ? "無料プランあり・登録不要" : "Free plan · No signup"} />
-          <TrustBadge icon={<Printer className="h-3.5 w-3.5" />} label={isJa ? "A4/B5 印刷対応" : "Print-ready PDF"} />
-          <TrustBadge icon={<Star className="h-3.5 w-3.5" />} label={isJa ? "数式・図・化学式対応" : "Math, diagrams, chemistry"} />
+          <TrustBadge icon={<Zap className="h-3.5 w-3.5" />} label={isJa ? "LuaLaTeX 組版エンジン" : "Print-quality typesetting"} />
+          <TrustBadge icon={<Shield className="h-3.5 w-3.5" />} label={isJa ? "無料プランあり・登録不要" : "Free plan · no signup needed"} />
+          <TrustBadge icon={<Printer className="h-3.5 w-3.5" />} label={isJa ? "A4/B5 印刷対応" : "Ready for A4/B5 printing"} />
+          <TrustBadge icon={<Star className="h-3.5 w-3.5" />} label={isJa ? "数式・図・化学式対応" : "Math, diagrams & chemistry"} />
         </div>
       </section>
 
@@ -3521,19 +3521,19 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
             <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-muted-foreground/70 mb-5 flex items-center gap-2">
               <span aria-hidden className="inline-block h-px w-6 bg-foreground/25" />
               <span className="font-mono text-[10px] text-foreground/45">§ 01</span>
-              {isJa ? "こんな先生に" : "Built for"}
+              {isJa ? "こんな先生に" : "Built for teachers"}
             </p>
             <h2 className="text-[clamp(1.7rem,4vw,2.6rem)] font-bold tracking-tight mb-5 leading-[1.25]">
               {isJa ? (
                 <>毎週、生徒ごとに <span className="italic font-serif font-semibold text-foreground/85">プリントを手作り</span> する先生へ。</>
               ) : (
-                <>For tutors who <span className="italic font-serif font-semibold text-foreground/85">hand-craft</span> a worksheet every week.</>
+                <>Save <span className="italic font-serif font-semibold text-foreground/85">hours</span> of weekly worksheet prep.</>
               )}
             </h2>
             <p className="text-muted-foreground text-[15px] max-w-xl leading-relaxed">
               {isJa
                 ? "生徒に合わせた教材を毎週手作りしていませんか？ Eddivom なら、過去問の再利用も類題の量産も数分で完了します。"
-                : "Tired of spending hours building custom problem sets for each student? Eddivom turns that into minutes."}
+                : "Spend less time formatting weekly quizzes and homework — and more time teaching. Build, edit, and print without rewriting LaTeX."}
             </p>
           </div>
 
@@ -3542,27 +3542,27 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <PersonaCard
               icon={<GraduationCap className="h-6 w-6" strokeWidth={1.4} />}
-              title={isJa ? "個人塾・家庭教師" : "Tutors & Private Instructors"}
+              title={isJa ? "個人塾・家庭教師" : "High-school teachers"}
               bullets={[
-                isJa ? "生徒ごとに違うプリントを毎週作る" : "Custom problem sets for each student, weekly",
-                isJa ? "過去のプリントを数値だけ変えて再利用" : "Reuse past worksheets with different numbers",
-                isJa ? "「あと5問」で類題を一瞬で追加" : "\"5 more like this\" generates variants instantly",
-                isJa ? "解答付きPDFで採点・保護者説明も楽" : "Answer-key PDFs make grading and parent reports easy",
+                isJa ? "生徒ごとに違うプリントを毎週作る" : "A different weekly quiz for each class",
+                isJa ? "過去のプリントを数値だけ変えて再利用" : "Reuse last week's worksheet — just swap the numbers",
+                isJa ? "「あと5問」で類題を一瞬で追加" : "\"5 more like this\" — variants in one click",
+                isJa ? "解答付きPDFで採点・保護者説明も楽" : "Answer-key PDFs make Monday grading easy",
               ]}
             />
             <PersonaCard
               icon={<Users className="h-6 w-6" strokeWidth={1.4} />}
-              title={isJa ? "学校の教科担当" : "Math & STEM Teachers"}
+              title={isJa ? "学校の教科担当" : "Math & physics tutors"}
               desc={isJa
                 ? "小テスト・定期テストを効率よく作成。解答付きPDFで採点まで一気通貫。"
-                : "Create quizzes and assessments efficiently. Answer-key PDFs make grading painless."}
+                : "Build per-student homework with answer keys. Make grading and parent reports painless."}
             />
             <PersonaCard
               icon={<BookOpen className="h-6 w-6" strokeWidth={1.4} />}
-              title={isJa ? "教材制作・販売" : "Worksheet Creators & Sellers"}
+              title={isJa ? "教材制作・販売" : "Cram-school instructors"}
               desc={isJa
                 ? "問題集やドリルを作って配布・販売。印刷品質のPDFを大量に書き出せます。"
-                : "Build and sell problem sets. Export print-ready PDFs at scale."}
+                : "Print-ready problem sets, every week, without rebuilding from scratch."}
             />
           </div>
         </div>
@@ -3581,10 +3581,10 @@ export function TemplateGallery({ initialIsMobile = false }: { initialIsMobile?:
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-foreground/[0.06]">
             {[
-              { display: isJa ? "30–60s" : "30–60s", label: isJa ? "1枚を AI が組み上げる目安時間" : "to draft a full worksheet" },
-              { display: isJa ? "1 クリック" : "1 click", label: isJa ? "「あと5問」で類題を量産" : "to spin up variants" },
-              { display: "A4 / B5", label: isJa ? "印刷品質の PDF を出力" : "print-ready PDF formats" },
-              { display: isJa ? "ブラウザ完結" : "Browser-only", label: isJa ? "インストール不要・登録なしで開始" : "no install, no signup" },
+              { display: isJa ? "30–60s" : "5 min", label: isJa ? "1枚を AI が組み上げる目安時間" : "from idea to a printable quiz" },
+              { display: isJa ? "1 クリック" : "1 click", label: isJa ? "「あと5問」で類題を量産" : "for the next student's variant" },
+              { display: "A4 / B5", label: isJa ? "印刷品質の PDF を出力" : "ready for the classroom printer" },
+              { display: isJa ? "ブラウザ完結" : "In browser", label: isJa ? "インストール不要・登録なしで開始" : "no install, no signup" },
             ].map((s, i) => (
               <div key={s.label} className={`px-4 ${i === 0 ? "pt-0 md:pl-0" : "pt-8 md:pt-0 md:pl-8"} ${i < 3 ? "pb-8 md:pb-0 md:pr-8" : ""}`}>
                 <p className="text-[clamp(1.6rem,3.4vw,2.4rem)] font-semibold tracking-tight text-foreground leading-[1.1] mb-3">

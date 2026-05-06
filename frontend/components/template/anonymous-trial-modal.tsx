@@ -60,9 +60,9 @@ const SAMPLE_TOPICS_JA = [
   "高2・指数対数の方程式を6問、解答付き",
 ];
 const SAMPLE_TOPICS_EN = [
-  "Algebra 1 — quadratic equations, 5 problems with answers",
-  "Geometry — Pythagorean theorem word problems, 4 items",
-  "Pre-calc — logarithmic equations, 6 items with solutions",
+  "Algebra II weekly quiz · 10 items · answer key",
+  "Geometry homework · Pythagorean theorem · 8 problems",
+  "Physics review · kinematics · printable PDF",
 ];
 
 export function AnonymousTrialModal({
@@ -160,7 +160,7 @@ export function AnonymousTrialModal({
           <Sparkles className="h-4 w-4 text-violet-500" />
           {showLimitReached
             ? (isJa ? "プランを選んで続ける" : "Pick a plan to continue")
-            : (isJa ? "ログインなしで試す" : "Try without signing in")}
+            : (isJa ? "ログインなしで試す" : "Build one quiz — no signup")}
         </DialogTitle>
 
         {phase === "input" && !showLimitReached && (
@@ -168,7 +168,7 @@ export function AnonymousTrialModal({
             <p className="text-[13px] text-muted-foreground leading-relaxed">
               {isJa
                 ? "作りたい教材を一行で書くと、AI が LaTeX 組版の PDF を 1 枚作ります。登録なしで 1 回だけ試せます。"
-                : "Describe what you want — AI generates one beautifully typeset LaTeX PDF. One try, no signup."}
+                : "Describe a quiz, homework sheet, or weekly review in one line — get a printable PDF in minutes. One try, no signup."}
             </p>
 
             <Textarea
@@ -176,7 +176,7 @@ export function AnonymousTrialModal({
               onChange={(e) => setTopic(e.target.value)}
               placeholder={isJa
                 ? "例: 高1・二次関数の最大最小を4問、難易度ふつう、解答付き"
-                : "e.g. Algebra 1 — solving linear equations, 5 problems with answers"}
+                : "e.g. Algebra II weekly quiz — 10 items, answer key included"}
               className="min-h-[88px] text-[14px]"
               maxLength={200}
               autoFocus
@@ -204,11 +204,11 @@ export function AnonymousTrialModal({
 
             <div className="flex items-center justify-between gap-3 pt-1">
               <p className="text-[11px] text-muted-foreground/80">
-                {isJa ? "登録なし · 30〜60秒で1枚" : "No signup · 30–60s per sheet"}
+                {isJa ? "登録なし · 30〜60秒で1枚" : "No signup · ready in minutes"}
               </p>
               <Button onClick={handleSubmit} className="gap-2">
                 <Sparkles className="h-3.5 w-3.5" />
-                {isJa ? "無料で1枚作ってみる" : "Generate one for free"}
+                {isJa ? "無料で1枚作ってみる" : "Build my quiz — free"}
               </Button>
             </div>
           </div>
@@ -218,10 +218,10 @@ export function AnonymousTrialModal({
           <div className="flex flex-col items-center justify-center gap-3 py-10">
             <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
             <p className="text-[13px] font-medium">
-              {isJa ? "AI が問題を考えています…" : "AI is composing your worksheet…"}
+              {isJa ? "AI が問題を考えています…" : "Building your worksheet…"}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {isJa ? "通常 30〜60 秒ほどかかります" : "Usually takes 30–60 seconds"}
+              {isJa ? "通常 30〜60 秒ほどかかります" : "Typically ready in 30–60 seconds"}
             </p>
           </div>
         )}
@@ -242,12 +242,12 @@ export function AnonymousTrialModal({
                 <p className="text-[12.5px] font-semibold mb-0.5">
                   {isJa
                     ? "このプリントを保存する"
-                    : "Save this worksheet for free"}
+                    : "Save this for next week's class"}
                 </p>
                 <p className="text-[11.5px] text-muted-foreground">
                   {isJa
                     ? "無料アカウントで保存・再編集・再ダウンロードできます。"
-                    : "Create a free account to save, edit, and download it again later."}
+                    : "Create a free account to save, re-edit, and re-download — anytime."}
                 </p>
               </div>
             </div>
@@ -257,7 +257,7 @@ export function AnonymousTrialModal({
                 {isJa ? "閉じる" : "Close"}
               </Button>
               <Button onClick={onLoginRequested} className="gap-2">
-                {isJa ? "このプリントを保存する" : "Save this worksheet for free"}
+                {isJa ? "このプリントを保存する" : "Save this worksheet (free)"}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -311,9 +311,10 @@ function LimitReachedPlanPicker({
 
   // Starter Hero に出す特徴 3 行 — 「毎日 1〜数枚作りたい」典型ユーザに刺さる文言。
   // 月 150 回 ≒ 1 日 5 回ペースで「無理なく毎日」が成立することを訴求。
+  // EN は教師の作業を主語にして「毎週の小テストを楽に」を伝える。
   const starterFeatures = isJa
     ? ["高性能AI 月150回 (1日5回ペースで毎日使える)", "教材PDF 出力 無制限", "テンプレート・数式・図形すべて利用可"]
-    : ["Premium AI 150/mo (~5/day, every day)", "Unlimited PDF export", "All templates, math & figures included"];
+    : ["Build ~5 quizzes a day, every day (150/mo)", "Unlimited printable & answer-key PDFs", "All templates, math & diagrams included"];
 
   return (
     <div className="flex flex-col gap-4">
@@ -322,12 +323,12 @@ function LimitReachedPlanPicker({
         <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-[3px] shrink-0" />
         <div className="min-w-0">
           <p className="text-[13px] font-bold tracking-tight leading-snug">
-            {isJa ? "無料お試しはこのブラウザで使い切りました" : "You've used your free trial on this browser"}
+            {isJa ? "無料お試しはこのブラウザで使い切りました" : "Your free quiz on this browser is used up"}
           </p>
           <p className="text-[11.5px] text-muted-foreground leading-relaxed mt-0.5">
             {isJa
               ? "プランを選ぶと、Google サインインからそのまま続きが使えます。"
-              : "Pick a plan to sign up with Google and continue right away."}
+              : "Pick a plan, sign in with Google, and keep building quizzes for next week."}
           </p>
         </div>
       </div>
@@ -357,7 +358,7 @@ function LimitReachedPlanPicker({
               <div className="flex items-baseline gap-2 mb-2">
                 <span className="text-[24px] font-bold tracking-tight leading-none">{starterName}</span>
                 <span className="text-[10.5px] text-background/55">
-                  {isJa ? "毎日無理なく使えるプラン" : "Comfortable daily-use plan"}
+                  {isJa ? "毎日無理なく使えるプラン" : "Made for the weekly-quiz routine"}
                 </span>
               </div>
               <div className="flex items-baseline gap-1.5">
@@ -366,7 +367,7 @@ function LimitReachedPlanPicker({
               </div>
               {/* 価格訴求 — Pro との差を明示せず、無料との対比で「ハードル低」を強調 */}
               <p className="text-[11px] text-background/60 mt-1.5">
-                {isJa ? "1日あたり約 ¥66 ・ いつでも解約 OK" : "About ¥66/day · cancel anytime"}
+                {isJa ? "1日あたり約 ¥66 ・ いつでも解約 OK" : "About ¥66/day · cancel anytime — no contract"}
               </p>
             </div>
           </div>
@@ -420,7 +421,7 @@ function LimitReachedPlanPicker({
             <span className="text-[10.5px] text-muted-foreground/65">{isJa ? "/ 月" : "/ mo"}</span>
           </div>
           <p className="text-[11.5px] text-muted-foreground/80 leading-snug mb-3">
-            {isJa ? "毎日大量に作るなら · 月500回 (40/日) + 採点・OCR" : "Heavy use · 500/mo (40/day) + grading & OCR"}
+            {isJa ? "毎日大量に作るなら · 月500回 (40/日) + 採点・OCR" : "For heavy weekly use · 500 quizzes/mo + grading & OCR"}
           </p>
           <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground/85 group-hover:text-foreground transition">
             {isJa ? `${proName} で続ける` : `Continue with ${proName}`}
@@ -452,7 +453,7 @@ function LimitReachedPlanPicker({
           <p className="text-[11.5px] text-muted-foreground/80 leading-snug mb-3">
             {isJa
               ? "高性能AI 月3回・PDF 月1回。気に入ったら後でアップグレード。"
-              : "Premium AI 3/mo, 1 PDF/mo. Upgrade later when you're ready."}
+              : "3 quizzes & 1 PDF per month. Upgrade whenever you're ready."}
           </p>
 
           <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground/80 group-hover:text-foreground transition">
